@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import './App.css';
 import FloatingWindowLayout from './layouts/FloatingWindowLayout';
 import TopButtons from './components/TopButtons';
 import ItemFormAndCrawl from './components/ItemFormAndCrawl';

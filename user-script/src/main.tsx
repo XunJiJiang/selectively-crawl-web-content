@@ -1,6 +1,5 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import './index.css';
 import App from './App.tsx';
 
 // 动态创建悬浮窗挂载点，避免阻挡原网页内容
