@@ -71,12 +71,12 @@ function App() {
       return;
     }
     const result: { label: string; value: string }[] = [];
-    const failed: number[] = [];
+    const failed: string[] = [];
     for (let i = 0; i < items.length; ++i) {
       const { selector, label, prefix = '' } = items[i];
       const el = getElementBySelector(selector);
       if (!el) {
-        failed.push(i);
+        failed.push(selector);
         continue;
       }
       // 收集所有片段
