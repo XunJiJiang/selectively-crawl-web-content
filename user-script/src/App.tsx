@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import FloatingWindowLayout from './layouts/FloatingWindowLayout';
+import FloatingWindow from './layouts/FloatingWindow';
 import TopButtons from './components/TopButtons';
 import ItemFormAndCrawl from './components/ItemFormAndCrawl';
 import { saveToStorage, loadFromStorage } from './hooks/useFloatingWindow';
@@ -67,7 +67,7 @@ function App() {
   // 统一抓取处理函数
   const handleCrawl = async () => {
     if (!items.length) {
-      scwcWarn('表单为空，未发送抓取请求');
+      scwcWarn('表单为空，将不会发送抓取请求');
       return;
     }
     const result: { label: string; value: string }[] = [];
@@ -108,7 +108,7 @@ function App() {
   };
 
   return (
-    <FloatingWindowLayout expanded={expanded}>
+    <FloatingWindow expanded={expanded}>
       <TopButtons
         expanded={expanded}
         canSelect={!selecting && (!expanded || (expanded && !selectedEl))}
@@ -125,6 +125,7 @@ function App() {
           setExpanded(false);
           setSelectedEl(null);
           setDescInput('');
+          setPrefixInput('');
           setUndoStack([]);
         }}
         onParent={() => {
@@ -155,11 +156,13 @@ function App() {
           ]);
           setSelectedEl(null);
           setDescInput('');
+          setPrefixInput('');
           setUndoStack([]);
         }}
         onCancel={() => {
           setSelectedEl(null);
           setDescInput('');
+          setPrefixInput('');
           setUndoStack([]);
         }}
         onExpand={() => setExpanded(true)}
@@ -204,7 +207,7 @@ function App() {
         onPrefixInputChange={e => setPrefixInput(e.target.value)}
         onCrawl={handleCrawl}
       />
-    </FloatingWindowLayout>
+    </FloatingWindow>
   );
 }
 

@@ -54,7 +54,7 @@ const ItemFormAndCrawl: React.FC<ItemFormAndCrawlProps> = ({
           alignItems: 'center',
         }}
       >
-        <label htmlFor="scw-desc-input" style={{ fontSize: 13, color: '#ccc', marginRight: 8 }}>
+        <label htmlFor="scw-desc-input" style={{ width: 35, fontSize: 13, color: '#ccc', marginRight: 8 }}>
           描述：
         </label>
         <input
@@ -75,7 +75,7 @@ const ItemFormAndCrawl: React.FC<ItemFormAndCrawlProps> = ({
           onChange={onDescInputChange}
           placeholder="如作者、标签、<null>"
         />
-        <label htmlFor="scw-prefix-input" style={{ fontSize: 13, color: '#ccc', margin: '0 8px' }}>
+        <label htmlFor="scw-prefix-input" style={{ width: 35, fontSize: 13, color: '#ccc', margin: '0 8px' }}>
           前缀：
         </label>
         <input
@@ -257,8 +257,15 @@ const ItemFormAndCrawl: React.FC<ItemFormAndCrawlProps> = ({
             </div>
           ))
         ) : (
-          <div style={{ padding: 8, textAlign: 'center', color: '#888' }}>
-            <span style={{ color: '#888', padding: 8, display: 'block', textAlign: 'center' }}>
+          <div
+            style={{
+              textAlign: 'center',
+              color: '#888',
+              fontSize: 10,
+              height: 33,
+            }}
+          >
+            <span style={{ color: '#888', display: 'block', textAlign: 'center', lineHeight: '33px' }}>
               暂无抓取项，添加后可在此处编辑
             </span>
           </div>
