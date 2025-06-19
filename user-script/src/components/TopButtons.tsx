@@ -7,7 +7,7 @@ interface TopButtonsProps {
   canParent: boolean;
   canUndo: boolean;
   canConfirm: boolean;
-  canCancel: boolean; // 新增
+  canCancel: boolean;
   itemsLength: number;
   selecting?: boolean;
   onSelect: () => void;
@@ -16,8 +16,9 @@ interface TopButtonsProps {
   onParent: () => void;
   onUndo: () => void;
   onConfirm: () => void;
-  onCancel: () => void; // 新增
+  onCancel: () => void;
   onExpand: () => void;
+  onCrawl: () => void;
 }
 
 const TopButtons: React.FC<TopButtonsProps> = ({
@@ -38,6 +39,7 @@ const TopButtons: React.FC<TopButtonsProps> = ({
   onConfirm,
   onCancel,
   onExpand,
+  onCrawl,
 }) => (
   <div
     style={{
@@ -46,13 +48,13 @@ const TopButtons: React.FC<TopButtonsProps> = ({
       borderBottom: expanded ? '1px solid #eee' : 'none',
       background: 'transparent',
       padding: !expanded ? '0 4px' : 0,
-      width: !expanded ? 100 : undefined,
+      width: !expanded ? 142 : undefined,
       height: !expanded ? 32 : undefined,
       flexWrap: 'nowrap',
     }}
   >
     {!expanded ? (
-      // 缩小时只显示“选择”和“展开”两个按钮，均分宽度
+      // 缩小时显示“选择”、“抓取”、“展开”三个按钮，均分宽度
       <>
         <button
           className="scw-drag-ignore"
@@ -76,13 +78,42 @@ const TopButtons: React.FC<TopButtonsProps> = ({
             transition: 'background 0.2s',
             borderRadius: 4,
           }}
-          disabled={!canSelect}
-          onClick={onSelect}
-          title="选择元素"
+          disabled={!canSelect && !selecting}
+          onClick={selecting ? onStopSelect : onSelect}
+          title={selecting ? '取消选择' : '选择元素'}
           onMouseOver={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.18)')}
           onMouseOut={e => (e.currentTarget.style.background = 'transparent')}
         >
-          选择
+          {selecting ? '取消' : '选择'}
+        </button>
+        <button
+          className="scw-drag-ignore"
+          style={{
+            flex: 1,
+            minWidth: 0,
+            height: 24,
+            fontSize: 11,
+            margin: '0 2px',
+            padding: '4px 0',
+            textAlign: 'center',
+            whiteSpace: 'nowrap',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'transparent',
+            color: '#ccc',
+            border: 'none',
+            outline: 'none',
+            boxShadow: 'none',
+            transition: 'background 0.2s',
+            borderRadius: 4,
+          }}
+          onClick={onCrawl}
+          title="想服务器发送抓取的内容"
+          onMouseOver={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.18)')}
+          onMouseOut={e => (e.currentTarget.style.background = 'transparent')}
+        >
+          抓取
         </button>
         <button
           className="scw-drag-ignore"
@@ -107,7 +138,7 @@ const TopButtons: React.FC<TopButtonsProps> = ({
             borderRadius: 4,
           }}
           onClick={onExpand}
-          title="展开"
+          title="展开窗口"
           onMouseOver={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.18)')}
           onMouseOut={e => (e.currentTarget.style.background = 'transparent')}
         >
@@ -139,11 +170,11 @@ const TopButtons: React.FC<TopButtonsProps> = ({
               borderRadius: 4,
             }}
             onClick={onStopSelect}
-            title="停止选择"
+            title="取消选择"
             onMouseOver={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.18)')}
             onMouseOut={e => (e.currentTarget.style.background = 'transparent')}
           >
-            停止选择
+            取消选择
           </button>
         ) : (
           <button
@@ -197,7 +228,7 @@ const TopButtons: React.FC<TopButtonsProps> = ({
           }}
           disabled={!canCollapse}
           onClick={onCollapse}
-          title="折叠"
+          title="折叠窗口"
           onMouseOver={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.18)')}
           onMouseOut={e => (e.currentTarget.style.background = 'transparent')}
         >
@@ -309,11 +340,11 @@ const TopButtons: React.FC<TopButtonsProps> = ({
           }}
           disabled={!canCancel}
           onClick={onCancel}
-          title="取消"
+          title="放弃选择的元素"
           onMouseOver={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.18)')}
           onMouseOut={e => (e.currentTarget.style.background = 'transparent')}
         >
-          取消
+          放弃
         </button>
       </>
     )}

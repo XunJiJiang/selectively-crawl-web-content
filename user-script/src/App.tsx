@@ -5,6 +5,7 @@ import ItemFormAndCrawl from './components/ItemFormAndCrawl';
 import { saveToStorage, loadFromStorage } from './hooks/useFloatingWindow';
 import { useElementSelect } from './hooks/useElementSelect';
 import { getSelector, getElementBySelector, highlightElement, isExcludedElement } from './hooks/useCrawlLogic';
+import { scwcLog, scwcWarn, scwcError } from './utils/console';
 
 // Item类型加prefix
 export interface Item {
@@ -22,15 +23,15 @@ function App() {
   // undoStack 结构：从初始选中到当前选中，依次为 selector
   const [undoStack, setUndoStack] = useState<string[]>([]);
   const [descInput, setDescInput] = useState('');
+  const [prefixInput, setPrefixInput] = useState('');
   // 选中元素hover
   const hoverEl = useElementSelect(selecting, selectedEl && !selecting ? selectedEl : undefined);
 
-  // 选择元素时自动折叠，取消选择恢复（修正：只在 selecting=true 时折叠，选中后不自动恢复）
+  // 在 selecting=true 时折叠，选中后不自动恢复
   useEffect(() => {
     if (selecting) {
       setExpanded(false);
     }
-    // 不再自动 setExpanded(prevExpanded)
   }, [selecting]);
 
   // 选择元素逻辑
@@ -62,6 +63,49 @@ function App() {
   useEffect(() => {
     saveToStorage(items);
   }, [items]);
+
+  // 统一抓取处理函数
+  const handleCrawl = async () => {
+    if (!items.length) {
+      scwcWarn('表单为空，未发送抓取请求');
+      return;
+    }
+    const result: { label: string; value: string }[] = [];
+    const failed: number[] = [];
+    for (let i = 0; i < items.length; ++i) {
+      const { selector, label, prefix = '' } = items[i];
+      const el = getElementBySelector(selector);
+      if (!el) {
+        failed.push(i);
+        continue;
+      }
+      // 收集所有片段
+      const fragments: string[] = [];
+      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null);
+      let node;
+      while ((node = walker.nextNode())) {
+        const text = node.textContent?.trim();
+        if (text) fragments.push(prefix + text);
+      }
+      const value = fragments.join(' ').trim();
+      result.push({ label, value });
+    }
+    if (failed.length) {
+      scwcLog('未获取到的元素索引:', failed);
+      return;
+    }
+    try {
+      const port = (import.meta.env.PORT || '3100').replace(/[^\d]/g, '') || '3100';
+      await fetch(`http://localhost:${port}/save`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(result),
+      });
+      scwcLog('抓取:', '抓取并上传成功');
+    } catch (e) {
+      scwcError('抓取:', '上传失败', e);
+    }
+  };
 
   return (
     <FloatingWindowLayout expanded={expanded}>
@@ -105,7 +149,10 @@ function App() {
         }}
         onConfirm={() => {
           if (!selectedEl) return;
-          setItems([...items, { selector: getSelector(selectedEl), label: descInput || '<null>', prefix: '' }]);
+          setItems([
+            ...items,
+            { selector: getSelector(selectedEl), label: descInput || '<null>', prefix: prefixInput },
+          ]);
           setSelectedEl(null);
           setDescInput('');
           setUndoStack([]);
@@ -116,6 +163,7 @@ function App() {
           setUndoStack([]);
         }}
         onExpand={() => setExpanded(true)}
+        onCrawl={handleCrawl}
       />
       <ItemFormAndCrawl
         expanded={expanded}
@@ -124,14 +172,16 @@ function App() {
         selectedEl={selectedEl}
         descInput={descInput}
         setDescInput={setDescInput}
+        prefixInput={prefixInput}
+        setPrefixInput={setPrefixInput}
         onItemHover={selector => {
-          // 修正：有选中项时禁止高亮其它项
+          // 有选中项时禁止高亮其它项
           if (selectedEl) return;
           const el = getElementBySelector(selector);
           if (el) {
             highlightElement(el);
           } else {
-            console.warn('元素不存在', selector);
+            scwcWarn('元素不存在', selector);
           }
         }}
         onDelete={idx => {
@@ -151,43 +201,8 @@ function App() {
           setItems(newItems);
         }}
         onDescInputChange={e => setDescInput(e.target.value)}
-        onCrawl={async () => {
-          const result: { label: string; value: string }[] = [];
-          const failed: number[] = [];
-          for (let i = 0; i < items.length; ++i) {
-            const { selector, label, prefix = '' } = items[i];
-            const el = getElementBySelector(selector);
-            if (!el) {
-              failed.push(i);
-              continue;
-            }
-            // 收集所有片段
-            const fragments: string[] = [];
-            const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null);
-            let node;
-            while ((node = walker.nextNode())) {
-              const text = node.textContent?.trim();
-              if (text) fragments.push(prefix + text);
-            }
-            const value = fragments.join(' ').trim();
-            result.push({ label, value });
-          }
-          if (failed.length) {
-            console.log('未获取到的元素索引:', failed);
-            return;
-          }
-          try {
-            const port = (import.meta.env.PORT || '3100').replace(/[^\d]/g, '') || '3100';
-            await fetch(`http://localhost:${port}/save`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(result),
-            });
-            console.log('抓取:', '抓取并上传成功');
-          } catch (e) {
-            console.error('抓取:', '上传失败', e);
-          }
-        }}
+        onPrefixInputChange={e => setPrefixInput(e.target.value)}
+        onCrawl={handleCrawl}
       />
     </FloatingWindowLayout>
   );

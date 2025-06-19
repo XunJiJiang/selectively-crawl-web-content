@@ -58,7 +58,7 @@ const FloatingWindowLayout: React.FC<FloatingWindowLayoutProps> = ({
     // 计算悬浮窗宽高
     const winW = window.innerWidth;
     const winH = window.innerHeight;
-    const width = expanded ? 320 : 108; // minWidth
+    const width = expanded ? 320 : 150; // minWidth
     const height = expanded ? 180 : 56; // minHeight
     const maxWidth = 420;
     const maxHeight = expanded ? winH * 0.7 : 56;
@@ -67,7 +67,7 @@ const FloatingWindowLayout: React.FC<FloatingWindowLayoutProps> = ({
     let y = e.clientY - offset.current.y;
     // 限制范围：全部在窗口内
     // 取实际宽高（max/min）
-    let w = expanded ? Math.min(maxWidth, Math.max(width, 320)) : 108;
+    let w = expanded ? Math.min(maxWidth, Math.max(width, 320)) : 150;
     let h = expanded ? Math.min(maxHeight, Math.max(height, 180)) : 56;
     if (typeof w === 'string') w = parseInt(w);
     if (typeof h === 'string') h = parseInt(h);
@@ -90,13 +90,13 @@ const FloatingWindowLayout: React.FC<FloatingWindowLayoutProps> = ({
         left: pos.x,
         top: pos.y,
         zIndex: 2147483647,
-        minWidth: expanded ? 320 : 108,
+        minWidth: expanded ? 320 : 150,
         minHeight: expanded ? 124 : 56,
         maxWidth: 420,
         maxHeight: expanded ? 210 : 56,
-        width: expanded ? 320 : 108,
+        width: expanded ? 320 : 150,
         height: expanded ? 'auto' : 56,
-        background: '#23272e', // 深灰色
+        background: '#23272e',
         border: '1px solid #222',
         borderRadius: 4,
         boxShadow: '0 2px 12px rgba(0,0,0,0.12)',
@@ -112,14 +112,14 @@ const FloatingWindowLayout: React.FC<FloatingWindowLayoutProps> = ({
           width: '100%',
           height: 24,
           cursor: 'move',
-          background: '#181a20', // 深灰色
+          background: '#181a20',
           borderTopLeftRadius: 8,
           borderTopRightRadius: 8,
           display: 'flex',
           alignItems: 'center',
           paddingLeft: 8,
           fontSize: 12,
-          color: '#ccc', // 浅灰色
+          color: '#ccc',
           userSelect: 'none',
         }}
         onMouseDown={onDragBarMouseDown}
