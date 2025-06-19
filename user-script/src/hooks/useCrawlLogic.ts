@@ -30,7 +30,7 @@ export function getElementBySelector(selector: string): Element | null {
   }
 }
 
-// 高亮元素，立即显示和消失，无过渡，不滚动页面
+// 高亮元素
 export function highlightElement(el: Element | null) {
   clearHighlightForSelecting();
   if (!el) return;
@@ -43,9 +43,9 @@ export function highlightElement(el: Element | null) {
     top: rect.top + 'px',
     width: rect.width + 'px',
     height: rect.height + 'px',
-    background: 'rgba(255,200,0,0.25)',
-    border: '2px solid orange',
-    zIndex: 2147483646, // 比悬浮窗略低
+    background: 'rgba(125, 203, 255, 0.47)',
+    border: 'none',
+    zIndex: 2147483646,
     pointerEvents: 'none',
   });
   document.body.appendChild(mask);
@@ -66,9 +66,9 @@ export function highlightElementForSelecting(el: Element | null) {
     top: rect.top + 'px',
     width: rect.width + 'px',
     height: rect.height + 'px',
-    background: 'rgba(255,200,0,0.25)',
-    border: '2px solid orange',
-    zIndex: 2147483646, // 比悬浮窗略低
+    background: 'rgba(125, 203, 255, 0.47)',
+    border: 'none',
+    zIndex: 2147483646,
     pointerEvents: 'none',
   });
   document.body.appendChild(mask);

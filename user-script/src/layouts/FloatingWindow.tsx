@@ -176,6 +176,7 @@ const FloatingWindow: React.FC<FloatingWindowProps> = ({ expanded, onPosChange, 
             top: 3,
             right: 3,
             cursor: 'pointer',
+            overflow: 'hidden',
           }}
           onClick={() => setMinimized(true)}
         >
