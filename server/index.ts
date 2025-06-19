@@ -41,7 +41,7 @@ function loadPlugins() {
   for (const dir of dirs) {
     const pkgPath = path.join(PLUGIN_DIR, dir, 'package.json');
     if (!fs.existsSync(pkgPath)) continue;
-    const log = createLogger(`[plugin:${dir}]`, path.relative(process.cwd(), path.join(PLUGIN_DIR, dir)));
+    const log = createLogger(`plugin:${dir}`, path.relative(process.cwd(), path.join(PLUGIN_DIR, dir)));
     let pkg: any;
     let name: string;
     try {
@@ -85,10 +85,11 @@ function loadPlugins() {
       linkWith,
       handler: mod,
     });
+    createLogger(`plugin:${name}`, path.relative(process.cwd(), path.join(PLUGIN_DIR, dir))).info(`加载插件 ${name}`);
   }
 }
 
-const log = createLogger('[plugin]', path.relative(process.cwd(), __dirname));
+const log = createLogger('plugin', path.relative(process.cwd(), __dirname));
 
 // 基础写入json文件的函数
 function writeJsonArrayFile(filePath: string, data: any): boolean {
