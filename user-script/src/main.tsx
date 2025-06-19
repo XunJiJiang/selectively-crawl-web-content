@@ -8,6 +8,11 @@ let mount = document.getElementById(FLOATING_ID);
 if (!mount) {
   mount = document.createElement('div');
   mount.id = FLOATING_ID;
+  mount.style.cssText = `
+    z-index: 2147483647;
+    font-weight: 400;
+    font-size: 11px;
+  `;
   document.body.appendChild(mount);
 }
 

@@ -49,6 +49,7 @@ const FloatingMinimize: React.FC<{
     <div
       title="SCWC 数据选择爬取 (点击展开)"
       style={{
+        zIndex: 2147483647,
         position: 'fixed',
         top: pos.y,
         left: -16,

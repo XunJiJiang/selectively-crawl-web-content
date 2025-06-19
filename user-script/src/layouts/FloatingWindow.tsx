@@ -129,21 +129,17 @@ const FloatingWindow: React.FC<FloatingWindowProps> = ({ expanded, onPosChange, 
     <FloatingMinimize setMaximized={() => setMinimized(false)} pos={pos} setPos={setPos}></FloatingMinimize>
   ) : (
     <div
-      id="selective-crawl-floating-root"
+      id="selective-crawl-floating-content"
       className="scw-floating-window"
       style={{
         position: 'fixed',
         left: pos.x,
         top: pos.y,
         zIndex: 2147483647,
-        minWidth: expanded ? 320 : 150,
-        minHeight: expanded ? 124 : 56,
-        maxWidth: 420,
-        maxHeight: expanded ? 210 : 56,
         width: expanded ? 320 : 150,
         height: expanded ? 'auto' : 56,
         background: '#23272e',
-        border: '1px solid #222',
+        border: '1px solid #eee6',
         borderRadius: 4,
         boxShadow: '0 0 12px rgba(0,0,0,0.12)',
         padding: 0,
@@ -183,7 +179,12 @@ const FloatingWindow: React.FC<FloatingWindowProps> = ({ expanded, onPosChange, 
           }}
           onClick={() => setMinimized(true)}
         >
-          <svg>
+          <svg
+            style={{
+              width: '100%',
+              height: '100%',
+            }}
+          >
             <rect x="4.5" y="7" width="8" height="0.9" rx="0.35" fill="#888" />
           </svg>
         </div>

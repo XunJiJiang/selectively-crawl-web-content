@@ -3,7 +3,7 @@
   "module": "./server/index.ts",
   "description": "A web extension for selectively crawling web content.",
   "type": "module",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "author": "XunJi & XunJiJiang",
   "repository": {
     "type": "git",
@@ -35,6 +35,7 @@
   },
   "dependencies": {
     "@types/express": "^5.0.3",
+    "chalk": "^5.4.1",
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
     "react": "^19.1.0",

@@ -45,7 +45,7 @@ const TopButtons: React.FC<TopButtonsProps> = ({
     style={{
       display: 'flex',
       alignItems: 'center',
-      borderBottom: expanded ? '1px solid #eee' : 'none',
+      borderBottom: expanded ? '1px solid #eee6' : 'none',
       background: 'transparent',
       padding: !expanded ? '0 4px' : 0,
       width: !expanded ? 142 : undefined,
@@ -93,35 +93,6 @@ const TopButtons: React.FC<TopButtonsProps> = ({
             minWidth: 0,
             height: 24,
             fontSize: 11,
-            margin: '0 2px',
-            padding: '4px 0',
-            textAlign: 'center',
-            whiteSpace: 'nowrap',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: 'transparent',
-            color: '#ccc',
-            border: 'none',
-            outline: 'none',
-            boxShadow: 'none',
-            transition: 'background 0.2s',
-            borderRadius: 4,
-          }}
-          onClick={onCrawl}
-          title="想服务器发送抓取的内容"
-          onMouseOver={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.18)')}
-          onMouseOut={e => (e.currentTarget.style.background = 'transparent')}
-        >
-          抓取
-        </button>
-        <button
-          className="scw-drag-ignore"
-          style={{
-            flex: 1,
-            minWidth: 0,
-            height: 24,
-            fontSize: 11,
             marginLeft: 2,
             padding: '4px 0',
             textAlign: 'center',
@@ -143,6 +114,35 @@ const TopButtons: React.FC<TopButtonsProps> = ({
           onMouseOut={e => (e.currentTarget.style.background = 'transparent')}
         >
           展开
+        </button>
+        <button
+          className="scw-drag-ignore"
+          style={{
+            flex: 1,
+            minWidth: 0,
+            height: 24,
+            fontSize: 11,
+            margin: '0 2px',
+            padding: '4px 0',
+            textAlign: 'center',
+            whiteSpace: 'nowrap',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'transparent',
+            color: '#ccc',
+            border: 'none',
+            outline: 'none',
+            boxShadow: 'none',
+            transition: 'background 0.2s',
+            borderRadius: 4,
+          }}
+          onClick={onCrawl}
+          title="想服务器发送抓取的内容"
+          onMouseOver={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.18)')}
+          onMouseOut={e => (e.currentTarget.style.background = 'transparent')}
+        >
+          抓取
         </button>
       </>
     ) : (

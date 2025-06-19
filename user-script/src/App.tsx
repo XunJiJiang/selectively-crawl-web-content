@@ -96,14 +96,22 @@ function App() {
     }
     try {
       const port = (import.meta.env.PORT || '3100').replace(/[^\d]/g, '') || '3100';
-      await fetch(`http://localhost:${port}/save`, {
+      const res = await fetch(`http://localhost:${port}/save`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(result),
+        body: JSON.stringify({
+          site: window.location.href,
+          data: result,
+        }),
       });
-      scwcLog('抓取:', '抓取并上传成功');
+      const data = await res.json();
+      if (data && data.success === false) {
+        scwcWarn('抓取失败', data.message);
+      } else {
+        scwcLog('抓取成功');
+      }
     } catch (e) {
-      scwcError('抓取:', '上传失败', e);
+      scwcError('抓取:', '上传失败', (e as Error).message ?? '', e);
     }
   };
 

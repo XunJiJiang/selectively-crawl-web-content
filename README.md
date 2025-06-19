@@ -1,50 +1,49 @@
 # selectively-crawl-web-content
 
-## 项目简介
+## 简介
 
-本项目用于“选择性抓取网页内容”，由前端油猴脚本（React/Vite/TypeScript）和 Node 服务端（Express）组成。支持在任意网页上通过悬浮窗选择、管理、抓取页面元素内容，并将结果上传到本地服务器保存为 JSON。
+用于“选择性抓取网页内容”，由前端油猴脚本（React/Vite/TypeScript）和 Node 服务端（Express）组成。支持在任意网页上通过悬浮窗选择、管理、抓取页面元素内容，并将结果上传到本地服务器。
 
 ---
 
-## 功能特性
+## 功能
 
 - 油猴脚本悬浮窗，支持拖动、收起、展开、位置记忆。
 - 元素选择与高亮。
 - 每项可设置“前缀”。
-- 抓取结果通过 POST 上传本地 Node 服务，服务端自动写入指定 JSON 文件（二维数组结构）。
-- UI 风格统一，深灰/浅灰，圆角，按钮/输入框/拖动手柄均美观易用。
-- 交互细节持续优化，支持撤回、父级切换、状态持久化。
+- 抓取结果通过 POST 上传本地 Node 服务。
+- 通过插件自定义指定网站的数据操作。
 
 ---
 
 ## 快速使用
 
+> [!NOTE]
+>
+> 建议使用支持直接运行 ts 的环境，例如 `bun`、`node v24+` 等，此时可以直接运行服务和 ts 插件
+>
+> 否则，必须手动编译为 js
+
 ### 1. 安装依赖
 
 ```bash
-npm i
-pnpm i
 bun i
 ```
 
 ### 2. 启动服务端
 
-1. 配置保存路径：编辑 `server/config/config.json`，设置 `save-in` 为目标 json 文件绝对路径。
-
-   > [!INFO]
-   > 如果文件不存在，则会自动创建。
-   >
-   > 如果文件存在，但根元素不是数组(包括空文件)，则不会写入。但浏览器控制台会认为已经传输到本地。
+1. 编写 [插件](#插件)
 
 2. 启动服务：
 
-   ```bash
-   npm start
-   pnpm run start
-   bun start
-   ```
+```bash
+bun start
+```
 
-   服务默认监听 <http://localhost:3100/save>
+> [!TIP]
+> 服务默认监听 <http://localhost:3100>
+>
+> 可通过配置 `.env` 中的 `PORT` 修改
 
 ### 3. 构建并安装油猴脚本
 
@@ -96,19 +95,101 @@ bun i
 每次点击“抓取”按钮，都会将当前表单区所有项作为一个数组整体追加到文件，形成二维数组结构。
 
 > [!WARNING]
+>
 > 注意，选择的元素会在向服务端发送请求时进行扁平化处理，并为每一段文本元素前都添加前置
 
 ---
 
-## 配置说明
+## 插件
 
-- 服务端保存路径：`server/config/config.json`，如：
+### 插件开发说明
 
-  ```json
-  { "save-in": "/Users/xxx/save-in-here.json" }
-  ```
+插件用于自定义不同网站的数据处理逻辑，需放置于 `server/plugins/` 目录下，支持 TypeScript/JavaScript。
 
-- 前端本地存储：表单项、窗口位置、展开状态均自动持久化。
+#### 1. 插件结构
+
+每个插件为一个独立的包目录，需包含 `package.json` 和主模块文件（如 `index.ts`）。
+
+**示例目录结构：**
+
+```tree
+server/plugins/
+  └── my-plugin/
+      ├── package.json
+      └── index.ts
+```
+
+#### 2. package.json
+
+```json
+{
+  "name": "<package name>?", // 此项可选
+  "module": "index.ts",
+  "link-with": ["<web path>"]
+}
+```
+
+```json
+{
+  "name": "my-plugin",
+  "module": "index.ts",
+  "link-with": ["https://example.com"]
+}
+```
+
+#### 3. 主模块导出
+
+> [!TIP]
+>
+> `data` 类型参考 [数据结构](#5. 保存的数据结构)
+
+`index.ts`
+
+```ts
+export default async function (
+  options: {
+    writeJson: (path: string, data: any) => boolean;
+    data?: any;
+    site: {
+      url: string;
+      rootUrl: string;
+      origin: string;
+      pathname: string;
+    };
+  },
+  log: {
+    info: (...args: any[]) => void;
+    warn: (...args: any[]) => void;
+    error: (...args: any[]) => void;
+  }
+): Promise<void> {
+  // 这里编写你的处理逻辑
+  log.info('插件已加载');
+  if (options.data) {
+    // 例如，将数据写入指定路径
+    options.writeJson('./data.json', options.data);
+    log.info('数据已写入');
+  }
+}
+```
+
+> [!TIP]
+>
+> `writeJson(path, data)` 是服务端提供的工具函数，用于将数据写入指定路径的 JSON 文件。
+>
+> - `path`：文件路径（绝对路径）。
+>
+> - `data`：要写入的 JS 对象或数组, 可以直接将 data 传入, 或经过某些处理后再传入。
+>
+> 如果文件不存在，则会自动创建。
+>
+> 如果文件存在，但根元素不是数组(包括空文件)，则不会写入。但浏览器控制台会认为已经传输到本地。
+>
+> 返回值为 `boolean`，表示写入是否成功。
+
+#### 4. 插件加载
+
+服务端启动时会自动扫描 `server/plugins/` 目录，加载所有插件。每个插件根据 `link-with` 字段指定的 URL 匹配规则，自动关联到对应网站。当网页端上传数据时，服务端会根据请求的 URL 匹配合适的插件并调用其主模块进行处理，无需手动引入或注册插件。
 
 ---
 
@@ -128,7 +209,7 @@ bun i
 
 ## 贡献&反馈
 
-如有建议、bug 或新需求，欢迎提 issue 或直接联系作者。
+如有建议、bug 或新需求，欢迎发起 issue。
 
 ---
 

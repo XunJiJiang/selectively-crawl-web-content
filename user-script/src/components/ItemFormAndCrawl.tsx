@@ -54,7 +54,7 @@ const ItemFormAndCrawl: React.FC<ItemFormAndCrawlProps> = ({
           alignItems: 'center',
         }}
       >
-        <label htmlFor="scw-desc-input" style={{ width: 35, fontSize: 13, color: '#ccc', marginRight: 8 }}>
+        <label htmlFor="scw-desc-input" style={{ width: 35, fontSize: 11, color: '#ccc', marginRight: 8 }}>
           描述：
         </label>
         <input
@@ -63,7 +63,7 @@ const ItemFormAndCrawl: React.FC<ItemFormAndCrawlProps> = ({
           style={{
             height: 18,
             width: 108,
-            fontSize: 13,
+            fontSize: 11,
             color: '#ccc',
             background: 'transparent',
             border: '0.5px solid #888',
@@ -75,7 +75,7 @@ const ItemFormAndCrawl: React.FC<ItemFormAndCrawlProps> = ({
           onChange={onDescInputChange}
           placeholder="如作者、标签、<null>"
         />
-        <label htmlFor="scw-prefix-input" style={{ width: 35, fontSize: 13, color: '#ccc', margin: '0 8px' }}>
+        <label htmlFor="scw-prefix-input" style={{ width: 35, fontSize: 11, color: '#ccc', margin: '0 8px' }}>
           前缀：
         </label>
         <input
@@ -84,7 +84,7 @@ const ItemFormAndCrawl: React.FC<ItemFormAndCrawlProps> = ({
           style={{
             height: 18,
             width: 78,
-            fontSize: 13,
+            fontSize: 11,
             color: '#ccc',
             background: 'transparent',
             border: '0.5px solid #888',
@@ -109,11 +109,6 @@ const ItemFormAndCrawl: React.FC<ItemFormAndCrawlProps> = ({
           minHeight: 0,
           background: 'transparent',
           height: 'auto',
-        }}
-        ref={el => {
-          if (el && el.parentElement) {
-            el.parentElement.style.height = el.scrollHeight + 67 + 'px';
-          }
         }}
       >
         {items.length !== 0 ? (
