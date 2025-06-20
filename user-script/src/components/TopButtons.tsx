@@ -269,7 +269,7 @@ const TopButtons: React.FC<TopButtonsProps> = ({
           }}
           disabled={!canParent}
           onClick={onParent}
-          title="父元素"
+          title="选择当前元素的父元素"
           onMouseOver={e => (canParent ? (e.currentTarget.style.background = 'rgba(255,255,255,0.18)') : 'transparent')}
           onMouseOut={e => (e.currentTarget.style.background = 'transparent')}
         >
@@ -298,7 +298,7 @@ const TopButtons: React.FC<TopButtonsProps> = ({
           }}
           disabled={!canUndo}
           onClick={onUndo}
-          title="撤回"
+          title="撤回父元素的选择"
           onMouseOver={e => (canUndo ? (e.currentTarget.style.background = 'rgba(255,255,255,0.18)') : 'transparent')}
           onMouseOut={e => (e.currentTarget.style.background = 'transparent')}
         >
@@ -327,7 +327,7 @@ const TopButtons: React.FC<TopButtonsProps> = ({
           }}
           disabled={!canConfirm}
           onClick={onConfirm}
-          title="确认"
+          title="确认选择的元素"
           onMouseOver={e =>
             canConfirm ? (e.currentTarget.style.background = 'rgba(255,255,255,0.18)') : 'transparent'
           }

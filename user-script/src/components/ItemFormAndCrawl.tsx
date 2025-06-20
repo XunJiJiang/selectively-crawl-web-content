@@ -216,6 +216,7 @@ const ItemFormAndCrawl: React.FC<ItemFormAndCrawlProps> = ({
                   e.currentTarget.style.background = 'transparent';
                   e.currentTarget.style.color = '#ff8888';
                 }}
+                title="删除此项"
               >
                 删除
               </button>
@@ -289,6 +290,7 @@ const ItemFormAndCrawl: React.FC<ItemFormAndCrawlProps> = ({
           onMouseOver={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.18)')}
           onMouseOut={e => (e.currentTarget.style.background = 'transparent')}
           onClick={onCrawl}
+          title="向服务器发送抓取的内容"
         >
           抓取
         </button>
