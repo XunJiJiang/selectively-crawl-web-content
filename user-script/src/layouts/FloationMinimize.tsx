@@ -73,6 +73,7 @@ const FloatingMinimize: React.FC<{
       onMouseDown={onMouseDown}
     >
       <span
+        translate="no"
         style={{
           fontSize: 10,
           display: 'inline-block',
