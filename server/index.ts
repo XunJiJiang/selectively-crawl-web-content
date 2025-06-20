@@ -94,6 +94,58 @@ function loadPlugins() {
 const log = createLogger('plugin', path.relative(process.cwd(), __dirname));
 
 /**
+ * 处理 dataURL
+ * 将其转换为图片文件并保存到指定目录
+ * @param dataUrl base64编码的dataURL字符串
+ * @param filePath 保存路径或函数
+ * 如果是函数, 接收一个对象参数, 包含以下字段:
+ * - fullname: 完整文件名, 包含扩展名
+ * - filename: 不包含扩展名的文件名
+ * - ext: 文件扩展名
+ * - datePrefix: 日期前缀, 格式为 YYYYMMDDHHmmss
+ * - 返回值为最终保存的文件路径
+ * @returns 如果成功, 返回保存的文件路径; 如果失败, 返回 false
+ */
+function writeDataURL(
+  dataUrl: string,
+  filePath: string | ((props: { fullname: string; filename: string; ext: string; datePrefix: string }) => string)
+): false | string {
+  try {
+    // 解析dataURL
+    const match = /^data:image\/(\w+);base64,(.+)$/.exec(dataUrl);
+    if (!match) return false;
+    const ext = match[1] || 'png';
+    const base64 = match[2];
+    const buf = Buffer.from(base64, 'base64');
+
+    const _filePath = (() => {
+      const datePrefix = new Date()
+        .toISOString()
+        .replace(/[-:.TZ]/g, '')
+        .slice(0, 14); // e.g. 20250620153045
+      const filename = `${datePrefix}_${uuidv4()}`;
+      const fullname = `${filename}.${ext}`;
+      if (typeof filePath === 'function') {
+        return filePath({
+          fullname,
+          filename,
+          ext,
+          datePrefix,
+        });
+      } else {
+        return path.join(filePath, fullname);
+      }
+    })();
+
+    fs.writeFileSync(_filePath, buf);
+    return _filePath;
+  } catch (e) {
+    log.warn('写入图片失败:', e);
+    return false;
+  }
+}
+
+/**
  * 保存数据
  * @param dirPath 保存位置
  * @param data
@@ -140,20 +192,9 @@ function writeData(dirPath: string, data: unknown): boolean {
           return item;
         const newImages: string[] = [];
         for (const imgDataUrl of item.images) {
-          // 解析dataURL
-          const match = /^data:image\/(\w+);base64,(.+)$/.exec(imgDataUrl);
-          if (!match) continue;
-          const ext = match[1] || 'png';
-          const base64 = match[2];
-          const buf = Buffer.from(base64, 'base64');
-          const datePrefix = new Date()
-            .toISOString()
-            .replace(/[-:.TZ]/g, '')
-            .slice(0, 14); // e.g. 20250620153045
-          const filename = `${datePrefix}_${uuidv4()}.${ext}`;
-          const filePath = path.join(imagesDir, filename);
-          fs.writeFileSync(filePath, buf);
-          newImages.push('images/' + filename);
+          const filePath = writeDataURL(imgDataUrl, imagesDir);
+          if (!filePath) continue;
+          newImages.push('images/' + filePath);
         }
         return { ...item, images: newImages };
       });
@@ -242,7 +283,8 @@ app.post(
                   pathname: new URL(decodedSite).pathname,
                 },
                 data,
-                writeData: (file: string, d: any) => writeData(file, d),
+                writeData: (...args: Parameters<typeof writeData>) => writeData(...args),
+                writeDataURL: (...args: Parameters<typeof writeDataURL>) => writeDataURL(...args),
               },
               log
             ));
