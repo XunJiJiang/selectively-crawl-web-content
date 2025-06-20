@@ -2,7 +2,7 @@ namespace SCWC {
   export interface Plugin {
     (
       options: {
-        writeJson: (path: string, data: any) => boolean;
+        writeData: (path: string, data: any) => boolean;
         data?: any;
         site: {
           url: string;

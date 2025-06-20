@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import FloatingWindow from './layouts/FloatingWindow';
 import TopButtons from './components/TopButtons';
 import ItemFormAndCrawl from './components/ItemFormAndCrawl';
@@ -65,12 +65,26 @@ function App() {
   }, [items]);
 
   // 统一抓取处理函数
-  const handleCrawl = async () => {
+  const handleCrawl = useCallback(async () => {
     if (!items.length) {
       scwcWarn('表单为空，将不会发送抓取请求');
       return;
     }
-    const result: { label: string; value: string }[] = [];
+    // 辅助：将img元素转为dataURL
+    function getImgElementData(img: HTMLImageElement): string | null {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return null;
+        ctx.drawImage(img, 0, 0);
+        return canvas.toDataURL('image/png');
+      } catch {
+        return null;
+      }
+    }
+    const result: { label: string; value: string; images: string[] }[] = [];
     const failed: string[] = [];
     for (let i = 0; i < items.length; ++i) {
       const { selector, label, prefix = '' } = items[i];
@@ -88,7 +102,24 @@ function App() {
         if (text) fragments.push(prefix + text);
       }
       const value = fragments.join(' ').trim();
-      result.push({ label, value });
+      // 收集图片
+      let imgElements: HTMLImageElement[] = [];
+      if (el instanceof HTMLImageElement) {
+        imgElements.push(el);
+      }
+      // 查找内部所有img
+      const imgEls = el.querySelectorAll ? el.querySelectorAll('img') : [];
+      if (imgEls && imgEls.length) {
+        imgElements = imgElements.concat(Array.from(imgEls) as HTMLImageElement[]);
+      }
+      imgElements = Array.from(new Set(imgElements));
+      // 直接转dataURL
+      const images: string[] = imgElements.map(img => getImgElementData(img)).filter(Boolean) as string[];
+      if (images.length > 0) {
+        result.push({ label, value, images });
+      } else {
+        result.push({ label, value, images: [] });
+      }
     }
     if (failed.length) {
       scwcLog('未获取到的元素索引:', failed);
@@ -113,7 +144,7 @@ function App() {
     } catch (e) {
       scwcError('抓取:', '上传失败', (e as Error).message ?? '', e);
     }
-  };
+  }, [items]);
 
   return (
     <FloatingWindow expanded={expanded}>

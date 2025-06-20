@@ -46,7 +46,7 @@ server/plugins/
 ```ts
 export default async function (
   options: {
-    writeJson: (path: string, data: any) => boolean;
+    writeData: (dirPath: string, data: any) => boolean;
     data?: any;
     site: {
       url: string;
@@ -65,7 +65,7 @@ export default async function (
   log.info('插件已加载');
   if (options.data) {
     // 例如，将数据写入指定路径
-    options.writeJson('./data.json', options.data);
+    options.writeData('./data', options.data);
     log.info('数据已写入');
   }
 }
@@ -73,11 +73,11 @@ export default async function (
 
 > [!TIP]
 >
-> `writeJson(path, data)` 是服务端提供的工具函数，用于将数据写入指定路径的 JSON 文件。
+> `writeData(dirPath, data)` 是服务端提供的工具函数，用于将数据写入指定路径的 `data.json` 文件和 `images` 文件夹。
 >
-> - `path`：文件路径（绝对路径）。
+> - `path`：文件夹路径（绝对路径）。
 >
-> - `data`：要写入的 JS 对象或数组, 可以直接将 data 传入, 或经过某些处理后再传入。
+> - `data`：要写入的数据, 可以直接将 data 传入, 或经过某些处理后再传入。
 >
 > 如果文件不存在，则会自动创建。
 >
