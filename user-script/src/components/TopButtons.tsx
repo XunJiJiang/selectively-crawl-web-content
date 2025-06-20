@@ -77,11 +77,14 @@ const TopButtons: React.FC<TopButtonsProps> = ({
             boxShadow: 'none',
             transition: 'background 0.2s',
             borderRadius: 4,
+            cursor: canSelect || selecting ? 'pointer' : 'not-allowed',
           }}
           disabled={!canSelect && !selecting}
           onClick={selecting ? onStopSelect : onSelect}
           title={selecting ? '取消选择' : '选择元素'}
-          onMouseOver={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.18)')}
+          onMouseOver={e =>
+            !canSelect && !selecting ? 'transparent' : (e.currentTarget.style.background = 'rgba(255,255,255,0.18)')
+          }
           onMouseOut={e => (e.currentTarget.style.background = 'transparent')}
         >
           {selecting ? '取消' : '选择'}
@@ -196,11 +199,14 @@ const TopButtons: React.FC<TopButtonsProps> = ({
               boxShadow: 'none',
               transition: 'background 0.2s',
               borderRadius: 4,
+              cursor: canSelect ? 'pointer' : 'not-allowed',
             }}
             disabled={!canSelect}
             onClick={onSelect}
             title="选择元素"
-            onMouseOver={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.18)')}
+            onMouseOver={e =>
+              canSelect ? (e.currentTarget.style.background = 'rgba(255,255,255,0.18)') : 'transparent'
+            }
             onMouseOut={e => (e.currentTarget.style.background = 'transparent')}
           >
             选择
@@ -225,11 +231,14 @@ const TopButtons: React.FC<TopButtonsProps> = ({
             boxShadow: 'none',
             transition: 'background 0.2s',
             borderRadius: 4,
+            cursor: canCollapse ? 'pointer' : 'not-allowed',
           }}
           disabled={!canCollapse}
           onClick={onCollapse}
           title="折叠窗口"
-          onMouseOver={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.18)')}
+          onMouseOver={e =>
+            canCollapse ? (e.currentTarget.style.background = 'rgba(255,255,255,0.18)') : 'transparent'
+          }
           onMouseOut={e => (e.currentTarget.style.background = 'transparent')}
         >
           折叠
@@ -253,11 +262,12 @@ const TopButtons: React.FC<TopButtonsProps> = ({
             boxShadow: 'none',
             transition: 'background 0.2s',
             borderRadius: 4,
+            cursor: canParent ? 'pointer' : 'not-allowed',
           }}
           disabled={!canParent}
           onClick={onParent}
           title="父元素"
-          onMouseOver={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.18)')}
+          onMouseOver={e => (canParent ? (e.currentTarget.style.background = 'rgba(255,255,255,0.18)') : 'transparent')}
           onMouseOut={e => (e.currentTarget.style.background = 'transparent')}
         >
           父
@@ -281,11 +291,12 @@ const TopButtons: React.FC<TopButtonsProps> = ({
             boxShadow: 'none',
             transition: 'background 0.2s',
             borderRadius: 4,
+            cursor: canUndo ? 'pointer' : 'not-allowed',
           }}
           disabled={!canUndo}
           onClick={onUndo}
           title="撤回"
-          onMouseOver={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.18)')}
+          onMouseOver={e => (canUndo ? (e.currentTarget.style.background = 'rgba(255,255,255,0.18)') : 'transparent')}
           onMouseOut={e => (e.currentTarget.style.background = 'transparent')}
         >
           撤回
@@ -309,11 +320,14 @@ const TopButtons: React.FC<TopButtonsProps> = ({
             boxShadow: 'none',
             transition: 'background 0.2s',
             borderRadius: 4,
+            cursor: canConfirm ? 'pointer' : 'not-allowed',
           }}
           disabled={!canConfirm}
           onClick={onConfirm}
           title="确认"
-          onMouseOver={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.18)')}
+          onMouseOver={e =>
+            canConfirm ? (e.currentTarget.style.background = 'rgba(255,255,255,0.18)') : 'transparent'
+          }
           onMouseOut={e => (e.currentTarget.style.background = 'transparent')}
         >
           确认
@@ -337,11 +351,12 @@ const TopButtons: React.FC<TopButtonsProps> = ({
             boxShadow: 'none',
             transition: 'background 0.2s',
             borderRadius: 4,
+            cursor: canCancel ? 'pointer' : 'not-allowed',
           }}
           disabled={!canCancel}
           onClick={onCancel}
           title="放弃选择的元素"
-          onMouseOver={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.18)')}
+          onMouseOver={e => (canCancel ? (e.currentTarget.style.background = 'rgba(255,255,255,0.18)') : 'transparent')}
           onMouseOut={e => (e.currentTarget.style.background = 'transparent')}
         >
           放弃
