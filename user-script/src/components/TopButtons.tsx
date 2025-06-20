@@ -110,6 +110,7 @@ const TopButtons: React.FC<TopButtonsProps> = ({
             boxShadow: 'none',
             transition: 'background 0.2s',
             borderRadius: 4,
+            cursor: 'pointer',
           }}
           onClick={onExpand}
           title="展开窗口"
@@ -139,6 +140,7 @@ const TopButtons: React.FC<TopButtonsProps> = ({
             boxShadow: 'none',
             transition: 'background 0.2s',
             borderRadius: 4,
+            cursor: 'pointer',
           }}
           onClick={onCrawl}
           title="想服务器发送抓取的内容"
@@ -171,6 +173,7 @@ const TopButtons: React.FC<TopButtonsProps> = ({
               boxShadow: 'none',
               transition: 'background 0.2s',
               borderRadius: 4,
+              cursor: 'pointer',
             }}
             onClick={onStopSelect}
             title="取消选择"

@@ -205,6 +205,7 @@ const ItemFormAndCrawl: React.FC<ItemFormAndCrawlProps> = ({
                   transition: 'background 0.2s, color 0.2s',
                   borderRadius: 4,
                   fontSize: 11,
+                  cursor: 'pointer',
                 }}
                 onClick={() => onDelete(idx)}
                 onMouseOver={e => {
@@ -283,6 +284,7 @@ const ItemFormAndCrawl: React.FC<ItemFormAndCrawlProps> = ({
             borderRadius: 4,
             transition: 'background 0.2s',
             fontSize: 11,
+            cursor: 'pointer',
           }}
           onMouseOver={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.18)')}
           onMouseOut={e => (e.currentTarget.style.background = 'transparent')}
