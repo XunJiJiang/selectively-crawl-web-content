@@ -37,10 +37,6 @@ server/plugins/
 
 ### 主模块导出
 
-> [!TIP]
->
-> `data` 类型参考 [数据结构](#5. 保存的数据结构)
-
 `index.ts`
 
 ```ts
