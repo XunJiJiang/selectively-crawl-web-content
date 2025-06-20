@@ -1,0 +1,12 @@
+{
+  "name": "template-plugin",
+  "module": "index.ts",
+  "type": "module",
+  "link-with": [],
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  }
+}

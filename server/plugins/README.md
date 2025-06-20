@@ -4,7 +4,7 @@
 
 插件用于自定义不同网站的数据处理逻辑，需放置于 `server/plugins/` 目录下，支持 TypeScript/JavaScript。
 
-### 1. 插件结构
+### 插件结构
 
 每个插件为一个独立的包目录，需包含 `package.json` 和主模块文件（如 `index.ts`）。
 
@@ -17,7 +17,7 @@ server/plugins/
       └── index.ts
 ```
 
-### 2. package.json
+### package.json
 
 ```json
 {
@@ -35,7 +35,7 @@ server/plugins/
 }
 ```
 
-### 3. 主模块导出
+### 主模块导出
 
 > [!TIP]
 >
@@ -85,6 +85,6 @@ export default async function (
 >
 > 返回值为 `boolean`，表示写入是否成功。
 
-### 4. 插件加载
+### 插件加载
 
 服务端启动时会自动扫描 `server/plugins/` 目录，加载所有插件。每个插件根据 `link-with` 字段指定的 URL 匹配规则，自动关联到对应网站。当网页端上传数据时，服务端会根据请求的 URL 匹配合适的插件并调用其主模块进行处理，无需手动引入或注册插件。
