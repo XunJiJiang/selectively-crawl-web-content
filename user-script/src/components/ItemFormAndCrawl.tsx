@@ -290,7 +290,7 @@ const ItemFormAndCrawl: React.FC<ItemFormAndCrawlProps> = ({
           onMouseOver={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.18)')}
           onMouseOut={e => (e.currentTarget.style.background = 'transparent')}
           onClick={onCrawl}
-          title="向服务器发送抓取的内容"
+          title="向本地服务器发送抓取的内容"
         >
           抓取
         </button>
