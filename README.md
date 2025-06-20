@@ -73,6 +73,24 @@ bun start
 
 ### 5. 保存的数据结构
 
+```ts
+type DataItem = {
+  label: string;
+  value: string;
+  images: string[]; // dataURL
+};
+
+type DataType = DataItem[];
+
+const data: DataType;
+```
+
+> [!TIP]
+>
+> 主程序为插件提供了一种处理 `DataItem[]` 和 `dataURL` 的方法。
+>
+> 处理方法看[这里](#about-writeData-writeDataURL)。
+
 #### 数据结构举例
 
 假设你在网页上抓取两个个元素：
@@ -87,15 +105,13 @@ bun start
 
 设置第二个元素标签为`标签`，前置为 `@`；
 
-则服务端保存的 json 文件内容如下：
+则服务端接收到的数据如下：
 
-```json
-[
-  [
-    { "label": "<null>", "value": "我是标题" },
-    { "label": "标签", "value": "@我是标签 @猫 @狗" }
-  ]
-]
+```ts
+const data = [
+  { label: '<null>', value: '我是标题', images: [] },
+  { label: '标签', value: '@我是标签 @猫 @狗', images: [] },
+];
 ```
 
 每次点击“抓取”按钮，都会将当前表单区所有项作为一个数组整体追加到文件，形成二维数组结构。
@@ -179,19 +195,27 @@ export default async function (
 }
 ```
 
+<a name="about-writeData-writeDataURL"></a>
+
 > [!TIP]
 >
-> `writeData(dirPath, data)` 是服务端提供的工具函数，用于将数据写入指定路径的 `data.json` 文件和 `images` 文件夹。
+> `writeData` 和 `writeDataURL` 是服务端提供的工具函数。
+>
+> `writeData(dirPath, data)` 用于将数据写入指定路径的 `data.json` 文件和 `images` 文件夹。
 >
 > - `path`：文件夹路径（绝对路径）。
->
 > - `data`：要写入的数据, 可以直接将 data 传入, 或经过某些处理后再传入。
->
-> 如果文件不存在，则会自动创建。
->
-> 如果文件存在，但根元素不是数组(包括空文件)，则不会写入。但浏览器控制台会认为已经传输到本地。
+>   如果文件不存在，则会自动创建。
+>   如果文件存在，但根元素不是数组(包括空文件)，则不会写入。但浏览器控制台会认为已经传输到本地。
 >
 > 返回值为 `boolean`，表示写入是否成功。
+>
+> `writeDataURL(dataUrl, filePath)` 用于将 base64 编码的图片 dataURL 转换为图片文件并保存到指定目录。
+>
+> - `dataUrl`：base64 编码的 dataURL 字符串。
+> - `filePath`：可以是保存目录（字符串），也可以是一个函数（接收参数包括完整文件名、文件名、扩展名、日期前缀，返回最终保存路径）。
+>
+> 返回值：成功时返回保存的文件路径，失败时返回 false。
 
 #### 4. 插件加载
 
