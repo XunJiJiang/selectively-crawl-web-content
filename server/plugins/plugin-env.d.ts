@@ -1,4 +1,10 @@
 namespace SCWC {
+  export type DataItem = {
+    label: string;
+    value: string;
+    images: string[]; // 图片数据，dataURL
+  };
+
   export interface Plugin {
     (
       options: {
@@ -22,7 +28,7 @@ namespace SCWC {
             | string
             | ((props: { fullname: string; filename: string; ext: string; datePrefix: string }) => string)
         ) => string | false;
-        data?: any;
+        data: DataItem[];
         site: {
           url: string;
           rootUrl: string;
