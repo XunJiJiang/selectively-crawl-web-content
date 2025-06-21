@@ -8,7 +8,7 @@ namespace SCWC {
   export interface Plugin {
     (
       options: {
-        writeData: (path: string, data: any) => boolean;
+        writeData: <D>(path: string, data: D) => false | { data: D };
         /**
          * 处理 dataURL
          * 将其转换为图片文件并保存到指定目录

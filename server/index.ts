@@ -110,6 +110,10 @@ function writeDataURL(
   dataUrl: string,
   filePath: string | ((props: { fullname: string; filename: string; ext: string; datePrefix: string }) => string)
 ): false | string {
+  if (/^https?:\/\//.test(dataUrl)) {
+    return dataUrl;
+  }
+
   try {
     // 解析dataURL
     const match = /^data:image\/(\w+);base64,(.+)$/.exec(dataUrl);
@@ -151,7 +155,14 @@ function writeDataURL(
  * @param data
  * @returns
  */
-function writeData(dirPath: string, data: unknown): boolean {
+function writeData<D>(
+  dirPath: string,
+  data: D
+):
+  | false
+  | {
+      data: D;
+    } {
   try {
     if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
     // 确保images目录存在
@@ -194,7 +205,7 @@ function writeData(dirPath: string, data: unknown): boolean {
         for (const imgDataUrl of item.images) {
           const filePath = writeDataURL(imgDataUrl, imagesDir);
           if (!filePath) continue;
-          newImages.push('images/' + filePath);
+          newImages.push(filePath);
         }
         return { ...item, images: newImages };
       });
@@ -204,7 +215,10 @@ function writeData(dirPath: string, data: unknown): boolean {
       raw.push(data);
     }
     fs.writeFileSync(dataJsonPath, JSON.stringify(raw, null, 2), 'utf-8');
-    return true;
+
+    return {
+      data: raw[raw.length - 1] as D, // 返回最新写入的数据
+    };
   } catch (e) {
     log.warn('写入json文件失败:', e);
     return false;
@@ -269,7 +283,7 @@ app.post(
     let called = false;
     for (const plugin of plugins) {
       if (plugin.linkWith && plugin.linkWith.some(link => root.startsWith(link))) {
-        const log = createLogger(`[plugin:${plugin.name}]`, path.relative(process.cwd(), plugin.entry));
+        const log = createLogger(`plugin:${plugin.name}`, path.relative(process.cwd(), plugin.entry));
         log.info(`处理网址: ${decodedSite}`);
         log.info(`插件入口: ${plugin.entry}`);
         try {
@@ -291,6 +305,8 @@ app.post(
           called = true;
         } catch (e) {
           log.warn(`调用插件 ${plugin.name} 时出现错误:`, e);
+        } finally {
+          log.info(`=======================================================`);
         }
       }
     }

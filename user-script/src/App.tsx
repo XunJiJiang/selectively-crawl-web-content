@@ -79,9 +79,11 @@ function App() {
         const ctx = canvas.getContext('2d');
         if (!ctx) return null;
         ctx.drawImage(img, 0, 0);
-        return canvas.toDataURL('image/png');
-      } catch {
-        return null;
+        const data = canvas.toDataURL('image/png');
+        return data;
+      } catch (e) {
+        scwcError('获取图片原始数据失败:', (e as Error).message ?? '', e);
+        return img.src;
       }
     }
     const result: { label: string; value: string; images: string[] }[] = [];
