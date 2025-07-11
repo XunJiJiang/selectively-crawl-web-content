@@ -12,7 +12,7 @@ export default defineConfig(({ mode }) => {
         userscript: {
           name: 'selectively crawl web content',
           namespace: 'XunJi',
-          version: '1.0.5',
+          version: '1.0.6',
           author: 'XunJi & XunJiJiang',
           description: 'A user script to selectively crawl web content and save it to a local server.',
           match: ['*://*/*'],

@@ -151,6 +151,11 @@ app.post(
     });
 
     let called = false;
+    const resInfo: {
+      pluginInfo: PluginMeta;
+      info: string;
+      type: 'success' | 'error';
+    }[] = [];
     for (const plugin of plugins) {
       if (plugin.linkWith && plugin.linkWith.some(link => root.startsWith(link))) {
         const log = createLogger(`plugin:${plugin.name}`, path.relative(process.cwd(), plugin.entry));
@@ -174,7 +179,16 @@ app.post(
                   writeDataURL: (...args: Parameters<typeof writeDataURL>) => writeDataURL(...args),
                 },
               },
-              log
+              {
+                ...log,
+                toWeb: (info: string, type: 'success' | 'error' = 'success') => {
+                  resInfo.push({
+                    pluginInfo: plugin,
+                    info,
+                    type,
+                  });
+                },
+              }
             ));
           called = true;
         } catch (e) {
@@ -185,9 +199,13 @@ app.post(
       }
     }
     if (called) {
-      res.json({ success: true, message: 'success' });
+      res.json({
+        success: true,
+        message: 'success',
+        data: resInfo.map(item => ({ ...item, pluginInfo: { name: item.pluginInfo.name } })),
+      });
     } else {
-      res.json({ success: false, message: '没有处理这个网址的插件' });
+      res.json({ success: false, message: '没有处理这个网址的插件', data: resInfo });
     }
   }
 );

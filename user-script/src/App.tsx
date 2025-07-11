@@ -6,6 +6,7 @@ import { saveToStorage, loadFromStorage } from './hooks/useFloatingWindow';
 import { useElementSelect } from './hooks/useElementSelect';
 import { getSelector, getElementBySelector, highlightElement, isExcludedElement } from './hooks/useCrawlLogic';
 import { scwcLog, scwcWarn, scwcError } from './utils/console';
+import { notification } from 'antd';
 
 // Item类型加prefix
 export interface Item {
@@ -15,6 +16,8 @@ export interface Item {
 }
 
 function App() {
+  const [api] = notification.useNotification();
+
   // 业务状态
   const [expanded, setExpanded] = useState(false);
   const [selecting, setSelecting] = useState(false);
@@ -143,10 +146,19 @@ function App() {
       } else {
         scwcLog('抓取成功');
       }
+
+      for (const notify of data.data ?? []) {
+        api.open({
+          type: notify.type === 'error' ? 'error' : 'success',
+          message: notify.pluginInfo.name,
+          description: notify.info,
+          placement: 'bottomRight',
+        });
+      }
     } catch (e) {
       scwcError('抓取:', '上传失败', (e as Error).message ?? '', e);
     }
-  }, [items]);
+  }, [items, api]);
 
   return (
     <FloatingWindow expanded={expanded}>

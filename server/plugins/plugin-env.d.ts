@@ -44,6 +44,7 @@ namespace SCWC {
         info: (...args: any[]) => void;
         warn: (...args: any[]) => void;
         error: (...args: any[]) => void;
+        toWeb: (info: string, type?: 'success' | 'error') => void;
       }
     ): void | Promise<void>;
   }
