@@ -297,8 +297,10 @@ app.post(
                   pathname: new URL(decodedSite).pathname,
                 },
                 data,
-                writeData: (...args: Parameters<typeof writeData>) => writeData(...args),
-                writeDataURL: (...args: Parameters<typeof writeDataURL>) => writeDataURL(...args),
+                utils: {
+                  writeData: (...args: Parameters<typeof writeData>) => writeData(...args),
+                  writeDataURL: (...args: Parameters<typeof writeDataURL>) => writeDataURL(...args),
+                },
               },
               log
             ));
