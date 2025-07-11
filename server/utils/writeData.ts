@@ -28,7 +28,7 @@ export function writeDataURL(
     // 解析dataURL
     const match = /^data:image\/(\w+);base64,(.+)$/.exec(dataUrl);
     if (!match) return false;
-    const ext = match[1] || 'png';
+    const ext = match[1] ?? 'png';
     const base64 = match[2];
     const buf = Buffer.from(base64, 'base64');
 
@@ -113,6 +113,7 @@ export function writeData<D>(
           return item;
         const newImages: string[] = [];
         for (const imgDataUrl of item.images) {
+          console.log('image:', imgDataUrl.slice(0, 50)); // 输出前50个字符
           const filePath = writeDataURL(imgDataUrl, imagesDir);
           if (!filePath) continue;
           newImages.push(filePath);
