@@ -205,7 +205,11 @@ app.post(
         data: resInfo.map(item => ({ ...item, pluginInfo: { name: item.pluginInfo.name } })),
       });
     } else {
-      res.json({ success: false, message: '没有处理这个网址的插件', data: resInfo });
+      res.json({
+        success: false,
+        message: '没有处理这个网址的插件',
+        data: [],
+      });
     }
   }
 );

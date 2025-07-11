@@ -16,7 +16,7 @@ export interface Item {
 }
 
 function App() {
-  const [api] = notification.useNotification();
+  const [api, contextHolder] = notification.useNotification();
 
   // 业务状态
   const [expanded, setExpanded] = useState(false);
@@ -145,15 +145,13 @@ function App() {
         scwcWarn('抓取失败', data.message);
       } else {
         scwcLog('抓取成功');
-      }
-
-      for (const notify of data.data ?? []) {
-        api.open({
-          type: notify.type === 'error' ? 'error' : 'success',
-          message: notify.pluginInfo.name,
-          description: notify.info,
-          placement: 'bottomRight',
-        });
+        for (const notify of data.data ?? []) {
+          api[notify.type === 'error' ? 'error' : 'success']({
+            message: notify.pluginInfo.name,
+            description: notify.info,
+            placement: 'bottomRight',
+          });
+        }
       }
     } catch (e) {
       scwcError('抓取:', '上传失败', (e as Error).message ?? '', e);
@@ -162,6 +160,7 @@ function App() {
 
   return (
     <FloatingWindow expanded={expanded}>
+      {contextHolder}
       <TopButtons
         expanded={expanded}
         canSelect={!selecting && (!expanded || (expanded && !selectedEl))}
