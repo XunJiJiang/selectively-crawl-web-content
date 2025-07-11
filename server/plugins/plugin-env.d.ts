@@ -9,6 +9,8 @@ namespace SCWC {
     (
       options: {
         utils: {
+          strValidation: (str: string) => string;
+          convertToCN: (str: string) => string;
           writeData: <D>(path: string, data: D) => false | { data: D };
           /**
            * 处理 dataURL

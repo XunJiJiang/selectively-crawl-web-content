@@ -17,7 +17,8 @@
     "build": "cd ./user-script && bun run build"
   },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "@types/opencc-js": "^1.0.3"
   },
   "peerDependencies": {
     "@eslint/js": "^9.29.0",
@@ -38,6 +39,7 @@
     "chalk": "^5.4.1",
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
+    "opencc-js": "^1.0.5",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "uuid": "^11.1.0"
