@@ -28,6 +28,10 @@
 
 ### 安装依赖
 
+> ![NOTE]
+>
+> 项目使用 bun 进行包管理, 使用 node tsx 运行服务端
+
 ```bash
 bun i
 ```
@@ -39,7 +43,7 @@ bun i
 2. 启动服务：
 
 ```bash
-bun start
+npm run dev
 ```
 
 > [!TIP]

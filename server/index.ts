@@ -1,6 +1,7 @@
 import express, { type Request } from 'express';
 import fs from 'fs';
 import path from 'path';
+import { createRequire } from 'module';
 import dotenv from 'dotenv';
 import { writeData, writeDataURL } from './utils/writeData';
 import { createLogger } from './utils/log';
@@ -8,6 +9,9 @@ import { convertToCN } from './utils/convertToCN';
 import { strValidation } from './utils/strValidation';
 
 dotenv.config();
+
+const __dirname = path.dirname(new URL(import.meta.url).pathname);
+const require = createRequire(import.meta.url);
 
 const app = express();
 const PORT = process.env.PORT ? Number(process.env.PORT) : 3100;
