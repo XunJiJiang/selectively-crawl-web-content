@@ -9,11 +9,12 @@ namespace SCWC {
     info: (...args: any[]) => void;
     warn: (...args: any[]) => void;
     error: (...args: any[]) => void;
-    toWeb: (info: string, type?: 'success' | 'error') => void;
   };
 
-  export interface Plugin {
-    (
+  export interface PluginHandler {
+    name: string;
+    onLoad?: (log: Log) => void;
+    onRequest: (
       options: {
         utils: {
           strValidation: (str: string) => string;
@@ -47,7 +48,17 @@ namespace SCWC {
           pathname: string;
         };
       },
-      log: Log
-    ): void | Promise<void>;
+      log: Log & {
+        toWeb: (info: string, type?: 'success' | 'error') => void;
+      }
+    ) => void | Promise<void>;
+    onUnload?: (log: Log) => void;
+  }
+
+  export interface PluginMeta {
+    name: string;
+    entry: string;
+    linkWith: string[];
+    handler?: PluginHandler;
   }
 }

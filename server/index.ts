@@ -32,13 +32,8 @@ app.use((req, res, next) => {
 
 // 插件加载逻辑
 const PLUGIN_DIR = path.join(__dirname, 'plugins');
-interface PluginMeta {
-  name: string;
-  entry: string;
-  linkWith: string[];
-  handler?: Function;
-}
-let plugins: PluginMeta[] = [];
+
+let plugins: SCWC.PluginMeta[] = [];
 
 function loadPlugins() {
   if (!fs.existsSync(PLUGIN_DIR)) return;
@@ -94,6 +89,13 @@ function loadPlugins() {
       handler: mod,
     });
     createLogger(`plugin:${name}`, path.relative(process.cwd(), path.join(PLUGIN_DIR, dir))).info(`加载插件 ${name}`);
+  }
+
+  for (const plugin of plugins) {
+    if (plugin.handler && typeof plugin.handler.onLoad === 'function') {
+      const log = createLogger(`plugin:${plugin.name}`, path.relative(process.cwd(), plugin.entry));
+      plugin.handler.onLoad(log);
+    }
   }
 }
 
@@ -156,7 +158,7 @@ app.post(
 
     let called = false;
     const resInfo: {
-      pluginInfo: PluginMeta;
+      pluginInfo: SCWC.PluginMeta;
       info: string;
       type: 'success' | 'error';
     }[] = [];
@@ -167,7 +169,7 @@ app.post(
         log.info(`插件入口: ${plugin.entry}`);
         try {
           plugin.handler &&
-            (await plugin.handler(
+            (await plugin.handler.onRequest(
               {
                 site: {
                   url: decodedSite,
@@ -179,7 +181,7 @@ app.post(
                 utils: {
                   strValidation: (str: string) => strValidation(str),
                   convertToCN: (str: string) => convertToCN(str),
-                  writeData: (...args: Parameters<typeof writeData>) => writeData(...args),
+                  writeData: <D>(...args: Parameters<typeof writeData>) => <D>writeData(...args),
                   writeDataURL: (...args: Parameters<typeof writeDataURL>) => writeDataURL(...args),
                 },
               },
@@ -221,4 +223,17 @@ app.post(
 app.listen(PORT, () => {
   const log = createLogger('server', `http://localhost:${PORT}`);
   log.pathInfo(`服务启动`);
+});
+
+process.on('SIGINT', () => {
+  for (const plugin of plugins) {
+    if (plugin.handler && typeof plugin.handler.onUnload === 'function') {
+      const log = createLogger(`plugin:${plugin.name}`, path.relative(process.cwd(), plugin.entry));
+      plugin.handler.onUnload(log);
+    }
+  }
+
+  const log = createLogger('server', `http://localhost:${PORT}`);
+  log.pathInfo(`服务停止`);
+  process.exit(0);
 });
