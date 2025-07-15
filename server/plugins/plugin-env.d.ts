@@ -5,6 +5,13 @@ namespace SCWC {
     images: string[]; // 图片数据，dataURL
   };
 
+  export type Log = {
+    info: (...args: any[]) => void;
+    warn: (...args: any[]) => void;
+    error: (...args: any[]) => void;
+    toWeb: (info: string, type?: 'success' | 'error') => void;
+  };
+
   export interface Plugin {
     (
       options: {
@@ -40,12 +47,7 @@ namespace SCWC {
           pathname: string;
         };
       },
-      log: {
-        info: (...args: any[]) => void;
-        warn: (...args: any[]) => void;
-        error: (...args: any[]) => void;
-        toWeb: (info: string, type?: 'success' | 'error') => void;
-      }
+      log: Log
     ): void | Promise<void>;
   }
 }
