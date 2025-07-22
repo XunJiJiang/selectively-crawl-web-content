@@ -7,6 +7,7 @@ import { writeData, writeDataURL } from './utils/writeData';
 import { createLogger } from './utils/log';
 import { convertToCN } from './utils/convertToCN';
 import { strValidation } from './utils/strValidation';
+import { fetchImage } from './utils/fetchImage';
 
 dotenv.config();
 
@@ -77,8 +78,8 @@ function loadPlugins() {
       log.warn(`动态导入 ${dir} 失败:`, e);
       continue;
     }
-    if (typeof mod !== 'function') {
-      log.warn(`${dir} 的默认导出不是函数`);
+    if (!('onRequest' in mod) || typeof mod.onRequest !== 'function') {
+      log.warn(`${dir} 的默认导出不是合法插件`);
       continue;
     }
     const linkWith: string[] = Array.isArray(pkg['link-with']) ? pkg['link-with'] : [];
@@ -181,6 +182,7 @@ app.post(
                 utils: {
                   strValidation: (str: string) => strValidation(str),
                   convertToCN: (str: string) => convertToCN(str),
+                  fetchImage: (url: string) => fetchImage(url, log),
                   writeData: <D>(...args: Parameters<typeof writeData>) => <D>writeData(...args),
                   writeDataURL: (...args: Parameters<typeof writeDataURL>) => writeDataURL(...args),
                 },

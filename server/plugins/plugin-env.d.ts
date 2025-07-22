@@ -7,6 +7,7 @@ namespace SCWC {
 
   export type Log = {
     info: (...args: any[]) => void;
+    pathInfo: (...args: any[]) => void;
     warn: (...args: any[]) => void;
     error: (...args: any[]) => void;
   };
@@ -19,6 +20,7 @@ namespace SCWC {
         utils: {
           strValidation: (str: string) => string;
           convertToCN: (str: string) => string;
+          fetchImage: (url: string) => Promise<Buffer | null>;
           writeData: <D>(path: string, data: D) => false | { data: D };
           /**
            * 处理 dataURL
