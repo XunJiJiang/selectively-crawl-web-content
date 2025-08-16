@@ -135,7 +135,6 @@ export async function writeData<D>(
           return item;
         const newImages: string[] = [];
         for (const imgDataUrl of item.images) {
-          console.log('image:', imgDataUrl.slice(0, 50)); // 输出前50个字符
           const filePath = await writeDataURL(imgDataUrl, imagesDir);
           if (!filePath) continue;
           newImages.push(filePath);
