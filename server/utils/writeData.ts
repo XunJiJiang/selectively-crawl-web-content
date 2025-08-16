@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import log from './log';
+import { fetchImage } from './fetchImage';
 import { v4 as uuidv4 } from 'uuid';
 
 /**
@@ -16,22 +17,11 @@ import { v4 as uuidv4 } from 'uuid';
  * - 返回值为最终保存的文件路径
  * @returns 如果成功, 返回保存的文件路径; 如果失败, 返回 false
  */
-export function writeDataURL(
+export async function writeDataURL(
   dataUrl: string,
   filePath: string | ((props: { fullname: string; filename: string; ext: string; datePrefix: string }) => string)
-): false | string {
-  if (/^https?:\/\//.test(dataUrl)) {
-    return dataUrl;
-  }
-
-  try {
-    // 解析dataURL
-    const match = /^data:image\/(\w+);base64,(.+)$/.exec(dataUrl);
-    if (!match) return false;
-    const ext = match[1] ?? 'png';
-    const base64 = match[2];
-    const buf = Buffer.from(base64, 'base64');
-
+): Promise<false | string> {
+  const _writeImg = (buf: Buffer, ext: string) => {
     const _filePath = (() => {
       const datePrefix = new Date()
         .toISOString()
@@ -52,6 +42,35 @@ export function writeDataURL(
     })();
 
     fs.writeFileSync(_filePath, buf);
+
+    return _filePath;
+  };
+
+  // dataUrl 为网址时
+  if (/^https?:\/\//.test(dataUrl)) {
+    try {
+      const imgBuffer = await fetchImage(dataUrl);
+      if (imgBuffer) {
+        const _filePath = _writeImg(imgBuffer, 'png');
+        if (_filePath) return _filePath;
+      } else {
+        throw new Error('获取图片失败');
+      }
+    } catch {
+      log.warn('无效的图片 url:', dataUrl);
+      return false;
+    }
+  }
+
+  // dataUrl 为 base64 编码时
+  try {
+    // 解析dataURL
+    const match = /^data:image\/(\w+);base64,(.+)$/.exec(dataUrl);
+    if (!match) return false;
+    const ext = match[1] ?? 'png';
+    const base64 = match[2];
+    const buf = Buffer.from(base64, 'base64');
+    const _filePath = _writeImg(buf, ext);
     return _filePath;
   } catch (e) {
     log.warn('写入图片失败:', e);
@@ -65,14 +84,15 @@ export function writeDataURL(
  * @param data
  * @returns
  */
-export function writeData<D>(
+export async function writeData<D>(
   dirPath: string,
   data: D
-):
+): Promise<
   | false
   | {
       data: D;
-    } {
+    }
+> {
   try {
     if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
     // 确保images目录存在
@@ -108,18 +128,21 @@ export function writeData<D>(
       data.some(item => typeof item === 'object' && item !== null && 'images' in item)
     ) {
       // 处理所有图片
-      const newData = data.map((item: unknown) => {
+      const newData: unknown[] = [];
+
+      for (const item of data) {
         if (typeof item !== 'object' || item === null || !('images' in item) || !Array.isArray(item.images))
           return item;
         const newImages: string[] = [];
         for (const imgDataUrl of item.images) {
           console.log('image:', imgDataUrl.slice(0, 50)); // 输出前50个字符
-          const filePath = writeDataURL(imgDataUrl, imagesDir);
+          const filePath = await writeDataURL(imgDataUrl, imagesDir);
           if (!filePath) continue;
           newImages.push(filePath);
         }
-        return { ...item, images: newImages };
-      });
+        newData.push({ ...item, images: newImages });
+      }
+
       raw.push(newData);
     } else {
       // 非DataItem[]，直接写入data.json

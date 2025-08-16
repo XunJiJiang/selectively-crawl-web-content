@@ -21,7 +21,7 @@ namespace SCWC {
           strValidation: (str: string) => string;
           convertToCN: (str: string) => string;
           fetchImage: (url: string) => Promise<Buffer | null>;
-          writeData: <D>(path: string, data: D) => false | { data: D };
+          writeData: <D>(path: string, data: D) => Promise<false | { data: D }>;
           /**
            * 处理 dataURL
            * 将其转换为图片文件并保存到指定目录
@@ -40,7 +40,7 @@ namespace SCWC {
             filePath:
               | string
               | ((props: { fullname: string; filename: string; ext: string; datePrefix: string }) => string)
-          ) => string | false;
+          ) => Promise<string | false>;
         };
         data: DataItem[];
         site: {
