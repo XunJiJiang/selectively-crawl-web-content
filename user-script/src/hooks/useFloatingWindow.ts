@@ -1,17 +1,15 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-const STORAGE_KEY = '__selective_crawl_items__';
-
-export function saveToStorage(items: any[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+export function saveToStorage<T>(key: string, items: T) {
+  localStorage.setItem(key, JSON.stringify(items));
+  return items;
 }
-export function loadFromStorage(): any[] {
+export function loadFromStorage<K extends string, T>(key: K, defaultValue: T): T {
   try {
-    const arr = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    const arr = JSON.parse(localStorage.getItem(key) ?? '') as T;
     // 兼容旧数据，补全prefix字段
-    return Array.isArray(arr)
-      ? arr.map(item => ({ ...item, prefix: typeof item.prefix === 'string' ? item.prefix : '' }))
-      : [];
+    return key === '__selective_crawl_items__' && Array.isArray(arr)
+      ? (arr.map(item => ({ ...item, prefix: typeof item.prefix === 'string' ? item.prefix : '' })) as T)
+      : arr ?? saveToStorage(key, defaultValue);
   } catch {
-    return [];
+    return saveToStorage(key, defaultValue);
   }
 }

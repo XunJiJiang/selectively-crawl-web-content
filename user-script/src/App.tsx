@@ -15,6 +15,16 @@ export interface Item {
   prefix?: string;
 }
 
+const SELECTIVE_CRAWL_KEY = '__selective_crawl_items__';
+const CONFIG_KEY = '__selective_crawl_config__';
+
+const config = loadFromStorage(CONFIG_KEY, {
+  api: {
+    host: import.meta.env.HOST ?? 'http://localhost',
+    port: import.meta.env.PORT ?? '3200',
+  },
+});
+
 function App() {
   const [api, contextHolder] = notification.useNotification();
 
@@ -22,7 +32,9 @@ function App() {
   const [expanded, setExpanded] = useState(false);
   const [selecting, setSelecting] = useState(false);
   const [selectedEl, setSelectedEl] = useState<Element | null>(null);
-  const [items, setItems] = useState<Item[]>(loadFromStorage());
+  const [items, setItems] = useState<Item[]>(
+    loadFromStorage<typeof SELECTIVE_CRAWL_KEY, Item[]>(SELECTIVE_CRAWL_KEY, [])
+  );
   // undoStack 结构：从初始选中到当前选中，依次为 selector
   const [undoStack, setUndoStack] = useState<string[]>([]);
   const [descInput, setDescInput] = useState('');
@@ -64,7 +76,7 @@ function App() {
 
   // 持久化
   useEffect(() => {
-    saveToStorage(items);
+    saveToStorage(SELECTIVE_CRAWL_KEY, items);
   }, [items]);
 
   // 统一抓取处理函数
@@ -131,8 +143,7 @@ function App() {
       return;
     }
     try {
-      const port = (import.meta.env.PORT || '3100').replace(/[^\d]/g, '') || '3100';
-      const res = await fetch(`http://localhost:${port}/save`, {
+      const res = await fetch(`${config.api.host}:${config.api.port.replace(/[^\d]/g, '')}/save`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

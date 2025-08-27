@@ -15,7 +15,7 @@ const __dirname = path.dirname(new URL(import.meta.url).pathname);
 const require = createRequire(import.meta.url);
 
 const app = express();
-const PORT = process.env.PORT ? Number(process.env.PORT) : 3100;
+const PORT = process.env.PORT ? Number(process.env.PORT) : 3200;
 
 // 修改为支持大体积json
 app.use(express.json({ limit: '100mb' }));
