@@ -77,7 +77,7 @@ npm run start
 type DataItem = {
   label: string;
   value: string;
-  images: string[]; // dataURL
+  images: string[]; // dataURL (或图片链接，部分网站不支持将地址跨域的图片转为 dataURL)
 };
 
 type DataType = DataItem[];
@@ -87,7 +87,7 @@ const data: DataType;
 
 > [!TIP]
 >
-> 主程序为插件提供了一种处理 `DataItem[]` 和 `dataURL` 的方法。
+> 主程序为插件提供了一种处理 `DataItem[]` 和 `dataURL` (或图片链接) 的方法。
 >
 > 处理方法看[这里](#about-writeData-writeDataURL)。
 
@@ -208,9 +208,9 @@ export default async function (
 >
 > 返回值为 `boolean`，表示写入是否成功。
 >
-> `writeDataURL(dataUrl, filePath)` 用于将 base64 编码的图片 dataURL 转换为图片文件并保存到指定目录。
+> `writeDataURL(dataUrl, filePath)` 用于将 `base64` 编码的图片 `dataURL` 或图片链接转换为图片文件并保存到指定目录。
 >
-> - `dataUrl`：base64 编码的 dataURL 字符串。
+> - `dataUrl`：`base64` 编码的 `dataURL` 字符串或图片链接
 > - `filePath`：可以是保存目录（字符串），也可以是一个函数（接收参数包括完整文件名、文件名、扩展名、日期前缀，返回最终保存路径）。
 >
 > 返回值：成功时返回保存的文件路径，失败时返回 false。

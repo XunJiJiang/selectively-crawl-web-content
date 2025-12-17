@@ -7,7 +7,7 @@ import { v4 as uuidv4 } from 'uuid';
 /**
  * 处理 dataURL
  * 将其转换为图片文件并保存到指定目录
- * @param dataUrl base64编码的dataURL字符串
+ * @param dataUrl base64编码的dataURL字符串或图片网址
  * @param filePath 保存路径或函数
  * 如果是函数, 接收一个对象参数, 包含以下字段:
  * - fullname: 完整文件名, 包含扩展名
