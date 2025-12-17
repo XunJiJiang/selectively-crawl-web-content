@@ -108,12 +108,14 @@ export async function writeData<D>(
       try {
         raw = JSON.parse(_raw);
         if (!Array.isArray(raw) && _raw.trim() !== '') {
+          log.warn('data.json 根元素不是数组');
           return false;
         }
         if (!Array.isArray(raw)) {
           raw = [];
         }
-      } catch {
+      } catch (e) {
+        log.warn('data.json 解析失败:' + e);
         return false;
       }
     } else {
