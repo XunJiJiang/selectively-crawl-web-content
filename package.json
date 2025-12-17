@@ -13,7 +13,7 @@
     "url": "https://github.com/XunJiJinag/selectively-crawl-web-content/issues"
   },
   "scripts": {
-    "dev": "tsx server/index.ts",
+    "start": "tsx server/index.ts",
     "build": "cd ./user-script && bun run build"
   },
   "devDependencies": {

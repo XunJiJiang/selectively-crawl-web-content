@@ -43,7 +43,7 @@ bun i
 2. 启动服务：
 
 ```bash
-npm run dev
+npm run start
 ```
 
 > [!TIP]
