@@ -1,4 +1,8 @@
 namespace SCWC {
+  interface IContext {
+    registerCommand: import('../utils/command').TRegisterCommand;
+  }
+
   export type DataItem = {
     label: string;
     value: string;
@@ -14,7 +18,7 @@ namespace SCWC {
 
   export interface PluginHandler {
     name: string;
-    onLoad?: (log: Log) => void;
+    onLoad?: (log: Log, context: IContext) => void;
     onRequest: (
       options: {
         utils: {
@@ -62,5 +66,8 @@ namespace SCWC {
     entry: string;
     linkWith: string[];
     handler?: PluginHandler;
+    pluginId: string;
+    // 占用的一级命令
+    commandName?: string;
   }
 }

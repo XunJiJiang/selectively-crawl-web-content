@@ -28,7 +28,7 @@
 
 ### 安装依赖
 
-> ![NOTE]
+> [!NOTE]
 >
 > 项目使用 bun 进行包管理, 使用 node tsx 运行服务端
 
@@ -143,9 +143,11 @@ server/plugins/
 
 ```json
 {
-  "name": "<package name>?", // 此项可选
+  "name": "<package name>?", // 此项可选, 默认使用目录名
   "main": "index.ts",
-  "link-with": ["<web path>"]
+  "link-with": ["<web path>"],
+  "enabled": true, // 此项可选, 默认为 true
+  "commandName": "<command name>?" // 此项可选, 用于占用一级命令
 }
 ```
 
@@ -153,7 +155,9 @@ server/plugins/
 {
   "name": "my-plugin",
   "main": "index.ts",
-  "link-with": ["https://example.com"]
+  "link-with": ["https://example.com"],
+  "enabled": true,
+  "commandName": "my-command"
 }
 ```
 

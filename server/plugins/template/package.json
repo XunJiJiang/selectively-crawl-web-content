@@ -2,6 +2,8 @@
   "name": "template-plugin",
   "main": "index.ts",
   "type": "module",
+  "enabled": false,
+  "commandName": "template",
   "link-with": [],
   "devDependencies": {
     "@types/bun": "latest"

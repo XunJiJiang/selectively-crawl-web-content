@@ -6,6 +6,7 @@ const template: SCWC.PluginHandler['onRequest'] = (
 };
 
 export default {
+  name: 'template',
   onLoad: log => {},
   onRequest: template,
   onUnload: log => {},
