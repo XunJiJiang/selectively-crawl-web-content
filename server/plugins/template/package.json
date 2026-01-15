@@ -1,6 +1,6 @@
 {
   "name": "template-plugin",
-  "module": "index.ts",
+  "main": "index.ts",
   "type": "module",
   "link-with": [],
   "devDependencies": {

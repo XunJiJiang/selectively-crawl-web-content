@@ -22,7 +22,7 @@ server/plugins/
 ```json
 {
   "name": "<package name>?", // 此项可选
-  "module": "index.ts",
+  "main": "index.ts",
   "link-with": ["<web path>"]
 }
 ```
@@ -30,7 +30,7 @@ server/plugins/
 ```json
 {
   "name": "my-plugin",
-  "module": "index.ts",
+  "main": "index.ts",
   "link-with": ["https://example.com"]
 }
 ```

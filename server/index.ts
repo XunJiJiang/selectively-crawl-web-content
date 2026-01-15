@@ -60,9 +60,9 @@ function loadPlugins() {
       log.warn(`解析 ${dir}/package.json 失败:`, e);
       continue;
     }
-    const entryRel = pkg.module;
+    const entryRel = pkg.main;
     if (!entryRel || typeof entryRel !== 'string') {
-      log.warn(`${dir} 缺少 module 字段`);
+      log.warn(`${dir} 缺少 main 字段`);
       continue;
     }
     const entryAbs = path.join(PLUGIN_DIR, dir, entryRel);
