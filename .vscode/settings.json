@@ -1,3 +1,11 @@
 {
-  "cSpell.words": ["opencc", "Rjcode", "scwc"]
+  "cSpell.words": ["opencc", "Rjcode", "scwc"],
+  "sqltools.connections": [
+    {
+      "previewLimit": 50,
+      "driver": "SQLite",
+      "name": "asmr-one",
+      "database": "/Users/xunji/Documents/Entertainment/ASMR-ONE/data/data.db"
+    }
+  ]
 }
