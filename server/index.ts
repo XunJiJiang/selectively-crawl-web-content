@@ -390,6 +390,7 @@ process.on('SIGINT', () => {
 process.stdin.setEncoding('utf-8');
 process.stdin.on('data', input => {
   const inputStr = input.toString().trim();
+  if (inputStr === '') return;
   try {
     parseAndRunCommands(inputStr);
   } catch (e) {
