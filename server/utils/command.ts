@@ -295,12 +295,12 @@ export function parseAndRunCommands(originCommand: string) {
 }
 
 /** 打印 help */
-export function printHelp() {
-  console.log('可用命令列表:');
+export function printHelp(log: SCWC.Log) {
+  log.info('可用命令列表:');
   for (const [commandName, commandDef] of commandRegistry.entries()) {
-    console.log(`- ${commandName}${commandDef.description ? `: ${commandDef.description}` : ''}`);
+    log.info(`- ${commandName}${commandDef.description ? `: ${commandDef.description}` : ''}`);
   }
-  console.log('使用 "help [命令名称]" 查看指定命令的帮助信息');
+  log.info('使用 "help [命令名称]" 查看指定命令的帮助信息');
 }
 
 /**

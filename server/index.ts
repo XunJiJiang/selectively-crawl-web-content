@@ -221,7 +221,7 @@ registerCommand(
   'help',
   (_options, log, originArgs) => {
     if (originArgs.length === 1) {
-      printHelp();
+      printHelp(log);
     } else if (originArgs.length === 2) {
       printCommandHelp(originArgs[1]);
     } else {
@@ -235,12 +235,12 @@ registerCommand(
   pluginLogger,
   'plugin:list',
   () => {
-    console.log('所有插件列表:');
+    pluginLogger.info('所有插件列表:');
     for (const plugin of plugins) {
-      console.log(`- ${plugin.name}[enabled] (跟踪网址: ${plugin.linkWith.join(', ') ?? '无'})`);
+      pluginLogger.info(`- ${plugin.name}[enabled] (跟踪网址: ${plugin.linkWith.join(', ') ?? '无'})`);
     }
     for (const plugin of inactivePlugins) {
-      console.log(
+      pluginLogger.info(
         `- ${plugin.name}[disabled] (原因: ${plugin.reason}) (跟踪网址: ${plugin.linkWith.join(', ') ?? '无'})`
       );
     }
@@ -252,9 +252,9 @@ registerCommand(
   pluginLogger,
   'plugin:ps',
   () => {
-    console.log('已加载插件列表:');
+    pluginLogger.info('已加载插件列表:');
     for (const plugin of plugins) {
-      console.log(`- ${plugin.name}[enabled] (跟踪网址: ${plugin.linkWith.join(', ') ?? '无'})`);
+      pluginLogger.info(`- ${plugin.name}[enabled] (跟踪网址: ${plugin.linkWith.join(', ') ?? '无'})`);
     }
   },
   SYSTEM_SYMBOL,
