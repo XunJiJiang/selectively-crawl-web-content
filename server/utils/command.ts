@@ -10,7 +10,11 @@ type TCommandOption = {
   defaultValue?: string | boolean | number;
 };
 
-type TCommandCallback = (options: TCommandOption[], log: SCWC.Log, originArgs: string[]) => void;
+type TCommandCallback = (
+  options: (TCommandOption & { value: string | boolean | number })[],
+  log: SCWC.Log,
+  originArgs: string[]
+) => void;
 
 type TSubCommand = {
   name: string;
@@ -228,8 +232,9 @@ export function parseAndRunCommands(originCommand: string) {
       }
     } else {
       // 不需要值，视为布尔值 true
-      optionValue = true;
+      optionValue = optionValue === void 0 ? true : optionValue;
     }
+    options[optionName] = optionValue;
   }
 
   // 检查必填选项
@@ -237,6 +242,15 @@ export function parseAndRunCommands(originCommand: string) {
     if (opt.required && !(opt.name in options)) {
       log.error(`缺少必填选项: --${opt.name}`);
       return;
+    } else {
+      // 如果没有提供值，设置为默认值或 false
+      if (!(opt.name in options)) {
+        if (opt.defaultValue !== void 0) {
+          options[opt.name] = opt.defaultValue;
+        } else {
+          options[opt.name] = false;
+        }
+      }
     }
   }
 
@@ -262,13 +276,21 @@ export function parseAndRunCommands(originCommand: string) {
     const subCommand = commandDef.subCommands.find(sub => sub.name === subCommandName);
     if (subCommand) {
       // 执行子命令回调
-      subCommand.callback(commandDef.options, commandDef.log, originArgs);
+      subCommand.callback(
+        commandDef.options.map(opt => ({ ...opt, value: options[opt.name] })),
+        commandDef.log,
+        originArgs
+      );
       executedSubCommand = true;
     }
   }
   if (!executedSubCommand) {
     // 执行命令回调
-    commandDef.callback(commandDef.options, commandDef.log, originArgs);
+    commandDef.callback(
+      commandDef.options.map(opt => ({ ...opt, value: options[opt.name] })),
+      commandDef.log,
+      originArgs
+    );
   }
 }
 
