@@ -292,6 +292,7 @@ export function parseAndRunCommands(originCommand: string) {
       originArgs
     );
   }
+  console.log(''); // 命令执行完后换行
 }
 
 /** 打印 help */
