@@ -314,7 +314,7 @@ app.post(
       if (plugin.linkWith && plugin.linkWith.some(link => root.startsWith(link))) {
         const log = createLogger(`plugin:${plugin.name}`, path.relative(process.cwd(), plugin.entry));
         log.info(`处理网址: ${decodedSite}`);
-        log.info(`插件入口: ${plugin.entry}`);
+        // log.info(`插件入口: ${plugin.entry}`);
         try {
           plugin.handler &&
             (await plugin.handler.onRequest(
