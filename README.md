@@ -229,9 +229,13 @@ export default async function (
 
 ## 开发&自定义
 
-- 脚本源码：`user-script/src/`，基于 React+Vite。
+- 浏览器脚本源码：`user-script/src/`，基于 React+Vite。
 - 服务端源码：`server/index.ts`，基于 Express。
 - 构建命令、依赖见 `package.json`。
+
+## TODO
+
+- [ ] 支持浏览器脚本插件
 
 ## 贡献&反馈
 
@@ -239,7 +243,7 @@ export default async function (
 
 ## 免责声明
 
-本项目仅供学习与技术交流使用，严禁用于任何违反法律法规或侵犯他人权益的用途。因使用本项目产生的任何后果，均由使用者本人承担，作者不承担任何法律责任。
+本项目仅供学习与技术交流使用，严禁用于任何违反法律法规或侵犯他人权益的用途。因使用本项目产生的任何后果，均由使用者本人承担，项目开发者不承担任何法律责任。
 
 ## License
 
