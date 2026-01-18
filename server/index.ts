@@ -174,7 +174,7 @@ function loadPlugins() {
                 description,
                 subCommands,
                 options,
-                exampleUsage
+                exampleUsage,
               );
             } catch (e) {
               if (e instanceof CommandError) {
@@ -214,12 +214,12 @@ registerCommand(
     process.exit(0);
   },
   SYSTEM_SYMBOL,
-  '退出程序'
+  '退出程序',
 );
 registerCommand(
   serverLogger,
   'help',
-  (_options, log, originArgs) => {
+  (log, _options, _unusedArgs, originArgs) => {
     if (originArgs.length === 1) {
       printHelp(log);
     } else if (originArgs.length === 2) {
@@ -229,7 +229,7 @@ registerCommand(
     }
   },
   SYSTEM_SYMBOL,
-  '显示帮助信息'
+  '显示帮助信息',
 );
 registerCommand(
   pluginLogger,
@@ -241,12 +241,12 @@ registerCommand(
     }
     for (const plugin of inactivePlugins) {
       pluginLogger.info(
-        `- ${plugin.name}[disabled] (原因: ${plugin.reason}) (跟踪网址: ${plugin.linkWith.join(', ') ?? '无'})`
+        `- ${plugin.name}[disabled] (原因: ${plugin.reason}) (跟踪网址: ${plugin.linkWith.join(', ') ?? '无'})`,
       );
     }
   },
   SYSTEM_SYMBOL,
-  '列出所有已加载的插件'
+  '列出所有已加载的插件',
 );
 registerCommand(
   pluginLogger,
@@ -258,7 +258,7 @@ registerCommand(
     }
   },
   SYSTEM_SYMBOL,
-  '列出所有已加载的插件'
+  '列出所有已加载的插件',
 );
 
 type DataItem = {
@@ -278,7 +278,7 @@ app.post(
         data: DataItem[];
       }
     >,
-    res: any
+    res: any,
   ) => {
     const { site, data } = req.body;
     if (!site || !data) {
@@ -343,7 +343,7 @@ app.post(
                     type,
                   });
                 },
-              }
+              },
             ));
           called = true;
         } catch (e) {
@@ -366,7 +366,7 @@ app.post(
         data: [],
       });
     }
-  }
+  },
 );
 
 app.listen(PORT, () => {
