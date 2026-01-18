@@ -11,8 +11,11 @@ type TCommandOption = {
 };
 
 type TCommandCallback = (
-  options: (TCommandOption & { value: string | boolean | number })[],
   log: SCWC.Log,
+  options: (TCommandOption & { value: string | boolean | number })[], // 包含值的选项数组
+  // 未使用的参数部分的数组
+  unusedArgs: string[],
+  // 原始命令参数数组
   originArgs: string[]
 ) => void;
 
@@ -171,8 +174,13 @@ export function registerCommand(
 export function parseAndRunCommands(originCommand: string) {
   const parts = originCommand.split(' ').filter(part => part.trim() !== '');
   const commandName = parts[0];
-  // 删除一级命令名称
+  /** 删除一级命令名称的参数数组 */
   const args = parts.slice(1);
+  /**
+   * 未使用的参数
+   * 包括除去主命令和子命令名称和所有注册参数之外的参数
+   */
+  const unusedArgs: string[] = parts.slice(2).filter(arg => arg.startsWith('-'));
   // 备份原始参数数组
   const originArgs = parts.slice(0);
   if (!commandRegistry.has(commandName)) {
@@ -218,6 +226,8 @@ export function parseAndRunCommands(originCommand: string) {
       const optionDef = commandDef.options.find(opt => opt.alias === optionName);
       if (optionDef) {
         optionName = optionDef.name;
+      } else {
+        unusedArgs.push(part);
       }
     }
     const optionDef = commandDef.options.find(opt => opt.name === optionName);
@@ -277,18 +287,25 @@ export function parseAndRunCommands(originCommand: string) {
     if (subCommand) {
       // 执行子命令回调
       subCommand.callback(
-        commandDef.options.map(opt => ({ ...opt, value: options[opt.name] })),
         commandDef.log,
+        commandDef.options.map(opt => ({ ...opt, value: options[opt.name] })),
+        unusedArgs,
         originArgs
       );
       executedSubCommand = true;
     }
   }
   if (!executedSubCommand) {
+    // 第二个命令不是注册的子命令时，将这个命令参数加入未使用参数列表的第一项
+    if (nonOptionArgs.length > 0) {
+      unusedArgs.unshift(nonOptionArgs[0]);
+    }
+
     // 执行命令回调
     commandDef.callback(
-      commandDef.options.map(opt => ({ ...opt, value: options[opt.name] })),
       commandDef.log,
+      commandDef.options.map(opt => ({ ...opt, value: options[opt.name] })),
+      unusedArgs,
       originArgs
     );
   }

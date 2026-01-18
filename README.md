@@ -236,6 +236,7 @@ export default async function (
 ## TODO
 
 - [ ] 支持浏览器脚本插件
+- [ ] log 文件日志
 
 ## 贡献&反馈
 
