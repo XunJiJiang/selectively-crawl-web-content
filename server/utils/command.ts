@@ -167,12 +167,53 @@ export function registerCommand(
 }
 
 /**
+ * 解析并拆分源命令
+ * 主要是为了处理带引号的参数
+ * @param rawCommand 原始命令字符串
+ * @returns 拆分后的命令数组
+ */
+export function splitCommand(rawCommand: string): string[] {
+  const parts: string[] = [];
+  let currentPart = ''; // 当前部分
+  let inQuotes = false; // 是否在引号内
+  let quoteChar = ''; // 引号字符
+
+  for (let i = 0; i < rawCommand.length; i++) {
+    const char = rawCommand[i];
+
+    if (char === ' ' && !inQuotes) {
+      if (currentPart !== '') {
+        parts.push(currentPart);
+        currentPart = '';
+      }
+    } else if ((char === '"' || char === "'") && !inQuotes) {
+      inQuotes = true;
+      quoteChar = char;
+    } else if (char === quoteChar && inQuotes) {
+      inQuotes = false;
+      quoteChar = '';
+    } else {
+      currentPart += char;
+    }
+  }
+
+  if (currentPart !== '') {
+    parts.push(currentPart);
+  }
+
+  return parts;
+}
+
+/**
  * 解析命令行指令并执行
  * 只执行一个回调, 优先级: 子命令 > 主命令
  * @param originCommand 原始命令字符串
  */
 export function parseAndRunCommands(originCommand: string) {
-  const parts = originCommand.split(' ').filter(part => part.trim() !== '');
+  const parts = splitCommand(originCommand);
+  if (parts.length === 0) {
+    throw new CommandError('未提供命令');
+  }
   const commandName = parts[0];
   /** 删除一级命令名称的参数数组 */
   const args = [...parts].slice(1);
