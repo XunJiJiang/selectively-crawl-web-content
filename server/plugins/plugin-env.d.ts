@@ -43,7 +43,7 @@ namespace SCWC {
             dataUrl: string,
             filePath:
               | string
-              | ((props: { fullname: string; filename: string; ext: string; datePrefix: string }) => string)
+              | ((props: { fullname: string; filename: string; ext: string; datePrefix: string }) => string),
           ) => Promise<string | false>;
         };
         data: DataItem[];
@@ -56,7 +56,7 @@ namespace SCWC {
       },
       log: Log & {
         toWeb: (info: string, type?: 'success' | 'error') => void;
-      }
+      },
     ) => void | Promise<void>;
     onUnload?: (log: Log) => void;
   }

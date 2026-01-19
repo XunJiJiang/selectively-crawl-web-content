@@ -33,7 +33,7 @@ function App() {
   const [selecting, setSelecting] = useState(false);
   const [selectedEl, setSelectedEl] = useState<Element | null>(null);
   const [items, setItems] = useState<Item[]>(
-    loadFromStorage<typeof SELECTIVE_CRAWL_KEY, Item[]>(SELECTIVE_CRAWL_KEY, [])
+    loadFromStorage<typeof SELECTIVE_CRAWL_KEY, Item[]>(SELECTIVE_CRAWL_KEY, []),
   );
   // undoStack 结构：从初始选中到当前选中，依次为 selector
   const [undoStack, setUndoStack] = useState<string[]>([]);

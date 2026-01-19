@@ -16,7 +16,7 @@ type TCommandCallback = (
   // 未使用的参数部分的数组
   unusedArgs: string[],
   // 原始命令参数数组
-  originArgs: string[]
+  originArgs: string[],
 ) => void;
 
 type TSubCommand = {
@@ -82,7 +82,7 @@ export type TRegisterCommand = (
   description?: string,
   subCommands?: TSubCommand[],
   options?: TCommandOption[],
-  exampleUsage?: string
+  exampleUsage?: string,
 ) => void;
 
 /**
@@ -106,7 +106,7 @@ export function registerCommand(
   description?: string,
   subCommands?: TSubCommand[],
   options?: TCommandOption[],
-  exampleUsage?: string
+  exampleUsage?: string,
 ) {
   if (reservedCommands.has(commandName) && pluginId !== SYSTEM_SYMBOL) {
     throw new CommandError(`命令名称 ${commandName} 为系统预留命令`);
@@ -175,12 +175,12 @@ export function parseAndRunCommands(originCommand: string) {
   const parts = originCommand.split(' ').filter(part => part.trim() !== '');
   const commandName = parts[0];
   /** 删除一级命令名称的参数数组 */
-  const args = parts.slice(1);
+  const args = [...parts].slice(1);
   /**
    * 未使用的参数
    * 包括除去主命令和子命令名称和所有注册参数之外的参数
    */
-  const unusedArgs: string[] = parts.slice(2).filter(arg => arg.startsWith('-'));
+  const unusedArgs: string[] = parts.filter(arg => !arg.startsWith('-')).slice(2);
   // 备份原始参数数组
   const originArgs = parts.slice(0);
   if (!commandRegistry.has(commandName)) {
@@ -290,7 +290,7 @@ export function parseAndRunCommands(originCommand: string) {
         commandDef.log,
         commandDef.options.map(opt => ({ ...opt, value: options[opt.name] })),
         unusedArgs,
-        originArgs
+        originArgs,
       );
       executedSubCommand = true;
     }
@@ -306,7 +306,7 @@ export function parseAndRunCommands(originCommand: string) {
       commandDef.log,
       commandDef.options.map(opt => ({ ...opt, value: options[opt.name] })),
       unusedArgs,
-      originArgs
+      originArgs,
     );
   }
   console.log(''); // 命令执行完后换行
@@ -345,7 +345,7 @@ export function printCommandHelp(commandName: string) {
       log.info(
         `  --${opt.name}${opt.alias ? ` (-${opt.alias})` : ''}${opt.required ? ' [必填]' : ''}${
           opt.defaultValue !== undefined ? ` [默认值: ${opt.defaultValue}]` : ''
-        } - ${opt.description ?? '无描述'}`
+        } - ${opt.description ?? '无描述'}`,
       );
     });
   }

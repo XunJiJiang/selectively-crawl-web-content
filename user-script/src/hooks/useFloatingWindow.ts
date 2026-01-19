@@ -8,7 +8,7 @@ export function loadFromStorage<K extends string, T>(key: K, defaultValue: T): T
     // 兼容旧数据，补全prefix字段
     return key === '__selective_crawl_items__' && Array.isArray(arr)
       ? (arr.map(item => ({ ...item, prefix: typeof item.prefix === 'string' ? item.prefix : '' })) as T)
-      : arr ?? saveToStorage(key, defaultValue);
+      : (arr ?? saveToStorage(key, defaultValue));
   } catch {
     return saveToStorage(key, defaultValue);
   }

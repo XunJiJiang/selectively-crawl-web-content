@@ -19,7 +19,7 @@ import { v4 as uuidv4 } from 'uuid';
  */
 export async function writeDataURL(
   dataUrl: string,
-  filePath: string | ((props: { fullname: string; filename: string; ext: string; datePrefix: string }) => string)
+  filePath: string | ((props: { fullname: string; filename: string; ext: string; datePrefix: string }) => string),
 ): Promise<false | string> {
   const _writeImg = (buf: Buffer, ext: string) => {
     const _filePath = (() => {
@@ -86,7 +86,7 @@ export async function writeDataURL(
  */
 export async function writeData<D>(
   dirPath: string,
-  data: D
+  data: D,
 ): Promise<
   | false
   | {
