@@ -1,7 +1,5 @@
 namespace SCWC {
-  interface IContext {
-    registerCommand: import('../utils/command').TRegisterCommand;
-  }
+  interface IContext {}
 
   export type DataItem = {
     label: string;
@@ -59,6 +57,20 @@ namespace SCWC {
       },
     ) => void | Promise<void>;
     onUnload?: (log: Log) => void;
+    pluginConfig?: {
+      command?: {
+        callback: import('../utils/command').TCommandCallback;
+        description?: string;
+        subCommands?: import('../utils/command').TSubCommand[];
+        options?: import('../utils/command').TCommandOption[];
+        exampleUsage?: string;
+      };
+      scriptPlugin?: {
+        title: string;
+        description?: string;
+        controls: PluginItem[];
+      };
+    };
   }
 
   export interface PluginMeta {

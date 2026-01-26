@@ -2,7 +2,7 @@
  * 命令行指令处理模块
  */
 
-type TCommandOption = {
+export type TCommandOption = {
   name: string;
   alias?: string;
   description?: string;
@@ -10,7 +10,7 @@ type TCommandOption = {
   defaultValue?: string | boolean | number;
 };
 
-type TCommandCallback = (
+export type TCommandCallback = (
   log: SCWC.Log,
   options: (TCommandOption & { value: string | boolean | number })[], // 包含值的选项数组
   // 未使用的参数部分的数组
@@ -19,7 +19,7 @@ type TCommandCallback = (
   originArgs: string[],
 ) => void;
 
-type TSubCommand = {
+export type TSubCommand = {
   name: string;
   description?: string;
   exampleUsage?: string;
@@ -350,7 +350,7 @@ export function parseAndRunCommands(originCommand: string) {
       originArgs,
     );
   }
-  console.log(''); // 命令执行完后换行
+  commandDef.log.info('=======================================================');
 }
 
 /** 打印 help */

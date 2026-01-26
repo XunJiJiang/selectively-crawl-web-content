@@ -161,31 +161,33 @@ function loadPlugins() {
   for (const plugin of plugins) {
     if (plugin.handler && typeof plugin.handler.onLoad === 'function') {
       const log = createLogger(`plugin:${plugin.name}`, path.relative(process.cwd(), plugin.entry));
-      plugin.handler.onLoad(log, {
-        registerCommand: (callback, description, subCommands, options, exampleUsage) => {
-          const commandName = plugin.commandName;
-          if (commandName) {
-            try {
-              registerCommand(
-                log,
-                commandName,
-                callback,
-                plugin.pluginId,
-                description,
-                subCommands,
-                options,
-                exampleUsage,
-              );
-            } catch (e) {
-              if (e instanceof CommandError) {
-                log.error(`注册命令 ${commandName} 失败: ${e.message}`);
-              } else {
-                log.error(`注册命令 ${commandName} 时出现未知错误: ${e}`);
-              }
+
+      const commandConfig = plugin.handler.pluginConfig?.command;
+      if (commandConfig) {
+        const commandName = plugin.commandName;
+        if (commandName) {
+          try {
+            registerCommand(
+              log,
+              commandName,
+              commandConfig.callback,
+              plugin.pluginId,
+              commandConfig.description,
+              commandConfig.subCommands,
+              commandConfig.options,
+              commandConfig.exampleUsage,
+            );
+          } catch (e) {
+            if (e instanceof CommandError) {
+              log.error(`注册命令 ${commandName} 失败: ${e.message}`);
+            } else {
+              log.error(`注册命令 ${commandName} 时出现未知错误: ${e}`);
             }
           }
-        },
-      });
+        }
+      }
+
+      plugin.handler.onLoad(log, {});
     }
   }
 }
