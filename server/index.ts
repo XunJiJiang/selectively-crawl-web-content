@@ -15,7 +15,7 @@ import {
   SYSTEM_SYMBOL,
   printCommandHelp,
   printHelp,
-} from './utils/command';
+} from './utils/command.ts';
 
 dotenv.config();
 
@@ -159,34 +159,38 @@ function loadPlugins() {
   }
 
   for (const plugin of plugins) {
-    if (plugin.handler && typeof plugin.handler.onLoad === 'function') {
-      const log = createLogger(`plugin:${plugin.name}`, path.relative(process.cwd(), plugin.entry));
+    if (!plugin.handler) {
+      continue;
+    }
 
-      const commandConfig = plugin.handler.pluginConfig?.command;
-      if (commandConfig) {
-        const commandName = plugin.commandName;
-        if (commandName) {
-          try {
-            registerCommand(
-              log,
-              commandName,
-              commandConfig.callback,
-              plugin.pluginId,
-              commandConfig.description,
-              commandConfig.subCommands,
-              commandConfig.options,
-              commandConfig.exampleUsage,
-            );
-          } catch (e) {
-            if (e instanceof CommandError) {
-              log.error(`注册命令 ${commandName} 失败: ${e.message}`);
-            } else {
-              log.error(`注册命令 ${commandName} 时出现未知错误: ${e}`);
-            }
+    const log = createLogger(`plugin:${plugin.name}`, path.relative(process.cwd(), plugin.entry));
+
+    const commandConfig = plugin.handler.pluginConfig?.command;
+    if (commandConfig) {
+      const commandName = plugin.commandName;
+      if (commandName) {
+        try {
+          registerCommand(
+            log,
+            commandName,
+            commandConfig.callback,
+            plugin.pluginId,
+            commandConfig.description,
+            commandConfig.subCommands,
+            commandConfig.options,
+            commandConfig.exampleUsage,
+          );
+        } catch (e) {
+          if (e instanceof CommandError) {
+            log.error(`注册命令 ${commandName} 失败: ${e.message}`);
+          } else {
+            log.error(`注册命令 ${commandName} 时出现未知错误: ${e}`);
           }
         }
       }
+    }
 
+    if (typeof plugin.handler.onLoad === 'function') {
       plugin.handler.onLoad(log, {});
     }
   }
