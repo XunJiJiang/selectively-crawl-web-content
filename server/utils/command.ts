@@ -326,14 +326,18 @@ export function parseAndRunCommands(originCommand: string) {
     const subCommandName = nonOptionArgs[0];
     const subCommand = commandDef.subCommands.find(sub => sub.name === subCommandName);
     if (subCommand) {
-      // 执行子命令回调
-      subCommand.callback(
-        commandDef.log,
-        commandDef.options.map(opt => ({ ...opt, value: options[opt.name] })),
-        unusedArgs,
-        originArgs,
-      );
-      executedSubCommand = true;
+      try {
+        // 执行子命令回调
+        subCommand.callback(
+          commandDef.log,
+          commandDef.options.map(opt => ({ ...opt, value: options[opt.name] })),
+          unusedArgs,
+          originArgs,
+        );
+        executedSubCommand = true;
+      } catch (error) {
+        log.error(`执行子命令时出错: ${(error as Error).message}`, error);
+      }
     }
   }
   if (!executedSubCommand) {
@@ -343,12 +347,16 @@ export function parseAndRunCommands(originCommand: string) {
     }
 
     // 执行命令回调
-    commandDef.callback(
-      commandDef.log,
-      commandDef.options.map(opt => ({ ...opt, value: options[opt.name] })),
-      unusedArgs,
-      originArgs,
-    );
+    try {
+      commandDef.callback(
+        commandDef.log,
+        commandDef.options.map(opt => ({ ...opt, value: options[opt.name] })),
+        unusedArgs,
+        originArgs,
+      );
+    } catch (error) {
+      log.error(`执行命令时出错: ${(error as Error).message}`, error);
+    }
   }
   commandDef.log.info('=======================================================');
 }
