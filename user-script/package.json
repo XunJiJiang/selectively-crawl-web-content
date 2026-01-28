@@ -9,6 +9,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "antd": "^5.26.4"
+    "antd": "^6.2.1"
   }
 }

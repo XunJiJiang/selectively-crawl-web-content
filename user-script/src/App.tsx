@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useContext } from 'react';
 import FloatingWindow from './layouts/FloatingWindow';
 import TopButtons from './components/TopButtons';
 import ItemFormAndCrawl from './components/ItemFormAndCrawl';
@@ -6,7 +6,8 @@ import { saveToStorage, loadFromStorage } from './hooks/useFloatingWindow';
 import { useElementSelect } from './hooks/useElementSelect';
 import { getSelector, getElementBySelector, highlightElement, isExcludedElement } from './hooks/useCrawlLogic';
 import { scwcLog, scwcWarn, scwcError } from './utils/console';
-import { notification } from 'antd';
+import configContext, { SELECTIVE_CRAWL_KEY } from './context/config';
+import { useNotification } from './hooks/useNotification';
 
 // Item类型加prefix
 export interface Item {
@@ -15,18 +16,9 @@ export interface Item {
   prefix?: string;
 }
 
-const SELECTIVE_CRAWL_KEY = '__selective_crawl_items__';
-const CONFIG_KEY = '__selective_crawl_config__';
-
-const config = loadFromStorage(CONFIG_KEY, {
-  api: {
-    host: import.meta.env.HOST ?? 'http://localhost',
-    port: import.meta.env.PORT ?? '3200',
-  },
-});
-
 function App() {
-  const [api, contextHolder] = notification.useNotification();
+  const config = useContext(configContext);
+  const notify = useNotification();
 
   // 业务状态
   const [expanded, setExpanded] = useState(false);
@@ -79,12 +71,12 @@ function App() {
     saveToStorage(SELECTIVE_CRAWL_KEY, items);
   }, [items]);
 
-  // 统一抓取处理函数
-  const handleCrawl = useCallback(async () => {
-    if (!items.length) {
-      scwcWarn('表单为空，将不会发送抓取请求');
-      return;
+  // 获取抓取数据
+  const getCrawlData = useCallback(() => {
+    if (items.length === 0) {
+      return { result: [], failed: [] };
     }
+
     // 辅助：将img元素转为dataURL
     function getImgElementData(img: HTMLImageElement): string | null {
       try {
@@ -138,6 +130,16 @@ function App() {
         result.push({ label, value, images: [] });
       }
     }
+    return { result, failed };
+  }, [items]);
+
+  // 统一抓取处理函数
+  const handleCrawl = useCallback(async () => {
+    if (!items.length) {
+      scwcWarn('表单为空，将不会发送抓取请求');
+      return;
+    }
+    const { result, failed } = getCrawlData();
     if (failed.length) {
       scwcLog('未获取到的元素索引:', failed);
       return;
@@ -156,10 +158,11 @@ function App() {
         scwcWarn('抓取失败', data.message);
       } else {
         scwcLog('抓取成功');
-        for (const notify of data.data ?? []) {
-          api[notify.type === 'error' ? 'error' : 'success']({
-            message: notify.pluginInfo.name,
-            description: notify.info,
+        console.log(data.data);
+        for (const item of data.data ?? []) {
+          notify[item.type as 'info' | 'success' | 'warn' | 'error']({
+            title: `插件 ${item.pluginInfo.name} 的抓取结果`,
+            description: item.info,
             placement: 'bottomRight',
           });
         }
@@ -167,11 +170,11 @@ function App() {
     } catch (e) {
       scwcError('抓取:', '上传失败', (e as Error).message ?? '', e);
     }
-  }, [items, api]);
+  }, [items, getCrawlData, notify, config]);
 
   return (
-    <FloatingWindow expanded={expanded}>
-      {contextHolder}
+    <FloatingWindow expanded={expanded} getCrawlData={getCrawlData}>
+      {notify.contextHolder}
       <TopButtons
         expanded={expanded}
         canSelect={!selecting && (!expanded || (expanded && !selectedEl))}

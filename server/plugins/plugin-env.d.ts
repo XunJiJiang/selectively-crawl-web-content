@@ -7,6 +7,34 @@ namespace SCWC {
     images: string[]; // 图片数据，dataURL
   };
 
+  export type PluginItem = {
+    type: 'button' | 'toggle' | 'select' | 'input:text' | 'input:number' | 'checkbox';
+    label: string;
+    channel: string;
+    options?: {
+      label: string;
+      value: string;
+    }[];
+    trigger: (
+      log: SCWC.Log,
+      context: { data: DataItem[] },
+    ) =>
+      | {
+          type: 'notification';
+          data: {
+            type: 'success' | 'error' | 'warn' | 'info';
+            message: string;
+          };
+        }
+      | Promise<{
+          type: 'notification';
+          data: {
+            type: 'success' | 'error' | 'warn' | 'info';
+            message: string;
+          };
+        }>;
+  };
+
   export type Log = {
     info: (...args: any[]) => void;
     pathInfo: (...args: any[]) => void;
@@ -53,7 +81,7 @@ namespace SCWC {
         };
       },
       log: Log & {
-        toWeb: (info: string, type?: 'success' | 'error') => void;
+        toWeb: (info: string, type?: 'success' | 'error' | 'warn' | 'info') => void;
       },
     ) => void | Promise<void>;
     onUnload?: (log: Log) => void;
@@ -81,5 +109,6 @@ namespace SCWC {
     pluginId: string;
     // 占用的一级命令
     commandName?: string;
+    log: Log;
   }
 }

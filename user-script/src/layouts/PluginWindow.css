@@ -1,0 +1,56 @@
+.SCWC-plugin-window {
+  flex-direction: column;
+  background-color: #23272e;
+}
+
+.SCWC-plugin-window .SCWC-plugin-window-tabs {
+  background-color: transparent;
+  border: 1px solid #4f4f4f;
+}
+
+.SCWC-plugin-window .SCWC-plugin-window-tabs {
+  flex: 0;
+}
+
+.SCWC-plugin-window .SCWC-plugin-window-tabs .SCWC-plugin-window-tab {
+  transition: all 0.2s;
+  color: #fff8;
+}
+
+.SCWC-plugin-window .SCWC-plugin-window-tabs .SCWC-plugin-window-tab:hover {
+  background-color: #f0f7ff44;
+}
+
+.SCWC-plugin-window .SCWC-plugin-window-tabs .SCWC-plugin-window-tab[data-active='true'] {
+  background-color: #f0f7ff33;
+  color: #fff;
+}
+
+.SCWC-plugin-window .SCWC-plugin-window-content {
+  flex: 1;
+  padding: 16px;
+  overflow: auto;
+}
+
+.SCWC-plugin-window .SCWC-plugin-window-content .SCWC-plugin-window-content-item {
+  margin-right: 8px;
+  margin-bottom: 8px;
+}
+
+.SCWC-plugin-window
+  .SCWC-plugin-window-content
+  .SCWC-plugin-window-content-item.SCWC-plugin-window-content-item-button {
+  background-color: #1890ff;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.SCWC-plugin-window
+  .SCWC-plugin-window-content
+  .SCWC-plugin-window-content-item.SCWC-plugin-window-content-item-button:hover {
+  background-color: #1890ffcc;
+}

@@ -78,6 +78,7 @@ function loadPlugins() {
         linkWith: [],
         pluginId: dir,
         reason: '插件被设置为禁用',
+        log,
       });
       continue;
     }
@@ -92,6 +93,7 @@ function loadPlugins() {
         linkWith: [],
         pluginId: dir,
         reason: 'package.json 中缺少 name 字段',
+        log,
       });
       continue;
     }
@@ -104,6 +106,7 @@ function loadPlugins() {
         linkWith: [],
         pluginId: dir,
         reason: 'package.json 中缺少 main 字段',
+        log,
       });
       continue;
     }
@@ -117,6 +120,7 @@ function loadPlugins() {
         linkWith: [],
         pluginId: dir,
         reason: '入口文件不存在或不是 js/ts 文件',
+        log,
       });
       continue;
     }
@@ -132,6 +136,7 @@ function loadPlugins() {
         linkWith: [],
         pluginId: dir,
         reason: '动态导入插件失败',
+        log,
       });
       continue;
     }
@@ -143,6 +148,7 @@ function loadPlugins() {
         linkWith: [],
         pluginId: dir,
         reason: '插件缺少 onRequest 方法',
+        log,
       });
       continue;
     }
@@ -154,6 +160,7 @@ function loadPlugins() {
       handler: mod,
       pluginId: dir,
       commandName: pkg['commandName'] ?? void 0,
+      log,
     });
     createLogger(`plugin:${name}`, path.relative(process.cwd(), path.join(PLUGIN_DIR, dir))).info(`加载完成`);
   }
@@ -273,6 +280,7 @@ type DataItem = {
   images: string[]; // 图片数据，dataURL
 };
 
+// 抓取数据保存接口
 app.post(
   '/save',
   async (
@@ -314,7 +322,7 @@ app.post(
     const resInfo: {
       pluginInfo: SCWC.PluginMeta;
       info: string;
-      type: 'success' | 'error';
+      type: 'success' | 'error' | 'warn' | 'info';
     }[] = [];
     for (const plugin of plugins) {
       if (plugin.linkWith && plugin.linkWith.some(link => root.startsWith(link))) {
@@ -342,7 +350,7 @@ app.post(
               },
               {
                 ...log,
-                toWeb: (info: string, type: 'success' | 'error' = 'success') => {
+                toWeb: (info: string, type: 'success' | 'error' | 'warn' | 'info' = 'info') => {
                   resInfo.push({
                     pluginInfo: plugin,
                     info,
@@ -369,11 +377,115 @@ app.post(
       res.json({
         success: false,
         message: '没有处理这个网址的插件',
-        data: [],
+        data: ['没有处理这个网址的插件'],
       });
     }
   },
 );
+
+/**
+ * 拼接插件通道
+ * 格式: plugin:插件名称:插件ID:通道名称
+ * @param pluginName 插件名称
+ * @param pluginId 插件ID
+ * @param channel 通道名称
+ * @returns 拼接后的通道字符串
+ */
+function getPluginChannel(pluginName: string, pluginId: string, channel: string): string {
+  return `plugin:${pluginName}:${pluginId}:${channel}`;
+}
+
+/**
+ * 解析插件通道
+ * @param fullChannel 完整通道字符串
+ * @returns 解析结果对象
+ */
+function parsePluginChannel(fullChannel: string): {
+  pluginName: string;
+  pluginId: string;
+  channel: string;
+} | null {
+  const match = fullChannel.match(/^plugin:([^:]+):([^:]+):(.+)$/);
+  if (!match) return null;
+  return {
+    pluginName: match[1],
+    pluginId: match[2],
+    channel: match[3],
+  };
+}
+
+// 获取浏览器脚本插件配置接口
+app.get('/api/plugin/config', (req, res) => {
+  const pluginConfigs: {
+    id: string;
+    title: string;
+    description: string;
+    controls: SCWC.PluginItem[];
+  }[] = [];
+  for (const plugin of plugins) {
+    if (
+      plugin.handler &&
+      plugin.handler.pluginConfig &&
+      plugin.handler.pluginConfig.scriptPlugin &&
+      plugin.handler.pluginConfig.scriptPlugin.title
+    ) {
+      pluginConfigs.push({
+        id: plugin.pluginId,
+        title: plugin.handler.pluginConfig.scriptPlugin.title,
+        description:
+          plugin.handler.pluginConfig.scriptPlugin.description ?? plugin.handler.pluginConfig.scriptPlugin.title,
+        controls:
+          plugin.handler.pluginConfig.scriptPlugin.controls.map(item => ({
+            ...item,
+            channel: getPluginChannel(plugin.name, plugin.pluginId, item.channel),
+          })) ?? [],
+      });
+    }
+  }
+  res.json({
+    code: 200,
+    message: 'success',
+    data: pluginConfigs,
+  });
+});
+
+// 插件通道触发接口
+app.post('/api/plugin/toggle', async (req, res) => {
+  const { channel, id: pluginId, context } = req.body;
+
+  if (!channel || !pluginId) {
+    res.status(400).json({ code: 400, message: '缺少 channel 或 pluginId 参数' });
+    return;
+  }
+
+  // 解析通道
+  const parsed = parsePluginChannel(channel);
+  if (!parsed) {
+    res.status(400).json({ code: 400, message: '无效的 channel 格式' });
+    return;
+  }
+
+  const { pluginName, channel: pluginChannel } = parsed;
+
+  const plugin = plugins.find(p => p.pluginId === pluginId && p.name === pluginName);
+
+  if (!plugin) {
+    res.status(404).json({ code: 404, message: `未找到插件: ${pluginId}` });
+    return;
+  }
+
+  const pluginItem = plugin.handler?.pluginConfig?.scriptPlugin?.controls.find(item => item.channel === pluginChannel);
+
+  // 调用插件的 trigger 处理函数
+  if (pluginItem) {
+    try {
+      plugin.log.info(`触发插件通道: ${pluginChannel}`);
+      const result = await pluginItem.trigger(plugin.log, context);
+      plugin.log.info('=======================================================');
+      res.json({ code: 200, message: '插件通道触发成功', data: result });
+    } catch (e) {}
+  }
+});
 
 app.listen(PORT, () => {
   const log = createLogger('server', `http://localhost:${PORT}`);
