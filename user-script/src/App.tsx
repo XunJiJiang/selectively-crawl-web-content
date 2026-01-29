@@ -145,7 +145,7 @@ function App() {
       return;
     }
     try {
-      const res = await fetch(`${config.api.host}:${config.api.port.replace(/[^\d]/g, '')}/save`, {
+      const res = await fetch(`${config.api.host}:${config.api.port.replace(/[^\d]/g, '')}/api/metadata/scrape`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -17,7 +17,15 @@ namespace SCWC {
     }[];
     trigger: (
       log: SCWC.Log,
-      context: { data: DataItem[] },
+      context: {
+        data: DataItem[];
+        site: {
+          url: string;
+          rootUrl: string;
+          origin: string;
+          pathname: string;
+        };
+      },
     ) =>
       | {
           type: 'notification';

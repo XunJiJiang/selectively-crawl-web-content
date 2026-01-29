@@ -69,10 +69,14 @@ const reservedCommands = new Set<string>(['exit', 'help', 'plugin:list', 'plugin
 export const SYSTEM_SYMBOL = Symbol('system');
 
 export class CommandError extends Error {
-  constructor(message: string) {
+  constructor(message: string, needPrintOriginal: boolean = true) {
     super(message);
     this.name = 'CommandError';
+    this.needPrintOriginal = needPrintOriginal;
   }
+
+  /** 是否需要打印原始错误 */
+  public needPrintOriginal = true;
 }
 
 // 和 registerCommand 类型略有不同, 这个是插件实际调用的类型
@@ -109,15 +113,18 @@ export function registerCommand(
   exampleUsage?: string,
 ) {
   if (reservedCommands.has(commandName) && pluginId !== SYSTEM_SYMBOL) {
-    throw new CommandError(`命令名称 ${commandName} 为系统预留命令`);
+    throw new CommandError(`命令名称 ${commandName} 为系统预留命令`, false);
   }
 
   if (!reservedCommands.has(commandName) && !isValidCommandName(commandName)) {
-    throw new CommandError(`包含非法字符，只能包含字母、数字、"-"、"_"`);
+    throw new CommandError(`包含非法字符，只能包含字母、数字、"-"、"_"`, false);
   }
 
   if (pluginCommandMap.has(pluginId.toString())) {
-    throw new CommandError(`插件 ${pluginId.toString()} 已经注册命令 ${pluginCommandMap.get(pluginId.toString())}`);
+    throw new CommandError(
+      `插件 ${pluginId.toString()} 已经注册命令 ${pluginCommandMap.get(pluginId.toString())}`,
+      false,
+    );
   }
 
   if (commandPluginMap.has(commandName)) {
@@ -212,7 +219,7 @@ export function splitCommand(rawCommand: string): string[] {
 export function parseAndRunCommands(originCommand: string) {
   const parts = splitCommand(originCommand);
   if (parts.length === 0) {
-    throw new CommandError('未提供命令');
+    throw new CommandError('未提供命令', false);
   }
   const commandName = parts[0];
   /** 删除一级命令名称的参数数组 */
@@ -225,7 +232,7 @@ export function parseAndRunCommands(originCommand: string) {
   // 备份原始参数数组
   const originArgs = parts.slice(0);
   if (!commandRegistry.has(commandName)) {
-    throw new CommandError(`未知命令: ${commandName}`);
+    throw new CommandError(`未知命令: ${commandName}`, false);
   }
   const commandDef = commandRegistry.get(commandName)!;
   const log = commandDef.log;
@@ -336,7 +343,10 @@ export function parseAndRunCommands(originCommand: string) {
         );
         executedSubCommand = true;
       } catch (error) {
-        log.error(`执行子命令时出错: ${(error as Error).message}`, error);
+        log.error(`执行子命令时出错: ${(error as Error).message}`);
+        if (error instanceof CommandError && error.needPrintOriginal) {
+          log.error(error);
+        }
       }
     }
   }
@@ -355,7 +365,10 @@ export function parseAndRunCommands(originCommand: string) {
         originArgs,
       );
     } catch (error) {
-      log.error(`执行命令时出错: ${(error as Error).message}`, error);
+      log.error(`执行命令时出错: ${(error as Error).message}`);
+      if (error instanceof CommandError && error.needPrintOriginal) {
+        log.error(error);
+      }
     }
   }
   commandDef.log.info('=======================================================');
@@ -376,7 +389,7 @@ export function printHelp(log: SCWC.Log) {
  */
 export function printCommandHelp(commandName: string) {
   if (!commandRegistry.has(commandName)) {
-    throw new CommandError(`未知命令: ${commandName}`);
+    throw new CommandError(`未知命令: ${commandName}`, false);
   }
   const commandDef = commandRegistry.get(commandName)!;
   const log = commandDef.log;

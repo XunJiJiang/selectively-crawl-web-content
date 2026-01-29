@@ -90,6 +90,7 @@ const PluginWindow: React.FC<PluginWindowProps> = ({ openPluginWindow, getCrawlD
           id: pluginId,
           context: {
             data: result,
+            site: window.location.href,
           },
         }),
       });

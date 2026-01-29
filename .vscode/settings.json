@@ -1,5 +1,16 @@
 {
-  "cSpell.words": ["AUTOINCREMENT", "dlsite", "HVDB", "opencc", "rgcode", "Rjcode", "Rjcodes", "scwc", "sricode"],
+  "cSpell.words": [
+    "AUTOINCREMENT",
+    "deepth",
+    "dlsite",
+    "HVDB",
+    "opencc",
+    "rgcode",
+    "Rjcode",
+    "Rjcodes",
+    "scwc",
+    "sricode"
+  ],
   "sqltools.connections": [
     {
       "previewLimit": 50,
