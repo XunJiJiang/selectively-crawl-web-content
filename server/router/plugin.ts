@@ -48,16 +48,15 @@ router.get('/config', (req, res) => {
     if (
       plugin.handler &&
       plugin.handler.pluginConfig &&
-      plugin.handler.pluginConfig.scriptPlugin &&
-      plugin.handler.pluginConfig.scriptPlugin.title
+      plugin.handler.pluginConfig.scripts &&
+      plugin.handler.pluginConfig.scripts.title
     ) {
       pluginConfigs.push({
         id: plugin.pluginId,
-        title: plugin.handler.pluginConfig.scriptPlugin.title,
-        description:
-          plugin.handler.pluginConfig.scriptPlugin.description ?? plugin.handler.pluginConfig.scriptPlugin.title,
+        title: plugin.handler.pluginConfig.scripts.title,
+        description: plugin.handler.pluginConfig.scripts.description ?? plugin.handler.pluginConfig.scripts.title,
         controls:
-          plugin.handler.pluginConfig.scriptPlugin.controls.map(item => ({
+          plugin.handler.pluginConfig.scripts.controls.map(item => ({
             ...item,
             channel: getPluginChannel(plugin.name, plugin.pluginId, item.channel),
           })) ?? [],
@@ -139,7 +138,7 @@ router.post('/toggle', async (req, res) => {
     return;
   }
 
-  const pluginItem = plugin.handler?.pluginConfig?.scriptPlugin?.controls.find(item => item.channel === pluginChannel);
+  const pluginItem = plugin.handler?.pluginConfig?.scripts?.controls.find(item => item.channel === pluginChannel);
 
   // 调用插件的 trigger 处理函数
   if (pluginItem) {

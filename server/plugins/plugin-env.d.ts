@@ -1,6 +1,10 @@
 namespace SCWC {
   interface IContext {}
 
+  export type TCommandCallback = import('../utils/command').TCommandCallback;
+  export type TCommandOption = import('../utils/command').TCommandOption;
+  export type TSubCommand = import('../utils/command').TSubCommand;
+
   export type DataItem = {
     label: string;
     value: string;
@@ -95,13 +99,13 @@ namespace SCWC {
     onUnload?: (log: Log) => void;
     pluginConfig?: {
       command?: {
-        callback: import('../utils/command').TCommandCallback;
+        callback: TCommandCallback;
         description?: string;
-        subCommands?: import('../utils/command').TSubCommand[];
-        options?: import('../utils/command').TCommandOption[];
+        subCommands?: TSubCommand[];
+        options?: TCommandOption[];
         exampleUsage?: string;
       };
-      scriptPlugin?: {
+      scripts?: {
         title: string;
         description?: string;
         controls: PluginItem[];
