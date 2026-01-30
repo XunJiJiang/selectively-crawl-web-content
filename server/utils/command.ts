@@ -2,6 +2,8 @@
  * 命令行指令处理模块
  */
 
+import { isPromiseLike } from '../plugins/asmr/src/utils/tryCatch.ts';
+
 export type TCommandOption = {
   name: string;
   alias?: string;
@@ -10,7 +12,7 @@ export type TCommandOption = {
   defaultValue?: string | boolean | number;
 };
 
-export type TCommandCallback = (
+export type TCommandExecute = (
   log: SCWC.Log,
   options: (TCommandOption & { value: string | boolean | number })[], // 包含值的选项数组
   // 未使用的参数部分的数组
@@ -23,7 +25,7 @@ export type TSubCommand = {
   name: string;
   description?: string;
   exampleUsage?: string;
-  callback: TCommandCallback;
+  execute: TCommandExecute;
 };
 
 /**
@@ -35,7 +37,7 @@ const commandRegistry = new Map<
   string,
   {
     log: SCWC.Log;
-    callback: TCommandCallback;
+    execute: TCommandExecute;
     description?: string;
     subCommands: TSubCommand[];
     options: TCommandOption[];
@@ -82,7 +84,7 @@ export class CommandError extends Error {
 // 和 registerCommand 类型略有不同, 这个是插件实际调用的类型
 // 由 registerCommand 包装后暴露给插件使用
 export type TRegisterCommand = (
-  callback: TCommandCallback,
+  execute: TCommandExecute,
   description?: string,
   subCommands?: TSubCommand[],
   options?: TCommandOption[],
@@ -94,7 +96,7 @@ export type TRegisterCommand = (
  * 限制每个插件只能注册一个命令
  * @param log 日志对象
  * @param commandName 命令名称
- * @param callback 命令回调
+ * @param execute 命令回调
  * @param pluginId 插件 ID
  * @param description 命令描述
  * @param subCommands 子命令
@@ -105,7 +107,7 @@ export type TRegisterCommand = (
 export function registerCommand(
   log: SCWC.Log,
   commandName: string,
-  callback: TCommandCallback,
+  execute: TCommandExecute,
   pluginId: string | symbol,
   description?: string,
   subCommands?: TSubCommand[],
@@ -164,7 +166,7 @@ export function registerCommand(
   // 注册命令
   commandRegistry.set(commandName, {
     log,
-    callback,
+    execute,
     description,
     subCommands: subCommands ?? [],
     options: options ?? [],
@@ -335,13 +337,21 @@ export function parseAndRunCommands(originCommand: string) {
     if (subCommand) {
       try {
         // 执行子命令回调
-        subCommand.callback(
+        const prom = subCommand.execute(
           commandDef.log,
           commandDef.options.map(opt => ({ ...opt, value: options[opt.name] })),
           unusedArgs,
           originArgs,
         );
         executedSubCommand = true;
+        if (isPromiseLike(prom)) {
+          prom.catch(error => {
+            log.error(`执行子命令时出错: ${(error as Error).message}`);
+            if (error instanceof CommandError && error.needPrintOriginal) {
+              log.error(error);
+            }
+          });
+        }
       } catch (error) {
         log.error(`执行子命令时出错: ${(error as Error).message}`);
         if (error instanceof CommandError && error.needPrintOriginal) {
@@ -358,12 +368,20 @@ export function parseAndRunCommands(originCommand: string) {
 
     // 执行命令回调
     try {
-      commandDef.callback(
+      const prom = commandDef.execute(
         commandDef.log,
         commandDef.options.map(opt => ({ ...opt, value: options[opt.name] })),
         unusedArgs,
         originArgs,
       );
+      if (isPromiseLike(prom)) {
+        prom.catch(error => {
+          log.error(`执行命令时出错: ${(error as Error).message}`);
+          if (error instanceof CommandError && error.needPrintOriginal) {
+            log.error(error);
+          }
+        });
+      }
     } catch (error) {
       log.error(`执行命令时出错: ${(error as Error).message}`);
       if (error instanceof CommandError && error.needPrintOriginal) {

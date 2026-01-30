@@ -1,7 +1,7 @@
 namespace SCWC {
   interface IContext {}
 
-  export type TCommandCallback = import('../utils/command').TCommandCallback;
+  export type TCommandExecute = import('../utils/command').TCommandExecute;
   export type TCommandOption = import('../utils/command').TCommandOption;
   export type TSubCommand = import('../utils/command').TSubCommand;
 
@@ -99,7 +99,7 @@ namespace SCWC {
     onUnload?: (log: Log) => void;
     pluginConfig?: {
       command?: {
-        callback: TCommandCallback;
+        execute: TCommandExecute;
         description?: string;
         subCommands?: TSubCommand[];
         options?: TCommandOption[];

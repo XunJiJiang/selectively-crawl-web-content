@@ -149,7 +149,7 @@ export function loadPlugins() {
           registerCommand(
             log,
             commandName,
-            commandConfig.callback,
+            commandConfig.execute,
             plugin.pluginId,
             commandConfig.description,
             commandConfig.subCommands,
