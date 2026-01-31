@@ -56,7 +56,7 @@ namespace SCWC {
 
   export interface PluginHandler {
     name: string;
-    onLoad?: (log: Log, context: IContext) => void;
+    onLoad?: (log: Log, context: IContext) => Promise<void>;
     onRequest: (
       options: {
         utils: {
@@ -96,7 +96,7 @@ namespace SCWC {
         toWeb: (info: string, type?: 'success' | 'error' | 'warn' | 'info') => void;
       },
     ) => void | Promise<void>;
-    onUnload?: (log: Log) => void;
+    onUnload?: (log: Log) => Promise<void>;
     pluginConfig?: {
       command?: {
         execute: TCommandExecute;

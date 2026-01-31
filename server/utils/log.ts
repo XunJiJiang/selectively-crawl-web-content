@@ -1,5 +1,7 @@
 import chalk from 'chalk';
 
+// TODO: 记录日志到文件
+
 const log = {
   info: (...message: any[]) => {
     console.log(chalk.blue('[SCWC INFO]'), ...message);

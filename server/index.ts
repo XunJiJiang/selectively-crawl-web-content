@@ -30,11 +30,11 @@ listen(PORT, () => {
 listenProcessStdin(serverLogger);
 
 // 监听退出信号
-process.on('SIGINT', () => {
+process.on('SIGINT', async () => {
   for (const plugin of plugins) {
     if (plugin.handler && typeof plugin.handler.onUnload === 'function') {
       const log = createLogger(`plugin:${plugin.name}`, path.relative(process.cwd(), plugin.entry));
-      plugin.handler.onUnload(log);
+      await plugin.handler.onUnload(log);
     }
   }
 

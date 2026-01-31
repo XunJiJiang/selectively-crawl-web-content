@@ -16,7 +16,7 @@
       "previewLimit": 50,
       "driver": "SQLite",
       "name": "asmr-one",
-      "database": "/Users/xunji/Documents/Entertainment/ASMR-ONE/data/data.db"
+      "database": "/Users/xunji/Documents/Entertainment/ASMR-ONE/data.sqlite"
     }
   ]
 }

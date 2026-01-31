@@ -20,7 +20,7 @@ export const inactivePlugins: (SCWC.PluginMeta & {
   reason: string;
 })[] = [];
 
-export function loadPlugins() {
+export async function loadPlugins() {
   if (!fs.existsSync(PLUGIN_DIR)) return;
   const dirs = fs
     .readdirSync(PLUGIN_DIR, { withFileTypes: true })
@@ -170,7 +170,7 @@ export function loadPlugins() {
     }
 
     if (typeof plugin.handler.onLoad === 'function') {
-      plugin.handler.onLoad(log, {});
+      await plugin.handler.onLoad(log, {});
     }
   }
 }
