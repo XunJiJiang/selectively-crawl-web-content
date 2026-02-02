@@ -192,7 +192,7 @@ const PluginWindow: React.FC<PluginWindowProps> = ({ openPluginWindow, getCrawlD
               </button>
             ) : (
               <div key={idx} style={{ color: '#888', marginBottom: 8 }}>
-                {/* TODO */}
+                {/* TODO: 更多的类型支持 */}
                 不支持的控件类型: {control.type}
               </div>
             ),
