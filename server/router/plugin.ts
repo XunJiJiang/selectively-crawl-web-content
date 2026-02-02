@@ -144,6 +144,7 @@ router.post('/toggle', async (req, res) => {
   if (pluginItem) {
     try {
       plugin.log.info(`触发插件通道: ${pluginChannel}`);
+      plugin.log.info(`label: ${pluginItem.label}`);
       const result = await pluginItem.trigger(plugin.log, {
         data,
         site: siteInfo,
