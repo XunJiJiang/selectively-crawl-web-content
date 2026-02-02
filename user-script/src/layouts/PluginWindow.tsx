@@ -38,7 +38,15 @@ const PluginWindow: React.FC<PluginWindowProps> = ({ openPluginWindow, getCrawlD
   const notify = useNotification();
 
   const fetchPluginConfig = useCallback(async () => {
-    const res = await fetch(`${config.api.host}:${config.api.port.replace(/[^\d]/g, '')}/api/plugin/config`);
+    /** 当前页面完整url */
+    const url = window.location.href;
+
+    const res = await fetch(
+      `${config.api.host}:${config.api.port.replace(/[^\d]/g, '')}/api/plugin/config?site=${encodeURIComponent(url)}`,
+      {
+        method: 'GET',
+      },
+    );
     if (!res.ok) throw new Error('Failed to fetch plugin config');
     const data = (await res.json()) as {
       code: number;
@@ -190,7 +198,9 @@ const PluginWindow: React.FC<PluginWindowProps> = ({ openPluginWindow, getCrawlD
             ),
           )
         ) : (
-          <div style={{ color: '#888' }}>{plugins === null ? '加载中...' : '请选择左侧标签'}</div>
+          <div style={{ color: '#888' }}>
+            {plugins === null ? '加载中...' : plugins.length === 0 ? '没有插件可用' : '请选择左侧标签'}
+          </div>
         )}
       </div>
     </div>

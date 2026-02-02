@@ -32,6 +32,7 @@ listenProcessStdin(serverLogger);
 // 监听退出信号
 process.on('SIGINT', async () => {
   for (const plugin of plugins) {
+    // TODO: 当实现重启后, 调用时需要告知插件本次关闭为重启
     if (plugin.handler && typeof plugin.handler.onUnload === 'function') {
       const log = createLogger(`plugin:${plugin.name}`, path.relative(process.cwd(), plugin.entry));
       await plugin.handler.onUnload(log);

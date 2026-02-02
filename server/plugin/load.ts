@@ -121,7 +121,16 @@ export async function loadPlugins() {
       });
       continue;
     }
-    const linkWith: string[] = Array.isArray(pkg['link-with']) ? pkg['link-with'] : [];
+    const linkWith: string[] = Array.isArray(pkg['link-with'])
+      ? pkg['link-with'].map(item => {
+          // 去除尾部斜杠
+          if (item.endsWith('/')) {
+            return item.slice(0, -1);
+          } else {
+            return item;
+          }
+        })
+      : [];
     plugins.push({
       name: name,
       entry: entryAbs,

@@ -1,7 +1,9 @@
 import express from 'express';
+import { query } from 'express-validator';
 import z from 'zod';
 import { plugins } from '../plugin/load.ts';
 import { getRootUrl } from './utils/index.ts';
+import { pluginLogger } from '../plugin/log.ts';
 
 const router = express.Router();
 
@@ -36,8 +38,32 @@ function parsePluginChannel(fullChannel: string): {
   };
 }
 
+const siteSchema = z.url();
+
 // 获取浏览器脚本插件配置接口
-router.get('/config', (req, res) => {
+router.get('/config', query('site').isURL(), (req, res) => {
+  pluginLogger.info(`收到插件配置请求`);
+  const { error, data: site } = siteSchema.safeParse(req.query?.site);
+
+  if (error) {
+    pluginLogger.error(`无效的 site 参数: ${req.query?.site}`);
+    res.status(400).json({ code: 400, message: 'site 参数必须是有效的 URL' });
+    return;
+  }
+
+  // 对 site 进行解码，防止出现编码后的中文等字符
+  let decodedSite = '';
+  try {
+    decodedSite = decodeURIComponent(site);
+  } catch {
+    decodedSite = site;
+  }
+
+  // 匹配插件
+  let root = getRootUrl(decodedSite);
+  // 统一去除尾部斜杠
+  if (root.endsWith('/')) root = root.slice(0, -1);
+
   const pluginConfigs: {
     id: string;
     title: string;
@@ -45,11 +71,15 @@ router.get('/config', (req, res) => {
     controls: SCWC.PluginItem[];
   }[] = [];
   for (const plugin of plugins) {
+    if (!plugin.linkWith || (!plugin.linkWith.some(link => root.startsWith(link)) && !(plugin.linkWith.length === 0))) {
+      continue;
+    }
     if (
       plugin.handler &&
       plugin.handler.pluginConfig &&
       plugin.handler.pluginConfig.scripts &&
-      plugin.handler.pluginConfig.scripts.title
+      plugin.handler.pluginConfig.scripts.title &&
+      plugin.handler.pluginConfig.scripts.controls.length > 0
     ) {
       pluginConfigs.push({
         id: plugin.pluginId,

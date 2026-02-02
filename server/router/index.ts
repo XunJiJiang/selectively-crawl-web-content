@@ -74,12 +74,6 @@ metadataRouter.post(
     let root = getRootUrl(decodedSite);
     // 统一去除尾部斜杠
     if (root.endsWith('/')) root = root.slice(0, -1);
-    // 处理 linkWith 也去除尾部斜杠
-    plugins.forEach(plugin => {
-      if (plugin.linkWith) {
-        plugin.linkWith = plugin.linkWith.map(link => (link.endsWith('/') ? link.slice(0, -1) : link));
-      }
-    });
 
     let called = false;
     const resInfo: {
@@ -88,7 +82,9 @@ metadataRouter.post(
       type: 'success' | 'error' | 'warn' | 'info';
     }[] = [];
     for (const plugin of plugins) {
-      if (plugin.linkWith && plugin.linkWith.some(link => root.startsWith(link))) {
+      // 当 plugin.linkWith 存在时，且匹配当前网址时才执行
+      // 当 plugin.linkWith 为空数组时，视为匹配所有网址
+      if (plugin.linkWith && (plugin.linkWith.some(link => root.startsWith(link)) || plugin.linkWith.length === 0)) {
         const log = createLogger(`plugin:${plugin.name}`, path.relative(process.cwd(), plugin.entry));
         log.info(`处理网址: ${decodedSite}`);
         // log.info(`插件入口: ${plugin.entry}`);
