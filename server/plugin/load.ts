@@ -40,13 +40,13 @@ export async function loadPlugins() {
     }
 
     if (pkg.enabled === false) {
-      log.info(`插件被设置为禁用，跳过加载`);
+      log.info(`插件已禁用`);
       inactivePlugins.push({
         name: pkg.name ?? path.join(PLUGIN_DIR, dir),
         entry: '',
         linkWith: [],
         pluginId: dir,
-        reason: '插件被设置为禁用',
+        reason: '插件已禁用',
         log,
       });
       continue;
