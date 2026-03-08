@@ -56,7 +56,7 @@ namespace SCWC {
 
   export interface PluginHandler {
     name: string;
-    onLoad?: (log: Log, context: IContext) => Promise<void>;
+    onLoad?: (log: Log, context: IContext) => Promise<void> | void;
     onRequest: (
       options: {
         utils: {
