@@ -21,7 +21,9 @@ export function registerDefaultCommands(serverLogger: SCWC.Log) {
     serverLogger,
     'exit',
     () => {
-      process.exit(0);
+      // process.exit(0);
+      // 触发 SIGINT 信号, 让主进程执行正常的退出流程
+      process.kill(process.pid, 'SIGINT');
     },
     SYSTEM_SYMBOL,
     '退出程序',
