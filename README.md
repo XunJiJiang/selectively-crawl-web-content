@@ -233,6 +233,14 @@ export default async function (
 - 服务端源码：`server/index.ts`，基于 Express。
 - 构建命令、依赖见 `package.json`。
 
+### 注意
+
+想要在服务端主进程或浏览器脚本中添加新的库时, 建议将库添加到根目录的 `package.json` 中;
+
+如果要在插件中使用新的库, 建议在插件目录下单独安装.
+
+不建议将库安装在服务端或浏览器脚本所在的文件夹中.
+
 ## TODO
 
 - [ ] 重启命令
