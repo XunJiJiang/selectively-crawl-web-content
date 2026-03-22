@@ -17,6 +17,7 @@
     "build": "cd ./user-script && bun run build"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
     "@types/bun": "latest",
     "@types/opencc-js": "^1.0.3"
   },
@@ -35,17 +36,28 @@
     "vite-plugin-monkey": "^5.0.8"
   },
   "dependencies": {
+    "@keyv/redis": "^5.1.6",
     "@types/express": "^5.0.3",
     "antd": "^6.2.1",
+    "axios": "^1.13.6",
+    "better-sqlite3": "^12.8.0",
+    "cache-manager": "^7.2.8",
+    "cacheable": "^2.3.4",
     "chalk": "^5.4.1",
+    "cheerio": "^1.2.0",
+    "dayjs": "^1.11.20",
     "dotenv": "^16.5.0",
     "es-toolkit": "^1.45.1",
     "express": "^5.1.0",
     "express-validator": "^7.3.1",
+    "file-type": "^21.3.3",
+    "keyv": "^5.6.0",
     "opencc-js": "^1.0.5",
+    "proxy-agent": "^7.0.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "uuid": "^11.1.0",
+    "trash": "^10.1.1",
+    "uuid": "^13.0.0",
     "zod": "^4.3.6"
   }
 }
