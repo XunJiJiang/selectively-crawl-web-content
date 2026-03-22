@@ -1,17 +1,22 @@
 namespace SCWC {
-  interface IContext {}
+  /**
+   * 插件加载时的上下文对象
+   * 提供一些工具函数供插件使用
+   * 允许插件长期持有该对象并在需要时调用其中的函数
+   */
+  export interface ILoadContext {}
 
   export type TCommandExecute = import('../utils/command').TCommandExecute;
   export type TCommandOption = import('../utils/command').TCommandOption;
   export type TSubCommand = import('../utils/command').TSubCommand;
 
-  export type DataItem = {
+  export type TDataItem = {
     label: string;
     value: string;
     images: string[]; // 图片数据，dataURL
   };
 
-  export type PluginItem = {
+  export type TPluginItem = {
     type: 'button' | 'toggle' | 'select' | 'input:text' | 'input:number' | 'checkbox';
     label: string;
     channel: string;
@@ -20,9 +25,9 @@ namespace SCWC {
       value: string;
     }[];
     trigger: (
-      log: SCWC.Log,
+      logger: SCWC.TLogger,
       context: {
-        data: DataItem[];
+        data: TDataItem[];
         site: {
           url: string;
           rootUrl: string;
@@ -47,18 +52,13 @@ namespace SCWC {
         }>;
   };
 
-  export type Log = {
-    info: (...args: any[]) => void;
-    pathInfo: (...args: any[]) => void;
-    warn: (...args: any[]) => void;
-    error: (...args: any[]) => void;
-  };
+  export type TLogger = import('../utils/log').TLogger;
 
-  export interface PluginHandler {
+  export interface IPluginHandler {
     name: string;
-    onLoad?: (log: Log, context: IContext) => Promise<void> | void;
+    onLoad?: (logger: TLogger, context: ILoadContext) => Promise<void> | void;
     onRequest: (
-      options: {
+      context: {
         utils: {
           strValidation: (str: string) => string;
           convertToCN: (str: string) => string;
@@ -84,7 +84,7 @@ namespace SCWC {
               | ((props: { fullname: string; filename: string; ext: string; datePrefix: string }) => string),
           ) => Promise<string | false>;
         };
-        data: DataItem[];
+        data: TDataItem[];
         site: {
           url: string;
           rootUrl: string;
@@ -92,11 +92,11 @@ namespace SCWC {
           pathname: string;
         };
       },
-      log: Log & {
+      logger: TLogger & {
         toWeb: (info: string, type?: 'success' | 'error' | 'warn' | 'info') => void;
       },
     ) => void | Promise<void>;
-    onUnload?: (log: Log) => Promise<void>;
+    onUnload?: (logger: TLogger) => Promise<void> | void;
     pluginConfig?: {
       command?: {
         execute: TCommandExecute;
@@ -108,19 +108,19 @@ namespace SCWC {
       scripts?: {
         title: string;
         description?: string;
-        controls: PluginItem[];
+        controls: TPluginItem[];
       };
     };
   }
 
-  export interface PluginMeta {
+  export interface IPluginMeta {
     name: string;
     entry: string;
     linkWith: string[];
-    handler?: PluginHandler;
+    handler?: IPluginHandler;
     pluginId: string;
     // 占用的一级命令
     commandName?: string;
-    log: Log;
+    logger: TLogger;
   }
 }

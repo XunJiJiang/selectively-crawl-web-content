@@ -11,7 +11,7 @@ import { useNotification } from '../hooks/useNotification';
  * - 发送插件事件: /api/plugin/toggle
  */
 
-type PluginItem = SCWC.PluginItem;
+type PluginItem = SCWC.TPluginItem;
 
 type PluginConfig = {
   id: string;
@@ -22,7 +22,7 @@ type PluginConfig = {
 
 type PluginWindowProps = {
   openPluginWindow: boolean;
-  getCrawlData: () => { result: SCWC.DataItem[]; failed: string[] };
+  getCrawlData: () => { result: SCWC.TDataItem[]; failed: string[] };
 };
 
 // const WINDOW_WIDTH = 400;

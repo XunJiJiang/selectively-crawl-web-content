@@ -1,7 +1,7 @@
-import { createLogger } from './log';
+import { createLogger, type TLogger } from './log.ts';
 
 /** 传入一个图片url, 尝试访问并获取返回的数据 Buffer */
-export async function fetchImage(url: string, log?: SCWC.Log): Promise<Buffer | null> {
+export async function fetchImage(url: string, log?: TLogger): Promise<Buffer | null> {
   log = log ? log : createLogger(`[fetchImage]`, url);
   try {
     const response = await fetch(url);

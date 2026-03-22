@@ -48,7 +48,7 @@ metadataRouter.post(
       any,
       {
         site: string;
-        data: SCWC.DataItem[];
+        data: SCWC.TDataItem[];
       }
     >,
     res: any,
@@ -77,7 +77,7 @@ metadataRouter.post(
 
     let called = false;
     const resInfo: {
-      pluginInfo: SCWC.PluginMeta;
+      pluginInfo: SCWC.IPluginMeta;
       info: string;
       type: 'success' | 'error' | 'warn' | 'info';
     }[] = [];

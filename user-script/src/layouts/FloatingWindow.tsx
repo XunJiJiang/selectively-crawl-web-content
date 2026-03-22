@@ -8,7 +8,7 @@ interface FloatingWindowProps {
   onPosChange?: (pos: { x: number; y: number }) => void;
   onExpandedChange?: (expanded: boolean) => void;
   children: React.ReactNode;
-  getCrawlData: () => { result: SCWC.DataItem[]; failed: string[] };
+  getCrawlData: () => { result: SCWC.TDataItem[]; failed: string[] };
 }
 
 const INIT_POS = { x: 40, y: 120 };

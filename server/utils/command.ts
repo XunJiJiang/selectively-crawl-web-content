@@ -3,6 +3,7 @@
  */
 
 import { isPromiseLike } from '../plugins/asmr/src/utils/tryCatch.ts';
+import type { TLogger } from './log.ts';
 
 export type TCommandOption = {
   name: string;
@@ -13,7 +14,7 @@ export type TCommandOption = {
 };
 
 export type TCommandExecute = (
-  log: SCWC.Log,
+  log: TLogger,
   options: (TCommandOption & { value: string | boolean | number })[], // 包含值的选项数组
   // 未使用的参数部分的数组
   unusedArgs: string[],
@@ -36,7 +37,7 @@ export type TSubCommand = {
 const commandRegistry = new Map<
   string,
   {
-    log: SCWC.Log;
+    log: TLogger;
     execute: TCommandExecute;
     description?: string;
     subCommands: TSubCommand[];
@@ -105,7 +106,7 @@ export type TRegisterCommand = (
  * @throws {Error} 如果命令名称非法或多次注册命令
  */
 export function registerCommand(
-  log: SCWC.Log,
+  log: TLogger,
   commandName: string,
   execute: TCommandExecute,
   pluginId: string | symbol,
@@ -393,7 +394,7 @@ export async function parseAndRunCommands(originCommand: string) {
 }
 
 /** 打印 help */
-export function printHelp(log: SCWC.Log) {
+export function printHelp(log: TLogger) {
   log.info('可用命令列表:');
   for (const [commandName, commandDef] of commandRegistry.entries()) {
     log.info(`- ${commandName}${commandDef.description ? `: ${commandDef.description}` : ''}`);

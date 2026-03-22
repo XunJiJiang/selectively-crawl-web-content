@@ -13,10 +13,10 @@ const require = createRequire(import.meta.url);
 const PLUGIN_DIR = path.join(__dirname, 'server', 'plugins');
 
 /** 加载的插件列表 */
-export const plugins: SCWC.PluginMeta[] = [];
+export const plugins: SCWC.IPluginMeta[] = [];
 
 /** 未激活的插件列表 */
-export const inactivePlugins: (SCWC.PluginMeta & {
+export const inactivePlugins: (SCWC.IPluginMeta & {
   // 未激活原因
   reason: string;
 })[] = [];
@@ -24,17 +24,17 @@ export const inactivePlugins: (SCWC.PluginMeta & {
 /**
  * 初始化缓存错误处理
  * > 这个函数目前和插件没有关系, 可以修改成根据缓存命名空间判断错误来源
- * @param log 日志实例
+ * @param logger 日志实例
  */
-export function initCacheErrorHandler(log: SCWC.Log) {
+export function initCacheErrorHandler(logger: SCWC.TLogger) {
   addErrorHandler('env', ({ channel, error }) => {
-    log.error(`Environment error: ${error.message}`);
+    logger.error(`Environment error: ${error.message}`);
   });
   addErrorHandler('memory', ({ channel, error }) => {
-    log.error(`Memory cache error: ${error.message}`);
+    logger.error(`Memory cache error: ${error.message}`);
   });
   addErrorHandler('redis', ({ channel, error }) => {
-    log.error(`Redis cache error: ${error.message}`);
+    logger.error(`Redis cache error: ${error.message}`);
   });
 }
 
@@ -47,25 +47,25 @@ export async function loadPlugins() {
   for (const dir of dirs) {
     const pkgPath = path.join(PLUGIN_DIR, dir, 'package.json');
     if (!fs.existsSync(pkgPath)) continue;
-    const log = createLogger(`plugin:${dir}`, path.relative(process.cwd(), path.join(PLUGIN_DIR, dir)));
+    const logger = createLogger(`plugin:${dir}`, path.relative(process.cwd(), path.join(PLUGIN_DIR, dir)));
     let pkg: any;
     let name: string;
     try {
       pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
     } catch (e) {
-      log.warn(`解析 ${dir}/package.json 失败:`, e);
+      logger.warn(`解析 ${dir}/package.json 失败:`, e);
       continue;
     }
 
     if (pkg.enabled === false) {
-      log.info(`插件已禁用`);
+      logger.info(`插件已禁用`);
       inactivePlugins.push({
         name: pkg.name ?? path.join(PLUGIN_DIR, dir),
         entry: '',
         linkWith: [],
         pluginId: dir,
         reason: '插件已禁用',
-        log,
+        logger,
       });
       continue;
     }
@@ -73,41 +73,41 @@ export async function loadPlugins() {
     try {
       name = pkg.name ?? path.join(PLUGIN_DIR, dir);
     } catch (e) {
-      log.warn(`解析 ${dir}/package.json 失败:`, e);
+      logger.warn(`解析 ${dir}/package.json 失败:`, e);
       inactivePlugins.push({
         name: path.join(PLUGIN_DIR, dir),
         entry: '',
         linkWith: [],
         pluginId: dir,
         reason: 'package.json 中缺少 name 字段',
-        log,
+        logger,
       });
       continue;
     }
     const entryRel = pkg.main;
     if (!entryRel || typeof entryRel !== 'string') {
-      log.warn(`${dir} 缺少 main 字段`);
+      logger.warn(`${dir} 缺少 main 字段`);
       inactivePlugins.push({
         name,
         entry: '',
         linkWith: [],
         pluginId: dir,
         reason: 'package.json 中缺少 main 字段',
-        log,
+        logger,
       });
       continue;
     }
     /** 插件入口文件绝对路径 */
     const entryAbs = path.join(PLUGIN_DIR, dir, entryRel);
     if (!fs.existsSync(entryAbs) || !/\.(js|ts)$/.test(entryAbs)) {
-      log.warn(`${dir} 的入口文件不存在或不是 js/ts 文件: ${entryRel}`);
+      logger.warn(`${dir} 的入口文件不存在或不是 js/ts 文件: ${entryRel}`);
       inactivePlugins.push({
         name,
         entry: '',
         linkWith: [],
         pluginId: dir,
         reason: '入口文件不存在或不是 js/ts 文件',
-        log,
+        logger,
       });
       continue;
     }
@@ -116,26 +116,26 @@ export async function loadPlugins() {
       mod = require(entryAbs);
       if (mod.__esModule && mod.default) mod = mod.default;
     } catch (e) {
-      log.warn(`动态导入 ${dir} 失败:`, e);
+      logger.warn(`动态导入 ${dir} 失败:`, e);
       inactivePlugins.push({
         name,
         entry: '',
         linkWith: [],
         pluginId: dir,
         reason: '动态导入插件失败',
-        log,
+        logger,
       });
       continue;
     }
     if (!('onRequest' in mod) || typeof mod.onRequest !== 'function') {
-      log.warn(`${dir} 的默认导出不是合法插件`);
+      logger.warn(`${dir} 的默认导出不是合法插件`);
       inactivePlugins.push({
         name,
         entry: '',
         linkWith: [],
         pluginId: dir,
         reason: '插件缺少 onRequest 方法',
-        log,
+        logger,
       });
       continue;
     }
@@ -156,7 +156,7 @@ export async function loadPlugins() {
       handler: mod,
       pluginId: dir,
       commandName: pkg['commandName'] ?? void 0,
-      log,
+      logger,
     });
     createLogger(`plugin:${name}`, path.relative(process.cwd(), path.join(PLUGIN_DIR, dir))).info(`加载完成`);
   }
@@ -166,7 +166,7 @@ export async function loadPlugins() {
       continue;
     }
 
-    const log = createLogger(`plugin:${plugin.name}`, path.relative(process.cwd(), plugin.entry));
+    const logger = createLogger(`plugin:${plugin.name}`, path.relative(process.cwd(), plugin.entry));
 
     const commandConfig = plugin.handler.pluginConfig?.command;
     if (commandConfig) {
@@ -174,7 +174,7 @@ export async function loadPlugins() {
       if (commandName) {
         try {
           registerCommand(
-            log,
+            logger,
             commandName,
             commandConfig.execute,
             plugin.pluginId,
@@ -185,19 +185,19 @@ export async function loadPlugins() {
           );
         } catch (e) {
           if (e instanceof CommandError) {
-            log.error(`注册命令 ${commandName} 失败: ${e.message}`);
+            logger.error(`注册命令 ${commandName} 失败: ${e.message}`);
             if (e.needPrintOriginal) {
-              log.error(e);
+              logger.error(e);
             }
           } else {
-            log.error(`注册命令 ${commandName} 时出现未知错误: ${e}`);
+            logger.error(`注册命令 ${commandName} 时出现未知错误: ${e}`);
           }
         }
       }
     }
 
     if (typeof plugin.handler.onLoad === 'function') {
-      await plugin.handler.onLoad(log, {});
+      await plugin.handler.onLoad(logger, {});
     }
   }
 }

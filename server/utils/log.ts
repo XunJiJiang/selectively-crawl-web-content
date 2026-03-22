@@ -2,6 +2,13 @@ import chalk from 'chalk';
 
 // TODO: 记录日志到文件
 
+export type TLogger = {
+  info: (...args: any[]) => void;
+  pathInfo: (...args: any[]) => void;
+  warn: (...args: any[]) => void;
+  error: (...args: any[]) => void;
+};
+
 const log = {
   info: (...message: any[]) => {
     console.log(chalk.blue('[SCWC INFO]'), ...message);

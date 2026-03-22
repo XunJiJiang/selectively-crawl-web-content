@@ -68,7 +68,7 @@ router.get('/config', query('site').isURL(), (req, res) => {
     id: string;
     title: string;
     description: string;
-    controls: SCWC.PluginItem[];
+    controls: SCWC.TPluginItem[];
   }[] = [];
   for (const plugin of plugins) {
     if (!plugin.linkWith || (!plugin.linkWith.some(link => root.startsWith(link)) && !(plugin.linkWith.length === 0))) {

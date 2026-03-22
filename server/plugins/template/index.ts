@@ -1,8 +1,8 @@
-const template: SCWC.PluginHandler['onRequest'] = (
+const template: SCWC.IPluginHandler['onRequest'] = (
   { utils: { writeData, writeDataURL, strValidation, convertToCN }, data, site },
-  log
+  logger,
 ) => {
-  log.info('Template plugin called');
+  logger.info('Template plugin called');
 };
 
 export default {
@@ -10,4 +10,4 @@ export default {
   onLoad: log => {},
   onRequest: template,
   onUnload: log => {},
-} as SCWC.PluginHandler;
+} as SCWC.IPluginHandler;

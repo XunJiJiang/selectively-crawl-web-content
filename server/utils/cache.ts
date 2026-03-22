@@ -7,6 +7,7 @@ import { CacheableMemory } from 'cacheable';
 import { createCache } from 'cache-manager';
 import stream, { Readable } from 'node:stream';
 import z from 'zod';
+import type { TLogger } from './log.ts';
 
 /**
  * 保存未处理的错误实例
@@ -207,7 +208,7 @@ export async function setCache<T>(
   data: T,
   namespace: string | undefined,
   isRedirect: boolean,
-  log: SCWC.Log,
+  log: TLogger,
 ): Promise<T> {
   if (!isCacheableData(data)) {
     log.warn(`尝试缓存不支持的类型，键: ${key}，类型: ${typeof data}`);
@@ -474,14 +475,14 @@ const cacheController = {
    * @param log 日志记录器
    * @returns targetKey
    */
-  setRedirect: (key: string, targetKey: string, namespace: string | undefined, log: SCWC.Log) =>
+  setRedirect: (key: string, targetKey: string, namespace: string | undefined, log: TLogger) =>
     setCache<string>(key, targetKey, namespace, true, log),
   get: getCache,
   /**
    * @param namespace 可选的命名空间，为插件提供隔离的缓存空间
    * @param log 日志记录器
    */
-  clearAll: async (namespace: string | undefined, log: SCWC.Log) => {
+  clearAll: async (namespace: string | undefined, log: TLogger) => {
     // 删除文件缓存目录
     if (!namespace) {
       if (fs.existsSync(FILE_CACHE_DIR)) {

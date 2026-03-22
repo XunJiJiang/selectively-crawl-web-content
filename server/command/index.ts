@@ -16,7 +16,7 @@ import {
  * @param plugins
  * @param inactivePlugins
  */
-export function registerDefaultCommands(serverLogger: SCWC.Log) {
+export function registerDefaultCommands(serverLogger: SCWC.TLogger) {
   registerCommand(
     serverLogger,
     'exit',
@@ -74,7 +74,7 @@ export function registerDefaultCommands(serverLogger: SCWC.Log) {
   );
 }
 
-export function listenProcessStdin(serverLogger: SCWC.Log) {
+export function listenProcessStdin(serverLogger: SCWC.TLogger) {
   process.stdin.setEncoding('utf-8');
   process.stdin.on('data', input => {
     const inputStr = input.toString().trim();
