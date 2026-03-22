@@ -1,10 +1,27 @@
+type AxiosRequestConfig = import('axios').AxiosRequestConfig;
+
 namespace SCWC {
+  export type TCreateRetryGet<
+    RES,
+    A extends AxiosRequestConfig = AxiosRequestConfig,
+  > = import('../utils/axios').TCreateRetryGet<RES, A>;
+
   /**
    * 插件加载时的上下文对象
    * 提供一些工具函数供插件使用
    * 允许插件长期持有该对象并在需要时调用其中的函数
    */
-  export interface ILoadContext {}
+  export interface ILoadContext {
+    createRetryGet<RES, A extends AxiosRequestConfig = AxiosRequestConfig>(
+      ...args: Parameters<TCreateRetryGet<RES, A>>
+    ): ReturnType<TCreateRetryGet<RES, A>>;
+    LimitPromise: typeof import('../utils/axios').LimitPromise;
+  }
+
+  export type TRetryGet<
+    RES,
+    A extends AxiosRequestConfig = AxiosRequestConfig<any>,
+  > = import('../utils/axios').TRetryGet<RES, A>;
 
   export type TCommandExecute = import('../utils/command').TCommandExecute;
   export type TCommandOption = import('../utils/command').TCommandOption;
