@@ -173,16 +173,16 @@ router.post('/toggle', async (req, res) => {
   // 调用插件的 trigger 处理函数
   if (pluginItem) {
     try {
-      plugin.log.info(`触发插件通道: ${pluginChannel}`);
-      plugin.log.info(`label: ${pluginItem.label}`);
-      const result = await pluginItem.trigger(plugin.log, {
+      plugin.logger.info(`触发插件通道: ${pluginChannel}`);
+      plugin.logger.info(`label: ${pluginItem.label}`);
+      const result = await pluginItem.trigger(plugin.logger, {
         data,
         site: siteInfo,
       });
-      plugin.log.info('=======================================================');
+      plugin.logger.info('=======================================================');
       res.json({ code: 200, message: '插件通道触发成功', data: result });
     } catch (e) {
-      plugin.log.error(`触发插件通道失败: ${e}`);
+      plugin.logger.error(`触发插件通道失败: ${e}`);
       res.status(500).json({ code: 500, message: '插件通道触发失败' });
     }
   }
