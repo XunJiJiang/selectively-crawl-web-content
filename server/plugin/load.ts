@@ -3,6 +3,7 @@ import path from 'node:path';
 import { createLogger } from '../utils/log.ts';
 import { CommandError, registerCommand } from '../utils/command.ts';
 import { createRequire } from 'node:module';
+import { addErrorHandler } from '../utils/cache.ts';
 
 const __dirname = process.cwd();
 
@@ -19,6 +20,23 @@ export const inactivePlugins: (SCWC.PluginMeta & {
   // 未激活原因
   reason: string;
 })[] = [];
+
+/**
+ * 初始化缓存错误处理
+ * > 这个函数目前和插件没有关系, 可以修改成根据缓存命名空间判断错误来源
+ * @param log 日志实例
+ */
+export function initCacheErrorHandler(log: SCWC.Log) {
+  addErrorHandler('env', ({ channel, error }) => {
+    log.error(`Environment error: ${error.message}`);
+  });
+  addErrorHandler('memory', ({ channel, error }) => {
+    log.error(`Memory cache error: ${error.message}`);
+  });
+  addErrorHandler('redis', ({ channel, error }) => {
+    log.error(`Redis cache error: ${error.message}`);
+  });
+}
 
 export async function loadPlugins() {
   if (!fs.existsSync(PLUGIN_DIR)) return;
