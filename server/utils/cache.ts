@@ -197,15 +197,25 @@ function isCacheableData(data: any): data is TCacheableData {
  * 创建写入缓存
  * @param key 缓存键
  * @param data 要缓存的数据
+ * @param namespace 可选的命名空间，为插件提供隔离的缓存空间
  * @param isRedirect 是否为重定向
  * @param log 日志记录器
  * @returns data
  */
-export async function setCache<T>(key: string, data: T, isRedirect: boolean, log: SCWC.Log): Promise<T> {
+export async function setCache<T>(
+  key: string,
+  data: T,
+  namespace: string | undefined,
+  isRedirect: boolean,
+  log: SCWC.Log,
+): Promise<T> {
   if (!isCacheableData(data)) {
     log.warn(`尝试缓存不支持的类型，键: ${key}，类型: ${typeof data}`);
     return data;
   }
+
+  // 拼接命名空间
+  const cacheKey = namespace ? `${namespace}:${key}` : key;
 
   if (isRedirect) {
     // 检查重定向循环
@@ -216,8 +226,8 @@ export async function setCache<T>(key: string, data: T, isRedirect: boolean, log
     }
 
     /** 已经出现过的 key */
-    const visitedKeys = new Set<string>([key]);
-    let currentKey = data as string;
+    const visitedKeys = new Set<string>([cacheKey]);
+    let currentKey = namespace ? `${namespace}:${data}` : data;
     while (true) {
       if (visitedKeys.has(currentKey)) {
         // 出现循环，停止写入
@@ -231,6 +241,9 @@ export async function setCache<T>(key: string, data: T, isRedirect: boolean, log
       if (!cachedData) {
         throw new Error(`重定向目标 ${currentKey} 不存在，无法设置重定向缓存`);
       } else if (cachedData.type === 'redirect') {
+        // 如果目标还是重定向，继续检查下一跳
+        // 最终目标必须是一个非重定向的有效值，否则不允许设置重定向缓存
+        // 目的是将当前这个重定向在经过一跳后就指向最终值
         currentKey = cachedData.data as string;
       } else {
         break;
@@ -241,10 +254,10 @@ export async function setCache<T>(key: string, data: T, isRedirect: boolean, log
       type: 'redirect';
       dataType: string;
       data: string;
-    }>(key, {
+    }>(cacheKey, {
       type: 'redirect',
       dataType: 'string',
-      data: data as string,
+      data: currentKey,
     });
 
     return data;
@@ -285,7 +298,7 @@ export async function setCache<T>(key: string, data: T, isRedirect: boolean, log
       type: `filecache:${TFileCacheType}`;
       dataType: string;
       data: string;
-    }>(key, {
+    }>(cacheKey, {
       type: `filecache:${fileType}`,
       dataType: 'string',
       data: filepath,
@@ -347,7 +360,7 @@ export async function setCache<T>(key: string, data: T, isRedirect: boolean, log
         type: `filecache:${TOtherCacheType}`;
         dataType: string;
         data: string;
-      }>(key, {
+      }>(cacheKey, {
         type: `filecache:${fileType}`,
         dataType: 'string',
         data: filepath,
@@ -359,7 +372,7 @@ export async function setCache<T>(key: string, data: T, isRedirect: boolean, log
         type: 'value';
         dataType: string;
         data: string | T;
-      }>(key, {
+      }>(cacheKey, {
         type: 'value',
         dataType: data instanceof Buffer ? 'Buffer' : typeof data,
         data: data instanceof BigInt ? data.toString() : data,
@@ -373,21 +386,23 @@ export async function setCache<T>(key: string, data: T, isRedirect: boolean, log
 /**
  * 读取缓存
  * @param key 缓存键
+ * @param namespace 可选的命名空间，为插件提供隔离的缓存空间
  * @returns 缓存的数据，若不存在则返回 undefined
  */
-export async function getCache<T>(key: string): Promise<T | undefined> {
+export async function getCache<T>(key: string, namespace: string | undefined): Promise<T | undefined> {
+  const cacheKey = namespace ? `${namespace}:${key}` : key;
   const cachedData = await cache.get<{
     type: 'redirect' | 'value' | `filecache:${TFileCacheType | TOtherCacheType}`;
     dataType: string;
     data: any;
-  }>(key);
+  }>(cacheKey);
   if (!cachedData) {
     return void 0;
   }
 
   if (cachedData.type === 'redirect') {
     // 处理重定向
-    const visitedKeys = new Set<string>([key]);
+    const visitedKeys = new Set<string>([cacheKey]);
     let currentKey = cachedData.data as string;
     while (true) {
       if (visitedKeys.has(currentKey)) {
@@ -408,7 +423,8 @@ export async function getCache<T>(key: string): Promise<T | undefined> {
         currentKey = nextCachedData.data as string;
       } else {
         // 找到最终值
-        return getCache<T>(currentKey);
+        // 这里不设置 namespace 了，因为重定向缓存的 key 本身就包含了 namespace 前缀
+        return getCache<T>(currentKey, void 0);
       }
     }
   } else if (cachedData.type.startsWith('filecache:')) {
@@ -447,18 +463,42 @@ export async function getCache<T>(key: string): Promise<T | undefined> {
 
 const cacheController = {
   set: setCache,
-  setRedirect: (key: string, targetKey: string, log: SCWC.Log) => setCache<string>(key, targetKey, true, log),
+  /**
+   * 设置重定向缓存
+   * - key -> targetKey -> ...(如果存在下一级的重定向) -> value
+   * - 读取时会自动解析重定向链直到最终值
+   * - 写入时会检查重定向链以防止循环，并确保最终目标存在
+   * @param key 要设置的缓存键
+   * @param targetKey 重定向目标键
+   * @param namespace 可选的命名空间，为插件提供隔离的缓存空间
+   * @param log 日志记录器
+   * @returns targetKey
+   */
+  setRedirect: (key: string, targetKey: string, namespace: string | undefined, log: SCWC.Log) =>
+    setCache<string>(key, targetKey, namespace, true, log),
   get: getCache,
-  clearAll: async () => {
+  /**
+   * @param namespace 可选的命名空间，为插件提供隔离的缓存空间
+   * @param log 日志记录器
+   */
+  clearAll: async (namespace: string | undefined, log: SCWC.Log) => {
     // 删除文件缓存目录
-    if (fs.existsSync(FILE_CACHE_DIR)) {
-      const files = await fs.promises.readdir(FILE_CACHE_DIR);
-      for (const file of files) {
-        const filepath = path.join(FILE_CACHE_DIR, file);
-        await fs.promises.unlink(filepath);
+    if (!namespace) {
+      if (fs.existsSync(FILE_CACHE_DIR)) {
+        const files = await fs.promises.readdir(FILE_CACHE_DIR);
+        for (const file of files) {
+          const filepath = path.join(FILE_CACHE_DIR, file);
+          await fs.promises.unlink(filepath);
+        }
+        log.info(`已清空文件缓存目录: ${FILE_CACHE_DIR}`);
       }
+      await cache.clear();
+      log.info('已清空所有缓存');
+    } else {
+      // TODO: 无法获取特定命名空间的所有键，因此无法实现针对特定命名空间的清空
+      log.warn('clearAll 方法暂不支持命名空间参数，无法针对特定命名空间清空缓存，将清空所有缓存');
+      cacheController.clearAll(void 0, log);
     }
-    await cache.clear();
   },
 };
 
