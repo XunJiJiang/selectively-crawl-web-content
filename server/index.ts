@@ -4,6 +4,7 @@ import { listenProcessStdin, registerDefaultCommands } from './command/index.ts'
 import { listen } from './router/index.ts';
 import { initCacheErrorHandler, loadPlugins, plugins } from './plugin/load.ts';
 import { createLogger } from './utils/log.ts';
+import cacheController from './utils/cache.ts';
 
 dotenv.config();
 
@@ -82,6 +83,10 @@ process.once('SIGINT', async () => {
       await plugin.handler.onUnload(log);
     }
   }
+
+  // 清理缓存
+  serverLogger.info('清理 Redis 缓存');
+  await cacheController.clearAll(serverLogger);
 
   const log = createLogger('server', `http://localhost:${PORT}`);
   log.pathInfo(`服务停止`);
