@@ -128,7 +128,7 @@ const PluginWindow: React.FC<PluginWindowProps> = ({ openPluginWindow, getCrawlD
             notifyFunc({
               title: `插件 ${pluginId} 的处理结果`,
               description: data.data.data.message,
-              placement: 'bottomRight',
+              placement: 'topRight',
             });
           }
         } else {

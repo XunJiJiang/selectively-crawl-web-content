@@ -163,7 +163,7 @@ function App() {
           notify[item.type as 'info' | 'success' | 'warn' | 'error']({
             title: `插件 ${item.pluginInfo.name} 的抓取结果`,
             description: item.info,
-            placement: 'bottomRight',
+            placement: 'topRight',
           });
         }
       }
