@@ -19,7 +19,7 @@ export type TCommandExecute = (
   unusedArgs: string[],
   // 原始命令参数数组
   originArgs: string[],
-) => void;
+) => Promise<void> | void;
 
 export type TSubCommand = {
   name: string;
@@ -218,7 +218,7 @@ export function splitCommand(rawCommand: string): string[] {
  * 只执行一个回调, 优先级: 子命令 > 主命令
  * @param originCommand 原始命令字符串
  */
-export function parseAndRunCommands(originCommand: string) {
+export async function parseAndRunCommands(originCommand: string) {
   const parts = splitCommand(originCommand);
   if (parts.length === 0) {
     throw new CommandError('未提供命令', false);
@@ -337,7 +337,7 @@ export function parseAndRunCommands(originCommand: string) {
     if (subCommand) {
       try {
         // 执行子命令回调
-        const prom = subCommand.execute(
+        const prom = await subCommand.execute(
           commandDef.log,
           commandDef.options.map(opt => ({ ...opt, value: options[opt.name] })),
           unusedArgs,
@@ -368,7 +368,7 @@ export function parseAndRunCommands(originCommand: string) {
 
     // 执行命令回调
     try {
-      const prom = commandDef.execute(
+      const prom = await commandDef.execute(
         commandDef.log,
         commandDef.options.map(opt => ({ ...opt, value: options[opt.name] })),
         unusedArgs,
