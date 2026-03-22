@@ -243,6 +243,7 @@ export default async function (
 
 ## TODO
 
+- [ ] 添加前后端权限验证
 - [ ] 重启命令
 - [ ] log 文件日志
 
