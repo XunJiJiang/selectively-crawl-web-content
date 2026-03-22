@@ -82,7 +82,7 @@ const keyvInstances = [
     'memory',
     new Keyv({
       store: new CacheableMemory({ ttl: 60000, lruSize: 5000 }),
-      namespace: 'asmr-cache-memory',
+      namespace: 'cache-memory',
     }),
   ],
   //  Redis Store
@@ -90,12 +90,11 @@ const keyvInstances = [
     'redis',
     new Keyv(
       new KeyvRedis(REDIS_CONNECTION_STRING, {
-        namespace: 'asmr-cache',
         useUnlink: true,
         connectionTimeout: parseInt(REDIS_TIMEOUT),
       }),
       {
-        namespace: 'asmr-cache',
+        namespace: 'cache-redis',
       },
     ),
   ],
