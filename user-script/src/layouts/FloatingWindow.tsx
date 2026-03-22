@@ -48,7 +48,7 @@ const FloatingWindow: React.FC<FloatingWindowProps> = ({
         /* ignore */
       }
     }
-    return false;
+    return true;
   });
 
   useEffect(() => {
