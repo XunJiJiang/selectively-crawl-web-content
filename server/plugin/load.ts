@@ -4,6 +4,8 @@ import { createLogger } from '../utils/log.ts';
 import { CommandError, registerCommand } from '../utils/command.ts';
 import { createRequire } from 'node:module';
 import { addErrorHandler } from '../utils/cache.ts';
+import { createRetryGet, LimitPromise, type TCreateRetryGet } from '../utils/axios.ts';
+import type { AxiosRequestConfig } from 'axios';
 
 const __dirname = process.cwd();
 
@@ -197,7 +199,15 @@ export async function loadPlugins() {
     }
 
     if (typeof plugin.handler.onLoad === 'function') {
-      await plugin.handler.onLoad(logger, {});
+      await plugin.handler.onLoad(logger, {
+        createRetryGet: <RES, A extends AxiosRequestConfig = AxiosRequestConfig>(
+          ...args: Parameters<TCreateRetryGet<RES, A>>
+        ) => {
+          const namespace = `plugin:${plugin.name}`;
+          return createRetryGet<RES, A>(namespace, logger, ...args);
+        },
+        LimitPromise,
+      });
     }
   }
 }
