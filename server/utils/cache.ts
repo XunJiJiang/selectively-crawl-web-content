@@ -479,9 +479,9 @@ const cacheController = {
   get: getCache,
   /**
    * @param namespace 可选的命名空间，为插件提供隔离的缓存空间
-   * @param log 日志记录器
+   * @param logger 日志记录器
    */
-  clearAll: async (namespace: string | undefined, log: TLogger) => {
+  clearAll: async (logger: TLogger, namespace?: string) => {
     // 删除文件缓存目录
     if (!namespace) {
       if (fs.existsSync(FILE_CACHE_DIR)) {
@@ -490,14 +490,14 @@ const cacheController = {
           const filepath = path.join(FILE_CACHE_DIR, file);
           await fs.promises.unlink(filepath);
         }
-        log.info(`已清空文件缓存目录: ${FILE_CACHE_DIR}`);
+        logger.info(`已清空文件缓存目录: ${FILE_CACHE_DIR}`);
       }
       await cache.clear();
-      log.info('已清空所有缓存');
+      logger.info('已清空所有缓存');
     } else {
       // TODO: 无法获取特定命名空间的所有键，因此无法实现针对特定命名空间的清空
-      log.warn('clearAll 方法暂不支持命名空间参数，无法针对特定命名空间清空缓存，将清空所有缓存');
-      cacheController.clearAll(void 0, log);
+      logger.warn('clearAll 方法暂不支持命名空间参数，无法针对特定命名空间清空缓存，将清空所有缓存');
+      cacheController.clearAll(logger);
     }
   },
 };
