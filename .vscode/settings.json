@@ -19,5 +19,6 @@
       "name": "asmr-one",
       "database": "/Users/xunji/Documents/Entertainment/ASMR-ONE/data/data.sqlite"
     }
-  ]
+  ],
+  "search.useIgnoreFiles": false
 }
