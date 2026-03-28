@@ -76,11 +76,11 @@ export function registerDefaultCommands(serverLogger: SCWC.TLogger) {
 
 export function listenProcessStdin(serverLogger: SCWC.TLogger) {
   process.stdin.setEncoding('utf-8');
-  process.stdin.on('data', input => {
+  process.stdin.on('data', async input => {
     const inputStr = input.toString().trim();
     if (inputStr === '') return;
     try {
-      parseAndRunCommands(inputStr);
+      await parseAndRunCommands(inputStr);
     } catch (e) {
       if (e instanceof CommandError) {
         serverLogger.error(`命令执行失败: ${e.message}`);
