@@ -36,7 +36,7 @@ const FloatingWindow: React.FC<FloatingWindowProps> = ({
   });
 
   // 是否打开插件窗口
-  const [openPluginWindow, setOpenPluginWindow] = useState(false);
+  const [openPluginWindow, setOpenPluginWindow] = useState(true);
 
   // 加载是否最小化,
   const [minimized, setMinimized] = useState(() => {
