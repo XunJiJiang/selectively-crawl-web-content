@@ -99,8 +99,14 @@ class RetryRequest<RAW, CUSTOM_RES> {
     }
   }
 
+  /** 删除缓存 */
+  public async delCache() {
+    return await cacheController.mdel(Array.from(this.redirectedUrls), this.namespace);
+  }
+
   /**
    * 初始化新一次的请求配置
+   * @param url 请求 URL, 用于更新重定向链
    */
   protected initConfig(url: string) {
     this.abort = originAxios.CancelToken.source();
@@ -119,9 +125,15 @@ class RetryRequest<RAW, CUSTOM_RES> {
   /**
    * 发起静态页面请求
    */
-  public async get(): Promise<RAW> {
+  private async get(): Promise<RAW> {
     return new Promise<RAW>(async (resolve, reject) => {
-      this.initConfig(this.url);
+      const [err] = tryCatch(() => this.initConfig(this.url));
+
+      if (err) {
+        this.logger.error(
+          `初始化请求时发生错误, 这可能是自定义初始化内容中存在未捕获的错误导致的. 这不会对请求产生影响, 但可能导致自定义数据出错: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`,
+        );
+      }
 
       // 先读取缓存
       const [cacheErr, cachedData] = await tryCatch(async () => await this.getCache());
@@ -205,17 +217,22 @@ type ResponseTypeMap = {
   stream: Readable;
 };
 
-export type TRetryGet<RES, A extends AxiosRequestConfig = AxiosRequestConfig> = (
-  url: string,
-  config: A,
-) => Promise<{
+/** retryGet 函数的返回类型 */
+type TRetryGetReturn<RES, A extends AxiosRequestConfig> = {
   raw: A extends { responseType: infer R }
     ? R extends keyof ResponseTypeMap
       ? ResponseTypeMap[R]
       : ResponseTypeMap['text']
     : ResponseTypeMap['text'];
   data: RES | undefined;
-}>;
+  delCache: () => Promise<boolean>;
+};
+
+/** retryGet 函数的类型 */
+export type TRetryGet<RES, A extends AxiosRequestConfig = AxiosRequestConfig> = (
+  url: string,
+  config: A,
+) => Promise<TRetryGetReturn<RES, A>>;
 
 /**
  * 这是为 plugin-env.d.ts 提供的类型声明, 和 createRetryGet 函数相比, 移除了 namespace 参数和    参数
@@ -273,14 +290,7 @@ export function createRetryGet<RES, A extends AxiosRequestConfig = AxiosRequestC
   return async function retryGet<A extends AxiosRequestConfig>(
     url: string,
     config: A,
-  ): Promise<{
-    raw: A extends { responseType: infer R }
-      ? R extends keyof ResponseTypeMap
-        ? ResponseTypeMap[R]
-        : ResponseTypeMap['text']
-      : ResponseTypeMap['text'];
-    data: RES | undefined;
-  }> {
+  ): Promise<TRetryGetReturn<RES, A>> {
     const request = new RequestClass(url, config, namespace, logger);
     const raw = (await request.retryGet()) as A extends {
       responseType: infer R;
@@ -294,6 +304,7 @@ export function createRetryGet<RES, A extends AxiosRequestConfig = AxiosRequestC
     return {
       raw,
       data,
+      delCache: async () => await request.delCache(),
     };
   };
 }

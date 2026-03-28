@@ -461,6 +461,25 @@ export async function getCache<T>(key: string, namespace: string | undefined): P
   }
 }
 
+/**
+ * 删除缓存
+ * @param key 缓存键
+ * @param namespace 可选的命名空间，为插件提供隔离的缓存空间
+ */
+export async function deleteCache(key: string, namespace: string | undefined): Promise<boolean> {
+  const cacheKey = namespace ? `${namespace}:${key}` : key;
+  return await cache.del(cacheKey);
+}
+
+/** 批量删除缓存
+ * @param keys 缓存键列表
+ * @param namespace 可选的命名空间，为插件提供隔离的缓存空间
+ */
+export async function mDeleteCache(keys: string[], namespace: string | undefined): Promise<boolean> {
+  const cacheKeys = keys.map(key => (namespace ? `${namespace}:${key}` : key));
+  return await cache.mdel(cacheKeys);
+}
+
 const cacheController = {
   set: setCache,
   /**
@@ -477,6 +496,8 @@ const cacheController = {
   setRedirect: (key: string, targetKey: string, namespace: string | undefined, log: TLogger) =>
     setCache<string>(key, targetKey, namespace, true, log),
   get: getCache,
+  del: deleteCache,
+  mdel: mDeleteCache,
   /**
    * @param namespace 可选的命名空间，为插件提供隔离的缓存空间
    * @param logger 日志记录器
