@@ -1,6 +1,9 @@
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import monkey from 'vite-plugin-monkey';
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd());
@@ -12,7 +15,7 @@ export default defineConfig(({ mode }) => {
         userscript: {
           name: 'selectively crawl web content',
           namespace: 'XunJi',
-          version: '1.1.2',
+          version: require('./package.json').version,
           author: 'XunJi & XunJiJiang',
           description: 'A user script to selectively crawl web content and save it to a local server.',
           match: ['*://*/*'],
