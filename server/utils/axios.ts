@@ -106,8 +106,8 @@ class RetryRequest<RAW, CUSTOM_RES> {
     this.abort = originAxios.CancelToken.source();
     this.config.cancelToken = this.abort.token;
     this.customResData = CUSTOM_RES_DATA_UNSET;
-    if (!this.redirectedUrls.has(this.url)) {
-      this.redirectedUrls.add(this.url);
+    if (!this.redirectedUrls.has(url)) {
+      this.redirectedUrls.add(url);
     }
     this.timeoutHandle = setTimeout(() => {
       if (this.abort) {
