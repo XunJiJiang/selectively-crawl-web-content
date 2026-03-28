@@ -145,11 +145,15 @@ router.post('/toggle', async (req, res) => {
   // 统一去除尾部斜杠
   if (root.endsWith('/')) root = root.slice(0, -1);
 
+  const urlObj = new URL(decodedSite);
+
   const siteInfo = {
     url: decodedSite,
     rootUrl: root,
-    origin: new URL(decodedSite).origin,
-    pathname: new URL(decodedSite).pathname,
+    origin: urlObj.origin,
+    pathname: urlObj.pathname,
+    host: urlObj.host,
+    hostname: urlObj.hostname,
   };
 
   // 解析通道
