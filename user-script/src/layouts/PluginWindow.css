@@ -30,6 +30,8 @@
   flex: 1;
   padding: 16px;
   overflow: auto;
+  max-width: 500px;
+  max-height: min(calc(100vh - 250px), 400px);
 }
 
 .SCWC-plugin-window .SCWC-plugin-window-content .SCWC-plugin-window-content-item {
