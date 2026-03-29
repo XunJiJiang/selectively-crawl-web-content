@@ -67,7 +67,7 @@ function isValidCommandName(name: string) {
 }
 
 /** 预留命令 */
-const reservedCommands = new Set<string>(['exit', 'help', 'plugin:list', 'plugin:ps']);
+const reservedCommands = new Set<string>();
 /** 预留系统标志 */
 export const SYSTEM_SYMBOL = Symbol('system');
 
@@ -117,6 +117,9 @@ export function registerCommand(
 ) {
   if (reservedCommands.has(commandName) && pluginId !== SYSTEM_SYMBOL) {
     throw new CommandError(`命令名称 ${commandName} 为系统预留命令`, false);
+  } else if (pluginId === SYSTEM_SYMBOL && !reservedCommands.has(commandName)) {
+    // 使用系统符号注册的命令添加到预留命令列表中
+    reservedCommands.add(commandName);
   }
 
   if (!reservedCommands.has(commandName) && !isValidCommandName(commandName)) {

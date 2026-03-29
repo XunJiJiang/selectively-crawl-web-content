@@ -18,11 +18,12 @@ const serverLogger = createLogger('server', path.relative(process.cwd(), __dirna
 // 初始化缓存错误处理
 initCacheErrorHandler(serverLogger);
 
+// 注册系统命令
+// 需要在加载插件之前注册系统命令, 以确保系统命令不会被插件覆盖
+const getServerCommandsStates = registerDefaultCommands(serverLogger);
+
 // 启动时加载插件
 loadPlugins();
-
-// 注册系统命令
-registerDefaultCommands(serverLogger);
 
 // 启动服务器
 listen(PORT, () => {
