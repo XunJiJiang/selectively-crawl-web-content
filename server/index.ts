@@ -77,20 +77,36 @@ listenProcessStdin(serverLogger);
 
 // 监听退出信号
 process.once('SIGINT', async () => {
+  const { RESTART, RUN_RESTART } = getServerCommandsStates();
+
   for (const plugin of plugins) {
     // TODO: 当实现重启后, 调用时需要告知插件本次关闭为重启
     if (plugin.handler && typeof plugin.handler.onUnload === 'function') {
       const log = createLogger(`plugin:${plugin.name}`, path.relative(process.cwd(), plugin.entry));
-      await plugin.handler.onUnload(log);
+      await plugin.handler.onUnload(log, {
+        isRestart: RESTART,
+      });
     }
   }
 
-  // 清理缓存
-  serverLogger.info('清理 Redis 缓存');
-  await cacheController.clearAll(serverLogger);
-
   const log = createLogger('server', `http://localhost:${PORT}`);
-  log.pathInfo(`服务停止`);
+
+  if (RESTART) {
+    log.pathInfo(`服务重启`);
+  } else {
+    // 清理缓存
+    serverLogger.info('清理 Redis 缓存');
+    await cacheController.clearAll(serverLogger);
+    log.pathInfo(`服务停止`);
+  }
+
+  if (RESTART) {
+    if (typeof RUN_RESTART === 'function') {
+      RUN_RESTART();
+    } else {
+      log.error('重启失败: RUN_RESTART 函数未定义');
+    }
+  }
 
   process.exit(0);
 });

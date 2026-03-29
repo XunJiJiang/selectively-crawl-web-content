@@ -18,6 +18,15 @@ namespace SCWC {
     LimitPromise: typeof import('../utils/axios').LimitPromise;
   }
 
+  /**
+   * 插件卸载时的上下文对象
+   * 提供一些工具函数供插件使用
+   * 允许插件长期持有该对象并在需要时调用其中的函数
+   */
+  export interface IUnloadContext {
+    isRestart: boolean;
+  }
+
   export type TRetryGet<
     RES,
     A extends AxiosRequestConfig = AxiosRequestConfig<any>,
@@ -115,7 +124,7 @@ namespace SCWC {
         toWeb: (info: string, type?: 'success' | 'error' | 'warn' | 'info') => void;
       },
     ) => void | Promise<void>;
-    onUnload?: (logger: TLogger) => Promise<void> | void;
+    onUnload?: (logger: TLogger, context: IUnloadContext) => Promise<void> | void;
     pluginConfig?: {
       command?: {
         execute: TCommandExecute;

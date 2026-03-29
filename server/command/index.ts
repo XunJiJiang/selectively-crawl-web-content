@@ -1,3 +1,6 @@
+import { spawn } from 'node:child_process';
+import path from 'node:path';
+import fs from 'node:fs';
 import { inactivePlugins, plugins } from '../plugin/load.ts';
 import { pluginLogger } from '../plugin/log.ts';
 import {
@@ -9,6 +12,9 @@ import {
   CommandError,
 } from '../utils/command.ts';
 
+/** 重启脚本位置 */
+const RESTART_SCRIPT_PATH = path.join(process.cwd(), 'server', 'scripts', 'restart.ts');
+
 /**
  * 注册默认系统命令
  * @param serverLogger
@@ -17,6 +23,16 @@ import {
  * @param inactivePlugins
  */
 export function registerDefaultCommands(serverLogger: SCWC.TLogger) {
+  /** 系统命令执行状态 */
+  const states: {
+    /** 是否触发重启 */
+    RESTART: boolean;
+    /** 执行重启. 执行时期必须是在 process.exit 执行的前一刻 */
+    RUN_RESTART?: () => void;
+  } = {
+    RESTART: false,
+  };
+
   registerCommand(
     serverLogger,
     'exit',
@@ -27,6 +43,35 @@ export function registerDefaultCommands(serverLogger: SCWC.TLogger) {
     },
     SYSTEM_SYMBOL,
     '退出程序',
+  );
+  registerCommand(
+    serverLogger,
+    'restart',
+    () => {
+      if (!fs.existsSync(RESTART_SCRIPT_PATH)) {
+        serverLogger.error('重启脚本不存在');
+        return;
+      }
+
+      /** 当前进程 pid */
+      const currentPid = process.pid;
+
+      states.RESTART = true;
+      states.RUN_RESTART = () => {
+        const child = spawn(
+          'node',
+          [RESTART_SCRIPT_PATH, `--runtime=node`, `--version=${process.version}`, `--pid=${currentPid}`],
+          {
+            detached: true,
+            stdio: 'inherit',
+          },
+        );
+        child.unref();
+      };
+      process.kill(process.pid, 'SIGINT');
+    },
+    SYSTEM_SYMBOL,
+    '重启程序',
   );
   registerCommand(
     serverLogger,
@@ -64,14 +109,30 @@ export function registerDefaultCommands(serverLogger: SCWC.TLogger) {
     pluginLogger,
     'plugin:ps',
     () => {
-      pluginLogger.info('已加载插件列表:');
+      if (plugins.length === 0) {
+        pluginLogger.info('没有加载插件');
+      } else {
+        pluginLogger.info('已加载插件列表:');
+      }
       for (const plugin of plugins) {
         pluginLogger.info(`- ${plugin.name}[enabled] (跟踪网址: ${plugin.linkWith.join(', ') ?? '无'})`);
+      }
+      if (inactivePlugins.length === 0) {
+        pluginLogger.info('没有未激活的插件');
+      } else {
+        pluginLogger.info('未激活插件列表:');
+      }
+      for (const plugin of inactivePlugins) {
+        pluginLogger.info(
+          `- ${plugin.name}[disabled] (原因: ${plugin.reason}) (跟踪网址: ${plugin.linkWith.join(', ') ?? '无'})`,
+        );
       }
     },
     SYSTEM_SYMBOL,
     '列出所有已加载的插件',
   );
+
+  return () => ({ ...states });
 }
 
 export function listenProcessStdin(serverLogger: SCWC.TLogger) {
