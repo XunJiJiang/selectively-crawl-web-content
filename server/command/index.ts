@@ -44,6 +44,7 @@ export function registerDefaultCommands(serverLogger: SCWC.TLogger) {
     SYSTEM_SYMBOL,
     '退出程序',
   );
+  // BUG: 重启后会导致输入和 zsh 输入冲突, 输入内容会被 zsh 获取到, 导致命令输入出现问题
   registerCommand(
     serverLogger,
     'restart',
