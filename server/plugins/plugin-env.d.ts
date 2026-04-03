@@ -45,6 +45,7 @@ namespace SCWC {
   export type TPluginItem = {
     type: 'button' | 'toggle' | 'select' | 'input:text' | 'input:number' | 'checkbox';
     label: string;
+    // TODO: 检查这个通道是否会在用户界面显示. 如果不显示, 则可以修改为非必填项, 并生成唯一的通道名称
     channel: string;
     options?: {
       label: string;
@@ -83,8 +84,9 @@ namespace SCWC {
   export type TLogger = import('../utils/log').TLogger;
 
   export interface IPluginHandler {
-    name: string;
+    name?: string;
     onLoad?: (logger: TLogger, context: ILoadContext) => Promise<void> | void;
+    // TODO: 修改名称
     onRequest: (
       context: {
         utils: {
@@ -127,7 +129,7 @@ namespace SCWC {
     onUnload?: (logger: TLogger, context: IUnloadContext) => Promise<void> | void;
     pluginConfig?: {
       command?: {
-        execute: TCommandExecute;
+        execute?: TCommandExecute;
         description?: string;
         subCommands?: TSubCommand[];
         options?: TCommandOption[];

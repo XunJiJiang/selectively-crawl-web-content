@@ -178,7 +178,8 @@ export async function loadPlugins() {
           registerCommand(
             logger,
             commandName,
-            commandConfig.execute,
+            // TODO: 当没有定义 execute 时, 可以提供一个默认的执行函数, 例如打印命令描述和用法等信息
+            commandConfig.execute ?? (() => {}),
             plugin.pluginId,
             commandConfig.description,
             commandConfig.subCommands,
