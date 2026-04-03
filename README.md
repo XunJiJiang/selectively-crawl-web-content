@@ -15,7 +15,7 @@
 - 油猴脚本悬浮窗，支持拖动、收起、展开、位置记忆。
 - 元素选择与高亮。
 - 每项可设置“前缀”。
-- 抓取结果通过 POST 上传本地 Node 服务。
+- 抓取结果发送到本地 Node 服务。
 - 通过插件自定义指定网站的数据操作。
 
 ## 快速使用
@@ -30,10 +30,10 @@
 
 > [!NOTE]
 >
-> 项目使用 bun 进行包管理, 使用 node tsx 运行服务端
+> 建议使用 bun 进行包管理, 使用 node tsx 运行服务端
 
 ```bash
-bun i
+bun install
 ```
 
 ### 启动服务端
@@ -47,7 +47,7 @@ npm run start
 ```
 
 > [!TIP]
-> 服务默认监听 <http://localhost:3100>
+> 服务默认监听 <http://localhost:3200>
 >
 > 可通过配置 `.env` 中的 `PORT` 修改
 
@@ -64,14 +64,19 @@ npm run start
 
 ### 网页端使用
 
-- 打开任意网页，左上角出现悬浮窗。
-- 点击“选择”按钮，高亮光标定位的元素，点击选中元素。
-- 填写描述，点击“确认”加入表单。
-- 加入表单后，可修改前缀，例如修改为 `#`。
-- 支持多项管理、拖拽排序、删除。
-- 点击“抓取”按钮，内容将上传到本地服务端。
+- 打开任意网页，左上角出现 SCWC 字样的左侧贴边悬浮窗, 此时为收起状态
+- 点击悬浮窗展开表单区 (在未展开状态下, 拖动悬浮窗可以在纵向范围内调整位置)
+- 点击“选择”按钮，高亮光标定位的元素，点击选中元素
+- 填写描述，点击“确认”加入表单
+- 加入表单后，可修改前缀，例如修改为 `#`
+- 支持多项管理、拖拽排序、删除
+- 点击“抓取”按钮，内容将上传到本地服务端
+- 点击悬浮窗右上角 "-" 按钮收起表单区
+- 点击右上角箭头按钮展开插件区, 查看插件提供的操作, 再次点击箭头按钮收起插件区
 
 ### 获取的数据结构
+
+点击“抓取”按钮后，服务端会接收到一个包含所有表单项的数组，每个项包含标签、值和图片数据（如果框选中的元素存在图片标签）。数据结构如下：
 
 ```ts
 type DataItem = {
@@ -124,15 +129,15 @@ const data = [
 
 ### 插件开发说明
 
-插件用于自定义不同网站的数据处理逻辑，需放置于 `server/plugins/` 目录下，支持 TypeScript/JavaScript。
+插件用于在服务端自定义针对不同网站的数据处理逻辑。将插件放到 `server/plugins/` 目录下（支持 TypeScript/JavaScript），服务在启动时会自动扫描并加载。插件必须默认导出一个符合 `SCWC.IPluginHandler` 类型的对象（参考 `server/plugins/plugin-env.d.ts` 与 `server/plugins/template/index.ts` 示例）。
 
-#### 插件结构
+#### 插件目录结构
 
-每个插件为一个独立的包目录，需包含 `package.json` 和主模块文件（如 `index.ts`）。
+每个插件为一个独立目录，需包含 `package.json` 与主模块（通常为 `index.ts` 或 `index.js`）。
 
-**示例目录结构：**
+示例：
 
-```tree
+```txt
 server/plugins/
   └── my-plugin/
       ├── package.json
@@ -140,6 +145,8 @@ server/plugins/
 ```
 
 #### package.json
+
+package.json 中至少需要包含 `main` 字段指定主模块路径，建议添加 `name` 字段与插件目录名一致。还需添加 `link-with` 字段指定插件关联的网站 URL（支持字符串或正则表达式）。
 
 ```json
 {
@@ -151,6 +158,8 @@ server/plugins/
 }
 ```
 
+示例：
+
 ```json
 {
   "name": "my-plugin",
@@ -161,63 +170,118 @@ server/plugins/
 }
 ```
 
-#### 主模块导出
+#### 主模块导出方式
 
-> [!TIP]
->
-> `data` 类型参考 [数据结构](#获取的数据结构)
-
-`index.ts`
+参见仓库中的示例插件 [server/plugins/template/index.ts](server/plugins/template/index.ts)。插件应导出一个对象，常见字段包括：`name`、`onLoad`、`onRequest`、`onUnload` 和 `pluginConfig`。示例：
 
 ```ts
-export default async function (
-  options: {
-    writeData: (dirPath: string, data: any) => boolean;
-    data?: any;
-    site: {
-      url: string;
-      rootUrl: string;
-      origin: string;
-      pathname: string;
-    };
+export default {
+  name: 'template',
+  onLoad: async (logger, { createRetryGet, LimitPromise }) => {
+    // 可选：服务启动或插件热加载时调用
   },
-  log: {
-    info: (...args: any[]) => void;
-    warn: (...args: any[]) => void;
-    error: (...args: any[]) => void;
-  }
-): Promise<void> {
-  // 这里编写你的处理逻辑
-  log.info('插件已加载');
-  if (options.data) {
-    // 例如，将数据写入指定路径
-    options.writeData('./data', options.data);
-    log.info('数据已写入');
-  }
-}
+  onRequest: async (
+    { utils: { writeData, writeDataURL, strValidation, convertToCN, fetchImage }, data, site },
+    logger,
+  ) => {
+    // 必选：每次接收到抓取请求时调用
+    logger.info('Template plugin called');
+  },
+  onUnload: async (logger, { isRestart }) => {
+    // 可选：服务停止或重启时调用
+  },
+  pluginConfig: {
+    command: {
+      execute: async (logger, option) => {},
+      description: '示例命令',
+      subCommands: [
+        {
+          name: 'sub-cmd',
+          description: '示例子命令',
+          execute: async (logger, option) => {
+            logger.info('执行了子命令1');
+          },
+        },
+      ],
+      options: [
+        {
+          name: 'option1',
+          alias: 'o',
+          description: '这是选项1',
+          required: false,
+          defaultValue: 'default1',
+        },
+      ],
+      exampleUsage: 'template sub-cmd --option1=value1',
+    },
+    scripts: {
+      title: '示例脚本',
+      description: '在浏览器端加载的控制脚本元数据',
+      controls: [
+        {
+          type: 'button',
+          label: '示例按钮',
+          channel: 'example-channel',
+          trigger: async (logger, context) => ({
+            type: 'notification',
+            data: { type: 'info', message: '你点击了示例按钮' },
+          }),
+        },
+      ],
+    },
+  },
+} as SCWC.IPluginHandler;
 ```
 
-<a name="about-writeData-writeDataURL"></a>
+注意：以上示例严格参考 `server/plugins/template/index.ts` 的导出形式；请以该示例与类型声明 `server/plugins/plugin-env.d.ts` 为准，不要依赖其他未明示的字段或行为。
+
+#### onLoad / onUnload
+
+`onLoad(logger, context)`：可选，在插件加载或服务启动时调用，支持异步。`context`（若有）由主程序传入，类型定义见 `plugin-env.d.ts`。
+
+`onLoad` 中提供的 `context` 包含 `createRetryGet` 和 `LimitPromise` 两个工具：
 
 > [!TIP]
->
-> `writeData` 和 `writeDataURL` 是服务端提供的工具函数。
->
-> `writeData(dirPath, data)` 用于将数据写入指定路径的 `data.json` 文件和 `images` 文件夹。
->
-> - `path`：文件夹路径（绝对路径）。
-> - `data`：要写入的数据, 可以直接将 data 传入, 或经过某些处理后再传入。
->   如果文件不存在，则会自动创建。
->   如果文件存在，但根元素不是数组(包括空文件)，则不会写入。但浏览器控制台会认为已经传输到本地。
->
-> 返回值为 `boolean`，表示写入是否成功。
->
-> `writeDataURL(dataUrl, filePath)` 用于将 `base64` 编码的图片 `dataURL` 或图片链接转换为图片文件并保存到指定目录。
->
-> - `dataUrl`：`base64` 编码的 `dataURL` 字符串或图片链接
-> - `filePath`：可以是保存目录（字符串），也可以是一个函数（接收参数包括完整文件名、文件名、扩展名、日期前缀，返回最终保存路径）。
->
-> 返回值：成功时返回保存的文件路径，失败时返回 false。
+> `onLoad` 中提供的 `context` 的内容允许插件长期持有，并在需要时任意调用
+
+- `createRetryGet(createRetryRequestClass: (RetryRequest) => RetryRequest)`：允许自定义义重试请求类以更灵活的获取需要的数据。
+- `LimitPromise`：一个用于限制并发请求数量的 Promise 工具。
+
+`onUnload(logger, context)`：可选，在插件卸载或服务重启时调用，支持异步。`context` 中包含是否重启等信息。
+
+`onUnload` 中提供的 `context` 包含 `isRestart` 字段，表示当前卸载是否由服务重启引起。插件可以根据这个信息决定是否需要清理某些资源或状态。
+
+#### onRequest（核心）
+
+`onRequest` 是插件处理抓取数据时必须实现的函数。其签名为：
+
+- 参数1（`context`）包括：
+  - `utils`：一组工具函数（详见下文），例如 `writeData`、`writeDataURL`、`fetchImage`、`strValidation`、`convertToCN` 等；
+  - `data`：来自浏览器端的 `SCWC.TDataItem[]`（参见“获取的数据结构”）；
+  - `site`：包含 `url`、`rootUrl`、`origin`、`pathname`
+- 参数2（`logger`）为日志记录器；当 `onRequest` 被调用时，`logger` 还包含 `toWeb(info, type?)` 方法用于向浏览器端发送通知（见 `plugin-env.d.ts`）；当执行插件提供的控制器触发的操作时，`logger` 不包含 `toWeb` 方法，而是必须返回一个带有消息的对象。
+
+示例：
+
+```ts
+onRequest: async ({ utils: { writeData, writeDataURL }, data, site }, logger) => {
+  logger.info('收到数据', site.url);
+  // 使用 writeData 写入数据并使用 writeDataURL 保存 dataURL 图片
+  const saveResult = await writeData('path/to/my-data', data);
+};
+```
+
+#### 可用工具（由主程序注入）
+
+以下为 `onRequest` 中 `context.utils` 中常见工具的实际签名（以 `server/plugins/plugin-env.d.ts` 为准）：
+
+- `writeData: <D>(path: string, data: D) => Promise<false | { data: D }>`：将数据写入指定目录下的 `data.json` 与 `images` 文件夹，返回写入结果或 `false`。
+- `writeDataURL: (dataUrl: string, filePath: string | ((props: { fullname: string; filename: string; ext: string; datePrefix: string }) => string)) => Promise<string | false>`：将 dataURL 或图片链接保存为文件，成功返回保存的路径，失败返回 `false`。
+- `fetchImage: (url: string) => Promise<Buffer | null>`：抓取图片并返回 Buffer 或 `null`。
+- `strValidation`、`convertToCN` 等是字符串处理辅助函数。
+- `convertToCN`：将繁体中文和日文汉字转换为简体中文，其他字符保持不变。
+
+详细类型与说明请参见 `server/plugins/plugin-env.d.ts`，以避免对行为的错误推测。
 
 #### 插件加载
 
@@ -225,13 +289,13 @@ export default async function (
 
 ## 常见问题
 
-- **端口冲突**：如默认的 3100 端口被占用，可修改 .env 中 `PORT`。
+- **端口冲突**：如默认的 3200 端口被占用，可修改 .env 中 `PORT`。浏览器脚本也支持切换端口，但是目前需要手动修改浏览器本地存储空间中的 `__selective_crawl_config__` 对象中的 `port` 字段。
 
 ## 开发&自定义
 
-- 浏览器脚本源码：`user-script/src/`，基于 React+Vite。
-- 服务端源码：`server/index.ts`，基于 Express。
-- 构建命令、依赖见 `package.json`。
+- 浏览器脚本源码：`user-script/src/`，基于 TypeScript+Vite+React。
+- 服务端源码：`server/index.ts`，基于 TypeScript+Express
+- 构建命令、依赖见根目录中的 `package.json`。
 
 ### 注意
 

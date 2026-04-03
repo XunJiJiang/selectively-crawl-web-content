@@ -120,6 +120,7 @@ namespace SCWC {
           rootUrl: string;
           origin: string;
           pathname: string;
+          // TODO: 这里也把 host 和 hostname 传过去
         };
       },
       logger: TLogger & {
