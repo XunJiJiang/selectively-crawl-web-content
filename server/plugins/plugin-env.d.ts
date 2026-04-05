@@ -93,12 +93,21 @@ namespace SCWC {
           strValidation: (str: string) => string;
           convertToCN: (str: string) => string;
           fetchImage: (url: string) => Promise<Buffer | null>;
+          /**
+           * 保存原始请求数据
+           * 将数据内容追加保存到指定目录下的data.json文件中
+           * 如果数据中包括图片数据（dataURL）, 则直接调用writeDataURL函数将其转换为图片文件并保存到指定目录下的images目录中
+           * @param path 数据保存目录
+           * @param data 要保存的数据, 支持保存允许转换为 json 的任意数据类型。如果是 DataItem[], 会自动处理其中的图片数据（dataURL）并将其转换为图片文件,  data.json 中只保存图片文件路径。
+           * @returns
+           */
           writeData: <D>(path: string, data: D) => Promise<false | { data: D }>;
           /**
            * 处理 dataURL
            * 将其转换为图片文件并保存到指定目录
            * @param dataUrl base64编码的dataURL字符串
-           * @param filePath 保存路径或函数
+           * @param filePath 保存目录或生成保存目录以及文件名的函数
+           * 如果是字符串, 则作为保存目录, 文件名自动生成为 YYYYMMDDHHmmss_uuid.ext
            * 如果是函数, 接收一个对象参数, 包含以下字段:
            * - fullname: 完整文件名, 包含扩展名
            * - filename: 不包含扩展名的文件名

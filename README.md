@@ -36,6 +36,8 @@
 bun install
 ```
 
+另外，对于部分用到了缓存的插件，需要安装并启动 redis 服务。
+
 ### 启动服务端
 
 1. 编写 [插件](#插件)
@@ -260,6 +262,8 @@ export default {
   - `data`：来自浏览器端的 `SCWC.TDataItem[]`（参见“获取的数据结构”）；
   - `site`：包含 `url`、`rootUrl`、`origin`、`pathname`
 - 参数2（`logger`）为日志记录器；当 `onRequest` 被调用时，`logger` 还包含 `toWeb(info, type?)` 方法用于向浏览器端发送通知（见 `plugin-env.d.ts`）；当执行插件提供的控制器触发的操作时，`logger` 不包含 `toWeb` 方法，而是必须返回一个带有消息的对象。
+
+<a name="about-writeData-writeDataURL"></a>
 
 示例：
 
