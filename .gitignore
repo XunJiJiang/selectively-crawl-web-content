@@ -181,3 +181,6 @@ server/plugins/*
 !server/plugins/README.md
 !server/plugins/plugin-env.d.ts
 !server/plugins/template
+
+data/
+resource/
