@@ -15,7 +15,7 @@ const router = express.Router();
  * @param channel 通道名称
  * @returns 拼接后的通道字符串
  */
-function getPluginChannel(pluginName: string, pluginId: string, channel: string): string {
+function getPluginChannel (pluginName: string, pluginId: string, channel: string): string {
   return `plugin:${pluginName}:${pluginId}:${channel}`;
 }
 
@@ -24,7 +24,7 @@ function getPluginChannel(pluginName: string, pluginId: string, channel: string)
  * @param fullChannel 完整通道字符串
  * @returns 解析结果对象
  */
-function parsePluginChannel(fullChannel: string): {
+function parsePluginChannel (fullChannel: string): {
   pluginName: string;
   pluginId: string;
   channel: string;
@@ -44,6 +44,8 @@ const siteSchema = z.url();
 router.get('/config', query('site').isURL(), (req, res) => {
   pluginLogger.info(`收到插件配置请求`);
   const { error, data: site } = siteSchema.safeParse(req.query?.site);
+
+  pluginLogger.info(`来源: ${req.query?.site}`);
 
   if (error) {
     pluginLogger.error(`无效的 site 参数: ${req.query?.site}`);
