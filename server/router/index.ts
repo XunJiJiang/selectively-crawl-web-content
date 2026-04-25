@@ -9,6 +9,8 @@ import pluginRouter from './plugin.ts';
 import { plugins } from '../plugin/load.ts';
 import { createLogger } from '../utils/log.ts';
 import { getRootUrl } from './utils/index.ts';
+import { TOKEN } from '../common/env.ts';
+import { serverLogger } from '../common/logger.ts';
 
 export const app = express();
 
@@ -16,13 +18,37 @@ export const app = express();
 app.use(express.json({ limit: '100mb' }));
 
 app.use((req, res, next) => {
+  // CORS
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') {
     res.sendStatus(200);
     return;
   }
+
+  // 权限验证
+  // 如果没有配置 TOKEN, 则不进行验证, 直接放行
+  if (!TOKEN) {
+    next();
+    return;
+  }
+
+  const authHeader = req.headers['authorization'];
+
+  if (!authHeader) {
+    serverLogger.warn(`请求缺少 Authorization 头: ${req.method} ${req.url}, 来源: ${req.headers.origin ?? req.headers.referer ?? req.query?.site ?? '未知'}`);
+    res.status(401).json({ success: false, message: '缺少 Authorization 头' });
+    return;
+  }
+
+  const [type, token] = authHeader.toString().split(' ');
+  if (type !== 'Bearer' || token !== TOKEN) {
+    serverLogger.warn(`请求使用了无效的 token: ${req.method} ${req.url}, 来源: ${req.headers.origin ?? req.headers.referer ?? req.query?.site ?? '未知'}`);
+    res.status(403).json({ success: false, message: '无效的 token' });
+    return;
+  }
+
   next();
 });
 
@@ -103,7 +129,7 @@ metadataRouter.post(
                   strValidation: (str: string) => strValidation(str),
                   convertToCN: (str: string) => convertToCN(str),
                   fetchImage: (url: string) => fetchImage(url, log),
-                  writeData: <D>(...args: Parameters<typeof writeData>) => <D>writeData(...args),
+                  writeData: <D> (...args: Parameters<typeof writeData>) => <D>writeData(...args),
                   writeDataURL: (...args: Parameters<typeof writeDataURL>) => writeDataURL(...args),
                 },
               },
@@ -146,6 +172,6 @@ apiRouter.use('/metadata', metadataRouter);
 apiRouter.use('/plugin', pluginRouter);
 app.use('/api', apiRouter);
 
-export function listen(port: number, callback?: () => void) {
+export function listen (port: number, callback?: () => void) {
   app.listen(port, callback);
 }

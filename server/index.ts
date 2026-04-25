@@ -1,19 +1,11 @@
 import path from 'path';
-import dotenv from 'dotenv';
 import { listenProcessStdin, registerDefaultCommands } from './command/index.ts';
 import { listen } from './router/index.ts';
 import { initCacheErrorHandler, loadPlugins, plugins } from './plugin/load.ts';
 import { createLogger } from './utils/log.ts';
 import cacheController from './utils/cache.ts';
-
-dotenv.config();
-
-const __dirname = process.cwd();
-
-const PORT = process.env.PORT ? Number(process.env.PORT) : 3200;
-
-// 系统日志实例
-const serverLogger = createLogger('server', path.relative(process.cwd(), __dirname));
+import { PORT } from './common/env.ts';
+import { serverLogger } from './common/logger.ts';
 
 // 初始化缓存错误处理
 initCacheErrorHandler(serverLogger);

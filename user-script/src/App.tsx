@@ -145,14 +145,17 @@ function App() {
       return;
     }
     try {
-      const res = await fetch(`${config.api.host}:${config.api.port.replace(/[^\d]/g, '')}/api/metadata/scrape`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          site: window.location.href,
-          data: result,
-        }),
-      });
+      const res = await fetch(
+        `${config.api.host}:${config.api.port.replace(/[^\d]/g, '')}/api/metadata/scrape?site=${encodeURIComponent(window.location.href)}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.api.token}` },
+          body: JSON.stringify({
+            site: window.location.href,
+            data: result,
+          }),
+        },
+      );
       const data = await res.json();
       if (data && data.success === false) {
         scwcWarn('抓取失败', data.message);

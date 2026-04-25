@@ -8,6 +8,7 @@ const config = loadFromStorage(CONFIG_KEY, {
   api: {
     host: import.meta.env.HOST ?? 'http://localhost',
     port: import.meta.env.PORT ?? '3200',
+    token: ''
   },
 });
 

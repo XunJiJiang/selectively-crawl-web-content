@@ -45,6 +45,7 @@ const PluginWindow: React.FC<PluginWindowProps> = ({ openPluginWindow, getCrawlD
       `${config.api.host}:${config.api.port.replace(/[^\d]/g, '')}/api/plugin/config?site=${encodeURIComponent(url)}`,
       {
         method: 'GET',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.api.token}` },
       },
     );
     if (!res.ok) throw new Error('Failed to fetch plugin config');
@@ -89,19 +90,22 @@ const PluginWindow: React.FC<PluginWindowProps> = ({ openPluginWindow, getCrawlD
         return;
       }
 
-      const res = await fetch(`${config.api.host}:${config.api.port.replace(/[^\d]/g, '')}/api/plugin/toggle`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'click',
-          channel,
-          id: pluginId,
-          context: {
-            data: result,
-            site: window.location.href,
-          },
-        }),
-      });
+      const res = await fetch(
+        `${config.api.host}:${config.api.port.replace(/[^\d]/g, '')}/api/plugin/toggle?site=${encodeURIComponent(window.location.href)}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.api.token}` },
+          body: JSON.stringify({
+            type: 'click',
+            channel,
+            id: pluginId,
+            context: {
+              data: result,
+              site: window.location.href,
+            },
+          }),
+        },
+      );
 
       if (!res.ok) {
         scwcWarn(`插件请求失败: ${res.status} ${res.statusText}`);
