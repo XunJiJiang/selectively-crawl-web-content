@@ -12,7 +12,7 @@ namespace SCWC {
    * 允许插件长期持有该对象并在需要时调用其中的函数
    */
   export interface ILoadContext {
-    createRetryGet<RES, A extends AxiosRequestConfig = AxiosRequestConfig>(
+    createRetryGet<RES, A extends AxiosRequestConfig = AxiosRequestConfig> (
       ...args: Parameters<TCreateRetryGet<RES, A>>
     ): ReturnType<TCreateRetryGet<RES, A>>;
     LimitPromise: typeof import('../utils/axios').LimitPromise;
@@ -47,10 +47,17 @@ namespace SCWC {
     label: string;
     // TODO: 检查这个通道是否会在用户界面显示. 如果不显示, 则可以修改为非必填项, 并生成唯一的通道名称
     channel: string;
+    //插件配置
     options?: {
-      label: string;
-      value: string;
-    }[];
+      // 是否限制必须在能获取全部页面抓取元素时才允许触发插件项, 默认为 true
+      requireFullContent?: boolean;
+    }
+    /**
+     * 插件项触发时的回调函数
+     * @param logger 
+     * @param context 
+     * @returns 
+     */
     trigger: (
       logger: SCWC.TLogger,
       context: {
@@ -66,19 +73,19 @@ namespace SCWC {
       },
     ) =>
       | {
-          type: 'notification';
-          data: {
-            type: 'success' | 'error' | 'warn' | 'info';
-            message: string;
-          };
-        }
+        type: 'notification';
+        data: {
+          type: 'success' | 'error' | 'warn' | 'info';
+          message: string;
+        };
+      }
       | Promise<{
-          type: 'notification';
-          data: {
-            type: 'success' | 'error' | 'warn' | 'info';
-            message: string;
-          };
-        }>;
+        type: 'notification';
+        data: {
+          type: 'success' | 'error' | 'warn' | 'info';
+          message: string;
+        };
+      }>;
   };
 
   export type TLogger = import('../utils/log').TLogger;

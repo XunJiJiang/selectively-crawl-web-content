@@ -82,10 +82,15 @@ const PluginWindow: React.FC<PluginWindowProps> = ({ openPluginWindow, getCrawlD
   }, [plugins]);
 
   const sendPluginClick = useCallback(
-    async (pluginId: string, channel: string) => {
+    async (pluginId: string, channel: string, control: SCWC.TPluginItem) => {
       const { result, failed } = getCrawlData();
 
-      if (failed.length > 0) {
+      const options = {
+        requireFullContent: true,
+        ...control.options,
+      };
+
+      if (options.requireFullContent && failed.length > 0) {
         scwcWarn('无法发送请求，存在未获取到的元素索引:', failed);
         return;
       }
@@ -145,8 +150,8 @@ const PluginWindow: React.FC<PluginWindowProps> = ({ openPluginWindow, getCrawlD
   );
 
   const handleButtonClick = useCallback(
-    (pluginId: string, channel: string) => {
-      sendPluginClick(pluginId, channel);
+    (pluginId: string, channel: string, control: SCWC.TPluginItem) => {
+      sendPluginClick(pluginId, channel, control);
     },
     [sendPluginClick],
   );
@@ -190,7 +195,7 @@ const PluginWindow: React.FC<PluginWindowProps> = ({ openPluginWindow, getCrawlD
                 className="SCWC-plugin-window-content-item SCWC-plugin-window-content-item-button"
                 key={idx}
                 style={{ marginRight: 8, marginBottom: 8 }}
-                onClick={() => handleButtonClick(activeTab, control.channel)}
+                onClick={() => handleButtonClick(activeTab, control.channel, control)}
               >
                 {control.label}
               </button>
