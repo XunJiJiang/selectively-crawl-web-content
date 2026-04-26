@@ -41,11 +41,11 @@ function parsePluginChannel (fullChannel: string): {
 const siteSchema = z.url();
 
 // 获取浏览器脚本插件配置接口
-router.get('/config', query('site').isURL(), (req, res) => {
+router.get('/config', query('site').isURL(), async (req, res) => {
   pluginLogger.info(`收到插件配置请求`);
   const { error, data: site } = siteSchema.safeParse(req.query?.site);
 
-  pluginLogger.info(`来源: ${req.query?.site}`);
+  pluginLogger.info(`来源: ${decodeURIComponent(req.query?.site)}`);
 
   if (error) {
     pluginLogger.error(`无效的 site 参数: ${req.query?.site}`);
@@ -76,19 +76,37 @@ router.get('/config', query('site').isURL(), (req, res) => {
     if (!plugin.linkWith || (!plugin.linkWith.some(link => root.startsWith(link)) && !(plugin.linkWith.length === 0))) {
       continue;
     }
+
+    const decodedSite = decodeURIComponent(site);
+    const urlObj = new URL(decodedSite);
+
+    const controls = typeof plugin.handler?.pluginConfig?.scripts?.controls === 'function'
+      ? await plugin.handler.pluginConfig.scripts.controls(plugin.logger, {
+        site: {
+          url: decodedSite,
+          rootUrl: root,
+          origin: urlObj.origin,
+          pathname: urlObj.pathname,
+          host: urlObj.host,
+          hostname: urlObj.hostname,
+        },
+      })
+      : plugin.handler?.pluginConfig?.scripts?.controls ?? [];
+
+
     if (
       plugin.handler &&
       plugin.handler.pluginConfig &&
       plugin.handler.pluginConfig.scripts &&
       plugin.handler.pluginConfig.scripts.title &&
-      plugin.handler.pluginConfig.scripts.controls.length > 0
+      controls.length > 0
     ) {
       pluginConfigs.push({
         id: plugin.pluginId,
         title: plugin.handler.pluginConfig.scripts.title,
         description: plugin.handler.pluginConfig.scripts.description ?? plugin.handler.pluginConfig.scripts.title,
         controls:
-          plugin.handler.pluginConfig.scripts.controls.map(item => ({
+          controls.map(item => ({
             ...item,
             channel: getPluginChannel(plugin.name, plugin.pluginId, item.channel),
           })) ?? [],
@@ -174,7 +192,13 @@ router.post('/toggle', async (req, res) => {
     return;
   }
 
-  const pluginItem = plugin.handler?.pluginConfig?.scripts?.controls.find(item => item.channel === pluginChannel);
+  const controls = typeof plugin.handler?.pluginConfig?.scripts?.controls === 'function'
+    ? await plugin.handler.pluginConfig.scripts.controls(plugin.logger, {
+      site: siteInfo,
+    })
+    : plugin.handler?.pluginConfig?.scripts?.controls ?? [];
+
+  const pluginItem = controls.find(item => item.channel === pluginChannel);
 
   // 调用插件的 trigger 处理函数
   if (pluginItem) {
@@ -191,6 +215,8 @@ router.post('/toggle', async (req, res) => {
       plugin.logger.error(`触发插件通道失败: ${e}`);
       res.status(500).json({ code: 500, message: '插件通道触发失败' });
     }
+  } else {
+    res.status(404).json({ code: 404, message: `未找到插件项: ${pluginChannel}` });
   }
 });
 

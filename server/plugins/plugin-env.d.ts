@@ -88,6 +88,17 @@ namespace SCWC {
       }>;
   };
 
+  export type TCreatePluginItem = (logger: TLogger, context: {
+    site: {
+      url: string;
+      rootUrl: string;
+      origin: string;
+      pathname: string;
+      host: string;
+      hostname: string;
+    };
+  }) => TPluginItem[] | Promise<TPluginItem[]>;
+
   export type TLogger = import('../utils/log').TLogger;
 
   export interface IPluginHandler {
@@ -155,8 +166,7 @@ namespace SCWC {
       scripts?: {
         title: string;
         description?: string;
-        // TODO: 支持 (...args: any[]) => TPluginItem[] 动态生成插件项, 并提供一些网站信息等上下文参数
-        controls: TPluginItem[];
+        controls: TPluginItem[] | TCreatePluginItem;
         // TODO: 支持一些钩子函数, 例如: 某网站启动、加载插件配置、调用插件项等
       };
     };
