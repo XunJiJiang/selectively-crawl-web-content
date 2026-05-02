@@ -37,14 +37,14 @@ app.use((req, res, next) => {
   const authHeader = req.headers['authorization'];
 
   if (!authHeader) {
-    serverLogger.warn(`请求缺少 Authorization 头: ${req.method} ${req.url}, 来源: ${req.headers.origin ?? req.headers.referer ?? req.query?.site ?? '未知'}`);
+    serverLogger.warn(`请求缺少 Authorization 头: ${req.method} ${req.url}, 来源: ${decodeURIComponent(req.headers.origin ?? req.headers.referer ?? req.query?.site?.toString() ?? '未知')}`);
     res.status(401).json({ success: false, message: '缺少 Authorization 头' });
     return;
   }
 
   const [type, token] = authHeader.toString().split(' ');
   if (type !== 'Bearer' || token !== TOKEN) {
-    serverLogger.warn(`请求使用了无效的 token: ${req.method} ${req.url}, 来源: ${req.headers.origin ?? req.headers.referer ?? req.query?.site ?? '未知'}`);
+    serverLogger.warn(`请求使用了无效的 token: ${req.method} ${req.url}, 来源: ${decodeURIComponent(req.headers.origin ?? req.headers.referer ?? req.query?.site?.toString() ?? '未知')}`);
     res.status(403).json({ success: false, message: '无效的 token' });
     return;
   }
