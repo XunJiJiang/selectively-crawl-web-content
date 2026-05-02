@@ -1,4 +1,4 @@
-import path from 'path';
+import path from 'node:path';
 import { listenProcessStdin, registerDefaultCommands } from './command/index.ts';
 import { listen } from './router/index.ts';
 import { initCacheErrorHandler, loadPlugins, plugins } from './plugin/load.ts';
@@ -74,29 +74,29 @@ process.once('SIGINT', async () => {
   for (const plugin of plugins) {
     // TODO: 当实现重启后, 调用时需要告知插件本次关闭为重启
     if (plugin.handler && typeof plugin.handler.onUnload === 'function') {
-      const log = createLogger(`plugin:${plugin.name}`, path.relative(process.cwd(), plugin.entry));
-      await plugin.handler.onUnload(log, {
+      const logger = createLogger(`plugin:${plugin.name}`, path.relative(process.cwd(), plugin.entry));
+      await plugin.handler.onUnload(logger, {
         isRestart: RESTART,
       });
     }
   }
 
-  const log = createLogger('server', `http://localhost:${PORT}`);
+  const logger = createLogger('server', `http://localhost:${PORT}`);
 
   if (RESTART) {
-    log.pathInfo(`服务重启`);
+    logger.pathInfo(`服务重启`);
   } else {
     // 清理缓存
     serverLogger.info('清理 Redis 缓存');
     await cacheController.clearAll(serverLogger);
-    log.pathInfo(`服务停止`);
+    logger.pathInfo(`服务停止`);
   }
 
   if (RESTART) {
     if (typeof RUN_RESTART === 'function') {
       RUN_RESTART();
     } else {
-      log.error('重启失败: RUN_RESTART 函数未定义');
+      logger.error('重启失败: RUN_RESTART 函数未定义');
     }
   }
 

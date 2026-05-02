@@ -311,6 +311,7 @@ onRequest: async ({ utils: { writeData, writeDataURL }, data, site }, logger) =>
 
 ## TODO
 
+- [ ] 缩小插件按钮
 - [ ] 添加浏览脚本部分的设置界面, 允许用户设置一些选项, 例如服务端地址和端口, 以及一些功能开关等
 - [ ] 重启命令
 - [ ] log 文件日志

@@ -1,4 +1,3 @@
-import path from 'node:path';
 import { createLogger } from '../utils/log.ts';
 
 const __dirname = process.cwd();

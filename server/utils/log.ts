@@ -21,7 +21,7 @@ const log = {
   },
 };
 
-export function createLogger(tag: string, relativePath: string) {
+export function createLogger (tag: string, relativePath: string) {
   return {
     info: (...message: any[]) => {
       console.log(chalk.blue(`[${tag}]`), ...message);
