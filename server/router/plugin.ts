@@ -70,7 +70,7 @@ router.get('/config', query('site').isURL(), async (req, res) => {
     id: string;
     title: string;
     description: string;
-    controls: SCWC.TPluginItem[];
+    controls: Omit<SCWC.TPluginItem, 'trigger'>[];
   }[] = [];
   for (const plugin of plugins) {
     if (!plugin.linkWith || (!plugin.linkWith.some(link => root.startsWith(link)) && !(plugin.linkWith.length === 0))) {
@@ -93,7 +93,6 @@ router.get('/config', query('site').isURL(), async (req, res) => {
       })
       : plugin.handler?.pluginConfig?.scripts?.controls ?? [];
 
-
     if (
       plugin.handler &&
       plugin.handler.pluginConfig &&
@@ -108,7 +107,12 @@ router.get('/config', query('site').isURL(), async (req, res) => {
         controls:
           controls.map(item => ({
             ...item,
+            options: {
+              ...item.options,
+              relatedChannel: item.options?.relatedChannel?.map(channel => getPluginChannel(plugin.name, plugin.pluginId, channel)) ?? [],
+            },
             channel: getPluginChannel(plugin.name, plugin.pluginId, item.channel),
+            trigger: void 0,
           })) ?? [],
       });
     }
@@ -133,6 +137,13 @@ const toggleSchema = z.object({
       }),
     ),
     site: z.string(),
+    // 插件项触发时可能需要携带其他相关控制器的值
+    // relatedValues 的键为相关控制器的通道名称, 值为该控制器当前的值
+    // button 类型的控制器值只能为 null
+    relatedValues: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),
+    // 当前控制器的值. button 类型的控制器值只能为 null
+    // string | number | boolean | null
+    value: z.union([z.string(), z.number(), z.boolean(), z.null()]),
   }),
 });
 
@@ -149,7 +160,7 @@ router.post('/toggle', async (req, res) => {
     type,
     channel,
     id: pluginId,
-    context: { data, site },
+    context: { data, site, relatedValues, value },
   } = parsedBody.data;
 
   // 对 site 进行解码，防止出现编码后的中文等字符
@@ -207,6 +218,16 @@ router.post('/toggle', async (req, res) => {
       plugin.logger.info(`label: ${pluginItem.label}`);
       const result = await pluginItem.trigger(plugin.logger, {
         data,
+        value,
+        relatedValues: (() => {
+          const map: Record<string, string | number | boolean | null> = {};
+          Object.entries(relatedValues).forEach(([channel, value]) => {
+            const channelParts = parsePluginChannel(channel)?.channel;
+            if (!channelParts) return;
+            map[channelParts] = value;
+          });
+          return map;
+        })(),
         site: siteInfo,
       });
       plugin.logger.info('=======================================================');
