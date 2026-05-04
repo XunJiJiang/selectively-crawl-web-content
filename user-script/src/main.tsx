@@ -19,5 +19,5 @@ if (!mount) {
 createRoot(mount).render(
   <StrictMode>
     <App />
-  </StrictMode>
+  </StrictMode>,
 );

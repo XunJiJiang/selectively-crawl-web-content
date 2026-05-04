@@ -1,160 +1,34 @@
 import './PluginWindow.css';
 
-import { useEffect, useState, useCallback, useContext } from 'react';
-import configContext from '../context/config';
-import { scwcWarn } from '../utils/console';
-import { useNotification } from '../hooks/useNotification';
+import { memo, useEffect, useState } from 'react';
+import { type GetCrawlData, type PluginConfig, usePluginFetch } from '../hooks/usePluginFetch';
 
-/**
+/*
  * 后端需要实现的接口
  * - 获取插件配置: /api/plugin/config
  * - 发送插件事件: /api/plugin/toggle
  */
 
-type PluginItem = SCWC.TPluginItem;
-
-type PluginConfig = {
-  id: string;
-  title: string;
-  description: string;
-  controls: PluginItem[];
-};
-
 type PluginWindowProps = {
   openPluginWindow: boolean;
-  getCrawlData: () => { result: SCWC.TDataItem[]; failed: string[] };
+  getCrawlData: GetCrawlData;
 };
 
 // const WINDOW_WIDTH = 400;
 // const WINDOW_HEIGHT = 500;
 
-const PluginWindow: React.FC<PluginWindowProps> = ({ openPluginWindow, getCrawlData }) => {
-  const [plugins, setPlugins] = useState<PluginConfig[] | null>(null);
+const PluginWindow: React.FC<PluginWindowProps> = memo(({ openPluginWindow, getCrawlData }) => {
   const [activeTab, setActiveTab] = useState<string>('');
   const [activePlugin, setActivePlugin] = useState<PluginConfig | null>(null);
 
-  const config = useContext(configContext);
-
-  const notify = useNotification();
-
-  const fetchPluginConfig = useCallback(async () => {
-    /** 当前页面完整url */
-    const url = window.location.href;
-
-    const res = await fetch(
-      `${config.api.host}:${config.api.port.replace(/[^\d]/g, '')}/api/plugin/config?site=${encodeURIComponent(url)}`,
-      {
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.api.token}` },
-      },
-    );
-    if (!res.ok) throw new Error('Failed to fetch plugin config');
-    const data = (await res.json()) as {
-      code: number;
-      message: string;
-      data: PluginConfig[];
-    };
-    if (data.code >= 400 && data.code < 600) {
-      throw new Error(data.message ?? 'Error fetching plugin config');
-    } else if (data.code === 200) {
-      return data.data;
-    } else {
-      throw new Error('Unexpected response code(' + data.code + ') from server: ' + data.message);
-    }
-  }, [config]);
+  const { plugins, setControlValue, getControlValue } = usePluginFetch(openPluginWindow, getCrawlData);
 
   useEffect(() => {
-    if (!openPluginWindow) return;
-    if (plugins === null) {
-      fetchPluginConfig()
-        .then(setPlugins)
-        .catch(e => {
-          console.error('Failed to load plugin configs:', e);
-        });
-    }
-  }, [openPluginWindow, plugins, fetchPluginConfig]);
-
-  useEffect(() => {
-    if (plugins && plugins.length === 1) {
+    if (plugins && plugins.length >= 1) {
       setActiveTab(plugins[0].id);
       setActivePlugin(plugins[0]);
     }
   }, [plugins]);
-
-  const sendPluginClick = useCallback(
-    async (pluginId: string, channel: string, control: SCWC.TPluginItem) => {
-      const { result, failed } = getCrawlData();
-
-      const options = {
-        requireFullContent: true,
-        ...control.options,
-      };
-
-      if (options.requireFullContent && failed.length > 0) {
-        scwcWarn('无法发送请求，存在未获取到的元素索引:', failed);
-        return;
-      }
-
-      const res = await fetch(
-        `${config.api.host}:${config.api.port.replace(/[^\d]/g, '')}/api/plugin/toggle?site=${encodeURIComponent(window.location.href)}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.api.token}` },
-          body: JSON.stringify({
-            type: 'click',
-            channel,
-            id: pluginId,
-            context: {
-              data: result,
-              site: window.location.href,
-            },
-          }),
-        },
-      );
-
-      if (!res.ok) {
-        scwcWarn(`插件请求失败: ${res.status} ${res.statusText}`);
-        return;
-      } else {
-        const data = (await res.json()) as {
-          code: number;
-          message: string;
-          data: {
-            type: 'notification';
-            data: {
-              type: 'error' | 'success' | 'warn' | 'info';
-              message: string;
-            };
-          };
-        };
-
-        if (data.code >= 400 && data.code < 600) {
-          scwcWarn('插件请求错误: ' + data.message);
-          return;
-        } else if (data.code === 200) {
-          if (data.data.type === 'notification') {
-            const notifyFunc = notify[data.data.data.type as 'info' | 'success' | 'warn' | 'error'];
-            notifyFunc({
-              title: `插件 ${pluginId} 的处理结果`,
-              description: data.data.data.message,
-              placement: 'topRight',
-            });
-          }
-        } else {
-          scwcWarn(`插件请求失败: ${res.status} ${res.statusText}`);
-          return;
-        }
-      }
-    },
-    [getCrawlData, config, notify],
-  );
-
-  const handleButtonClick = useCallback(
-    (pluginId: string, channel: string, control: SCWC.TPluginItem) => {
-      sendPluginClick(pluginId, channel, control);
-    },
-    [sendPluginClick],
-  );
 
   return (
     <div
@@ -189,23 +63,121 @@ const PluginWindow: React.FC<PluginWindowProps> = ({ openPluginWindow, getCrawlD
       {/* Plugin Content */}
       <div className="SCWC-plugin-window-content" style={{ flex: 1, padding: 16, overflow: 'auto' }}>
         {activeTab && activePlugin ? (
-          activePlugin.controls.map((control, idx) =>
-            control.type === 'button' ? (
-              <button
-                className="SCWC-plugin-window-content-item SCWC-plugin-window-content-item-button"
-                key={idx}
-                style={{ marginRight: 8, marginBottom: 8 }}
-                onClick={() => handleButtonClick(activeTab, control.channel, control)}
-              >
-                {control.label}
-              </button>
-            ) : (
-              <div key={idx} style={{ color: '#888', marginBottom: 8 }}>
-                {/* TODO: 更多的类型支持 */}
-                不支持的控件类型: {control.type}
-              </div>
-            ),
-          )
+          activePlugin.controls.map((control, idx) => {
+            switch (control.type) {
+              case 'button':
+                return (
+                  <button
+                    className="SCWC-plugin-window-content-item SCWC-plugin-window-content-item-button"
+                    key={idx}
+                    onClick={() => setControlValue(control, null)}
+                  >
+                    {control.label}
+                  </button>
+                );
+              case 'toggle':
+                return (
+                  <div
+                    className="SCWC-plugin-window-content-item SCWC-plugin-window-content-item-toggle"
+                    key={idx}
+                    style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}
+                  >
+                    <span style={{ marginRight: 8 }}>{control.label}</span>
+                    <label className="SCWC-toggle-switch">
+                      <input
+                        type="checkbox"
+                        checked={getControlValue(control) === true}
+                        onChange={e => setControlValue(control, e.target.checked)}
+                      />
+                      <span className="SCWC-toggle-slider" />
+                    </label>
+                  </div>
+                );
+              case 'select':
+                return (
+                  <div
+                    className="SCWC-plugin-window-content-item SCWC-plugin-window-content-item-select"
+                    key={idx}
+                    style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}
+                  >
+                    <span style={{ marginRight: 8 }}>{control.label}</span>
+                    <select
+                      id={control.channel}
+                      name={control.channel}
+                      value={getControlValue(control)?.toString()}
+                      onChange={e => setControlValue(control, e.target.value)}
+                      style={{ padding: 4 }}
+                    >
+                      <option value="" disabled>
+                        请选择
+                      </option>
+                      {control.options?.options?.map((option, idx) => (
+                        <option key={idx} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                );
+              case 'input:text':
+                return (
+                  <div
+                    className="SCWC-plugin-window-content-item SCWC-plugin-window-content-item-input-text"
+                    key={idx}
+                    style={{ display: 'flex', flexDirection: 'column', marginBottom: 8 }}
+                  >
+                    <span style={{ marginBottom: 4 }}>{control.label}</span>
+                    <input
+                      type="text"
+                      value={getControlValue(control)?.toString()}
+                      onChange={e => (console.log(e), setControlValue(control, e.target.value))}
+                      style={{ padding: 4 }}
+                    />
+                  </div>
+                );
+              case 'input:number':
+                return (
+                  <div
+                    className="SCWC-plugin-window-content-item SCWC-plugin-window-content-item-input-number"
+                    key={idx}
+                    style={{ display: 'flex', flexDirection: 'column', marginBottom: 8 }}
+                  >
+                    <span style={{ marginBottom: 4 }}>{control.label}</span>
+                    <input
+                      type="number"
+                      value={getControlValue(control)?.toString()}
+                      onChange={e => (console.log(e), setControlValue(control, Number(e.target.value)))}
+                      style={{ padding: 4 }}
+                    />
+                  </div>
+                );
+              case 'checkbox':
+                return (
+                  <div
+                    className="SCWC-plugin-window-content-item SCWC-plugin-window-content-item-checkbox"
+                    key={idx}
+                    style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}
+                  >
+                    <label style={{ display: 'flex', alignItems: 'center' }}>
+                      <input
+                        type="checkbox"
+                        checked={getControlValue(control) === true}
+                        onChange={e => setControlValue(control, e.target.checked)}
+                        style={{ marginRight: 4 }}
+                      />
+                      {control.label}
+                    </label>
+                  </div>
+                );
+              default:
+                return (
+                  <div key={idx} style={{ color: '#888', marginBottom: 8 }}>
+                    {/* TODO: 更多的类型支持 */}
+                    不支持的控件类型: {control.type}
+                  </div>
+                );
+            }
+          })
         ) : (
           <div style={{ color: '#888' }}>
             {plugins === null ? '加载中...' : plugins.length === 0 ? '没有插件可用' : '请选择左侧标签'}
@@ -214,6 +186,6 @@ const PluginWindow: React.FC<PluginWindowProps> = ({ openPluginWindow, getCrawlD
       </div>
     </div>
   );
-};
+});
 
 export default PluginWindow;

@@ -51,6 +51,18 @@ namespace SCWC {
     options?: {
       // 是否限制必须在能获取全部页面抓取元素时才允许触发插件项, 默认为 true
       requireFullContent?: boolean;
+      // 需要携带的其他插件控制器的值
+      // 控制器通道名称列表
+      relatedChannel?: string[];
+      // 是否需要在值更改后自动触发插件项, 默认为 false. 对 button 类型的控制器无效
+      autoTrigger?: boolean;
+      // 默认值, toggle: boolean, select: 选项值(string | number | boolean), input:text: string, input:number: number, checkbox: boolean
+      defaultValue?: string | number | boolean | null;
+      // 当 type 为 select 时, 可选项列表
+      options?: {
+        label: string;
+        value: string | number;
+      }[];
     }
     /**
      * 插件项触发时的回调函数
@@ -61,7 +73,12 @@ namespace SCWC {
     trigger: (
       logger: SCWC.TLogger,
       context: {
+        /** 捕获的数据 */
         data: TDataItem[];
+        /** 当前控制器的值. button 类型的控制器值只能为 null */
+        value: string | number | boolean | null;
+        /** 相关控制器的值 */
+        relatedValues: Record<string, string | number | boolean | null>;
         site: {
           url: string;
           rootUrl: string;
@@ -177,6 +194,7 @@ namespace SCWC {
     entry: string;
     linkWith: string[];
     handler?: IPluginHandler;
+    // 插件 id 实际上是插件相对路径, 根目录为插件目录
     pluginId: string;
     // 占用的一级命令
     commandName?: string;
