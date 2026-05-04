@@ -49,10 +49,68 @@
   cursor: pointer;
   border-radius: 4px;
   transition: all 0.2s;
+  margin-right: 8px;
+  margin-bottom: 8px;
 }
 
 .SCWC-plugin-window
   .SCWC-plugin-window-content
   .SCWC-plugin-window-content-item.SCWC-plugin-window-content-item-button:hover {
   background-color: #1890ffcc;
+}
+
+.SCWC-plugin-window
+  .SCWC-plugin-window-content
+  .SCWC-plugin-window-content-item.SCWC-plugin-window-content-item-toggle {
+}
+
+.SCWC-plugin-window
+  .SCWC-plugin-window-content
+  .SCWC-plugin-window-content-item.SCWC-plugin-window-content-item-select
+  select {
+  height: 24px;
+  flex: 1 1 0%;
+  font-size: 13px;
+  color: rgb(204, 204, 204);
+  margin-right: 8px;
+  padding: 2px 8px;
+  box-sizing: border-box;
+  background: transparent;
+  border: 0.5px solid rgb(136, 136, 136);
+  border-radius: 4px;
+  transition: border 0.2s;
+}
+
+.SCWC-plugin-window
+  .SCWC-plugin-window-content
+  .SCWC-plugin-window-content-item.SCWC-plugin-window-content-item-input-text
+  input {
+  height: 24px;
+  flex: 1 1 0%;
+  font-size: 13px;
+  color: rgb(204, 204, 204);
+  margin-right: 8px;
+  padding: 2px 8px;
+  box-sizing: border-box;
+  background: transparent;
+  border: 0.5px solid rgb(136, 136, 136);
+  border-radius: 4px;
+  transition: border 0.2s;
+}
+
+.SCWC-plugin-window
+  .SCWC-plugin-window-content
+  .SCWC-plugin-window-content-item.SCWC-plugin-window-content-item-input-number
+  input {
+  height: 24px;
+  flex: 1 1 0%;
+  font-size: 13px;
+  color: rgb(204, 204, 204);
+  margin-right: 8px;
+  padding: 2px 8px;
+  box-sizing: border-box;
+  background: transparent;
+  border: 0.5px solid rgb(136, 136, 136);
+  border-radius: 4px;
+  transition: border 0.2s;
 }

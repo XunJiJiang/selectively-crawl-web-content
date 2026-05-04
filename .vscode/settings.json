@@ -17,7 +17,7 @@
       "previewLimit": 50,
       "driver": "SQLite",
       "name": "asmr-one",
-      "database": "/Users/xunji/Documents/Entertainment/ASMR-ONE/data/data.sqlite"
+      "database": "/Users/xunji/Documents/Entertainment/ASMR-ONE/data/claw-data.sqlite"
     }
   ],
   "search.useIgnoreFiles": false
