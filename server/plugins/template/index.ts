@@ -63,6 +63,138 @@ export default {
             },
           }), // 触发函数, 支持异步. 当接收到浏览器脚本发送的消息时, 如果消息的 channel 字段与这个值匹配, 就会调用这个函数. 函数接收两个参数: logger 用于记录日志, context 包含一些上下文信息, 例如用户输入的数据等
         },
+        {
+          type: 'button',
+          channel: 'testButton',
+          label: '测试 Button 控件',
+          options: {
+            requireFullContent: false, // 是否需要完整捕获内容, 默认为 true. 如果为 true, 则在触发这个插件项时, 只有当当前页面的内容完全被捕获时才会触发. 如果为 false, 则无论内容是否完全捕获都可以触发
+            relatedChannel: ['testToggle', 'testSelect', 'testInputText', 'testInputNumber', 'testCheckbox'], // 相关控制器通道列表, 可选. 当这个插件项被触发时, 浏览器脚本会同时获取这些通道的当前值, 并将它们作为 context.relatedValues 传递给触发函数. 这样插件就可以根据这些相关控制器的值来决定如何响应这个插件项的触发
+          },
+          trigger: async (logger, context) => {
+            logger.info('Button 控件触发了');
+            logger.info('相关值:', context.relatedValues);
+            return {
+              type: 'notification',
+              data: {
+                type: 'success',
+                message: 'Button 控件触发了',
+              },
+            };
+          },
+        },
+        {
+          type: 'toggle',
+          channel: 'testToggle',
+          label: '测试 Toggle 控件',
+          options: {
+            requireFullContent: false,
+            defaultValue: false, // 默认值, toggle 类型的控制器值必须为 boolean
+            relatedChannel: ['testSelect'],
+            autoTrigger: true, // 是否在值更改后自动触发插件项. 如果为 true, 则当用户切换这个 toggle 的值时, 会自动触发这个插件项. 对 button 类型的控制器无效
+          },
+          trigger: async (logger, context) => {
+            logger.info('Toggle 控件触发了');
+            logger.info('当前值:', context.value);
+            logger.info('相关值:', context.relatedValues);
+            return {
+              type: 'notification',
+              data: {
+                type: 'success',
+                message: `Toggle 控件触发了, 当前值: ${context.value}, 相关值: ${JSON.stringify(context.relatedValues)}`,
+              },
+            };
+          },
+
+        },
+        {
+          type: 'select',
+          channel: 'testSelect',
+          label: '测试 Select 控件',
+          options: {
+            requireFullContent: false,
+            defaultValue: 'option1', // 默认值, select 类型的控制器值必须为 options 中某个选项的 value
+            relatedChannel: ['testToggle', 'testInputText'],
+            options: [
+              { label: '选项 1', value: 'option1' },
+              { label: '选项 2', value: 'option2' },
+              { label: '选项 3', value: 'option3' },
+            ],
+          },
+          trigger: async (logger, context) => {
+            logger.info('Select 控件触发了');
+            logger.info('当前值:', context.value);
+            logger.info('相关值:', context.relatedValues);
+            return {
+              type: 'notification',
+              data: {
+                type: 'success',
+                message: `Select 控件触发了, 当前值: ${context.value}, 相关值: ${JSON.stringify(context.relatedValues)}`,
+              },
+            };
+          },
+        },
+        {
+          type: 'input:text',
+          channel: 'testInputText',
+          label: '测试 Input text 控件',
+          options: {
+            requireFullContent: false,
+            defaultValue: 'default text',
+            relatedChannel: ['testToggle', 'testSelect', 'testInputNumber', 'testCheckbox'],
+          },
+          trigger: async (logger, context) => {
+            logger.info('Input text 控件触发了');
+            logger.info('当前值:', context.value);
+            return {
+              type: 'notification',
+              data: {
+                type: 'success',
+                message: `Input text 控件触发了, 当前值: ${context.value}`,
+              },
+            };
+          },
+        },
+        {
+          type: 'input:number',
+          channel: 'testInputNumber',
+          label: '测试 Input number 控件',
+          options: {
+            requireFullContent: false,
+            defaultValue: 42,
+          },
+          trigger: async (logger, context) => {
+            logger.info('Input number 控件触发了');
+            logger.info('当前值:', context.value);
+            return {
+              type: 'notification',
+              data: {
+                type: 'success',
+                message: `Input number 控件触发了, 当前值: ${context.value}`,
+              },
+            };
+          },
+        },
+        {
+          type: 'checkbox',
+          channel: 'testCheckbox',
+          label: '测试 Checkbox 控件',
+          options: {
+            requireFullContent: false,
+            defaultValue: true,
+          },
+          trigger: async (logger, context) => {
+            logger.info('Checkbox 控件触发了');
+            logger.info('当前值:', context.value);
+            return {
+              type: 'notification',
+              data: {
+                type: 'success',
+                message: `Checkbox 控件触发了, 当前值: ${context.value}`,
+              },
+            };
+          },
+        }
       ],
     },
   },
