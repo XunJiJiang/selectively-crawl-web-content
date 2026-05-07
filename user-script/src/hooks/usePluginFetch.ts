@@ -181,6 +181,21 @@ export function usePluginFetch (openPluginWindow: boolean, getCrawlData: GetCraw
     return relatedValues;
   }, [channelControlMap, controlValues, getOptions]);
 
+  useEffect(() => {
+    // 监听网页url变化
+    const handleUrlChange = () => {
+      setPlugins(null);
+      setChannelControlMap(null);
+      setControlValues(new Map());
+    };
+
+    window.addEventListener('urlchangeevent', handleUrlChange);
+
+    return () => {
+      window.removeEventListener('urlchangeevent', handleUrlChange);
+    };
+  }, [])
+
   /**
    * 请求插件项触发接口的函数, 会根据插件项的配置自动判断是否需要发送请求
    */
