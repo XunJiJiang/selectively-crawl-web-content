@@ -29,8 +29,10 @@ export function loadFromStorage<K extends string, T extends object> (key: K, def
   try {
     const arr = JSON.parse(localStorage.getItem(key) ?? '') as T;
     return key === '__selective_crawl_items__' && Array.isArray(arr)
+      // 兼容旧版本数据，旧版本数据中items数组的每个元素没有prefix属性，补全后返回
       ? (arr.map(item => ({ ...item, prefix: typeof item.prefix === 'string' ? item.prefix : '' })) as T)
-      : (completeProperties(arr, defaultValue) ?? saveToStorage(key, defaultValue));
+      // 其他数据直接返回，若数据不完整则补全后返回
+      : saveToStorage(key, (completeProperties(arr, defaultValue)) ?? saveToStorage(key, defaultValue));
   } catch {
     return saveToStorage(key, defaultValue);
   }
