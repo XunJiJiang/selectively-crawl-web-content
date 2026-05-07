@@ -4,17 +4,18 @@
 }
 
 .SCWC-plugin-window .SCWC-plugin-window-tabs {
+  display: flex;
   background-color: transparent;
+  border-bottom: 1px solid #eee;
   border: 1px solid #4f4f4f;
-}
-
-.SCWC-plugin-window .SCWC-plugin-window-tabs {
   flex: 0;
 }
 
 .SCWC-plugin-window .SCWC-plugin-window-tabs .SCWC-plugin-window-tab {
   transition: all 0.2s;
   color: #fff8;
+  padding: 8px 16px;
+  cursor: pointer;
 }
 
 .SCWC-plugin-window .SCWC-plugin-window-tabs .SCWC-plugin-window-tab:hover {
@@ -62,6 +63,44 @@
 .SCWC-plugin-window
   .SCWC-plugin-window-content
   .SCWC-plugin-window-content-item.SCWC-plugin-window-content-item-toggle {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.SCWC-plugin-window
+  .SCWC-plugin-window-content
+  .SCWC-plugin-window-content-item.SCWC-plugin-window-content-item-toggle
+  span {
+  margin-right: 8px;
+  color: rgb(204, 204, 204);
+}
+
+.SCWC-plugin-window
+  .SCWC-plugin-window-content
+  .SCWC-plugin-window-content-item.SCWC-plugin-window-content-item-toggle
+  .SCWC-toggle-switch
+  input {
+  /* 样式未测试 */
+  width: 0;
+  height: 0;
+  opacity: 0;
+}
+
+.SCWC-plugin-window
+  .SCWC-plugin-window-content
+  .SCWC-plugin-window-content-item.SCWC-plugin-window-content-item-select {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.SCWC-plugin-window
+  .SCWC-plugin-window-content
+  .SCWC-plugin-window-content-item.SCWC-plugin-window-content-item-select
+  span {
+  margin-right: 8px;
+  color: rgb(204, 204, 204);
 }
 
 .SCWC-plugin-window
@@ -73,12 +112,28 @@
   font-size: 13px;
   color: rgb(204, 204, 204);
   margin-right: 8px;
-  padding: 2px 8px;
+  padding: 4px;
   box-sizing: border-box;
   background: transparent;
   border: 0.5px solid rgb(136, 136, 136);
   border-radius: 4px;
   transition: border 0.2s;
+}
+
+.SCWC-plugin-window
+  .SCWC-plugin-window-content
+  .SCWC-plugin-window-content-item.SCWC-plugin-window-content-item-input-text {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 8px;
+}
+
+.SCWC-plugin-window
+  .SCWC-plugin-window-content
+  .SCWC-plugin-window-content-item.SCWC-plugin-window-content-item-input-text
+  span {
+  margin-bottom: 4px;
+  color: rgb(204, 204, 204);
 }
 
 .SCWC-plugin-window
@@ -90,12 +145,28 @@
   font-size: 13px;
   color: rgb(204, 204, 204);
   margin-right: 8px;
-  padding: 2px 8px;
+  padding: 4px;
   box-sizing: border-box;
   background: transparent;
   border: 0.5px solid rgb(136, 136, 136);
   border-radius: 4px;
   transition: border 0.2s;
+}
+
+.SCWC-plugin-window
+  .SCWC-plugin-window-content
+  .SCWC-plugin-window-content-item.SCWC-plugin-window-content-item-input-number {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 8px;
+}
+
+.SCWC-plugin-window
+  .SCWC-plugin-window-content
+  .SCWC-plugin-window-content-item.SCWC-plugin-window-content-item-input-number
+  span {
+  margin-bottom: 4px;
+  color: rgb(204, 204, 204);
 }
 
 .SCWC-plugin-window
@@ -107,10 +178,34 @@
   font-size: 13px;
   color: rgb(204, 204, 204);
   margin-right: 8px;
-  padding: 2px 8px;
+  padding: 4px;
   box-sizing: border-box;
   background: transparent;
   border: 0.5px solid rgb(136, 136, 136);
   border-radius: 4px;
   transition: border 0.2s;
+}
+
+.SCWC-plugin-window
+  .SCWC-plugin-window-content
+  .SCWC-plugin-window-content-item.SCWC-plugin-window-content-item-checkbox {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.SCWC-plugin-window
+  .SCWC-plugin-window-content
+  .SCWC-plugin-window-content-item.SCWC-plugin-window-content-item-checkbox
+  label {
+  display: flex;
+  align-items: center;
+}
+
+.SCWC-plugin-window
+  .SCWC-plugin-window-content
+  .SCWC-plugin-window-content-item.SCWC-plugin-window-content-item-checkbox
+  label
+  input {
+  margin-right: 4px;
 }
