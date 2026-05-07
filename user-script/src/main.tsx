@@ -1,6 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
+import 'url-change-event';
 
 // 动态创建悬浮窗挂载点，避免阻挡原网页内容
 const FLOATING_ID = 'selective-crawl-floating-root';
