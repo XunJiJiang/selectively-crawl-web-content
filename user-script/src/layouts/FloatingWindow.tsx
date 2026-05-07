@@ -13,8 +13,11 @@ interface FloatingWindowProps {
 
 const INIT_POS = { x: 40, y: 120 };
 const POS_KEY = 'scw-floating-pos';
+// 是否展开元素原则区
 // const EXPANDED_KEY = 'scw-floating-expanded';
 const MINIMIZED_KEY = 'scw-floating-minimized';
+// 是否展开插件
+const PLUGIN_EXPANDED_KEY = 'scw-floating-plugin-expanded';
 
 const FloatingWindow: React.FC<FloatingWindowProps> = ({
   expanded,
@@ -35,8 +38,22 @@ const FloatingWindow: React.FC<FloatingWindowProps> = ({
     return INIT_POS;
   });
 
-  // 是否打开插件窗口
-  const [openPluginWindow, setOpenPluginWindow] = useState(true);
+  // 是否打开插件控件
+  const [openPluginWindow, setOpenPluginWindow] = useState<boolean>(() => {
+    const saved = localStorage.getItem(PLUGIN_EXPANDED_KEY);
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        /* ignore */
+      }
+    }
+    return false;
+  });
+  useEffect(() => {
+    localStorage.setItem(PLUGIN_EXPANDED_KEY, JSON.stringify(openPluginWindow));
+    // if (typeof onExpandedChange === 'function') onExpandedChange(openPluginWindow);
+  }, [openPluginWindow]);
 
   // 加载是否最小化,
   const [minimized, setMinimized] = useState(() => {
