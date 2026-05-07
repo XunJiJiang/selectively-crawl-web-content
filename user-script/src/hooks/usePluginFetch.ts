@@ -4,7 +4,7 @@ import { scwcError, scwcWarn } from "../utils/console";
 import { useNotification } from "./useNotification";
 import { debounce } from '../utils/debounce';
 import type { GetCrawlData, PluginConfig, PluginItem } from "../types/plugin";
-import type { ScriptConfig, ScriptConfigItem } from "../types/Config";
+import type { ScriptConfig, ScriptConfigItem } from "../types/config";
 
 // TODO: 当窗口最小化然后最大化后, 会重新获取插件配置. 这不对
 // 即使url变化, 也应该是再次打开插件窗口时才获取新的插件配置
@@ -105,6 +105,56 @@ export function usePluginFetch (openPluginWindow: boolean, getCrawlData: GetCraw
    * 本次值更改发生变化的 PluginItem 列表
    */
   const [changedItems, setChangedItems] = useState<(PluginItem | ScriptConfigItem)[]>([]);
+
+  // 当插件设置项发生变化时, 将旧的设置替换为新的设置, 继承旧设置的值, 删除旧设置的值变动记录
+  useEffect(() => {
+    const configControls = getConfigControls();
+    if (plugins) {
+      let oldConfigControls: ScriptConfig | null = null;
+      const filtered = plugins.filter(plugin => {
+        const is = isConfig(plugin)
+        if (is) {
+          oldConfigControls = plugin;
+        }
+        return !is
+      });
+
+      if (oldConfigControls && configControls !== oldConfigControls) {
+        filtered.push(configControls);
+        setPlugins(filtered);
+        setChannelControlMap(() => {
+          const map: Record<string, PluginItem | ScriptConfigItem> = {};
+          filtered.forEach(plugin => {
+            plugin.controls.forEach(control => {
+              map[control.channel] = control;
+            });
+          });
+          return map;
+        });
+        setControlValues((ov) => {
+          const map = new Map<PluginItem | ScriptConfigItem, { value: string | number | boolean | null; plugin: PluginConfig | ScriptConfig }>(ov);
+          oldConfigControls?.controls.forEach(control => {
+            map.delete(control);
+          });
+          configControls.controls.forEach(control => {
+            // 这里的 defaultValue 只有在这个设置选项初次出现时为默认值
+            // 在出现过后就会保存在本地存储中, 之后均为本地存储中的值
+            map.set(control, { value: control.options?.defaultValue ?? null, plugin: configControls });
+          });
+          return map;
+        });
+        setChangedItems((ov) => {
+          const newList = ov.filter(item => {
+            if (isConfigItem(item)) {
+              return false;
+            }
+            return true;
+          });
+          return newList;
+        });
+      }
+    }
+  }, [getConfigControls, isConfig, isConfigItem, plugins])
 
   const getOptions = useCallback((control: PluginItem): Required<PluginItem>['options'] => {
     return {
@@ -267,7 +317,6 @@ export function usePluginFetch (openPluginWindow: boolean, getCrawlData: GetCraw
               map[control.channel] = control;
             });
           });
-          console.log('channelControlMap', map);
           return map;
         });
         setControlValues(() => {
