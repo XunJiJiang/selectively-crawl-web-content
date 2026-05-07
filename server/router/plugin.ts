@@ -70,6 +70,7 @@ router.get('/config', query('site').isURL(), async (req, res) => {
     id: string;
     title: string;
     description: string;
+    'script-config-symbol'?: unknown;
     controls: Omit<SCWC.TPluginItem, 'trigger'>[];
   }[] = [];
   for (const plugin of plugins) {
@@ -104,6 +105,9 @@ router.get('/config', query('site').isURL(), async (req, res) => {
         id: plugin.pluginId,
         title: plugin.handler.pluginConfig.scripts.title,
         description: plugin.handler.pluginConfig.scripts.description ?? plugin.handler.pluginConfig.scripts.title,
+        // 用于浏览器脚本判断是否为脚本设置, 存在该项的 config 将被认为是脚本设置
+        // 插件项不能传递这个值
+        'script-config-symbol': void 0,
         controls:
           controls.map(item => ({
             ...item,
@@ -113,6 +117,8 @@ router.get('/config', query('site').isURL(), async (req, res) => {
             },
             channel: getPluginChannel(plugin.name, plugin.pluginId, item.channel),
             trigger: void 0,
+            // 插件项不能传递这个值
+            'script-config-symbol': void 0,
           })) ?? [],
       });
     }
