@@ -1,23 +1,13 @@
-import { useCallback, useContext, useEffect, useRef, useState } from "react";
-import configContext from "../context/config";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useConfig } from "../context/config";
 import { scwcError, scwcWarn } from "../utils/console";
 import { useNotification } from "./useNotification";
 import { debounce } from '../utils/debounce';
+import type { GetCrawlData, PluginConfig, PluginItem } from "../types/plugin";
+import type { ScriptConfig, ScriptConfigItem } from "../types/Config";
 
-export type PluginItem = (Omit<SCWC.TPluginItem, 'trigger'> & {
-  // 这个控制器的值，可以是用户输入的字符串，也可以是预设的选项值，或者null表示无值
-  // button 类型的控制器值只能为 null
-  value: string | null;
-});
-
-export type PluginConfig = {
-  id: string;
-  title: string;
-  description: string;
-  controls: PluginItem[];
-};
-
-export type GetCrawlData = () => { result: SCWC.TDataItem[]; failed: string[] };
+// TODO: 当窗口最小化然后最大化后, 会重新获取插件配置. 这不对
+// 即使url变化, 也应该是再次打开插件窗口时才获取新的插件配置
 
 /** 处理需要 fetch 的控件的请求返回值 */
 function handleFetchResponse (promise: Promise<Response>, pluginId: string, _channel: string, _control: PluginItem, notify: ReturnType<typeof useNotification>) {
@@ -84,37 +74,37 @@ function handleFetchResponse (promise: Promise<Response>, pluginId: string, _cha
 }
 
 /** 插件项是否没有加载远程控制器 */
-function isPluginItemUnloaded (plugins: PluginConfig[] | null) {
+function isPluginItemUnloaded (plugins: (PluginConfig | ScriptConfig)[] | null) {
   return plugins === null
 }
 
 export function usePluginFetch (openPluginWindow: boolean, getCrawlData: GetCrawlData) {
-  const config = useContext(configContext);
+  const { config, getConfigControls, isConfigItem, isConfig } = useConfig();
   const notify = useNotification();
 
   /**
    * 通道 -> 插件项 的映射关系, 用于在触发插件项时找到对应的插件项配置
    */
-  const [channelControlMap, setChannelControlMap] = useState<Record<string, PluginItem> | null>(null);
+  const [channelControlMap, setChannelControlMap] = useState<Record<string, PluginItem | ScriptConfigItem> | null>(null);
 
   /** 插件配置列表 */
-  const [plugins, setPlugins] = useState<PluginConfig[] | null>(null);
+  const [plugins, setPlugins] = useState<(PluginConfig | ScriptConfig)[] | null>(null);
 
   /** 
    * 不同插件的控制器值
    * 这里没有区分不同插件, 因为通道名称在全局范围内是唯一的
    */
   const [controlValues, setControlValues] = useState<
-    Map<PluginItem, {
+    Map<PluginItem | ScriptConfigItem, {
       value: string | number | boolean | null;
-      plugin: PluginConfig;
+      plugin: PluginConfig | ScriptConfig;
     }>
   >(new Map());
 
   /**
    * 本次值更改发生变化的 PluginItem 列表
    */
-  const [changedItems, setChangedItems] = useState<PluginItem[]>([]);
+  const [changedItems, setChangedItems] = useState<(PluginItem | ScriptConfigItem)[]>([]);
 
   const getOptions = useCallback((control: PluginItem): Required<PluginItem>['options'] => {
     return {
@@ -131,7 +121,6 @@ export function usePluginFetch (openPluginWindow: boolean, getCrawlData: GetCraw
     const relatedValues: Record<string, string | number | boolean | null> = {};
     options.relatedChannel?.forEach(channel => {
       const relatedControl = channelControlMap?.[channel];
-      console.log('channelControlMapchannelControlMap', channelControlMap);
       if (relatedControl) {
         relatedValues[channel] = controlValues.get(relatedControl)?.value ?? (scwcWarn(`未找到控制器值: ${channel}`), null);
       } else {
@@ -139,7 +128,6 @@ export function usePluginFetch (openPluginWindow: boolean, getCrawlData: GetCraw
         relatedValues[channel] = null;
       }
     });
-    console.log('relatedValuesrelatedValues', relatedValues);
     return relatedValues;
   }, [channelControlMap, controlValues, getOptions]);
 
@@ -188,7 +176,15 @@ export function usePluginFetch (openPluginWindow: boolean, getCrawlData: GetCraw
   useEffect(() => {
     if (changedItems.length === 0) return;
     changedItems.forEach(item => {
-
+      if (isConfigItem(item)) {
+        const value = controlValues.get(item);
+        if (!value) {
+          scwcWarn(`脚背设置控制器值未找到: ${item.channel}`);
+          return;
+        }
+        item.trigger(value.value);
+        return;
+      }
 
       const triggerFunc = (value: string | number | boolean | null, control: PluginItem, plugin: PluginConfig) => {
         const executorKey = control.type;
@@ -225,7 +221,7 @@ export function usePluginFetch (openPluginWindow: boolean, getCrawlData: GetCraw
       }
     });
     setChangedItems([]); // 触发完成后清空本次更改的列表
-  }, [controlValues, changedItems, fetchPluginTrigger, notify]);
+  }, [controlValues, changedItems, fetchPluginTrigger, notify, isConfigItem]);
 
   const fetchPluginConfig = useCallback(async () => {
     /** 当前页面完整url */
@@ -260,12 +256,13 @@ export function usePluginFetch (openPluginWindow: boolean, getCrawlData: GetCraw
 
     fetchPluginConfig()
       .then(plugins => {
+        const configControls = getConfigControls();
         setPlugins(() => {
-          return plugins;
+          return [...plugins, configControls];
         });
         setChannelControlMap(() => {
           const map: Record<string, PluginItem> = {};
-          plugins.forEach(plugin => {
+          [...plugins, configControls].forEach(plugin => {
             plugin.controls.forEach(control => {
               map[control.channel] = control;
             });
@@ -274,8 +271,8 @@ export function usePluginFetch (openPluginWindow: boolean, getCrawlData: GetCraw
           return map;
         });
         setControlValues(() => {
-          const map = new Map<PluginItem, { value: string | number | boolean | null; plugin: PluginConfig }>();
-          plugins.forEach(plugin => {
+          const map = new Map<PluginItem, { value: string | number | boolean | null; plugin: PluginConfig | ScriptConfig }>();
+          [...plugins, configControls].forEach(plugin => {
             plugin.controls.forEach(control => {
               map.set(control, { value: control.options?.defaultValue ?? null, plugin });
             });
@@ -292,9 +289,27 @@ export function usePluginFetch (openPluginWindow: boolean, getCrawlData: GetCraw
           description: e instanceof Error ? e.message : String(e),
           placement: 'topRight',
         });
+        const configControls = getConfigControls();
+        // 只添加 script config 控制器, 以保证至少有设置项可用
+        setPlugins([configControls]);
+        setChannelControlMap(() => {
+          const map: Record<string, PluginItem> = {};
+          configControls.controls.forEach(control => {
+            map[control.channel] = control;
+          });
+          return map;
+        });
+        setControlValues(() => {
+          const map = new Map<PluginItem, { value: string | number | boolean | null; plugin: PluginConfig | ScriptConfig }>();
+          configControls.controls.forEach(control => {
+            map.set(control, { value: control.options?.defaultValue ?? null, plugin: configControls });
+          });
+          return map;
+        });
+        setChangedItems([]);
       })
 
-  }, [fetchPluginConfig, notify]);
+  }, [getConfigControls, fetchPluginConfig, notify]);
 
   useEffect(() => {
     if (!openPluginWindow) return;
@@ -332,7 +347,6 @@ export function usePluginFetch (openPluginWindow: boolean, getCrawlData: GetCraw
    * 获取插件控制器的值的函数
    */
   const getControlValue = useCallback((control: PluginItem): string | number | boolean | null => {
-    console.log('getControlValue', control.channel, controlValues.get(control));
     return controlValues.get(control)?.value ?? null;
   }, [controlValues]);
 

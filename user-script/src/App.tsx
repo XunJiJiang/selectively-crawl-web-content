@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useContext } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import FloatingWindow from './layouts/FloatingWindow';
 import TopButtons from './components/TopButtons';
 import ItemFormAndCrawl from './components/ItemFormAndCrawl';
@@ -6,7 +6,7 @@ import { saveToStorage, loadFromStorage } from './hooks/useFloatingWindow';
 import { useElementSelect } from './hooks/useElementSelect';
 import { getSelector, getElementBySelector, highlightElement, isExcludedElement } from './hooks/useCrawlLogic';
 import { scwcLog, scwcWarn, scwcError } from './utils/console';
-import configContext, { SELECTIVE_CRAWL_KEY } from './context/config';
+import { SELECTIVE_CRAWL_KEY, useConfig } from './context/config';
 import { useNotification } from './hooks/useNotification';
 
 // Item类型加prefix
@@ -17,7 +17,7 @@ export interface Item {
 }
 
 function App() {
-  const config = useContext(configContext);
+  const { config } = useConfig();
   const notify = useNotification();
 
   // 业务状态
@@ -66,7 +66,7 @@ function App() {
     if (hoverEl && selecting) highlightElement(hoverEl);
   }, [hoverEl, selecting]);
 
-  // 持久化
+  // 持久化抓取项
   useEffect(() => {
     saveToStorage(SELECTIVE_CRAWL_KEY, items);
   }, [items]);
