@@ -32,5 +32,8 @@ export default defineConfig(({ mode }) => {
       minify: false,
       emptyOutDir: true,
     },
+    test: {
+      environment: 'jsdom',
+    },
   };
 });
