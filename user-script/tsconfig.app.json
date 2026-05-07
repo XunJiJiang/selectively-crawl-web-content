@@ -23,5 +23,6 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true
   },
-  "include": ["./src", "../server/plugins/plugin-env.d.ts"]
+  "include": ["./src", "../server/plugins/plugin-env.d.ts"],
+  "exclude": ["../server"]
 }
