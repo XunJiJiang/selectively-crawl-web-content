@@ -6,19 +6,17 @@ import { spawn, spawnSync } from 'node:child_process';
 import readline from 'node:readline';
 import os from 'node:os';
 import stream from 'node:stream';
+import { registerArg } from './parseArgs'
 
-// TODO: 使用scripts项目中的参数解析工具
-/** 解析参数 */
-function parseArgs (): Record<string, string> {
-  const args: Record<string, string> = {};
-  for (const arg of process.argv.slice(2)) {
-    if (arg.startsWith('--')) {
-      const [key, value] = arg.slice(2).split('=');
-      args[key] = value ?? 'true';
-    }
-  }
-  return args;
-}
+// registerArg('port', {
+//   abbreviation: 'p',
+//   description: '服务器端口',
+//   options: {
+//     type: 'number',
+//     required: false,
+//     defaultValue: 3000,
+//   }
+// });
 
 function launchInteractiveTerminal () {
   const platform = os.platform();
@@ -67,27 +65,41 @@ function main () {
     terminal: true, // 确保启用终端模式
   });
 
+  let willRestart = false;
+  let willExit = false;
+
   rl.on('line', input => {
-    if (input === 'exit') {
-      console.log('退出命令已输入');
-      rl.close();
-    } else {
-      console.log(`你输入了: ${input}`);
+    if (terminalProcess.stdin) {
+      terminalProcess.stdin.write(`${input}\n`);
+      if (input === 'restart') {
+        willRestart = true;
+      } else if (input === 'exit') {
+        willExit = true;
+      }
     }
   });
-
-  // rl.on('line', input => {
-  //   if (terminalProcess.stdin) {
-  //     console.log(`用户输入: ${input}`);
-  //     terminalProcess.stdin.write(`${input}\n`);
-  //   }
-  // });
 
   terminalProcess.stdin.write('npx tsx server/index.ts\n');
 
   // 监听子进程的标准输出
   terminalProcess.stdout.on('data', data => {
     process.stdout.write(data); // 将子进程的输出直接写入主进程的 stdout
+
+    if (data.toString().includes('服务重启')) {
+      // 发送重启命令
+      // 这是一种不安全的做法, 使用变量判断依旧不能确定是否能完全避免误触发
+      if (willRestart) {
+        willRestart = false;
+        terminalProcess.stdin.write('npx tsx server/index.ts\n');
+      }
+    } else if (data.toString().includes('服务停止')) {
+      if (willExit) {
+        willExit = false;
+        terminalProcess.kill();
+        rl.close();
+        process.exit(0);
+      }
+    }
   });
 }
 
