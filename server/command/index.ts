@@ -24,23 +24,13 @@ const RESTART_SCRIPT_PATH = path.join(process.cwd(), 'server', 'scripts', 'resta
  * @param inactivePlugins
  */
 export function registerDefaultCommands (serverLogger: SCWC.TLogger) {
-  /** 系统命令执行状态 */
-  const states: {
-    /** 是否触发重启 */
-    RESTART: boolean;
-    /** 执行重启. 执行时期必须是在 process.exit 执行的前一刻 */
-    RUN_RESTART?: () => void;
-  } = {
-    RESTART: false,
-  };
-
   registerCommand(
     serverLogger,
     'exit',
     () => {
       // process.exit(0);
-      // 触发 SIGINT 信号, 让主进程执行正常的退出流程
-      process.kill(process.pid, 'SIGINT');
+      // 发送退出信号
+      process.emit('message', 'SIGINT-exit', null);
     },
     SYSTEM_SYMBOL,
     '退出程序',
@@ -50,27 +40,8 @@ export function registerDefaultCommands (serverLogger: SCWC.TLogger) {
     serverLogger,
     'restart',
     () => {
-      if (!fs.existsSync(RESTART_SCRIPT_PATH)) {
-        serverLogger.error('重启脚本不存在');
-        return;
-      }
-
-      /** 当前进程 pid */
-      const currentPid = process.pid;
-
-      states.RESTART = true;
-      states.RUN_RESTART = () => {
-        const child = spawn(
-          'node',
-          [RESTART_SCRIPT_PATH, `--runtime=node`, `--version=${process.version}`, `--pid=${currentPid}`],
-          {
-            detached: true,
-            stdio: 'inherit',
-          },
-        );
-        child.unref();
-      };
-      process.kill(process.pid, 'SIGINT');
+      // 发送重启信号
+      process.emit('message', 'SIGINT-restart', null);
     },
     SYSTEM_SYMBOL,
     '重启程序',
@@ -155,8 +126,6 @@ export function registerDefaultCommands (serverLogger: SCWC.TLogger) {
       }
     }]
   );
-
-  return () => ({ ...states });
 }
 
 export function listenProcessStdin (serverLogger: SCWC.TLogger) {

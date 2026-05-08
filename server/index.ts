@@ -12,7 +12,7 @@ initCacheErrorHandler(serverLogger);
 
 // 注册系统命令
 // 需要在加载插件之前注册系统命令, 以确保系统命令不会被插件覆盖
-const getServerCommandsStates = registerDefaultCommands(serverLogger);
+registerDefaultCommands(serverLogger);
 
 // 启动时加载插件
 loadPlugins();
@@ -67,9 +67,10 @@ listenProcessStdin(serverLogger);
  *```
  */
 
-// 监听退出信号
-process.once('SIGINT', async () => {
-  const { RESTART, RUN_RESTART } = getServerCommandsStates();
+const exitHandler = async (
+  type: 'exit' | 'restart',
+) => {
+  const RESTART = type === 'restart';
 
   for (const plugin of plugins) {
     // TODO: 当实现重启后, 调用时需要告知插件本次关闭为重启
@@ -92,15 +93,20 @@ process.once('SIGINT', async () => {
     logger.pathInfo(`服务停止`);
   }
 
-  if (RESTART) {
-    if (typeof RUN_RESTART === 'function') {
-      RUN_RESTART();
-    } else {
-      logger.error('重启失败: RUN_RESTART 函数未定义');
-    }
-  }
-
   process.exit(0);
+}
+
+// 监听退出信号
+process.once('SIGINT', async () => {
+  await exitHandler('exit');
+});
+
+process.once('message', async (signal) => {
+  if (signal === 'SIGINT-exit') {
+    await exitHandler('exit');
+  } else if (signal === 'SIGINT-restart') {
+    await exitHandler('restart');
+  }
 });
 
 /** SIGINT 触发次数 */
