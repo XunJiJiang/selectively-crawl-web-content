@@ -18,6 +18,39 @@ import { registerArg } from './parseArgs'
 //   }
 // });
 
+function getCursorPosition () {
+  return new Promise((resolve, reject) => {
+    // 设置终端为 raw 模式，以便直接读取按键输入
+    const stdin = process.stdin;
+    stdin.setRawMode(true);
+    stdin.resume();
+    stdin.setEncoding('utf8');
+
+    // 定义处理输入的回调函数
+    const onData = (data: Buffer) => {
+      // ANSI CPR 响应格式通常为 \x1b[y;xR
+      const match = /\[(\d+);(\d+)R/.exec(data.toString());
+      if (match) {
+        const row = parseInt(match[1], 10);
+        const col = parseInt(match[2], 10);
+
+        // 恢复终端状态
+        stdin.removeListener('data', onData);
+        stdin.setRawMode(false);
+        stdin.pause();
+
+        resolve({ row, col });
+      }
+    };
+
+    // 监听标准输入
+    stdin.on('data', onData);
+
+    // 发送查询光标位置的 ANSI 转义序列 \x1b[6n
+    process.stdout.write('\x1b[6n');
+  });
+}
+
 function launchInteractiveTerminal () {
   const platform = os.platform();
 
@@ -28,8 +61,14 @@ function launchInteractiveTerminal () {
     terminal = 'cmd.exe';
     args = [];
   } else if (platform === 'darwin' || platform === 'linux') {
-    terminal = 'bash';
-    args = [];
+    const truZsh = spawnSync('which', ['zsh'], { encoding: 'utf-8' }).stdout.trim();
+    if (truZsh) {
+      terminal = truZsh;
+      args = [];
+    } else {
+      terminal = 'bash';
+      args = [];
+    }
   }
 
   const child = spawn(terminal, args, {
