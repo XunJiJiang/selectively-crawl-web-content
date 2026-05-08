@@ -11,6 +11,7 @@ import {
   parseAndRunCommands,
   CommandError,
 } from '../utils/command.ts';
+import { TOKEN } from '../common/env.ts';
 
 /** 重启脚本位置 */
 const RESTART_SCRIPT_PATH = path.join(process.cwd(), 'server', 'scripts', 'restart.ts');
@@ -22,7 +23,7 @@ const RESTART_SCRIPT_PATH = path.join(process.cwd(), 'server', 'scripts', 'resta
  * @param plugins
  * @param inactivePlugins
  */
-export function registerDefaultCommands(serverLogger: SCWC.TLogger) {
+export function registerDefaultCommands (serverLogger: SCWC.TLogger) {
   /** 系统命令执行状态 */
   const states: {
     /** 是否触发重启 */
@@ -90,53 +91,75 @@ export function registerDefaultCommands(serverLogger: SCWC.TLogger) {
     '显示帮助信息',
   );
   registerCommand(
-    pluginLogger,
-    'plugin:list',
+    serverLogger,
+    'server',
     () => {
-      pluginLogger.info('所有插件列表:');
-      for (const plugin of plugins) {
-        pluginLogger.info(`- ${plugin.name}[enabled] (跟踪网址: ${plugin.linkWith.join(', ') ?? '无'})`);
-      }
-      for (const plugin of inactivePlugins) {
-        pluginLogger.info(
-          `- ${plugin.name}[disabled] (原因: ${plugin.reason}) (跟踪网址: ${plugin.linkWith.join(', ') ?? '无'})`,
-        );
-      }
+      serverLogger.info('');
     },
     SYSTEM_SYMBOL,
-    '列出所有已加载的插件',
-  );
+    '',
+    [{
+      name: 'info',
+      description: '显示服务器信息',
+      execute: () => {
+        serverLogger.info('服务器信息:');
+        serverLogger.info(`- TOKEN: ${TOKEN ?? '未设置'}`);
+      }
+    }]
+  )
   registerCommand(
     pluginLogger,
-    'plugin:ps',
+    'plugin',
     () => {
-      if (plugins.length === 0) {
-        pluginLogger.info('没有加载插件');
-      } else {
-        pluginLogger.info('已加载插件列表:');
-      }
-      for (const plugin of plugins) {
-        pluginLogger.info(`- ${plugin.name}[enabled] (跟踪网址: ${plugin.linkWith.join(', ') ?? '无'})`);
-      }
-      if (inactivePlugins.length === 0) {
-        pluginLogger.info('没有未激活的插件');
-      } else {
-        pluginLogger.info('未激活插件列表:');
-      }
-      for (const plugin of inactivePlugins) {
-        pluginLogger.info(
-          `- ${plugin.name}[disabled] (原因: ${plugin.reason}) (跟踪网址: ${plugin.linkWith.join(', ') ?? '无'})`,
-        );
-      }
+      pluginLogger.info('');
+
     },
     SYSTEM_SYMBOL,
     '列出所有已加载的插件',
+    [{
+      name: 'ls',
+      description: '列出所有插件',
+      execute: () => {
+        pluginLogger.info('所有插件列表:');
+        for (const plugin of plugins) {
+          pluginLogger.info(`- ${plugin.name}[enabled] (跟踪网址: ${plugin.linkWith.join(', ') ?? '无'})`);
+        }
+        for (const plugin of inactivePlugins) {
+          pluginLogger.info(
+            `- ${plugin.name}[disabled] (原因: ${plugin.reason}) (跟踪网址: ${plugin.linkWith.join(', ') ?? '无'})`,
+          );
+        }
+      }
+    }, {
+      name: 'ps',
+      description: '列出所有已加载的插件',
+      execute: () => {
+        if (plugins.length === 0) {
+          pluginLogger.info('没有加载插件');
+        } else {
+          pluginLogger.info('已加载插件列表:');
+        }
+        for (const plugin of plugins) {
+          pluginLogger.info(`- ${plugin.name}[enabled] (跟踪网址: ${plugin.linkWith.join(', ') ?? '无'})`);
+        }
+        if (inactivePlugins.length === 0) {
+          pluginLogger.info('没有未激活的插件');
+        } else {
+          pluginLogger.info('未激活插件列表:');
+        }
+        for (const plugin of inactivePlugins) {
+          pluginLogger.info(
+            `- ${plugin.name}[disabled] (原因: ${plugin.reason}) (跟踪网址: ${plugin.linkWith.join(', ') ?? '无'})`,
+          );
+        }
+      }
+    }]
   );
 
   return () => ({ ...states });
 }
 
-export function listenProcessStdin(serverLogger: SCWC.TLogger) {
+export function listenProcessStdin (serverLogger: SCWC.TLogger) {
   process.stdin.setEncoding('utf-8');
   process.stdin.on('data', async input => {
     const inputStr = input.toString().trim();

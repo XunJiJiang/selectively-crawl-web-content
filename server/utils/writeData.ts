@@ -18,7 +18,7 @@ import { v4 as uuidv4 } from 'uuid';
  * - 返回值为最终保存的文件路径
  * @returns 如果成功, 返回保存的文件路径; 如果失败, 返回 false
  */
-export async function writeDataURL(
+export async function writeDataURL (
   dataUrl: string,
   filePath: string | ((props: { fullname: string; filename: string; ext: string; datePrefix: string }) => string),
 ): Promise<false | string> {
@@ -57,7 +57,8 @@ export async function writeDataURL(
       } else {
         throw new Error('获取图片失败');
       }
-    } catch {
+    } catch (e) {
+      log.error(e);
       log.warn('无效的图片 url:', dataUrl);
       return false;
     }
@@ -87,14 +88,14 @@ export async function writeDataURL(
  * @param data 要保存的数据, 支持保存允许转换为 json 的任意数据类型。如果是 DataItem[], 会自动处理其中的图片数据（dataURL）并将其转换为图片文件,  data.json 中只保存图片文件路径。
  * @returns
  */
-export async function writeData<D>(
+export async function writeData<D> (
   dirPath: string,
   data: D,
 ): Promise<
   | false
   | {
-      data: D;
-    }
+    data: D;
+  }
 > {
   try {
     if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });

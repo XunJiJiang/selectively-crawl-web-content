@@ -16,8 +16,10 @@ export interface Item {
   prefix?: string;
 }
 
-function App() {
+// BUG: 当配置更新时, 此处没有重新运行
+function MainWindow() {
   const { config } = useConfig();
+  console.log('当前配置:', config);
   const notify = useNotification();
 
   // 业务状态
@@ -278,6 +280,10 @@ function App() {
       />
     </FloatingWindow>
   );
+}
+
+function App() {
+  return <MainWindow />;
 }
 
 export default App;
