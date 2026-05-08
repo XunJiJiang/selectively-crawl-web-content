@@ -2,7 +2,7 @@
  * 命令行指令处理模块
  */
 
-import { isPromiseLike } from '../plugins/asmr/src/utils/tryCatch.ts';
+import { isPromiseLike } from './tryCatch.ts';
 import type { TLogger } from './log.ts';
 
 export type TCommandOption = {
@@ -62,7 +62,7 @@ const pluginCommandMap = new Map<string, string>();
 const commandPluginMap = new Map<string, string[]>();
 
 /** 检查命令有没有非法字符 */
-function isValidCommandName(name: string) {
+function isValidCommandName (name: string) {
   return /^[a-zA-Z0-9-_]+$/.test(name);
 }
 
@@ -105,7 +105,7 @@ export type TRegisterCommand = (
  * @param exampleUsage 示例用法
  * @throws {Error} 如果命令名称非法或多次注册命令
  */
-export function registerCommand(
+export function registerCommand (
   log: TLogger,
   commandName: string,
   execute: TCommandExecute,
@@ -185,7 +185,7 @@ export function registerCommand(
  * @param rawCommand 原始命令字符串
  * @returns 拆分后的命令数组
  */
-export function splitCommand(rawCommand: string): string[] {
+export function splitCommand (rawCommand: string): string[] {
   const parts: string[] = [];
   let currentPart = ''; // 当前部分
   let inQuotes = false; // 是否在引号内
@@ -222,7 +222,7 @@ export function splitCommand(rawCommand: string): string[] {
  * 只执行一个回调, 优先级: 子命令 > 主命令
  * @param originCommand 原始命令字符串
  */
-export async function parseAndRunCommands(originCommand: string) {
+export async function parseAndRunCommands (originCommand: string) {
   const parts = splitCommand(originCommand);
   if (parts.length === 0) {
     throw new CommandError('未提供命令', false);
@@ -397,7 +397,7 @@ export async function parseAndRunCommands(originCommand: string) {
 }
 
 /** 打印 help */
-export function printHelp(log: TLogger) {
+export function printHelp (log: TLogger) {
   log.info('可用命令列表:');
   for (const [commandName, commandDef] of commandRegistry.entries()) {
     log.info(`- ${commandName}${commandDef.description ? `: ${commandDef.description}` : ''}`);
@@ -409,7 +409,7 @@ export function printHelp(log: TLogger) {
  * 打印指定命令的 help
  * @param commandName 命令名称 [pluginId:]commandName
  */
-export function printCommandHelp(commandName: string) {
+export function printCommandHelp (commandName: string) {
   if (!commandRegistry.has(commandName)) {
     throw new CommandError(`未知命令: ${commandName}`, false);
   }
@@ -427,8 +427,7 @@ export function printCommandHelp(commandName: string) {
     log.info('选项:');
     commandDef.options.forEach(opt => {
       log.info(
-        `  --${opt.name}${opt.alias ? ` (-${opt.alias})` : ''}${opt.required ? ' [必填]' : ''}${
-          opt.defaultValue !== undefined ? ` [默认值: ${opt.defaultValue}]` : ''
+        `  --${opt.name}${opt.alias ? ` (-${opt.alias})` : ''}${opt.required ? ' [必填]' : ''}${opt.defaultValue !== undefined ? ` [默认值: ${opt.defaultValue}]` : ''
         } - ${opt.description ?? '无描述'}`,
       );
     });
