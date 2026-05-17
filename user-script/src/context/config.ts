@@ -5,9 +5,9 @@ import { debounce } from '../utils/debounce';
 import { cache } from '../utils/cache';
 import { RefreshRuleParser } from './refreshRuleParser';
 import type { ScriptConfig, ScriptConfigItem } from '../types/config';
+import { CONFIG_KEY } from '../utils/common';
 
-export const SELECTIVE_CRAWL_KEY = '__selective_crawl_items__';
-export const CONFIG_KEY = '__selective_crawl_config__';
+
 
 export type TConfig = {
   api: {

@@ -3,6 +3,7 @@ import globals from 'globals';
 import reactHooks from 'eslint-plugin-react-hooks';
 import reactRefresh from 'eslint-plugin-react-refresh';
 import tseslint from 'typescript-eslint';
+import { configs } from 'eslint-plugin-lit';
 
 export default tseslint.config(
   { ignores: ['dist'] },
@@ -21,5 +22,9 @@ export default tseslint.config(
       ...reactHooks.configs.recommended.rules,
       'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
     },
+  },
+  {
+    ...configs['flat/recommended'],
+    files: ['**/*.js', '**/*.ts'],
   },
 );

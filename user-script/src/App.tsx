@@ -6,8 +6,9 @@ import { saveToStorage, loadFromStorage } from './hooks/useFloatingWindow';
 import { useElementSelect } from './hooks/useElementSelect';
 import { getSelector, getElementBySelector, highlightElement, isExcludedElement } from './hooks/useCrawlLogic';
 import { scwcLog, scwcWarn, scwcError } from './utils/console';
-import { SELECTIVE_CRAWL_KEY, useConfig } from './context/config';
+import { useConfig } from './context/config';
 import { useNotification } from './hooks/useNotification';
+import { SELECTIVE_CRAWL_KEY } from './utils/common';
 
 // Item类型加prefix
 export interface Item {
