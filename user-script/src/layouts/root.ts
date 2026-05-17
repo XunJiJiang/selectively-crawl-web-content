@@ -4,17 +4,60 @@ import './content.ts';
 import './footer.ts';
 
 import { LitElement, css, html, unsafeCSS } from 'lit';
-import { customElement, property } from 'lit/decorators.js';
+import { customElement, property, state } from 'lit/decorators.js';
+import { provide } from '@lit/context';
+import { configContext, config } from '../store/config';
+import { loadFromStorage, saveToStorage } from '../utils/storage.ts';
+import { POS_KEY, INIT_POS, MINIMIZED_KEY, PLUGIN_EXPANDED_KEY } from '../utils/common.ts';
 
 @customElement('scwc-layout-root')
 export class SCWCRootLayout extends LitElement {
   static styles = [css`${unsafeCSS(style)}`];
 
+  @provide({ context: configContext })
+  @state()
+  private accessor config = config;
+
+  /** 是否最小化 */
+  @property({ type: Boolean, reflect: true })
+  private accessor minimized: boolean = loadFromStorage(MINIMIZED_KEY, true);
+
+  /** 设置是否最小化 */
+  private setMinimized (value: boolean) {
+    this.minimized = value;
+    saveToStorage(MINIMIZED_KEY, value);
+  }
+
+  /** 窗口位置 */
+  @property({ type: Object })
+  private accessor position: { readonly x: number, readonly y: number } = loadFromStorage(POS_KEY, INIT_POS);
+
+  /** 设置窗口位置 */
+  private setPosition (x: number | null, y: number | null) {
+    this.position = {
+      x: x ?? this.position.x,
+      y: y ?? this.position.y,
+    };
+    saveToStorage(POS_KEY, this.position);
+  }
+
+  /** 是否展开插件 */
+  @property({ type: Boolean, reflect: true })
+  private accessor pluginExpanded: boolean = loadFromStorage(PLUGIN_EXPANDED_KEY, false);
+
+  /** 设置是否展开插件 */
+  private setPluginExpanded (value: boolean) {
+    this.pluginExpanded = value;
+    saveToStorage(PLUGIN_EXPANDED_KEY, value);
+  }
+
   render () {
     return html`
-      <scwc-layout-header></scwc-layout-header>
-      <scwc-layout-content></scwc-layout-content>
-      <scwc-layout-footer></scwc-layout-footer>
+      <div class="scwc-layout-root">
+        <scwc-layout-header></scwc-layout-header>
+        <scwc-layout-content></scwc-layout-content>
+        <scwc-layout-footer></scwc-layout-footer>
+      </div>
     `;
   }
 }

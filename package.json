@@ -39,6 +39,7 @@
   "peerDependencies": {},
   "dependencies": {
     "@keyv/redis": "^5.1.6",
+    "@lit/context": "^1.1.6",
     "@types/express": "^5.0.3",
     "antd": "^6.2.1",
     "axios": "^1.16.0",
