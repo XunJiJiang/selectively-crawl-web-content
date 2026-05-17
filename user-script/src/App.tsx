@@ -2,13 +2,13 @@ import { useState, useEffect, useCallback } from 'react';
 import FloatingWindow from './layouts/FloatingWindow';
 import TopButtons from './components/TopButtons';
 import ItemFormAndCrawl from './components/ItemFormAndCrawl';
-import { saveToStorage, loadFromStorage } from './hooks/useFloatingWindow';
 import { useElementSelect } from './hooks/useElementSelect';
 import { getSelector, getElementBySelector, highlightElement, isExcludedElement } from './hooks/useCrawlLogic';
 import { scwcLog, scwcWarn, scwcError } from './utils/console';
 import { useConfig } from './context/config';
 import { useNotification } from './hooks/useNotification';
 import { SELECTIVE_CRAWL_KEY } from './utils/common';
+import { loadFromStorage, saveToStorage } from './utils/storage';
 
 // Item类型加prefix
 export interface Item {

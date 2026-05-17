@@ -2,6 +2,7 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
 import FloatingMinimize from './FloationMinimize';
 import PluginWindow from './PluginWindow';
+import { INIT_POS, MINIMIZED_KEY, PLUGIN_EXPANDED_KEY, POS_KEY } from '../utils/common';
 
 interface FloatingWindowProps {
   expanded: boolean;
@@ -10,14 +11,6 @@ interface FloatingWindowProps {
   children: React.ReactNode;
   getCrawlData: () => { result: SCWC.TDataItem[]; failed: string[] };
 }
-
-const INIT_POS = { x: 40, y: 120 };
-const POS_KEY = 'scw-floating-pos';
-// 是否展开元素原则区
-// const EXPANDED_KEY = 'scw-floating-expanded';
-const MINIMIZED_KEY = 'scw-floating-minimized';
-// 是否展开插件
-const PLUGIN_EXPANDED_KEY = 'scw-floating-plugin-expanded';
 
 const FloatingWindow: React.FC<FloatingWindowProps> = ({
   expanded,
