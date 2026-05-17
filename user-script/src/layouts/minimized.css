@@ -1,0 +1,24 @@
+.scwc-layout-minimized {
+  z-index: 2147483647;
+  position: 'fixed';
+  left: -16;
+  width: 36;
+  height: 42;
+  cursor: 'pointer';
+  background-color: rgb(35, 39, 46);
+  color: rgb(204, 204, 204);
+  display: 'flex';
+  align-items: 'center';
+  justify-content: 'center';
+  border-radius: 4;
+  user-select: none;
+  box-shadow: 0 0 12px rgba(0, 0, 0, 0.12);
+  border: 1px solid #eee6;
+}
+
+.scwc-layout-minimized-drag-area {
+  font-size: 10;
+  display: inline-block;
+  transform: rotate(-90deg) translateY(8px);
+  transform-origin: 50% 50%;
+}

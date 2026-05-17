@@ -1,4 +1,5 @@
 import style from './root.css?raw';
+import './minimized.ts';
 import './header.ts';
 import './content.ts';
 import './footer.ts';
@@ -52,7 +53,13 @@ export class SCWCRootLayout extends LitElement {
   }
 
   render () {
-    return html`
+    return this.minimized ? html`
+      <minimized
+        onmaximize=${() => this.setMinimized(false)}
+        onmove=${(e: CustomEvent<{ x: number, y: number }>) => this.setPosition(e.detail.x, e.detail.y)}
+        .position=${this.position}
+      ></minimized>
+    ` : html`
       <div class="scwc-layout-root">
         <scwc-layout-header></scwc-layout-header>
         <scwc-layout-content></scwc-layout-content>

@@ -3,7 +3,7 @@ import style from './header.css?raw';
 import { LitElement, html, css, unsafeCSS } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { consume } from '@lit/context';
-import { configContext, TConfig } from '../store/config'
+import { configContext, type TConfig } from '../store/config'
 
 @customElement('scwc-layout-header')
 export class SCWCHeaderLayout extends LitElement {
