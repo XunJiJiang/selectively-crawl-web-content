@@ -2,13 +2,14 @@ import path from 'node:path';
 import fs from 'node:fs';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
-import { spawn, spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import readline from 'node:readline';
 import os from 'node:os';
 import stream from 'node:stream';
 import { registerArg } from './parseArgs'
 
 import chalk from 'chalk';
+import tryCatch from '../utils/tryCatch';
 
 // registerArg('port', {
 //   abbreviation: 'p',
@@ -53,119 +54,105 @@ function getCursorPosition () {
   });
 }
 
+async function wait (ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+/** 项目根目录 */
+const projectRoot = path.resolve(__dirname, '..', '..');
+
 // TODO: 不使用长期终端，而是每次启动创建子进程执行, 可以更直接的控制重启和退出, 没有输出多余内容的问题, 也不会被用户执行其他命令
+async function main () {
 
-function launchInteractiveTerminal () {
-  const platform = os.platform();
+  while (true) {
+    const [error, child] = tryCatch(() => spawn('npx', ['tsx', path.join(projectRoot, 'server/index.ts')], {
+      stdio: ['pipe', 'inherit', 'inherit'],
+      env: { ...process.env, FORCE_COLOR: '1' },
+    }))
 
-  let terminal: string = '';
-  let args: string[] = [];
+    if (error) {
+      console.error(`${chalk.gray('[')}${chalk.red('ERROR')}${chalk.gray(']')} ${chalk.red('启动服务器失败:')}`, error);
+      process.exit(1);
+    }
 
-  if (platform === 'win32') {
-    terminal = 'cmd.exe';
-    args = [];
-  } else if (platform === 'darwin' || platform === 'linux') {
-    const truZsh = spawnSync('which', ['zsh'], { encoding: 'utf-8' }).stdout.trim();
-    if (truZsh) {
-      terminal = truZsh;
-      args = [];
-    } else {
-      terminal = 'bash';
-      args = [];
+    const { promise, resolve } = Promise.withResolvers<string>();
+
+    /** 自定义输入 */
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
+      prompt: chalk.blue(''),
+    });
+
+    rl.prompt();
+
+    /** 状态 */
+    const state = {
+      restarting: false,
+      exiting: false,
+    }
+
+    // 注意, 子进程内已经存在 restart 和 exit, 但是都是退出, 并没有重启的功能
+    // 这里拦截 restart 负责重启服务器
+    rl.on('line', (line) => {
+      const trimmedLine = line.trim();
+      if (trimmedLine === 'restart') {
+        if (state.restarting) {
+          console.log(`${chalk.gray('[')}${chalk.yellow('WARNING')}${chalk.gray(']')} ${chalk.yellow('正在等待服务器重启')}`);
+          return;
+        }
+        state.restarting = true;
+        child.stdin.write(line + os.EOL);
+      } else if (trimmedLine === 'exit') {
+        if (state.exiting) {
+          console.log(`${chalk.gray('[')}${chalk.yellow('WARNING')}${chalk.gray(']')} ${chalk.yellow('正在等待服务器退出, 强制退出请输入 q!')}`);
+          return;
+        }
+        state.exiting = true;
+        child.stdin.write(line + os.EOL);
+      } else if (trimmedLine === 'q!') {
+        resolve('exit');
+        process.exit(0);
+      } else if (child) {
+        child.stdin.write(line + os.EOL);
+      }
+      rl.prompt();
+    })
+
+    // 监听子进程错误退出
+    child.on('error', (err) => {
+      console.error(`${chalk.gray('[')}${chalk.red('ERROR')}${chalk.gray(']')} ${chalk.red('服务器进程发生错误:')}`, err);
+    });
+
+    // 监听子进程退出
+    child.on('exit', (code, signal) => {
+      if (state.exiting) {
+        console.log(`${chalk.gray('[')}${chalk.blue('INFO')}${chalk.gray(']')} ${chalk.green('服务器退出')}`);
+        resolve('exit');
+      } else if (state.restarting) {
+        console.log(`${chalk.gray('[')}${chalk.blue('INFO')}${chalk.gray(']')} ${chalk.green('服务器重启')}`);
+        resolve('restart');
+      } else {
+        console.error(`${chalk.gray('[')}${chalk.red('ERROR')}${chalk.gray(']')} ${chalk.red('服务器进程意外退出, 退出码: ${code}, 信号: ${signal}')}`);
+        resolve('restart');
+      }
+    });
+
+    const result = await promise;
+
+    // 关闭输入通道
+    rl.close();
+
+    if (result === 'restart') {
+      continue;
+    } else if (result === 'exit') {
+      break;
     }
   }
 
-  const child = spawn(terminal, args, {
-    stdio: ['pipe', 'pipe', 'pipe'],
-    shell: true,
-    env: { ...process.env, FORCE_COLOR: '1' },
-  });
-
-  // 监听子进程的标准错误
-  child.stderr.on('data', data => {
-    process.stderr.write(data); // 将子进程的错误输出直接写入主进程的 stderr
-  });
-
-  child.on('close', code => {
-    console.log(`终端关闭，退出码: ${code}`);
-    process.exit(code ?? 0); // 退出主进程，使用子进程的退出码
-  });
-
-  child.on('error', err => {
-    console.error('启动终端失败:', err);
-  });
-
-  return child;
-}
-
-function main () {
-  // 启动终端
-  const terminalProcess = launchInteractiveTerminal();
-
-  // 使用 readline 监听用户输入
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-    terminal: true, // 确保启用终端模式
-  });
-
-  let willRestart = false;
-  let willExit = false;
-  let started = false;
-  let runServer = false;
-
-  rl.on('line', input => {
-    if (terminalProcess.stdin) {
-      terminalProcess.stdin.write(`${input}\n`);
-      if (input === 'restart') {
-        willRestart = true;
-      } else if (input === 'exit') {
-        willExit = true;
-      }
-    }
-  });
-
-  terminalProcess.stdin.write('npx tsx server/index.ts\n');
-  runServer = true;
-
-  let lineBuffer = '';
-
-  // 监听子进程的标准输出
-  terminalProcess.stdout.on('data', data => {
-    if (!started && runServer) {
-      const output = data.toString().includes('npx tsx server/index.ts');
-      if (output) {
-        started = true;
-        process.stdout.write(`${chalk.hex('#3d0042').bgBlack('$')} ${chalk.bgBlack.bold.gray('npx tsx server/index.ts')}\n`);
-        return;
-      }
-    }
-
-    if (!started || !runServer) {
-      return;
-    }
-
-    process.stdout.write(data); // 将子进程的输出直接写入主进程的 stdout
-
-    if (data.toString().includes('服务重启')) {
-      // 发送重启命令
-      // 这是一种不安全的做法, 使用变量判断依旧不能确定是否能完全避免误触发
-      if (willRestart) {
-        willRestart = false;
-        started = false;
-        terminalProcess.stdin.write(`npx tsx server/index.ts\n`);
-      }
-    } else if (data.toString().includes('服务停止')) {
-      if (willExit) {
-        willExit = false;
-        started = false;
-        runServer = false;
-        terminalProcess.kill();
-        rl.close();
-        process.exit(0);
-      }
-    }
-  });
+  process.exit(0);
 }
 
 const __filename = fileURLToPath(import.meta.url);
