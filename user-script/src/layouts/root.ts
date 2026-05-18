@@ -10,6 +10,7 @@ import { provide } from '@lit/context';
 import { configContext, config } from '../store/config';
 import { loadFromStorage, saveToStorage } from '../utils/storage.ts';
 import { POS_KEY, INIT_POS, MINIMIZED_KEY, PLUGIN_EXPANDED_KEY } from '../utils/common.ts';
+import { styleMap } from 'lit/directives/style-map.js';
 
 @customElement('scwc-layout-root')
 export class SCWCRootLayout extends LitElement {
@@ -42,6 +43,15 @@ export class SCWCRootLayout extends LitElement {
     saveToStorage(POS_KEY, this.position);
   }
 
+  /** 是否展开选择框 */
+  @property({ type: Boolean, reflect: true })
+  private accessor selectionExpanded = false;
+
+  /** 设置是否展开选择框 */
+  private setSelectionExpanded (value: boolean) {
+    this.selectionExpanded = value;
+  }
+
   /** 是否展开插件 */
   @property({ type: Boolean, reflect: true })
   private accessor pluginExpanded: boolean = loadFromStorage(PLUGIN_EXPANDED_KEY, false);
@@ -60,8 +70,22 @@ export class SCWCRootLayout extends LitElement {
         .position=${this.position}
       ></scwc-layout-minimized>
     ` : html`
-      <div class="scwc-layout-root">
-        <scwc-layout-header></scwc-layout-header>
+      <div
+    class="scwc-layout-root"
+    style=${styleMap({
+      left: `${this.position.x}px`,
+      top: `${this.position.y}px`,
+      'min-width': this.selectionExpanded ? '320px' : '100px',
+      'min-height': this.selectionExpanded ? '180px' : '56px',
+    })}
+    .position=${this.position}
+    .selectionExpanded=${this.selectionExpanded}
+    .pluginExpanded=${this.pluginExpanded}
+    onmove=${(e: CustomEvent<{ x: number, y: number }>) => this.setPosition(e.detail.x, e.detail.y)}
+      >
+        <scwc-layout-header
+
+        ></scwc-layout-header>
         <scwc-layout-content></scwc-layout-content>
         <scwc-layout-footer></scwc-layout-footer>
       </div>

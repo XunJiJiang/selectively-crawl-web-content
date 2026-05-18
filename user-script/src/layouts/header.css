@@ -1,0 +1,14 @@
+.scwc-layout-header {
+  position: relative;
+  width: 100%;
+  box-sizing: border-box;
+  height: 24px;
+  cursor: move;
+  background-color: #181a20;
+  display: flex;
+  align-items: center;
+  padding-left: 8px;
+  font-size: 12px;
+  color: #ccc;
+  user-select: none;
+}
