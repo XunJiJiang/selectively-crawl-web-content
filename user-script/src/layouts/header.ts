@@ -2,16 +2,17 @@ import style from './header.css?raw';
 
 import { LitElement, html, css, unsafeCSS } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
-import { consume } from '@lit/context';
-import { config, configContext, type TConfig } from '../store/config'
+// import { consume } from '@lit/context';
+// import { config, configContext, type TConfig } from '../store/config'
 import { debounce } from 'es-toolkit'
+import { styleMap } from 'lit/directives/style-map.js';
 
 @customElement('scwc-layout-header')
 export class SCWCHeaderLayout extends LitElement {
   static styles = [css`${unsafeCSS(style)}`];
 
-  @consume({ context: configContext, subscribe: true })
-  private accessor config: TConfig = config;
+  // @consume({ context: configContext, subscribe: true })
+  // private accessor config: TConfig = config;
 
   @property({ type: Object })
   public accessor position = { x: 0, y: 0 };
@@ -74,10 +75,37 @@ export class SCWCHeaderLayout extends LitElement {
   render () {
     return html`
       <div
-    class="scwc-layout-header"
-    onmousedown=${this.handleMouseDown}
+        class="scwc-layout-header"
+        onmousedown=${this.handleMouseDown}
       >
-
+        <div class="scwc-layout-header-title">选择性爬虫</div>
+        <div
+          class="scwc-layout-header-switch-plugin-visible"
+          style=${styleMap({ transform: this.pluginExpanded ? 'rotate(180deg)' : 'none' })}
+          onclick=${() => this.dispatchEvent(new CustomEvent('toggleplugin', { bubbles: false }))}
+        >
+          <svg
+            style="width: 100%; height: 100%;"
+            viewBox="0 0 18 18"
+          >
+            <polyline
+              points="5,7 9,11 13,7"
+              fill="none"
+              stroke="#888"
+              strokeWidth="1.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </div>
+        <div
+          class="scwc-layout-header-minimize"
+          onclick=${() => this.dispatchEvent(new CustomEvent('minimize', { bubbles: false }))}
+        >
+          <svg style="width: 100%; height: 100%;">
+            <rect x="4.5" y="7" width="9" height="1.2" rx="0.35" fill="#888" />
+          </svg>
+        </div>
       </div>
     `;
   }

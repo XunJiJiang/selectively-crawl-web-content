@@ -12,3 +12,28 @@
   color: #ccc;
   user-select: none;
 }
+
+.scwc-layout-header-title {
+  flex: 0 0 auto;
+}
+
+.scwc-layout-header-switch-plugin-visible {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  top: 2px;
+  right: 19px;
+  cursor: pointer;
+  overflow: hidden;
+  transition: transform 0.2s;
+}
+
+.scwc-layout-header-minimize {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  top: 3px;
+  right: 2px;
+  cursor: pointer;
+  overflow: hidden;
+}

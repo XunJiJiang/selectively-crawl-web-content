@@ -71,20 +71,21 @@ export class SCWCRootLayout extends LitElement {
       ></scwc-layout-minimized>
     ` : html`
       <div
-    class="scwc-layout-root"
-    style=${styleMap({
+        class="scwc-layout-root"
+        style=${styleMap({
       left: `${this.position.x}px`,
       top: `${this.position.y}px`,
       'min-width': this.selectionExpanded ? '320px' : '100px',
       'min-height': this.selectionExpanded ? '180px' : '56px',
     })}
-    .position=${this.position}
-    .selectionExpanded=${this.selectionExpanded}
-    .pluginExpanded=${this.pluginExpanded}
-    onmove=${(e: CustomEvent<{ x: number, y: number }>) => this.setPosition(e.detail.x, e.detail.y)}
+        .position=${this.position}
+        .selectionExpanded=${this.selectionExpanded}
+        .pluginExpanded=${this.pluginExpanded}
       >
         <scwc-layout-header
-
+          onmove=${(e: CustomEvent<{ x: number, y: number }>) => this.setPosition(e.detail.x, e.detail.y)}
+          ontoggleplugin=${() => this.setPluginExpanded(!this.pluginExpanded)}
+          onminimize=${() => this.setMinimized(true)}
         ></scwc-layout-header>
         <scwc-layout-content></scwc-layout-content>
         <scwc-layout-footer></scwc-layout-footer>
