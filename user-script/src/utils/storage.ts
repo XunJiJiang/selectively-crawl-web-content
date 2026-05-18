@@ -69,7 +69,7 @@ function resolveJSONValueWithFunction<T extends JSONValueWithFunction> (value: T
 export function completeProperties<T extends JSONValue, U extends JSONValueWithFunction> (a: T, b: U /* , keepExtra = false */, notRunFun: boolean): ResolvedJSONValue<U> {
   if (typeof a === 'string' || typeof a === 'number' || typeof a === 'boolean' || a === null) {
     if (typeof b === 'string' || typeof b === 'number' || typeof b === 'boolean' || b === null) {
-      return a as ResolvedJSONValue<U>;
+      return a as unknown as ResolvedJSONValue<U>;
     } else {
       return resolveJSONValueWithFunction(b, notRunFun);
     }
@@ -124,7 +124,7 @@ export function saveToStorage<T extends JSONValue> (key: string, items: T) {
   return items;
 }
 
-export function loadFromStorage<K extends string, T extends JSONValueWithFunction> (key: K, defaultValue: T): T {
+export function loadFromStorage<K extends string, T extends JSONValueWithFunction> (key: K, defaultValue: T): ResolvedJSONValue<T> {
   try {
     const val = JSON.parse(localStorage.getItem(key) ?? '') as K;
     return saveToStorage(key, completeProperties(val, defaultValue, false));
