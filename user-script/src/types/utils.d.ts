@@ -9,7 +9,16 @@ export type JSONValueWithFunction = JSONPrimitive | JSONObjectWithFunction | Arr
 
 /** 处理数组的函数 */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type ArrayProcessor = (item?: JSONValue) => item extends JSONValue ? JSONValueWithFunction : any[];
+export type ArrayProcessor<T = any> = (item?: JSONValue) => item extends JSONValue ? JSONValueWithFunction : T[];
+
+/** 将 JSONValue 转换为 JSONValueWithFunction */
+export type JSONValueToFunction<T extends JSONValue> = T extends JSONPrimitive
+  ? T
+  : T extends Array<infer U>
+  ? ArrayProcessor<U>
+  : T extends JSONObject
+  ? { [K in keyof T]: JSONValueToFunction<T[K]> }
+  : never;
 
 /** 将 JSONValueWithFunction 转换为 JSONValue */
 export type ResolvedJSONValue<T extends JSONValueWithFunction> = T extends JSONPrimitive
