@@ -54,11 +54,11 @@ export class SCWCRootLayout extends LitElement {
 
   render () {
     return this.minimized ? html`
-      <minimized
+      <scwc-layout-minimized
         onmaximize=${() => this.setMinimized(false)}
         onmove=${(e: CustomEvent<{ x: number, y: number }>) => this.setPosition(e.detail.x, e.detail.y)}
         .position=${this.position}
-      ></minimized>
+      ></scwc-layout-minimized>
     ` : html`
       <div class="scwc-layout-root">
         <scwc-layout-header></scwc-layout-header>
