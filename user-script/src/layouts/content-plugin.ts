@@ -1,13 +1,11 @@
-import style from './content.css?raw';
-import './content-claw.ts';
-import './content-plugin.ts';
+import style from './content-plugin.css?raw';
 
 import { LitElement, html, css, unsafeCSS } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { config, configContext, type TConfig } from '../store/config';
 import { consume } from '@lit/context';
 
-@customElement('scwc-layout-content')
+@customElement('scwc-layout-content-plugin')
 export class SCWCContentLayout extends LitElement {
   static styles = [css`${unsafeCSS(style)}`];
 
@@ -15,12 +13,7 @@ export class SCWCContentLayout extends LitElement {
   private accessor config: TConfig = config;
 
   render () {
-    return html`
-      <div>
-        <scwc-layout-content-claw></scwc-layout-content-claw>
-        <scwc-layout-content-plugin></scwc-layout-content-plugin>
-      </div>
-    `;
+    return html``;
   }
 }
 
@@ -28,6 +21,6 @@ export class SCWCContentLayout extends LitElement {
 
 declare global {
   interface HTMLElementTagNameMap {
-    "scwc-layout-content": SCWCContentLayout;
+    "scwc-layout-content-plugin": SCWCContentLayout;
   }
 }
