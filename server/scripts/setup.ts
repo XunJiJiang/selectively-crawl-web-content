@@ -63,7 +63,6 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 /** 项目根目录 */
 const projectRoot = path.resolve(__dirname, '..', '..');
 
-// TODO: 不使用长期终端，而是每次启动创建子进程执行, 可以更直接的控制重启和退出, 没有输出多余内容的问题, 也不会被用户执行其他命令
 async function main () {
 
   while (true) {
