@@ -47,12 +47,15 @@ export class SCWCHeaderLayout extends LitElement {
     const height = this.selectionExpanded ? 180 : 56; // minHeight
     const maxWidth = 420;
     const maxHeight = this.selectionExpanded ? winH * 0.7 : 56;
+    // 先计算目标位置
+    let x = e.clientX - this.offset.x;
+    let y = e.clientY - this.offset.y;
+    // 限制范围：全部在窗口内
+    // 取实际宽高（max/min）
     let w = this.selectionExpanded ? Math.min(maxWidth, Math.max(width, 320)) : 100;
     let h = this.selectionExpanded ? Math.min(maxHeight, Math.max(height, 180)) : 56;
     if (typeof w === 'string') w = parseInt(w);
     if (typeof h === 'string') h = parseInt(h);
-    let x = this.position.x;
-    let y = this.position.y;
     x = Math.max(0, Math.min(x, winW - w));
     y = Math.max(0, Math.min(y, winH - h));
     if (x !== this.position.x || y !== this.position.y) {
