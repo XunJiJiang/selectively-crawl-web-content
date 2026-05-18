@@ -4,6 +4,7 @@ import { LitElement, html, css, unsafeCSS } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { consume } from '@lit/context';
 import { config, configContext, type TConfig } from '../store/config'
+import { debounce } from 'es-toolkit'
 
 @customElement('scwc-layout-header')
 export class SCWCHeaderLayout extends LitElement {
@@ -79,6 +80,37 @@ export class SCWCHeaderLayout extends LitElement {
 
       </div>
     `;
+  }
+
+  /** 窗口 resize 事件 */
+  private handleWindowResize = debounce(() => {
+    const winW = window.innerWidth;
+    const winH = window.innerHeight;
+    const width = this.selectionExpanded ? 320 : 100;
+    const height = this.selectionExpanded ? 180 : 56;
+    const maxWidth = 420;
+    const maxHeight = this.selectionExpanded ? winH * 0.7 : 56;
+    let w = this.selectionExpanded ? Math.min(maxWidth, Math.max(width, 320)) : 100;
+    let h = this.selectionExpanded ? Math.min(maxHeight, Math.max(height, 180)) : 56;
+    if (typeof w === 'string') w = parseInt(w);
+    if (typeof h === 'string') h = parseInt(h);
+    let x = this.position.x;
+    let y = this.position.y;
+    x = Math.max(0, Math.min(x, winW - w));
+    y = Math.max(0, Math.min(y, winH - h));
+    if (x !== this.position.x || y !== this.position.y) {
+      this.dispatchEvent(new CustomEvent('move', { detail: { x, y }, bubbles: false }));
+    }
+  }, 200)
+
+  connectedCallback () {
+    super.connectedCallback();
+    window.addEventListener('resize', this.handleWindowResize);
+  }
+
+  disconnectedCallback () {
+    super.disconnectedCallback();
+    window.removeEventListener('resize', this.handleWindowResize);
   }
 }
 
