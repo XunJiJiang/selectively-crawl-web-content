@@ -1,4 +1,10 @@
 import './layouts/root';
+import './components/button';
+import './components/input';
+import './components/trigger';
+import './components/toggle';
+import './components/select';
+import './components/checkbox'
 
 // 悬浮窗挂载点
 const FLOATING_ID = 'selective-crawl-floating-root';
