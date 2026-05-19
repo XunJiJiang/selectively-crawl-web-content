@@ -1,0 +1,67 @@
+.scwc-btn {
+  flex: 1;
+  min-width: 0;
+  height: 24;
+  font-size: 11px;
+  margin-right: 2px;
+  padding: 4px 0;
+  text-align: center;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  outline: none;
+  box-shadow: none;
+  transition: background-color 0.2s;
+  border-radius: 4px;
+}
+
+.scwc-btn-disabled {
+  cursor: not-allowed;
+}
+
+.scwc-btn-primary {
+  color: #fff;
+  background-color: #1890ff;
+}
+
+.scwc-btn-primary:hover:not(.scwc-btn-disabled) {
+  color: #fff;
+  background-color: #1890ffaa;
+}
+
+.scwc-btn-primary.scwc-btn-disabled {
+  color: #666;
+  background-color: #1890ffaa;
+}
+
+.scwc-btn-secondary {
+  color: #ccc;
+  background-color: transparent;
+}
+
+.scwc-btn-secondary:hover:not(.scwc-btn-disabled) {
+  color: #ccc;
+  background-color: #eee3;
+}
+
+.scwc-btn-secondary.scwc-btn-disabled {
+  color: #666;
+  background-color: transparent;
+}
+
+.scwc-btn-inline {
+  color: #ccc;
+  background-color: transparent;
+}
+
+.scwc-btn-inline:hover:not(.scwc-btn-disabled) {
+  color: #ccc;
+  background-color: #eee3;
+}
+
+.scwc-btn-inline.scwc-btn-disabled {
+  color: #666;
+  background-color: transparent;
+}
