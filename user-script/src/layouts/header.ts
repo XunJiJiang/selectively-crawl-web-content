@@ -76,13 +76,13 @@ export class SCWCHeaderLayout extends LitElement {
     return html`
       <div
         class="scwc-layout-header"
-        onmousedown=${this.handleMouseDown}
+        @mousedown=${this.handleMouseDown}
       >
         <div class="scwc-layout-header-title">选择性爬虫</div>
         <div
           class="scwc-layout-header-switch-plugin-visible"
           style=${styleMap({ transform: this.pluginExpanded ? 'rotate(180deg)' : 'none' })}
-          onclick=${() => this.dispatchEvent(new CustomEvent('toggleplugin', { bubbles: false }))}
+          @click=${() => this.dispatchEvent(new CustomEvent('toggleplugin', { bubbles: false }))}
         >
           <svg
             style="width: 100%; height: 100%;"
@@ -100,7 +100,7 @@ export class SCWCHeaderLayout extends LitElement {
         </div>
         <div
           class="scwc-layout-header-minimize"
-          onclick=${() => this.dispatchEvent(new CustomEvent('minimize', { bubbles: false }))}
+          @click=${() => this.dispatchEvent(new CustomEvent('minimize', { bubbles: false }))}
         >
           <svg style="width: 100%; height: 100%;">
             <rect x="4.5" y="7" width="9" height="1.2" rx="0.35" fill="#888" />

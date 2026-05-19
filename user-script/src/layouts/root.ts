@@ -65,8 +65,8 @@ export class SCWCRootLayout extends LitElement {
   render () {
     return this.minimized ? html`
       <scwc-layout-minimized
-        onmaximize=${() => this.setMinimized(false)}
-        onmove=${(e: CustomEvent<{ x: number, y: number }>) => this.setPosition(e.detail.x, e.detail.y)}
+        @maximize=${() => this.setMinimized(false)}
+        @move=${(e: CustomEvent<{ x: number, y: number }>) => this.setPosition(e.detail.x, e.detail.y)}
         .position=${this.position}
       ></scwc-layout-minimized>
     ` : html`
@@ -83,9 +83,9 @@ export class SCWCRootLayout extends LitElement {
         .pluginExpanded=${this.pluginExpanded}
       >
         <scwc-layout-header
-          onmove=${(e: CustomEvent<{ x: number, y: number }>) => this.setPosition(e.detail.x, e.detail.y)}
-          ontoggleplugin=${() => this.setPluginExpanded(!this.pluginExpanded)}
-          onminimize=${() => this.setMinimized(true)}
+          @move=${(e: CustomEvent<{ x: number, y: number }>) => this.setPosition(e.detail.x, e.detail.y)}
+          @toggleplugin=${() => this.setPluginExpanded(!this.pluginExpanded)}
+          @minimize=${() => this.setMinimized(true)}
         ></scwc-layout-header>
         <scwc-layout-content></scwc-layout-content>
         <scwc-layout-footer></scwc-layout-footer>
