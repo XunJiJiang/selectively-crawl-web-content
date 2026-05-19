@@ -1,0 +1,27 @@
+.scwc-input {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 8px;
+  height: 24px;
+  flex: 1 1 0%;
+  font-size: 13px;
+  color: rgb(204, 204, 204);
+  margin-right: 8px;
+  padding: 4px;
+  box-sizing: border-box;
+  background: transparent;
+  border: 0.5px solid rgb(136, 136, 136);
+  border-radius: 4px;
+  transition: border 0.2s;
+}
+
+.scwc-input:focus {
+  outline: none;
+  border-color: rgb(170, 170, 170);
+}
+
+/* .scwc-input-text {
+}
+
+.scwc-input-number {
+} */
