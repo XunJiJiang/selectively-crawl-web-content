@@ -8,7 +8,7 @@ import { classMap } from 'lit/directives/class-map.js';
 export class SCWCContentLayout extends LitElement {
   static styles = [css`${unsafeCSS(style)}`];
 
-  @property({ type: String, attribute: 'value' })
+  @property({ type: String })
   accessor value = '';
 
   @property({ type: String })
