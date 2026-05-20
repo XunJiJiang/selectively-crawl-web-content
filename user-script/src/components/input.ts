@@ -3,6 +3,7 @@ import style from './input.css?raw';
 import { LitElement, html, css, unsafeCSS } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
+import { v4 as uuidv4 } from 'uuid';
 
 @customElement('scwc-input')
 export class SCWCContentLayout extends LitElement {
@@ -17,21 +18,31 @@ export class SCWCContentLayout extends LitElement {
   @property({ type: String })
   accessor type: 'text' | 'number' = 'text';
 
+  @property({ type: String })
+  accessor label = '';
+
+  @property({ type: String })
+  accessor id = `scwc-input-${uuidv4()}`;
+
   render () {
     return html`
-      <input
-        class=${['scwc-input', classMap({
+      <label for=${this.id} class="scwc-input-label">
+        <span class="scwc-input-desc">${this.label}</span>
+        <input
+          class=${['scwc-input', classMap({
       'scwc-input-text': this.type === 'text',
       'scwc-input-number': this.type === 'number',
       'scwc-input-disabled': this.disabled,
     })]}
-        type=${this.type}
-        .value=${this.value}
-        ?disabled=${this.disabled}
-        @input=${(e: Event) => this.dispatchEvent(new CustomEvent('input', { detail: (e.target as HTMLInputElement).value }))}
-        @change=${(e: Event) => this.dispatchEvent(new CustomEvent('change', { detail: (e.target as HTMLInputElement).value }))}
-        @blur=${(e: Event) => this.dispatchEvent(new CustomEvent('blur', { detail: (e.target as HTMLInputElement).value }))}
-      />
+          id=${this.id}
+          type=${this.type}
+          .value=${this.value}
+          ?disabled=${this.disabled}
+          @input=${(e: Event) => this.dispatchEvent(new CustomEvent('input', { detail: (e.target as HTMLInputElement).value }))}
+          @change=${(e: Event) => this.dispatchEvent(new CustomEvent('change', { detail: (e.target as HTMLInputElement).value }))}
+          @blur=${(e: Event) => this.dispatchEvent(new CustomEvent('blur', { detail: (e.target as HTMLInputElement).value }))}
+        />
+      </label>
     `;
   }
 }

@@ -17,6 +17,12 @@ export class SCWCContentLayout extends LitElement {
   @property({ type: String })
   accessor type: 'primary' | 'secondary' | 'inline' = 'primary';
 
+  // @property({ type: String })
+  // accessor name = '';
+
+  // @property({ type: String })
+  // accessor id = '';
+
   render () {
     return html`
       <button

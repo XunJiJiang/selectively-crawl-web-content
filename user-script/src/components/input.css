@@ -1,3 +1,14 @@
+.scwc-input-label {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 8px;
+}
+
+.scwc-input-desc {
+  margin-bottom: 4px;
+  color: rgb(204, 204, 204);
+}
+
 .scwc-input {
   display: flex;
   flex-direction: column;
