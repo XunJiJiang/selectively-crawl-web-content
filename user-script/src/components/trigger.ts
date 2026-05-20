@@ -4,7 +4,7 @@ import { LitElement, html, css, unsafeCSS } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 
 @customElement('scwc-trigger')
-export class SCWCContentLayout extends LitElement {
+export class SCWCTrigger extends LitElement {
   static styles = [css`${unsafeCSS(style)}`];
 
   @property({ type: String })
@@ -30,6 +30,6 @@ export class SCWCContentLayout extends LitElement {
 
 declare global {
   interface HTMLElementTagNameMap {
-    "scwc-trigger": SCWCContentLayout;
+    "scwc-trigger": SCWCTrigger;
   }
 }

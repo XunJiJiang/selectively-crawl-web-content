@@ -4,7 +4,7 @@ import { LitElement, html, css, unsafeCSS } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 
 @customElement('scwc-select')
-export class SCWCContentLayout extends LitElement {
+export class SCWCSelect extends LitElement {
   static styles = [css`${unsafeCSS(style)}`];
 
   render () {
@@ -16,6 +16,6 @@ export class SCWCContentLayout extends LitElement {
 
 declare global {
   interface HTMLElementTagNameMap {
-    "scwc-select": SCWCContentLayout;
+    "scwc-select": SCWCSelect;
   }
 }

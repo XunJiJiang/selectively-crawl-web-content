@@ -6,7 +6,7 @@ import { config, configContext, type TConfig } from '../store/config';
 import { consume } from '@lit/context';
 
 @customElement('scwc-layout-content-plugin')
-export class SCWCContentLayout extends LitElement {
+export class SCWCContentPlugin extends LitElement {
   static styles = [css`${unsafeCSS(style)}`];
 
   @consume({ context: configContext, subscribe: true })
@@ -21,6 +21,6 @@ export class SCWCContentLayout extends LitElement {
 
 declare global {
   interface HTMLElementTagNameMap {
-    "scwc-layout-content-plugin": SCWCContentLayout;
+    "scwc-layout-content-plugin": SCWCContentPlugin;
   }
 }

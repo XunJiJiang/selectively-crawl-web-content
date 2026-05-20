@@ -6,7 +6,7 @@ import { classMap } from 'lit/directives/class-map.js';
 import { v4 as uuidv4 } from 'uuid';
 
 @customElement('scwc-checkbox')
-export class SCWCContentLayout extends LitElement {
+export class SCWCCheckbox extends LitElement {
   static styles = [css`${unsafeCSS(style)}`];
 
   @property({ type: Boolean })
@@ -48,6 +48,6 @@ export class SCWCContentLayout extends LitElement {
 
 declare global {
   interface HTMLElementTagNameMap {
-    "scwc-checkbox": SCWCContentLayout;
+    "scwc-checkbox": SCWCCheckbox;
   }
 }
