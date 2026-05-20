@@ -25,3 +25,9 @@
 
 .scwc-input-number {
 } */
+
+.scwc-input-disabled {
+  color: rgb(136, 136, 136);
+  border-color: rgb(102, 102, 102);
+  cursor: not-allowed;
+}

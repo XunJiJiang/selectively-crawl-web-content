@@ -8,6 +8,9 @@ import { classMap } from 'lit/directives/class-map.js';
 export class SCWCContentLayout extends LitElement {
   static styles = [css`${unsafeCSS(style)}`];
 
+  @property({ type: Boolean })
+  accessor disabled = false;
+
   @property({ type: String })
   accessor value = '';
 
@@ -20,9 +23,11 @@ export class SCWCContentLayout extends LitElement {
         class=${['scwc-input', classMap({
       'scwc-input-text': this.type === 'text',
       'scwc-input-number': this.type === 'number',
+      'scwc-input-disabled': this.disabled,
     })]}
         type=${this.type}
         .value=${this.value}
+        ?disabled=${this.disabled}
         @input=${(e: Event) => this.dispatchEvent(new CustomEvent('input', { detail: (e.target as HTMLInputElement).value }))}
         @change=${(e: Event) => this.dispatchEvent(new CustomEvent('change', { detail: (e.target as HTMLInputElement).value }))}
         @blur=${(e: Event) => this.dispatchEvent(new CustomEvent('blur', { detail: (e.target as HTMLInputElement).value }))}
