@@ -7,12 +7,26 @@ import { customElement, property } from 'lit/decorators.js';
 export class SCWCContentLayout extends LitElement {
   static styles = [css`${unsafeCSS(style)}`];
 
+  @property({ type: String })
+  accessor label = '';
+
+  @property({ type: Boolean })
+  accessor disabled = false;
+
+  @property({ type: String })
+  accessor type: 'primary' | 'secondary' | 'inline' = 'primary';
+
   render () {
-    return html``;
+    return html`
+      <scwc-button
+        type=${this.type}
+        ?disabled=${this.disabled}
+        label=${this.label}
+        @trigger=${() => this.dispatchEvent(new CustomEvent('click', { bubbles: true }))}
+      ></scwc-button>
+    `;
   }
 }
-
-
 
 declare global {
   interface HTMLElementTagNameMap {
