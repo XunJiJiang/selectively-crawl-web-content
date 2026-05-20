@@ -1,0 +1,28 @@
+.scwc-checkbox-label {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+  background-color: transparent;
+  color: rgb(204, 204, 204);
+  cursor: pointer;
+}
+
+.scwc-checkbox {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+  background-color: transparent;
+  color: rgb(204, 204, 204);
+  cursor: pointer;
+}
+
+.scwc-checkbox.scwc-checkbox-disabled {
+  color: rgb(136, 136, 136);
+  background-color: transparent;
+  cursor: not-allowed;
+}
+
+.scwc-checkbox-desc {
+  margin-left: 4px;
+  color: rgb(204, 204, 204);
+}
