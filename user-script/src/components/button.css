@@ -17,7 +17,7 @@
   border-radius: 4px;
 }
 
-.scwc-btn-disabled {
+.scwc-btn.scwc-btn-disabled {
   cursor: not-allowed;
 }
 
