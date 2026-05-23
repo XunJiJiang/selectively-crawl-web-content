@@ -20,7 +20,7 @@ export class SCWCButton extends LitElement {
   @property({ type: String })
   accessor type: 'primary' | 'secondary' | 'inline' = 'primary';
 
-  @property({ type: String })
+  @property({ type: String, attribute: 'btn-style' })
   accessor btnStyle = '';
 
   // @property({ type: String })
