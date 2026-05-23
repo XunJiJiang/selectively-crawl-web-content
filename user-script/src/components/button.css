@@ -26,6 +26,11 @@
   background-color: #1890ff;
 }
 
+.scwc-btn-primary.active:not(.scwc-btn-disabled) {
+  color: #fff;
+  background-color: #1890ffcc;
+}
+
 .scwc-btn-primary:hover:not(.scwc-btn-disabled) {
   color: #fff;
   background-color: #1890ffaa;
@@ -41,6 +46,11 @@
   background-color: transparent;
 }
 
+.scwc-btn-secondary.active:not(.scwc-btn-disabled) {
+  color: #ccc;
+  background-color: rgba(171, 171, 171, 0.2);
+}
+
 .scwc-btn-secondary:hover:not(.scwc-btn-disabled) {
   color: #ccc;
   background-color: #eee3;
@@ -54,6 +64,11 @@
 .scwc-btn-inline {
   color: #ccc;
   background-color: transparent;
+}
+
+.scwc-btn-inline.active:not(.scwc-btn-disabled) {
+  color: #ccc;
+  background-color: rgba(171, 171, 171, 0.2);
 }
 
 .scwc-btn-inline:hover:not(.scwc-btn-disabled) {

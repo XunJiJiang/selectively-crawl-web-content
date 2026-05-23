@@ -8,6 +8,9 @@ import { classMap } from 'lit/directives/class-map.js';
 export class SCWCButton extends LitElement {
   static styles = [css`${unsafeCSS(style)}`];
 
+  @property({ type: Boolean })
+  accessor active = false;
+
   @property({ type: String })
   accessor label = '';
 
@@ -16,6 +19,9 @@ export class SCWCButton extends LitElement {
 
   @property({ type: String })
   accessor type: 'primary' | 'secondary' | 'inline' = 'primary';
+
+  @property({ type: String })
+  accessor btnStyle = '';
 
   // @property({ type: String })
   // accessor name = '';
@@ -31,7 +37,9 @@ export class SCWCButton extends LitElement {
       'scwc-btn-secondary': this.type === 'secondary',
       'scwc-btn-inline': this.type === 'inline',
       'scwc-btn-disabled': this.disabled,
+      'active': this.active,
     }), 'scwc-btn']}
+        style=${this.btnStyle}
         ?disabled=${this.disabled}
         @click=${() => this.dispatchEvent(new CustomEvent('click', { bubbles: true }))}
       >
