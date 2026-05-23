@@ -17,6 +17,17 @@
   flex: 0 0 auto;
 }
 
+.scwc-layout-header-switch-claw-visible {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  top: 2px;
+  right: 36px;
+  cursor: pointer;
+  overflow: hidden;
+  transition: transform 0.2s;
+}
+
 .scwc-layout-header-switch-plugin-visible {
   position: absolute;
   width: 18px;

@@ -84,6 +84,7 @@ export class SCWCRootLayout extends LitElement {
       >
         <scwc-layout-header
           @move=${(e: CustomEvent<{ x: number, y: number }>) => this.setPosition(e.detail.x, e.detail.y)}
+          @toggleclaw=${() => this.setSelectionExpanded(!this.selectionExpanded)}
           @toggleplugin=${() => this.setPluginExpanded(!this.pluginExpanded)}
           @minimize=${() => this.setMinimized(true)}
         ></scwc-layout-header>
