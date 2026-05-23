@@ -24,6 +24,12 @@ export class SCWCInput extends LitElement {
   @property({ type: String })
   accessor id = `scwc-input-${uuidv4()}`;
 
+  @property({ type: String })
+  accessor title = '';
+
+  @property({ type: String, attribute: 'aria-label' })
+  accessor ariaLabel = ''
+
   render () {
     return html`
       <label for=${this.id} class="scwc-input-label">
@@ -36,6 +42,8 @@ export class SCWCInput extends LitElement {
     })]}
           id=${this.id}
           type=${this.type}
+          title=${this.title}
+          aria-label=${this.ariaLabel}
           .value=${this.value}
           ?disabled=${this.disabled}
           @input=${(e: Event) => this.dispatchEvent(new CustomEvent('input', { detail: (e.target as HTMLInputElement).value }))}

@@ -21,6 +21,12 @@ export class SCWCCheckbox extends LitElement {
   @property({ type: String })
   accessor id = `scwc-checkbox-${uuidv4()}`;
 
+  @property({ type: String })
+  accessor title = '';
+
+  @property({ type: String, attribute: 'aria-label' })
+  accessor ariaLabel = ''
+
   render () {
     return html`
       <label for=${this.id} class="scwc-checkbox-label">
@@ -31,6 +37,8 @@ export class SCWCCheckbox extends LitElement {
     })}
           id=${this.id}
           type="checkbox"
+          title=${this.title}
+          aria-label=${this.ariaLabel}
           .checked=${this.checked}
           ?disabled=${this.disabled}
           @change=${(e: Event) => {

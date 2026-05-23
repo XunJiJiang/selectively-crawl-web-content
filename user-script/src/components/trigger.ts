@@ -16,12 +16,20 @@ export class SCWCTrigger extends LitElement {
   @property({ type: String })
   accessor type: 'primary' | 'secondary' | 'inline' = 'primary';
 
+  @property({ type: String })
+  accessor title = '';
+
+  @property({ type: String, attribute: 'aria-label' })
+  accessor ariaLabel = ''
+
   render () {
     return html`
       <scwc-button
         type=${this.type}
         ?disabled=${this.disabled}
         label=${this.label}
+        title=${this.title}
+        aria-label=${this.ariaLabel}
         @trigger=${() => this.dispatchEvent(new CustomEvent('click', { bubbles: true }))}
       ></scwc-button>
     `;

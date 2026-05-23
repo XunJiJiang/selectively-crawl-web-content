@@ -20,10 +20,18 @@ export class SCWCToggle extends LitElement {
   @property({ type: String })
   accessor id = `scwc-toggle-${uuidv4()}`;
 
+  @property({ type: String })
+  accessor title = '';
+
+  @property({ type: String, attribute: 'aria-label' })
+  accessor ariaLabel = ''
+
   render () {
     return html`
       <scwc-checkbox
         id=${this.id}
+        title=${this.title}
+        aria-label=${this.ariaLabel}
         .checked=${this.checked}
         ?disabled=${this.disabled}
         .label=${this.label}

@@ -23,6 +23,12 @@ export class SCWCSelect extends LitElement {
   @property({ type: Array, attribute: false })
   accessor options: { label: string; value: string }[] = [];
 
+  @property({ type: String })
+  accessor title = '';
+
+  @property({ type: String, attribute: 'aria-label' })
+  accessor ariaLabel = ''
+
   render () {
     return html`
       <div class="scwc-select">
@@ -32,6 +38,8 @@ export class SCWCSelect extends LitElement {
       'scwc-select-control': true,
       'scwc-select-control-disabled': this.disabled,
     })}
+          title=${this.title}
+          aria-label=${this.ariaLabel}
           .value=${this.value}
           ?disabled=${this.disabled}
           @change=${(e: Event) => this.dispatchEvent(new CustomEvent('change', { detail: (e.target as HTMLSelectElement).value }))}>

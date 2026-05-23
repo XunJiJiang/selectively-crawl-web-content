@@ -23,6 +23,12 @@ export class SCWCButton extends LitElement {
   @property({ type: String, attribute: 'btn-style' })
   accessor btnStyle = '';
 
+  @property({ type: String })
+  accessor title = '';
+
+  @property({ type: String, attribute: 'aria-label' })
+  accessor ariaLabel = '';
+
   // @property({ type: String })
   // accessor name = '';
 
@@ -39,6 +45,8 @@ export class SCWCButton extends LitElement {
       'scwc-btn-disabled': this.disabled,
       'active': this.active,
     }), 'scwc-btn']}
+        title=${this.title}
+        aria-label=${this.ariaLabel}
         style=${this.btnStyle}
         ?disabled=${this.disabled}
         @click=${() => this.dispatchEvent(new CustomEvent('click', { bubbles: true }))}
