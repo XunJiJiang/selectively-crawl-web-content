@@ -14,11 +14,20 @@ export class SCWCContentLayout extends LitElement {
   @consume({ context: configContext, subscribe: true })
   private accessor config: TConfig = config;
 
+  @property({ type: Boolean })
+  public accessor selectionExpanded = false;
+  @property({ type: Boolean })
+  public accessor pluginExpanded = false;
+
   render () {
     return html`
       <div>
-        <scwc-layout-content-claw></scwc-layout-content-claw>
-        <scwc-layout-content-plugin></scwc-layout-content-plugin>
+        <scwc-layout-content-claw
+          .expanded=${this.selectionExpanded}
+        ></scwc-layout-content-claw>
+        <scwc-layout-content-plugin
+          .expanded=${this.pluginExpanded}
+        ></scwc-layout-content-plugin>
       </div>
     `;
   }

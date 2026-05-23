@@ -88,7 +88,10 @@ export class SCWCRootLayout extends LitElement {
           @toggleplugin=${() => this.setPluginExpanded(!this.pluginExpanded)}
           @minimize=${() => this.setMinimized(true)}
         ></scwc-layout-header>
-        <scwc-layout-content></scwc-layout-content>
+        <scwc-layout-content
+          .selectionExpanded=${this.selectionExpanded}
+          .pluginExpanded=${this.pluginExpanded}
+        ></scwc-layout-content>
         <scwc-layout-footer></scwc-layout-footer>
       </div>
     `;
