@@ -1,0 +1,25 @@
+.scwc-select {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.scwc-select-label {
+  font-size: 14px;
+  color: rgb(204, 204, 204);
+}
+
+.scwc-select-control {
+  padding: 4px 8px;
+  font-size: 14px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background-color: #333333;
+  color: #eaeaea;
+}
+
+.scwc-select-control-disabled {
+  background-color: #333333;
+  color: #afafaf;
+  cursor: not-allowed;
+}
