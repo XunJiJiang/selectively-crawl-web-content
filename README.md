@@ -334,3 +334,5 @@ onRequest: async ({ utils: { writeData, writeDataURL }, data, site }, logger) =>
 ## License
 
 项目采用 [MIT License](./LICENSE) 开源许可，详情请查阅 LICENSE 文件。
+
+项目中使用了 [vscode-codicons](https://github.com/microsoft/vscode-codicons?tab=MIT-2-ov-file) 图标库中部分图标的 svg 内容。
