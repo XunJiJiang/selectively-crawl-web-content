@@ -124,9 +124,9 @@ export function saveToStorage<T extends JSONValue> (key: string, items: T) {
   return items;
 }
 
-export function loadFromStorage<K extends string, T extends JSONValueWithFunction> (key: K, defaultValue: T): ResolvedJSONValue<T> {
+export function loadFromStorage<T extends JSONValueWithFunction> (key: string, defaultValue: T): ResolvedJSONValue<T> {
   try {
-    const val = JSON.parse(localStorage.getItem(key) ?? '') as K;
+    const val = JSON.parse(localStorage.getItem(key) ?? '');
     return saveToStorage(key, completeProperties(val, defaultValue, false));
   } catch (e) {
     scwcWarn(`Failed to load config for key "${key}", using default value.`, (e as Error).message ?? '');
