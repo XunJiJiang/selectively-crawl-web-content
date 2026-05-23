@@ -1,6 +1,6 @@
 import style from './button.css?raw';
 
-import { LitElement, html, css, unsafeCSS } from 'lit';
+import { LitElement, html, css, unsafeCSS, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
 
@@ -35,7 +35,9 @@ export class SCWCButton extends LitElement {
         ?disabled=${this.disabled}
         @click=${() => this.dispatchEvent(new CustomEvent('click', { bubbles: true }))}
       >
-        ${this.label}
+        <slot name="before"></slot>
+        <slot>${this.label || nothing}</slot>
+        <slot name="after"></slot>
       </button>
     `;
   }
