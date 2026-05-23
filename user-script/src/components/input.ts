@@ -22,6 +22,9 @@ export class SCWCInput extends LitElement {
   accessor label = '';
 
   @property({ type: String })
+  accessor placeholder = '';
+
+  @property({ type: String })
   accessor id = `scwc-input-${uuidv4()}`;
 
   @property({ type: String })
@@ -40,6 +43,7 @@ export class SCWCInput extends LitElement {
       'scwc-input-number': this.type === 'number',
       'scwc-input-disabled': this.disabled,
     })]}
+          placeholder=${this.placeholder}
           id=${this.id}
           type=${this.type}
           title=${this.title}
