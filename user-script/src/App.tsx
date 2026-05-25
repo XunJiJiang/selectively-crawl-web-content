@@ -9,13 +9,7 @@ import { useConfig } from './context/config';
 import { useNotification } from './hooks/useNotification';
 import { SELECTIVE_CRAWL_KEY } from './utils/common';
 import { loadFromStorage, saveToStorage } from './utils/storage';
-
-// Item类型加prefix
-export interface Item {
-  selector: string;
-  label: string;
-  prefix?: string;
-}
+import type { Item } from './types/claw';
 
 // BUG: 当配置更新时, 此处没有重新运行
 function MainWindow() {
@@ -27,9 +21,7 @@ function MainWindow() {
   const [expanded, setExpanded] = useState(false);
   const [selecting, setSelecting] = useState(false);
   const [selectedEl, setSelectedEl] = useState<Element | null>(null);
-  const [items, setItems] = useState<Item[]>(
-    loadFromStorage<typeof SELECTIVE_CRAWL_KEY, Item[]>(SELECTIVE_CRAWL_KEY, []),
-  );
+  const [items, setItems] = useState<Item[]>(loadFromStorage<Item[]>(SELECTIVE_CRAWL_KEY, []));
   // undoStack 结构：从初始选中到当前选中，依次为 selector
   const [undoStack, setUndoStack] = useState<string[]>([]);
   const [descInput, setDescInput] = useState('');
