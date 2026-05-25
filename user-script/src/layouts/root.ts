@@ -11,6 +11,7 @@ import { configContext, config } from '../store/config';
 import { loadFromStorage, saveToStorage } from '../utils/storage.ts';
 import { POS_KEY, INIT_POS, MINIMIZED_KEY, PLUGIN_EXPANDED_KEY } from '../utils/common.ts';
 import { styleMap } from 'lit/directives/style-map.js';
+import type { Item } from '../types/claw';
 
 @customElement('scwc-layout-root')
 export class SCWCRootLayout extends LitElement {
@@ -62,6 +63,10 @@ export class SCWCRootLayout extends LitElement {
     saveToStorage(PLUGIN_EXPANDED_KEY, value);
   }
 
+  /** 抓取的元素项列表 */
+  @state()
+  private accessor clawItems: Item[] = [];
+
   render () {
     return this.minimized ? html`
       <scwc-layout-minimized
@@ -90,7 +95,11 @@ export class SCWCRootLayout extends LitElement {
         ></scwc-layout-header>
         <scwc-layout-content
           .selectionExpanded=${this.selectionExpanded}
+          @trigger-selection-expanded=${(e: CustomEvent<boolean>) => this.setSelectionExpanded(e.detail)}
           .pluginExpanded=${this.pluginExpanded}
+          @claw-items-changed=${(e: CustomEvent<Item[]>) => {
+        this.clawItems = e.detail;
+      }}
         ></scwc-layout-content>
         <scwc-layout-footer></scwc-layout-footer>
       </div>
