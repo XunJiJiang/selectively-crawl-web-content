@@ -35,9 +35,10 @@ export class SCWCInput extends LitElement {
 
   render () {
     return html`
-      <label for=${this.id} class="scwc-input-label">
-        <span class="scwc-input-desc">${this.label}</span>
+      <label part="label" for=${this.id} class="scwc-input-label">
+        <span part="description" class="scwc-input-desc">${this.label}</span>
         <input
+          part="input"
           class=${['scwc-input', classMap({
       'scwc-input-text': this.type === 'text',
       'scwc-input-number': this.type === 'number',

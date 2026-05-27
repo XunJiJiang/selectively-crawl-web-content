@@ -29,8 +29,9 @@ export class SCWCCheckbox extends LitElement {
 
   render () {
     return html`
-      <label for=${this.id} class="scwc-checkbox-label">
+      <label part="label" for=${this.id} class="scwc-checkbox-label">
         <input
+          part="checkbox"
           class=${classMap({
       'scwc-checkbox': true,
       'scwc-checkbox-disabled': this.disabled,
@@ -48,7 +49,7 @@ export class SCWCCheckbox extends LitElement {
         }));
       }}
         />
-        <span class="scwc-checkbox-desc">${this.label}</span>
+        <span part="description" class="scwc-checkbox-desc">${this.label}</span>
       </label>
     `;
   }

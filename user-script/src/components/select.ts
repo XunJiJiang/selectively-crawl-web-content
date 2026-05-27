@@ -31,9 +31,10 @@ export class SCWCSelect extends LitElement {
 
   render () {
     return html`
-      <div class="scwc-select">
-        <span class="scwc-select-label">${this.label}</span>
+      <div part="root" class="scwc-select">
+        <span part="description" class="scwc-select-label">${this.label}</span>
         <select
+          part="select"
           class=${classMap({
       'scwc-select-control': true,
       'scwc-select-control-disabled': this.disabled,
@@ -43,9 +44,9 @@ export class SCWCSelect extends LitElement {
           .value=${this.value}
           ?disabled=${this.disabled}
           @change=${(e: Event) => this.dispatchEvent(new CustomEvent('change', { detail: (e.target as HTMLSelectElement).value }))}>
-          <option value="" disabled>${this.placeholder}</option>
+          <option part="option placeholder" value="" disabled>${this.placeholder}</option>
           ${this.options.map(option => html`
-            <option value=${option.value}>${option.label}</option>
+            <option part="option" value=${option.value}>${option.label}</option>
           `)}
         </select>
       </div>

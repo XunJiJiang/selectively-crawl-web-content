@@ -38,6 +38,7 @@ export class SCWCButton extends LitElement {
   render () {
     return html`
       <button
+        part="button"
         class=${[classMap({
       'scwc-btn-primary': this.type === 'primary',
       'scwc-btn-secondary': this.type === 'secondary',
