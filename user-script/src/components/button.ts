@@ -39,13 +39,14 @@ class SCWCButton extends LitElement {
     return html`
       <button
         part="button"
-        class=${[classMap({
+        class=${classMap({
       'scwc-btn-primary': this.type === 'primary',
       'scwc-btn-secondary': this.type === 'secondary',
       'scwc-btn-inline': this.type === 'inline',
       'scwc-btn-disabled': this.disabled,
       'active': this.active,
-    }), 'scwc-btn']}
+      'scwc-btn': true,
+    })}
         title=${this.title}
         aria-label=${this.ariaLabel}
         style=${this.btnStyle}
