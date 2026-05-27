@@ -5,6 +5,9 @@ import { customElement, property } from 'lit/decorators.js';
 import type { Item } from '../types/claw';
 import { styleMap } from 'lit/directives/style-map.js';
 import { PluginsController } from './hooks/plugins';
+import type { SCWCCheckboxEventMap } from '../components/checkbox';
+import type { SCWCSelectEventMap } from '../components/select';
+import type { SCWCInputEventMap } from '../components/input';
 
 @customElement('scwc-layout-content-plugin')
 export class SCWCContentPlugin extends LitElement {
@@ -22,6 +25,10 @@ export class SCWCContentPlugin extends LitElement {
     const plugins = this.pluginsController.plugins;
     const activeTab = this.pluginsController.activeTab;
     const activePlugin = this.pluginsController.activePlugin;
+
+    if (this.expanded) {
+      this.pluginsController.requestPlugins();
+    }
 
     return html`
       <div 
@@ -50,24 +57,24 @@ export class SCWCContentPlugin extends LitElement {
         </div>
         <!-- Plugin Content -->
         <div class="plugin-window-content">
-          ${activeTab && activePlugin ? activePlugin.controls.map((control, idx) => {
+          ${activeTab && activePlugin ? activePlugin.controls.map((control) => {
         switch (control.type) {
           case 'button':
             return html`
               <scwc-button
                 title=${control.label}
                 aria-label=${control.label}
-                @click=${() => {}}
+                @click=${() => this.pluginsController.setControlValue(control, null)}
               >${control.label}</scwc-button>
             `
           case 'toggle':
             return html`
               <scwc-checkbox
-                checked=${true}
+                checked=${this.pluginsController.getControlValue(control) === true}
                 label=${control.label}
                 title=${control.label}
                 aria-label=${control.label}
-                @change=${() => {}}
+                @change=${(e: SCWCCheckboxEventMap['change']) => this.pluginsController.setControlValue(control, e.detail)}
               ></scwc-checkbox>
             `
           case 'select':
@@ -76,9 +83,9 @@ export class SCWCContentPlugin extends LitElement {
                 label=${control.label}
                 title=${control.label}
                 aria-label=${control.label}
-                value=${''}
-                options=${[]}
-                @change=${() => {}}
+                value=${this.pluginsController.getControlValue(control)?.toString()}
+                options=${control.options?.options ?? []}
+                @change=${(e: SCWCSelectEventMap['change']) => this.pluginsController.setControlValue(control, e.detail)}
               ></scwc-select>
             `
           case 'input:text':
@@ -88,8 +95,8 @@ export class SCWCContentPlugin extends LitElement {
                 label=${control.label}
                 title=${control.label}
                 aria-label=${control.label}
-                value=${''}
-                @change=${() => {}}
+                value=${this.pluginsController.getControlValue(control)?.toString()}
+                @change=${(e: SCWCInputEventMap['change']) => this.pluginsController.setControlValue(control, e.detail)}
               ></scwc-input>
             `
           case 'input:number':
@@ -99,18 +106,18 @@ export class SCWCContentPlugin extends LitElement {
                 label=${control.label}
                 title=${control.label}
                 aria-label=${control.label}
-                value=${''}
-                @change=${() => {}}
+                value=${this.pluginsController.getControlValue(control)?.toString()}
+                @change=${(e: SCWCInputEventMap['change']) => this.pluginsController.setControlValue(control, e.detail)}
               ></scwc-input>
             `
           case 'checkbox':
             return html`
               <scwc-checkbox
-                checked=${true}
+                checked=${this.pluginsController.getControlValue(control) === true}
                 label=${control.label}
                 title=${control.label}
                 aria-label=${control.label}
-                @change=${() => {}}
+                @change=${(e: SCWCCheckboxEventMap['change']) => this.pluginsController.setControlValue(control, e.detail)}
               ></scwc-checkbox>
             `
           default:
@@ -130,8 +137,6 @@ export class SCWCContentPlugin extends LitElement {
     `;
   }
 }
-
-
 
 declare global {
   interface HTMLElementTagNameMap {
