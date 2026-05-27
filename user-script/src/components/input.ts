@@ -15,7 +15,7 @@ export class SCWCInput extends LitElement {
   @property({ type: String })
   accessor value = '';
 
-  @property({ type: String })
+  @property({ type: String, reflect: true })
   accessor type: 'text' | 'number' = 'text';
 
   @property({ type: String })
