@@ -4,7 +4,7 @@ import { LitElement, html, css, unsafeCSS } from 'lit';
 import { customElement } from 'lit/decorators.js';
 
 @customElement('scwc-layout-footer')
-export class SCWCFooterLayout extends LitElement {
+class SCWCFooterLayout extends LitElement {
   static styles = [css`${unsafeCSS(style)}`];
 
   render () {

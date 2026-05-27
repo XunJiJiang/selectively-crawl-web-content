@@ -4,7 +4,7 @@ import { LitElement, html, css, unsafeCSS } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 
 @customElement('scwc-trigger')
-export class SCWCTrigger extends LitElement {
+class SCWCTrigger extends LitElement {
   static styles = [css`${unsafeCSS(style)}`];
 
   @property({ type: String })
@@ -30,10 +30,14 @@ export class SCWCTrigger extends LitElement {
         label=${this.label}
         title=${this.title}
         aria-label=${this.ariaLabel}
-        @trigger=${() => this.dispatchEvent(new CustomEvent('click', { bubbles: true }))}
+        @click=${() => this.dispatchEvent(new CustomEvent('trigger', { bubbles: true }))}
       ></scwc-button>
     `;
   }
+}
+
+export interface SCWCTriggerEventMap {
+  'trigger': CustomEvent<void>;
 }
 
 declare global {

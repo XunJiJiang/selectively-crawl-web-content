@@ -6,7 +6,7 @@ import { classMap } from 'lit/directives/class-map.js';
 import { v4 as uuidv4 } from 'uuid';
 
 @customElement('scwc-checkbox')
-export class SCWCCheckbox extends LitElement {
+class SCWCCheckbox extends LitElement {
   static styles = [css`${unsafeCSS(style)}`];
 
   @property({ type: Boolean })
@@ -53,6 +53,10 @@ export class SCWCCheckbox extends LitElement {
       </label>
     `;
   }
+}
+
+export interface SCWCCheckboxEventMap {
+  'change': CustomEvent<boolean>;
 }
 
 declare global {

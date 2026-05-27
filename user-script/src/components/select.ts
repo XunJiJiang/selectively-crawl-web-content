@@ -5,7 +5,7 @@ import { customElement, property } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
 
 @customElement('scwc-select')
-export class SCWCSelect extends LitElement {
+class SCWCSelect extends LitElement {
   static styles = [css`${unsafeCSS(style)}`];
 
   @property({ type: String })
@@ -52,6 +52,10 @@ export class SCWCSelect extends LitElement {
       </div>
     `;
   }
+}
+
+export interface SCWCSelectEventMap {
+  'change': CustomEvent<string>;
 }
 
 declare global {

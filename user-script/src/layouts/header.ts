@@ -6,7 +6,7 @@ import { debounce } from 'es-toolkit'
 import { styleMap } from 'lit/directives/style-map.js';
 
 @customElement('scwc-layout-header')
-export class SCWCHeaderLayout extends LitElement {
+class SCWCHeaderLayout extends LitElement {
   static styles = [css`${unsafeCSS(style)}`];
 
   @property({ type: Object })

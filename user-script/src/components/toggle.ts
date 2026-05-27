@@ -5,7 +5,7 @@ import { customElement, property } from 'lit/decorators.js';
 import { v4 as uuidv4 } from 'uuid';
 
 @customElement('scwc-toggle')
-export class SCWCToggle extends LitElement {
+class SCWCToggle extends LitElement {
   static styles = [css`${unsafeCSS(style)}`];
 
   @property({ type: Boolean })
@@ -46,7 +46,9 @@ export class SCWCToggle extends LitElement {
   }
 }
 
-
+export interface SCWCToggleEventMap {
+  'change': CustomEvent<boolean>;
+}
 
 declare global {
   interface HTMLElementTagNameMap {

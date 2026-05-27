@@ -244,7 +244,7 @@ export function usePluginFetch (openPluginWindow: boolean, getCrawlData: GetCraw
       if (isConfigItem(item)) {
         const value = controlValues.get(item);
         if (!value) {
-          scwcWarn(`脚背设置控制器值未找到: ${item.channel}`);
+          scwcWarn(`脚本设置控制器值未找到: ${item.channel}`);
           return;
         }
         item.trigger(value.value);

@@ -6,7 +6,7 @@ import { classMap } from 'lit/directives/class-map.js';
 import { v4 as uuidv4 } from 'uuid';
 
 @customElement('scwc-input')
-export class SCWCInput extends LitElement {
+class SCWCInput extends LitElement {
   static styles = [css`${unsafeCSS(style)}`];
 
   @property({ type: Boolean })
@@ -60,7 +60,11 @@ export class SCWCInput extends LitElement {
   }
 }
 
-
+export interface SCWCInputEventMap {
+  'input': CustomEvent<string>;
+  'change': CustomEvent<string>;
+  'blur': CustomEvent<string>;
+}
 
 declare global {
   interface HTMLElementTagNameMap {

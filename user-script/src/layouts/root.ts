@@ -12,7 +12,7 @@ import { styleMap } from 'lit/directives/style-map.js';
 import type { Item } from '../types/claw';
 
 @customElement('scwc-layout-root')
-export class SCWCRootLayout extends LitElement {
+class SCWCRootLayout extends LitElement {
   static styles = [css`${unsafeCSS(style)}`];
 
   /** 是否最小化 */

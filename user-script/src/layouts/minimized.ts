@@ -5,7 +5,7 @@ import { customElement, property } from 'lit/decorators.js';
 import { styleMap } from 'lit/directives/style-map.js';
 
 @customElement('scwc-layout-minimized')
-export class SCWCMinimizedLayout extends LitElement {
+class SCWCMinimizedLayout extends LitElement {
   static styles = [css`${unsafeCSS(style)}`];
 
   @property({ type: Object })

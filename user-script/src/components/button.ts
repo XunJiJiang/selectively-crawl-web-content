@@ -5,7 +5,7 @@ import { customElement, property } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
 
 @customElement('scwc-button')
-export class SCWCButton extends LitElement {
+class SCWCButton extends LitElement {
   static styles = [css`${unsafeCSS(style)}`];
 
   @property({ type: Boolean })
@@ -58,6 +58,10 @@ export class SCWCButton extends LitElement {
       </button>
     `;
   }
+}
+
+export interface SCWCButtonEventMap {
+  'click': CustomEvent<void>;
 }
 
 declare global {
