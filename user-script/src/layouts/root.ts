@@ -74,7 +74,7 @@ class SCWCRootLayout extends LitElement {
         style=${styleMap({
       left: `${this.position.x}px`,
       top: `${this.position.y}px`,
-      'min-width': this.selectionExpanded ? '320px' : '100px',
+      'min-width': this.selectionExpanded ? '320px' : '150px',
       'min-height': this.selectionExpanded ? '180px' : '56px',
     })}
         .position=${this.position}
@@ -86,6 +86,8 @@ class SCWCRootLayout extends LitElement {
           @toggleclaw=${() => this.setSelectionExpanded(!this.selectionExpanded)}
           @toggleplugin=${() => this.setPluginExpanded(!this.pluginExpanded)}
           @minimize=${() => this.setMinimized(true)}
+          .selectionExpanded=${this.selectionExpanded}
+          .pluginExpanded=${this.pluginExpanded}
         ></scwc-layout-header>
         <scwc-layout-content
           .selectionExpanded=${this.selectionExpanded}
