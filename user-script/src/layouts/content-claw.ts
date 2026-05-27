@@ -2,8 +2,7 @@ import style from './content-claw.css?raw';
 
 import { LitElement, html, css, unsafeCSS, nothing, type ReactiveController, type ReactiveControllerHost } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { config, configContext, type TConfig } from '../store/config';
-import { consume } from '@lit/context';
+import { ConfigController } from '../store/config';
 import type { Item } from '../types/claw';
 import { loadFromStorage, saveToStorage } from '../utils/storage';
 import { SELECTIVE_CRAWL_KEY } from '../utils/common';
@@ -122,8 +121,7 @@ class SCWCElementHighlight extends LitElement {
 export class SCWCContentClaw extends LitElement {
   static styles = [css`${unsafeCSS(style)}`];
 
-  @consume({ context: configContext, subscribe: true })
-  private accessor config: TConfig = config;
+  private configController = new ConfigController(this);
 
   /** 是否展开 */
   @property({ type: Boolean })
@@ -283,7 +281,7 @@ export class SCWCContentClaw extends LitElement {
       console.warn('Failed to crawl the following selectors:', failed);
       return;
     }
-    const data = await sendCrawlRequest(result, this.config)
+    const data = await sendCrawlRequest(result, this.configController.config)
     if (data && data.success === true) {
       console.warn(data.message);
     } else {

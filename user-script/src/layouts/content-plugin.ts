@@ -1,20 +1,14 @@
 import style from './content-plugin.css?raw';
 
 import { LitElement, html, css, unsafeCSS } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
-import { config, configContext, type TConfig } from '../store/config';
-import { consume } from '@lit/context';
+import { customElement, property } from 'lit/decorators.js';
 import type { Item } from '../types/claw';
-import type { PluginConfig } from '../types/plugin';
-import type { ScriptConfig } from '../types/config';
 import { styleMap } from 'lit/directives/style-map.js';
+import { PluginsController } from './hooks/plugins';
 
 @customElement('scwc-layout-content-plugin')
 export class SCWCContentPlugin extends LitElement {
   static styles = [css`${unsafeCSS(style)}`];
-
-  @consume({ context: configContext, subscribe: true })
-  private accessor config: TConfig = config;
 
   @property({ type: Boolean })
   accessor expanded: boolean = false;
@@ -22,14 +16,13 @@ export class SCWCContentPlugin extends LitElement {
   @property({ type: Array, attribute: false })
   accessor clawItems: Item[] = [];
 
-  @state()
-  private accessor plugins: (PluginConfig | ScriptConfig)[] | null = null
-  @state()
-  private accessor activeTab = ''
-  @state()
-  private accessor activePlugin: PluginConfig | ScriptConfig | null = null
+  private pluginsController = new PluginsController(this);
 
   render () {
+    const plugins = this.pluginsController.plugins;
+    const activeTab = this.pluginsController.activeTab;
+    const activePlugin = this.pluginsController.activePlugin;
+
     return html`
       <div 
         class="plugin-window"
@@ -39,16 +32,16 @@ export class SCWCContentPlugin extends LitElement {
       >
       <!-- Tabs -->
         <div class="plugin-window-tabs">
-          ${this.plugins?.map(plugin => html`
+          ${plugins?.map(plugin => html`
             <div 
               class="plugin-window-tab"
               style=${styleMap({
-      'border-button': this.activeTab === plugin.id ? '2px solid #1890ff' : 'none',
+      'border-button': activeTab === plugin.id ? '2px solid #1890ff' : 'none',
     })}
-              data-active=${this.activeTab === plugin.id}
+              data-active=${activeTab === plugin.id}
               @click=${() => {
-        this.activeTab = plugin.id
-        this.activePlugin = plugin
+        this.pluginsController.setActiveTab(plugin.id);
+        this.pluginsController.setActivePlugin(plugin);
       }}
             >
               ${plugin.title}
@@ -57,7 +50,7 @@ export class SCWCContentPlugin extends LitElement {
         </div>
         <!-- Plugin Content -->
         <div class="plugin-window-content">
-          ${this.activeTab && this.activePlugin ? this.activePlugin.controls.map((control, idx) => {
+          ${activeTab && activePlugin ? activePlugin.controls.map((control, idx) => {
         switch (control.type) {
           case 'button':
             return html`
@@ -129,7 +122,7 @@ export class SCWCContentPlugin extends LitElement {
         }
       }) : html`
             <div style="color: #888">
-              ${this.plugins === null ? '加载中...' : this.plugins.length === 0 ? '没有插件可用' : '选择一个插件'}
+              ${plugins === null ? '加载中...' : plugins.length === 0 ? '没有插件可用' : '选择一个插件'}
             </div>
           `}
         </div>
