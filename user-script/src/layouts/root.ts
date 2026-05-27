@@ -6,8 +6,6 @@ import './footer.ts';
 
 import { LitElement, css, html, unsafeCSS } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { provide } from '@lit/context';
-import { configContext, config } from '../store/config';
 import { loadFromStorage, saveToStorage } from '../utils/storage.ts';
 import { POS_KEY, INIT_POS, MINIMIZED_KEY, PLUGIN_EXPANDED_KEY } from '../utils/common.ts';
 import { styleMap } from 'lit/directives/style-map.js';
@@ -16,10 +14,6 @@ import type { Item } from '../types/claw';
 @customElement('scwc-layout-root')
 export class SCWCRootLayout extends LitElement {
   static styles = [css`${unsafeCSS(style)}`];
-
-  @provide({ context: configContext })
-  @state()
-  private accessor config = config;
 
   /** 是否最小化 */
   @property({ type: Boolean, reflect: true })

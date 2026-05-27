@@ -3,15 +3,10 @@ import style from './minimized.css?raw';
 import { LitElement, html, css, unsafeCSS } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { styleMap } from 'lit/directives/style-map.js';
-// import { consume } from '@lit/context';
-// import { configContext, type TConfig } from '../store/config'
 
 @customElement('scwc-layout-minimized')
 export class SCWCMinimizedLayout extends LitElement {
   static styles = [css`${unsafeCSS(style)}`];
-
-  // @consume({ context: configContext, subscribe: true, })
-  // private accessor config: TConfig;
 
   @property({ type: Object })
   public accessor position: { readonly x: number, readonly y: number } = { x: 0, y: 0 };

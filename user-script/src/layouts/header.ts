@@ -2,17 +2,12 @@ import style from './header.css?raw';
 
 import { LitElement, html, css, unsafeCSS } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
-// import { consume } from '@lit/context';
-// import { config, configContext, type TConfig } from '../store/config'
 import { debounce } from 'es-toolkit'
 import { styleMap } from 'lit/directives/style-map.js';
 
 @customElement('scwc-layout-header')
 export class SCWCHeaderLayout extends LitElement {
   static styles = [css`${unsafeCSS(style)}`];
-
-  // @consume({ context: configContext, subscribe: true })
-  // private accessor config: TConfig = config;
 
   @property({ type: Object })
   public accessor position = { x: 0, y: 0 };

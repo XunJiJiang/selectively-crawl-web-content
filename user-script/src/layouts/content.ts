@@ -4,15 +4,10 @@ import './content-plugin.ts';
 
 import { LitElement, html, css, unsafeCSS } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { config, configContext, type TConfig } from '../store/config';
-import { consume } from '@lit/context';
 
 @customElement('scwc-layout-content')
 export class SCWCContentLayout extends LitElement {
   static styles = [css`${unsafeCSS(style)}`];
-
-  @consume({ context: configContext, subscribe: true })
-  private accessor config: TConfig = config;
 
   @property({ type: Boolean })
   public accessor selectionExpanded = false;
