@@ -1,0 +1,169 @@
+.plugin-window {
+  flex-direction: column;
+  background-color: #23272e;
+}
+
+.plugin-window .plugin-window-tabs {
+  display: flex;
+  background-color: transparent;
+  border-bottom: 1px solid #eee;
+  border: 1px solid #4f4f4f;
+  flex: 0;
+}
+
+.plugin-window .plugin-window-tabs .plugin-window-tab {
+  transition: all 0.2s;
+  color: #fff8;
+  padding: 8px 16px;
+  cursor: pointer;
+}
+
+.plugin-window .plugin-window-tabs .plugin-window-tab:hover {
+  background-color: #f0f7ff44;
+}
+
+.plugin-window .plugin-window-tabs .plugin-window-tab[data-active='true'] {
+  background-color: #f0f7ff33;
+  color: #fff;
+}
+
+.plugin-window .plugin-window-content {
+  flex: 1;
+  padding: 16px;
+  overflow: auto;
+  max-width: 500px;
+  max-height: min(calc(100vh - 250px), 400px);
+}
+
+.plugin-window .plugin-window-content .plugin-window-content-item {
+  margin-right: 8px;
+  margin-bottom: 8px;
+}
+
+.plugin-window .plugin-window-content scwc-button::part(button) {
+  background-color: #1890ff;
+  color: white;
+  border: none;
+  padding: 4px 8px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s;
+  margin-right: 8px;
+  margin-bottom: 8px;
+}
+
+.plugin-window .plugin-window-content scwc-button::part(button):hover {
+  background-color: #1890ffcc;
+}
+
+.plugin-window .plugin-window-content scwc-checkbox::part(label) {
+  display: flex;
+  align-items: center;
+  margin-right: 8px;
+  margin-bottom: 8px;
+}
+
+.plugin-window .plugin-window-content scwc-checkbox::part(description) {
+  margin-right: 8px;
+  color: rgb(204, 204, 204);
+}
+
+.plugin-window .plugin-window-content scwc-checkbox::part(checkbox) {
+  /* 样式未测试 */
+  width: 0;
+  height: 0;
+  opacity: 0;
+}
+
+.plugin-window .plugin-window-content scwc-select::part(root) {
+  display: flex;
+  align-items: center;
+  margin-right: 8px;
+  margin-bottom: 8px;
+}
+
+.plugin-window .plugin-window-content scwc-select::part(description) {
+  margin-right: 8px;
+  color: rgb(204, 204, 204);
+}
+
+.plugin-window .plugin-window-content scwc-select::part(select) {
+  height: 24px;
+  flex: 1 1 0%;
+  font-size: 13px;
+  color: rgb(204, 204, 204);
+  margin-right: 8px;
+  padding: 4px;
+  box-sizing: border-box;
+  background: transparent;
+  border: 0.5px solid rgb(136, 136, 136);
+  border-radius: 4px;
+  transition: border 0.2s;
+}
+
+.plugin-window .plugin-window-content scwc-input[type='text']::part(label) {
+  display: flex;
+  flex-direction: column;
+  margin-right: 8px;
+  margin-bottom: 8px;
+}
+
+.plugin-window .plugin-window-content scwc-input[type='text']::part(description) {
+  margin-bottom: 4px;
+  color: rgb(204, 204, 204);
+}
+
+.plugin-window .plugin-window-content scwc-input[type='text']::part(input) {
+  height: 24px;
+  flex: 1 1 0%;
+  font-size: 13px;
+  color: rgb(204, 204, 204);
+  margin-right: 8px;
+  padding: 4px;
+  box-sizing: border-box;
+  background: transparent;
+  border: 0.5px solid rgb(136, 136, 136);
+  border-radius: 4px;
+  transition: border 0.2s;
+}
+
+.plugin-window .plugin-window-content scwc-input[type='number']::part(label) {
+  display: flex;
+  flex-direction: column;
+  margin-right: 8px;
+  margin-bottom: 8px;
+}
+
+.plugin-window .plugin-window-content scwc-input[type='number']::part(description) {
+  margin-bottom: 4px;
+  color: rgb(204, 204, 204);
+}
+
+.plugin-window .plugin-window-content scwc-input[type='number']::part(input) {
+  height: 24px;
+  flex: 1 1 0%;
+  font-size: 13px;
+  color: rgb(204, 204, 204);
+  margin-right: 8px;
+  padding: 4px;
+  box-sizing: border-box;
+  background: transparent;
+  border: 0.5px solid rgb(136, 136, 136);
+  border-radius: 4px;
+  transition: border 0.2s;
+}
+
+.plugin-window .plugin-window-content scwc-checkbox::part(label) {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.plugin-window .plugin-window-content scwc-checkbox::part(description) {
+  display: flex;
+  align-items: center;
+}
+
+.plugin-window .plugin-window-content scwc-checkbox::part(input) {
+  margin-right: 4px;
+}
