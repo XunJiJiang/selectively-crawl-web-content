@@ -170,12 +170,18 @@ export class ConfigController implements ReactiveController {
           500)(value)
     }]
     this.host.requestUpdate();
+    this.onConfigUpdate(this.config);
   }
 
-  constructor(host: ReactiveControllerHost) {
+  private onConfigUpdate: (config: TConfig) => void = () => {};
+
+  constructor(host: ReactiveControllerHost, onConfigUpdate?: (config: TConfig) => void) {
     (this.host = host).addController(this);
     ConfigController.allControllers.add(this);
     ConfigController.allControllersWeak.add(this);
+    if (onConfigUpdate) {
+      this.onConfigUpdate = onConfigUpdate;
+    }
   }
 
   hostConnected () {}
