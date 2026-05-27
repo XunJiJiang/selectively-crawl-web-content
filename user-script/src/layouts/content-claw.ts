@@ -11,6 +11,7 @@ import type { ArrayProcessor, JSONValueWithFunction } from '../types/utils';
 import { styleMap } from 'lit/directives/style-map.js';
 import { getElementBySelector, getSelector } from '../utils/selector';
 import { getCrawlData } from '../utils/claw';
+import { sendCrawlRequest } from '../api/crawl';
 
 /** 判断是否为悬浮窗或其子元素 */
 function isExcludedElement (el: Element): boolean {
@@ -282,37 +283,23 @@ export class SCWCContentClaw extends LitElement {
       console.warn('Failed to crawl the following selectors:', failed);
       return;
     }
-    try {
-      const res = await fetch(
-        `${this.config.api.host}:${this.config.api.port.replace(/[^\d]/g, '')}/api/metadata/scrape?site=${encodeURIComponent(window.location.href)}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.config.api.token}` },
-          body: JSON.stringify({
-            site: window.location.href,
-            data: result,
-          }),
-        },
-      );
-      const data = await res.json();
-      if (data && data.success === false) {
-        console.warn('抓取失败', data.message);
-      } else {
-        console.log('抓取成功');
-        // console.log(data.data);
-        // for (const item of data.data ?? []) {
-        // TODO: 弹窗通知
-        // notify[item.type as 'info' | 'success' | 'warn' | 'error']({
-        //   title: `插件 ${item.pluginInfo.name} 的抓取结果`,
-        //   description: item.info,
-        //   placement: 'topRight',
-        // });
-        // }
-      }
-    } catch (e) {
-      console.error('抓取:', '上传失败', (e as Error).message ?? '', e);
+    const data = await sendCrawlRequest(result, this.config)
+    if (data && data.success === true) {
+      console.warn(data.message);
+    } else {
+      console.log(data.message);
+      // console.log(data.data);
+      // for (const item of data.data ?? []) {
+      // TODO: 弹窗通知
+      // notify[item.type as 'info' | 'success' | 'warn' | 'error']({
+      //   title: `插件 ${item.pluginInfo.name} 的抓取结果`,
+      //   description: item.info,
+      //   placement: 'topRight',
+      // });
+      // }
     }
   }
+
 
   /** 高亮覆盖层元素 */
   private highlightEl: SCWCElementHighlight | null = null;
