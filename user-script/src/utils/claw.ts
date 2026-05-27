@@ -1,8 +1,8 @@
-import type { Item } from "../types/claw";
+import type { Item, TCrawlData } from "../types/claw";
 import { getElementBySelector } from "./selector";
 
 /** 解析抓取项获取抓取的数据 */
-export function getCrawlData (items: Item[]): { result: SCWC.TDataItem[]; failed: string[] } {
+export function getCrawlData (items: Item[]): TCrawlData {
   const result: SCWC.TDataItem[] = [];
   const failed: string[] = [];
 

@@ -118,7 +118,7 @@ class SCWCElementHighlight extends LitElement {
 }
 
 @customElement('scwc-layout-content-claw')
-export class SCWCContentClaw extends LitElement {
+class SCWCContentClaw extends LitElement {
   static styles = [css`${unsafeCSS(style)}`];
 
   private configController = new ConfigController(this);

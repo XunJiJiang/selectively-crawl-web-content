@@ -6,7 +6,7 @@ import { LitElement, html, css, unsafeCSS } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 
 @customElement('scwc-layout-content')
-export class SCWCContentLayout extends LitElement {
+class SCWCContentLayout extends LitElement {
   static styles = [css`${unsafeCSS(style)}`];
 
   @property({ type: Boolean })
