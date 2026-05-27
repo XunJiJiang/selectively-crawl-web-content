@@ -377,8 +377,8 @@ class SCWCContentClaw extends LitElement {
           ${!this.selecting ? html`<scwc-button
             type="secondary"
             ?active=${this.selecting}
-            title="点击网页中的元素即可开始选择捕获内容"
-            aria-label="Toggle element selection mode"
+            title="点击触发抓取数据"
+            aria-label="Trigger data crawling"
             @click=${this.triggerCrawlData}
           >
             <!-- 抓取元素 -->
