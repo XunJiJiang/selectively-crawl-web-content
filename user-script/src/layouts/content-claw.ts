@@ -239,15 +239,14 @@ class SCWCContentClaw extends LitElement {
 
   /** 处理元素 hover */
   private onElementHover = (e: MouseEvent) => {
-    console.log('hover1', e.target);
     if (!this.selecting) return;
-    console.log('hover2', e.target);
     this.hoverEl = document.elementFromPoint(e.clientX, e.clientY);
     if (this.hoverEl && isExcludedElement(this.hoverEl)) {
       this.hoverEl = null;
     } else if (this.hoverEl) {
       if (!this.highlightEl) {
         this.highlightEl = document.createElement('scwc-element-highlight');
+        document.querySelector('#selective-crawl-floating-root')?.appendChild(this.highlightEl);
       }
       this.highlightEl.setTarget(this.hoverEl);
     }
@@ -334,7 +333,7 @@ class SCWCContentClaw extends LitElement {
             <!-- 是否开启选中 -->
             <svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" fill="currentColor"><path d="M15 3.5V6.5C15 6.776 14.776 7 14.5 7C14.224 7 14 6.776 14 6.5V3.5C14 2.673 13.327 2 12.5 2H3.5C2.673 2 2 2.673 2 3.5V12.5C2 13.327 2.673 14 3.5 14H6.5C6.776 14 7 14.224 7 14.5C7 14.776 6.776 15 6.5 15H3.5C2.121 15 1 13.879 1 12.5V3.5C1 2.121 2.121 1 3.5 1H12.5C13.879 1 15 2.121 15 3.5ZM15 9.5C15 9.224 14.776 9 14.5 9H9.5C9.224 9 9 9.224 9 9.5V14.5C9 14.776 9.224 15 9.5 15C9.776 15 10 14.776 10 14.5V10.707L14.146 14.853C14.244 14.951 14.372 14.999 14.5 14.999C14.628 14.999 14.756 14.95 14.854 14.853C15.049 14.658 15.049 14.341 14.854 14.146L10.708 10H14.501C14.777 10 15.001 9.776 15.001 9.5H15Z"/></svg>
           </scwc-button>
-          ${this.selecting ? html`
+          ${this.selectedEl ? html`
             <scwc-button
             type="secondary"
             ?active=${this.selecting}
@@ -376,7 +375,7 @@ class SCWCContentClaw extends LitElement {
             <svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" fill="currentColor"><path d="M8 1C4.14 1 1 4.14 1 8C1 11.86 4.14 15 8 15C11.86 15 15 11.86 15 8C15 4.14 11.86 1 8 1ZM8 14C4.691 14 2 11.309 2 8C2 4.691 4.691 2 8 2C11.309 2 14 4.691 14 8C14 11.309 11.309 14 8 14ZM10.854 5.854L8.708 8L10.854 10.146C11.049 10.341 11.049 10.658 10.854 10.853C10.756 10.951 10.628 10.999 10.5 10.999C10.372 10.999 10.244 10.95 10.146 10.853L8 8.707L5.854 10.853C5.756 10.951 5.628 10.999 5.5 10.999C5.372 10.999 5.244 10.95 5.146 10.853C4.951 10.658 4.951 10.341 5.146 10.146L7.292 8L5.146 5.854C4.951 5.659 4.951 5.342 5.146 5.147C5.341 4.952 5.658 4.952 5.853 5.147L7.999 7.293L10.145 5.147C10.34 4.952 10.657 4.952 10.852 5.147C11.047 5.342 11.047 5.659 10.852 5.854H10.854Z"/></svg>
           </scwc-button>
           ` : nothing}
-          ${!this.selecting ? html`<scwc-button
+          ${!this.selecting && !this.selectedEl ? html`<scwc-button
             type="secondary"
             ?active=${this.selecting}
             title="点击触发抓取数据"
@@ -394,7 +393,7 @@ class SCWCContentClaw extends LitElement {
       display: this.expanded ? '' : 'none',
     })}
         >
-          ${this.selecting && this.selectedEl ? html`
+          ${this.selectedEl ? html`
               <div class="claw-form-container">
                 <scwc-input
                   label="描述*"
@@ -418,7 +417,7 @@ class SCWCContentClaw extends LitElement {
                 <span>请在页面中选择一个元素</span>
               </div>
             ` : nothing}
-          ${!this.selecting ? html`
+          ${!this.selecting && !this.selectedEl ? html`
               <div class="claw-item-list">
                 ${this.items.length > 0 ? this.items.map((item, idx) => html`
                   <div
