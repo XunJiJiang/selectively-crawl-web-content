@@ -63,12 +63,37 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 /** 项目根目录 */
 const projectRoot = path.resolve(__dirname, '..', '..');
 
+/** 查找 npx */
+async function findNpx () {
+  // windows
+  if (os.platform() === 'win32') {
+    // where.exe npx
+    const whereNpx = spawn('where.exe', ['npx']);
+    let npxPath = '';
+    for await (const chunk of whereNpx.stdout) {
+      npxPath += chunk;
+    }
+    return npxPath.split(os.EOL)[0].trim() + '.cmd';
+  } else if (os.platform() === 'linux' || os.platform() === 'darwin') {
+    // linux 和 macOS
+    const whichNpx = spawn('which', ['npx']);
+    let npxPath = '';
+    for await (const chunk of whichNpx.stdout) {
+      npxPath += chunk;
+    }
+    return npxPath.split(os.EOL)[0].trim();
+  } else {
+    return 'npx';
+  }
+}
+
 async function main () {
 
   while (true) {
-    const [error, child] = tryCatch(() => spawn('npx', ['tsx', path.join(projectRoot, 'server/index.ts')], {
+    const [error, child] = await tryCatch(async () => spawn(await findNpx(), ['tsx', path.join(projectRoot, 'server/index.ts')], {
       stdio: ['pipe', 'inherit', 'inherit'],
       env: { ...process.env, FORCE_COLOR: '1' },
+      shell: true,
     }))
 
     if (error) {
