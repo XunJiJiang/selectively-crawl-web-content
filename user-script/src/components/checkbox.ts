@@ -43,6 +43,7 @@ class SCWCCheckbox extends LitElement {
           .checked=${this.checked}
           ?disabled=${this.disabled}
           @change=${(e: Event) => {
+        e.stopPropagation();
         this.dispatchEvent(new CustomEvent('change', {
           detail: (e.target as HTMLInputElement).checked,
           bubbles: true,

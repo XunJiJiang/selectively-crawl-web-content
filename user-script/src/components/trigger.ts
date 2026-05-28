@@ -30,7 +30,10 @@ class SCWCTrigger extends LitElement {
         label=${this.label}
         title=${this.title}
         aria-label=${this.ariaLabel}
-        @click=${() => this.dispatchEvent(new CustomEvent('trigger', { bubbles: true }))}
+        @click=${(e: MouseEvent) => {
+        e.stopPropagation();
+        this.dispatchEvent(new CustomEvent('trigger', { bubbles: true }));
+      }}
       ></scwc-button>
     `;
   }

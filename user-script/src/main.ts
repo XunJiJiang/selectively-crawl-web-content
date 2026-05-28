@@ -16,6 +16,9 @@ if (!mount) {
     z-index: 2147483647;
     font-weight: 400;
     font-size: 11px;
+    position: fixed;
+    left: 0;
+    top: 0;
   `;
   document.body.appendChild(mount);
 }

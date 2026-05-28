@@ -239,7 +239,9 @@ class SCWCContentClaw extends LitElement {
 
   /** 处理元素 hover */
   private onElementHover = (e: MouseEvent) => {
+    console.log('hover1', e.target);
     if (!this.selecting) return;
+    console.log('hover2', e.target);
     this.hoverEl = document.elementFromPoint(e.clientX, e.clientY);
     if (this.hoverEl && isExcludedElement(this.hoverEl)) {
       this.hoverEl = null;

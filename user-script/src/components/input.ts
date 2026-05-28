@@ -51,9 +51,9 @@ class SCWCInput extends LitElement {
           aria-label=${this.ariaLabel}
           .value=${this.value}
           ?disabled=${this.disabled}
-          @input=${(e: Event) => this.dispatchEvent(new CustomEvent('input', { detail: (e.target as HTMLInputElement).value }))}
-          @change=${(e: Event) => this.dispatchEvent(new CustomEvent('change', { detail: (e.target as HTMLInputElement).value }))}
-          @blur=${(e: Event) => this.dispatchEvent(new CustomEvent('blur', { detail: (e.target as HTMLInputElement).value }))}
+          @input=${(e: Event) => { e.stopPropagation(); this.dispatchEvent(new CustomEvent('input', { detail: (e.target as HTMLInputElement).value })); }}
+          @change=${(e: Event) => { e.stopPropagation(); this.dispatchEvent(new CustomEvent('change', { detail: (e.target as HTMLInputElement).value })); }}
+          @blur=${(e: Event) => { e.stopPropagation(); this.dispatchEvent(new CustomEvent('blur', { detail: (e.target as HTMLInputElement).value })); }}
         />
       </label>
     `;

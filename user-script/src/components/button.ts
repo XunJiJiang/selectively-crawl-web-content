@@ -51,7 +51,10 @@ class SCWCButton extends LitElement {
         aria-label=${this.ariaLabel}
         style=${this.btnStyle}
         ?disabled=${this.disabled}
-        @click=${() => this.dispatchEvent(new CustomEvent('click', { bubbles: true }))}
+        @click=${(e: MouseEvent) => {
+        e.stopPropagation();
+        this.dispatchEvent(new CustomEvent('click', { bubbles: true }))
+      }}
       >
         <slot name="before"></slot>
         <slot>${this.label || nothing}</slot>

@@ -36,6 +36,7 @@ class SCWCToggle extends LitElement {
         ?disabled=${this.disabled}
         .label=${this.label}
         @change=${(e: CustomEvent<boolean>) => {
+        e.stopPropagation();
         this.dispatchEvent(new CustomEvent('change', {
           detail: e.detail,
           bubbles: true,
