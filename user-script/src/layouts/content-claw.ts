@@ -254,6 +254,10 @@ class SCWCContentClaw extends LitElement {
 
   /** 选择元素处理函数 */
   private onElementClick = (e: MouseEvent) => {
+    this.selectedEl = null;
+    this.descInput = '';
+    this.prefixInput = '';
+    this.undoStack = [];
     if (!this.selecting) return;
     e.preventDefault();
     // 只允许选中未被排除的元素
@@ -304,13 +308,6 @@ class SCWCContentClaw extends LitElement {
   private highlightEl: SCWCElementHighlight | null = null;
 
   render () {
-    if (!this.expanded) {
-      this.selectedEl = null;
-      this.descInput = '';
-      this.prefixInput = '';
-      this.undoStack = [];
-    }
-
     return html`
       <div class="claw-container">
         <div
