@@ -52,7 +52,7 @@
   color: #888;
   background-color: transparent;
   border-radius: 4px;
-  margin-right: 4px;
+  margin-inline-end: 4px;
   cursor: move;
   flex-shrink: 0;
 }

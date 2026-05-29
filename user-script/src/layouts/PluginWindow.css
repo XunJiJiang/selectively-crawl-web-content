@@ -36,8 +36,8 @@
 }
 
 .SCWC-plugin-window .SCWC-plugin-window-content .SCWC-plugin-window-content-item {
-  margin-right: 8px;
-  margin-bottom: 8px;
+  margin-inline-end: 8px;
+  margin-block-end: 8px;
 }
 
 .SCWC-plugin-window
@@ -50,8 +50,8 @@
   cursor: pointer;
   border-radius: 4px;
   transition: all 0.2s;
-  margin-right: 8px;
-  margin-bottom: 8px;
+  margin-inline-end: 8px;
+  margin-block-end: 8px;
 }
 
 .SCWC-plugin-window
@@ -65,14 +65,14 @@
   .SCWC-plugin-window-content-item.SCWC-plugin-window-content-item-toggle {
   display: flex;
   align-items: center;
-  margin-bottom: 8px;
+  margin-block-end: 8px;
 }
 
 .SCWC-plugin-window
   .SCWC-plugin-window-content
   .SCWC-plugin-window-content-item.SCWC-plugin-window-content-item-toggle
   span {
-  margin-right: 8px;
+  margin-inline-end: 8px;
   color: rgb(204, 204, 204);
 }
 
@@ -92,14 +92,14 @@
   .SCWC-plugin-window-content-item.SCWC-plugin-window-content-item-select {
   display: flex;
   align-items: center;
-  margin-bottom: 8px;
+  margin-block-end: 8px;
 }
 
 .SCWC-plugin-window
   .SCWC-plugin-window-content
   .SCWC-plugin-window-content-item.SCWC-plugin-window-content-item-select
   span {
-  margin-right: 8px;
+  margin-inline-end: 8px;
   color: rgb(204, 204, 204);
 }
 
@@ -111,7 +111,7 @@
   flex: 1 1 0%;
   font-size: 13px;
   color: rgb(204, 204, 204);
-  margin-right: 8px;
+  margin-inline-end: 8px;
   padding: 4px;
   box-sizing: border-box;
   background: transparent;
@@ -125,14 +125,14 @@
   .SCWC-plugin-window-content-item.SCWC-plugin-window-content-item-input-text {
   display: flex;
   flex-direction: column;
-  margin-bottom: 8px;
+  margin-block-end: 8px;
 }
 
 .SCWC-plugin-window
   .SCWC-plugin-window-content
   .SCWC-plugin-window-content-item.SCWC-plugin-window-content-item-input-text
   span {
-  margin-bottom: 4px;
+  margin-block-end: 4px;
   color: rgb(204, 204, 204);
 }
 
@@ -144,7 +144,7 @@
   flex: 1 1 0%;
   font-size: 13px;
   color: rgb(204, 204, 204);
-  margin-right: 8px;
+  margin-inline-end: 8px;
   padding: 4px;
   box-sizing: border-box;
   background: transparent;
@@ -158,14 +158,14 @@
   .SCWC-plugin-window-content-item.SCWC-plugin-window-content-item-input-number {
   display: flex;
   flex-direction: column;
-  margin-bottom: 8px;
+  margin-block-end: 8px;
 }
 
 .SCWC-plugin-window
   .SCWC-plugin-window-content
   .SCWC-plugin-window-content-item.SCWC-plugin-window-content-item-input-number
   span {
-  margin-bottom: 4px;
+  margin-block-end: 4px;
   color: rgb(204, 204, 204);
 }
 
@@ -177,7 +177,7 @@
   flex: 1 1 0%;
   font-size: 13px;
   color: rgb(204, 204, 204);
-  margin-right: 8px;
+  margin-inline-end: 8px;
   padding: 4px;
   box-sizing: border-box;
   background: transparent;
@@ -191,7 +191,7 @@
   .SCWC-plugin-window-content-item.SCWC-plugin-window-content-item-checkbox {
   display: flex;
   align-items: center;
-  margin-bottom: 8px;
+  margin-block-end: 8px;
 }
 
 .SCWC-plugin-window
@@ -207,5 +207,5 @@
   .SCWC-plugin-window-content-item.SCWC-plugin-window-content-item-checkbox
   label
   input {
-  margin-right: 4px;
+  margin-inline-end: 4px;
 }

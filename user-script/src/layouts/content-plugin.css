@@ -36,8 +36,8 @@
 }
 
 .plugin-window .plugin-window-content .plugin-window-content-item {
-  margin-right: 8px;
-  margin-bottom: 8px;
+  margin-inline-end: 8px;
+  margin-block-end: 8px;
 }
 
 .plugin-window .plugin-window-content scwc-button::part(button) {
@@ -48,8 +48,8 @@
   cursor: pointer;
   border-radius: 4px;
   transition: all 0.2s;
-  margin-right: 8px;
-  margin-bottom: 8px;
+  margin-inline-end: 8px;
+  margin-block-end: 8px;
 }
 
 .plugin-window .plugin-window-content scwc-button::part(button):hover {
@@ -59,12 +59,12 @@
 .plugin-window .plugin-window-content scwc-checkbox::part(label) {
   display: flex;
   align-items: center;
-  margin-right: 8px;
-  margin-bottom: 8px;
+  margin-inline-end: 8px;
+  margin-block-end: 8px;
 }
 
 .plugin-window .plugin-window-content scwc-checkbox::part(description) {
-  margin-right: 8px;
+  margin-inline-start: 8px;
   color: rgb(204, 204, 204);
 }
 
@@ -78,12 +78,12 @@
 .plugin-window .plugin-window-content scwc-select::part(root) {
   display: flex;
   align-items: center;
-  margin-right: 8px;
-  margin-bottom: 8px;
+  margin-inline-end: 8px;
+  margin-block-end: 8px;
 }
 
 .plugin-window .plugin-window-content scwc-select::part(description) {
-  margin-right: 8px;
+  margin-inline-end: 8px;
   color: rgb(204, 204, 204);
 }
 
@@ -92,7 +92,7 @@
   flex: 1 1 0%;
   font-size: 13px;
   color: rgb(204, 204, 204);
-  margin-right: 8px;
+  margin-inline-end: 8px;
   padding: 4px;
   box-sizing: border-box;
   background: transparent;
@@ -104,12 +104,12 @@
 .plugin-window .plugin-window-content scwc-input[type='text']::part(label) {
   display: flex;
   flex-direction: column;
-  margin-right: 8px;
-  margin-bottom: 8px;
+  margin-inline-end: 8px;
+  margin-block-end: 8px;
 }
 
 .plugin-window .plugin-window-content scwc-input[type='text']::part(description) {
-  margin-bottom: 4px;
+  margin-block-end: 4px;
   color: rgb(204, 204, 204);
 }
 
@@ -118,7 +118,7 @@
   flex: 1 1 0%;
   font-size: 13px;
   color: rgb(204, 204, 204);
-  margin-right: 8px;
+  margin-inline-end: 8px;
   padding: 4px;
   box-sizing: border-box;
   background: transparent;
@@ -130,12 +130,12 @@
 .plugin-window .plugin-window-content scwc-input[type='number']::part(label) {
   display: flex;
   flex-direction: column;
-  margin-right: 8px;
-  margin-bottom: 8px;
+  margin-inline-end: 8px;
+  margin-block-end: 8px;
 }
 
 .plugin-window .plugin-window-content scwc-input[type='number']::part(description) {
-  margin-bottom: 4px;
+  margin-block-end: 4px;
   color: rgb(204, 204, 204);
 }
 
@@ -144,7 +144,7 @@
   flex: 1 1 0%;
   font-size: 13px;
   color: rgb(204, 204, 204);
-  margin-right: 8px;
+  margin-inline-end: 8px;
   padding: 4px;
   box-sizing: border-box;
   background: transparent;
@@ -156,7 +156,7 @@
 .plugin-window .plugin-window-content scwc-checkbox::part(label) {
   display: flex;
   align-items: center;
-  margin-bottom: 8px;
+  margin-block-end: 8px;
 }
 
 .plugin-window .plugin-window-content scwc-checkbox::part(description) {
@@ -165,5 +165,5 @@
 }
 
 .plugin-window .plugin-window-content scwc-checkbox::part(input) {
-  margin-right: 4px;
+  margin-inline-end: 4px;
 }

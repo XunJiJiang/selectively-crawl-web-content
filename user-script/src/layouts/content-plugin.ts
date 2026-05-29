@@ -122,7 +122,7 @@ export class SCWCContentPlugin extends LitElement {
             `
           default:
             return html`
-              <div style="color: #888; margin-bottom: 8px">
+              <div style="color: #888; margin-block-end: 8px">
                 不支持的控件类型: ${control.type}
               </div>
             `
