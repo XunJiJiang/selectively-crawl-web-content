@@ -21,22 +21,38 @@
   position: absolute;
   width: 18px;
   height: 18px;
-  top: 2px;
-  right: 36px;
+  top: 3px;
+  right: 40px;
   cursor: pointer;
   overflow: hidden;
-  transition: transform 0.2s;
+  border-radius: 2px;
+  background-color: transparent;
+  padding: 2px 0 0 2px;
+  box-sizing: border-box;
+}
+
+.scwc-layout-header-switch-claw-visible:hover,
+.scwc-layout-header-switch-claw-visible[active] {
+  background-color: #4e4e4ea5;
 }
 
 .scwc-layout-header-switch-plugin-visible {
   position: absolute;
   width: 18px;
   height: 18px;
-  top: 2px;
-  right: 19px;
+  top: 3px;
+  right: 21px;
   cursor: pointer;
   overflow: hidden;
-  transition: transform 0.2s;
+  border-radius: 2px;
+  background-color: transparent;
+  padding: 2px 0 0 2px;
+  box-sizing: border-box;
+}
+
+.scwc-layout-header-switch-plugin-visible:hover,
+.scwc-layout-header-switch-plugin-visible[active] {
+  background-color: #4e4e4ea5;
 }
 
 .scwc-layout-header-minimize {
@@ -47,4 +63,9 @@
   right: 2px;
   cursor: pointer;
   overflow: hidden;
+  border-radius: 2px;
+}
+
+.scwc-layout-header-minimize:hover {
+  background-color: #4e4e4ea5;
 }
