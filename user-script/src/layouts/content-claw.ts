@@ -468,7 +468,7 @@ class SCWCContentClaw extends LitElement {
       }}
                     ></scwc-input>
                     <scwc-button
-                      type="danger"
+                      type="secondary"
                       title="删除该选择项"
                       aria-label="Delete this selection item"
                       btn-style="color: #d90000;"
