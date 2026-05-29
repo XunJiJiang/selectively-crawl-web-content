@@ -324,7 +324,7 @@ class SCWCContentClaw extends LitElement {
             ?active=${this.selecting}
             title="点击网页中的元素即可开始选择捕获内容"
             aria-label="Toggle element selection mode"
-            btn-style=${this.selecting ? 'color: #0045d9;' : ''}
+            btn-style=${this.selecting ? 'color: #00c7d9;' : ''}
             @click=${this.toggleSelecting}
           >
             <!-- 是否开启选中 -->
