@@ -34,7 +34,7 @@
 
 .claw-item {
   display: flex;
-  align-items: center;
+  align-items: end;
   padding: 4px;
   border-bottom: 1px solid #eee6;
   cursor: pointer;
@@ -60,4 +60,10 @@
 .claw-item-placeholder {
   color: rgb(204, 204, 204);
   font-size: 13px;
+}
+
+.claw-item scwc-button,
+.claw-item .claw-item-drag-handle {
+  /* 居于容器底部 */
+  margin-block-end: 4px;
 }
