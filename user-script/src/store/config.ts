@@ -80,22 +80,18 @@ export class ConfigController implements ReactiveController {
     title: '设置',
     description: '插件配置',
     "script-config-symbol": CONFIG_SYMBOL,
-    controls: [] as ScriptConfigItem[],
+    controls: this.createConfigControls(),
   }
 
-  setConfig (newConfig: TConfig) {
-    if (JSON.stringify(this.config) === JSON.stringify(newConfig)) {
-      return;
-    }
-    saveToStorage(CONFIG_KEY, newConfig);
-    this.config = newConfig;
-    this.configControls.controls = [{
+  private createConfigControls (config?: TConfig): ScriptConfigItem[] {
+    const currentConfig = config ?? this.config;
+    return [{
       'script-config-symbol': CONFIG_SYMBOL,
       type: 'input:text',
       label: 'Host',
       channel: `${configId}-api-host`,
       options: {
-        defaultValue: newConfig.api.host,
+        defaultValue: currentConfig.api.host,
       },
       trigger: (value) => {
         debounce(
@@ -115,7 +111,7 @@ export class ConfigController implements ReactiveController {
       label: 'Port',
       channel: `${configId}-api-port`,
       options: {
-        defaultValue: newConfig.api.port,
+        defaultValue: currentConfig.api.port,
       },
       trigger: (value) => {
         debounce(
@@ -135,7 +131,7 @@ export class ConfigController implements ReactiveController {
       label: 'API Token',
       channel: `${configId}-api-token`,
       options: {
-        defaultValue: newConfig.api.token,
+        defaultValue: currentConfig.api.token,
       },
       trigger: (value) => {
         debounce(
@@ -155,7 +151,7 @@ export class ConfigController implements ReactiveController {
       label: '插件配置刷新规则',
       channel: `${configId}-plugin-refreshRule`,
       options: {
-        defaultValue: newConfig.plugin.refreshRule,
+        defaultValue: currentConfig.plugin.refreshRule,
       },
       trigger: (value) =>
         debounce(
@@ -168,7 +164,16 @@ export class ConfigController implements ReactiveController {
               },
             }),
           500)(value)
-    }]
+    }];
+  }
+
+  setConfig (newConfig: TConfig) {
+    if (JSON.stringify(this.config) === JSON.stringify(newConfig)) {
+      return;
+    }
+    saveToStorage(CONFIG_KEY, newConfig);
+    this.config = newConfig;
+    this.configControls.controls = this.createConfigControls(newConfig);
     this.host.requestUpdate();
     this.onConfigUpdate(this.config);
   }
