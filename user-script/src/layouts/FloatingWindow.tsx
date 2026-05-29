@@ -88,7 +88,7 @@ const FloatingWindow: React.FC<FloatingWindowProps> = ({
     // 计算悬浮窗宽高
     const winW = window.innerWidth;
     const winH = window.innerHeight;
-    const width = expanded ? 320 : 150; // minWidth
+    const width = expanded ? 320 : 100; // minWidth
     const height = expanded ? 180 : 56; // minHeight
     const maxWidth = 420;
     const maxHeight = expanded ? winH * 0.7 : 56;
@@ -97,7 +97,7 @@ const FloatingWindow: React.FC<FloatingWindowProps> = ({
     let y = e.clientY - offset.current.y;
     // 限制范围：全部在窗口内
     // 取实际宽高（max/min）
-    let w = expanded ? Math.min(maxWidth, Math.max(width, 320)) : 150;
+    let w = expanded ? Math.min(maxWidth, Math.max(width, 320)) : 100;
     let h = expanded ? Math.min(maxHeight, Math.max(height, 180)) : 56;
     if (typeof w === 'string') w = parseInt(w);
     if (typeof h === 'string') h = parseInt(h);
@@ -115,11 +115,11 @@ const FloatingWindow: React.FC<FloatingWindowProps> = ({
   const checkAndAdjustPos = useCallback(() => {
     const winW = window.innerWidth;
     const winH = window.innerHeight;
-    const width = expanded ? 320 : 150;
+    const width = expanded ? 320 : 100;
     const height = expanded ? 180 : 56;
     const maxWidth = 420;
     const maxHeight = expanded ? winH * 0.7 : 56;
-    let w = expanded ? Math.min(maxWidth, Math.max(width, 320)) : 150;
+    let w = expanded ? Math.min(maxWidth, Math.max(width, 320)) : 100;
     let h = expanded ? Math.min(maxHeight, Math.max(height, 180)) : 56;
     if (typeof w === 'string') w = parseInt(w);
     if (typeof h === 'string') h = parseInt(h);

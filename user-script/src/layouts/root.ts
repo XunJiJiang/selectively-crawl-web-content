@@ -74,7 +74,7 @@ class SCWCRootLayout extends LitElement {
         style=${styleMap({
       left: `${this.position.x}px`,
       top: `${this.position.y}px`,
-      'min-width': this.selectionExpanded ? '320px' : '150px',
+      'min-width': this.selectionExpanded ? '320px' : '120px',
       'min-height': this.selectionExpanded ? '180px' : '56px',
     })}
         .position=${this.position}

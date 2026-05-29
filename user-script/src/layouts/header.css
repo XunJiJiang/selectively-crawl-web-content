@@ -27,7 +27,7 @@
   overflow: hidden;
   border-radius: 2px;
   background-color: transparent;
-  padding: 2px 0 0 2px;
+  padding: 2.5px 0 0 2px;
   box-sizing: border-box;
 }
 
@@ -46,7 +46,7 @@
   overflow: hidden;
   border-radius: 2px;
   background-color: transparent;
-  padding: 2px 0 0 2px;
+  padding: 1.5px 0 0 2px;
   box-sizing: border-box;
 }
 
@@ -60,10 +60,12 @@
   width: 18px;
   height: 18px;
   top: 3px;
+  padding: 1px 0 0 0;
   right: 2px;
   cursor: pointer;
   overflow: hidden;
   border-radius: 2px;
+  box-sizing: border-box;
 }
 
 .scwc-layout-header-minimize:hover {

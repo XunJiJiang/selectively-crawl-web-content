@@ -40,7 +40,7 @@ class SCWCHeaderLayout extends LitElement {
     // 计算悬浮窗宽高
     const winW = window.innerWidth;
     const winH = window.innerHeight;
-    const width = this.selectionExpanded ? 320 : 150; // minWidth
+    const width = this.selectionExpanded ? 320 : 120; // minWidth
     const height = this.selectionExpanded ? 180 : 56; // minHeight
     const maxWidth = 420;
     const maxHeight = this.selectionExpanded ? winH * 0.7 : 56;
@@ -49,7 +49,7 @@ class SCWCHeaderLayout extends LitElement {
     let y = e.clientY - this.offset.y;
     // 限制范围：全部在窗口内
     // 取实际宽高（max/min）
-    let w = this.selectionExpanded ? Math.min(maxWidth, Math.max(width, 320)) : 150;
+    let w = this.selectionExpanded ? Math.min(maxWidth, Math.max(width, 320)) : 120;
     let h = this.selectionExpanded ? Math.min(maxHeight, Math.max(height, 180)) : 56;
     if (typeof w === 'string') w = parseInt(w);
     if (typeof h === 'string') h = parseInt(h);
@@ -73,7 +73,7 @@ class SCWCHeaderLayout extends LitElement {
         class="scwc-layout-header"
         @mousedown=${this.handleMouseDown}
       >
-        <div class="scwc-layout-header-title">选择性爬虫</div>
+        <div class="scwc-layout-header-title">SCWC</div>
         <div
           class="scwc-layout-header-switch-claw-visible"
           ?active=${this.selectionExpanded}
@@ -96,7 +96,7 @@ class SCWCHeaderLayout extends LitElement {
           @click=${() => this.dispatchEvent(new CustomEvent('minimize', { bubbles: false }))}
         >
           <svg style="width: 100%; height: 100%;">
-            <rect x="4.5" y="7" width="9" height="1.2" rx="0.35" fill="#888" />
+            <rect x="4.5" y="7" width="9" height="1.2" rx="0.35" fill="currentColor" />
           </svg>
         </div>
       </div>
@@ -107,11 +107,11 @@ class SCWCHeaderLayout extends LitElement {
   private handleWindowResize = debounce(() => {
     const winW = window.innerWidth;
     const winH = window.innerHeight;
-    const width = this.selectionExpanded ? 320 : 150;
+    const width = this.selectionExpanded ? 320 : 120;
     const height = this.selectionExpanded ? 180 : 56;
     const maxWidth = 420;
     const maxHeight = this.selectionExpanded ? winH * 0.7 : 56;
-    let w = this.selectionExpanded ? Math.min(maxWidth, Math.max(width, 320)) : 150;
+    let w = this.selectionExpanded ? Math.min(maxWidth, Math.max(width, 320)) : 120;
     let h = this.selectionExpanded ? Math.min(maxHeight, Math.max(height, 180)) : 56;
     if (typeof w === 'string') w = parseInt(w);
     if (typeof h === 'string') h = parseInt(h);
