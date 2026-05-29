@@ -14,8 +14,9 @@
 .plugin-window .plugin-window-tabs .plugin-window-tab {
   transition: all 0.2s;
   color: #fff8;
-  padding: 8px 16px;
+  padding: 4px 8px;
   cursor: pointer;
+  font-size: 12px;
 }
 
 .plugin-window .plugin-window-tabs .plugin-window-tab:hover {
@@ -29,7 +30,7 @@
 
 .plugin-window .plugin-window-content {
   flex: 1;
-  padding: 16px;
+  padding: 4px;
   overflow: auto;
   max-width: 500px;
   max-height: min(calc(100vh - 250px), 400px);
@@ -104,7 +105,6 @@
 .plugin-window .plugin-window-content scwc-input[type='text']::part(label) {
   display: flex;
   flex-direction: column;
-  margin-inline-end: 8px;
   margin-block-end: 8px;
 }
 
@@ -118,7 +118,6 @@
   flex: 1 1 0%;
   font-size: 13px;
   color: rgb(204, 204, 204);
-  margin-inline-end: 8px;
   padding: 4px;
   box-sizing: border-box;
   background: transparent;
