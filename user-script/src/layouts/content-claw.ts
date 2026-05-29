@@ -11,6 +11,7 @@ import { styleMap } from 'lit/directives/style-map.js';
 import { getElementBySelector, getSelector } from '../utils/selector';
 import { getCrawlData } from '../utils/claw';
 import { sendCrawlRequest } from '../api/crawl';
+import type { SCWCInputEventMap } from '../components/input';
 
 /** 判断是否为悬浮窗或其子元素 */
 function isExcludedElement (el: Element): boolean {
@@ -401,7 +402,7 @@ class SCWCContentClaw extends LitElement {
                   title="对选中元素的描述，方便区分和理解. 必填, 需要留空则输入${`<null>`}."
                   aria-label="Description of the selected element, required. If no description is needed, please input ${`<null>`}."
                   .value=${this.descInput}
-                  @input=${(e: CustomEvent) => this.descInput = e.detail.value}
+                  @input=${(e: SCWCInputEventMap['input']) => (console.log('value', e.detail), this.descInput = e.detail)}
                 ></scwc-input>
                 <scwc-input
                   label="前缀"
@@ -409,7 +410,7 @@ class SCWCContentClaw extends LitElement {
                   title="选中元素的前缀，抓取时会将前缀与选中元素的文本内容拼接后输出. 选填, 留空时默认为一个空格."
                   aria-label="Prefix of the selected element, optional. If no prefix is needed, please leave it blank."
                   .value=${this.prefixInput}
-                  @input=${(e: CustomEvent) => this.prefixInput = e.detail.value}
+                  @input=${(e: SCWCInputEventMap['input']) => (console.log('value', e.detail), this.prefixInput = e.detail)}
                 ></scwc-input>
             ` : nothing}
           ${this.selecting && !this.selectedEl ? html`
@@ -446,7 +447,7 @@ class SCWCContentClaw extends LitElement {
                       title="对选中元素的描述，方便区分和理解. 必填, 需要留空则输入${`<null>`}."
                       aria-label="Description of the selected element, required. If no description is needed, please input ${`<null>`}."
                       .value=${item.label}
-                      @input=${(e: CustomEvent<string>) => {
+                      @input=${(e: SCWCInputEventMap['input']) => {
         const newItems = [...this.items];
         newItems[idx] = { ...newItems[idx], label: e.detail };
         this.setItems(newItems);
@@ -458,7 +459,7 @@ class SCWCContentClaw extends LitElement {
                       title="选中元素的前缀，抓取时会将前缀与选中元素的文本内容拼接后输出. 选填, 留空时默认为一个空格."
                       aria-label="Prefix of the selected element, optional. If no prefix is needed, please leave it blank."
                       .value=${item.prefix}
-                      @input=${(e: CustomEvent<string>) => {
+                      @input=${(e: SCWCInputEventMap['input']) => {
         const newItems = [...this.items];
         newItems[idx] = { ...newItems[idx], prefix: e.detail };
         this.setItems(newItems);
