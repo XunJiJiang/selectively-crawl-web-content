@@ -7,6 +7,7 @@ import { RefreshRuleParser } from "../utils/refreshRuleParser";
 import { loadFromStorage, saveToStorage } from "../utils/storage";
 import type { ReactiveController, ReactiveControllerHost } from 'lit';
 import { debounce } from '../utils/debounce';
+import { isEqual } from 'es-toolkit';
 
 /** 匹配规则解析 */
 export const parseRefreshRule = cache((rule: string) => {
@@ -44,7 +45,7 @@ export const configContext = createContext<TConfig>(CONFIG_SYMBOL);
 
 window.addEventListener('storage', (e: StorageEvent) => {
   if (e.key === CONFIG_KEY && e.newValue) {
-    if (JSON.stringify(ConfigController.config) !== e.newValue) {
+    if (!isEqual(ConfigController.config, JSON.parse(e.newValue))) {
       ConfigController.config = JSON.parse(e.newValue);
       ConfigController.dispatchConfigUpdate();
     }
@@ -168,12 +169,15 @@ export class ConfigController implements ReactiveController {
   }
 
   setConfig (newConfig: TConfig) {
-    if (JSON.stringify(this.config) === JSON.stringify(newConfig)) {
+    if (isEqual(this.config, newConfig)) {
       return;
     }
     saveToStorage(CONFIG_KEY, newConfig);
     this.config = newConfig;
-    this.configControls.controls = this.createConfigControls(newConfig);
+    this.configControls = {
+      ...this.configControls,
+      controls: this.createConfigControls(newConfig),
+    }
     this.host.requestUpdate();
     this.onConfigUpdate(this.config);
   }
