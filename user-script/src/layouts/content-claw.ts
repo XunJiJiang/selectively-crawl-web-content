@@ -424,7 +424,7 @@ class SCWCContentClaw extends LitElement {
                 ${this.items.length > 0 ? this.items.map((item, idx) => html`
                   <div
                     class="claw-item"
-                    draggable
+                    draggable="true"
                     @dragstart=${(e: DragEvent) => {
         e.dataTransfer?.setData('idx', idx.toString());
       }}
