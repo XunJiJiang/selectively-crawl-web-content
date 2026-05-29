@@ -41,6 +41,7 @@ export class PluginsController implements ReactiveController {
       const configControls = this.configController.configControls;
       if (this.plugins) {
         let oldConfigControls: ScriptConfig | null = null;
+        /** 过滤插件配置后的插件项 */
         const filtered: (PluginConfig | ScriptConfig)[] = [];
         for (const plugin of this.plugins) {
           if (isConfig(plugin)) {
@@ -52,17 +53,25 @@ export class PluginsController implements ReactiveController {
         if (oldConfigControls && configControls !== oldConfigControls) {
           filtered.unshift(configControls);
           this.setPlugins(filtered);
-          const newControlValues = new Map<PluginItem, { value: string | number | boolean | null; plugin: PluginConfig }>(this.controlValues);
-          oldConfigControls?.controls.forEach(control => {
-            newControlValues.delete(control);
+          oldConfigControls.controls.forEach(control => {
+            this.controlValues.delete(control);
           });
           configControls.controls.forEach(control => {
-            newControlValues.set(control, {
+            this.controlValues.set(control, {
               value: control.options?.defaultValue ?? null,
               plugin: configControls,
             });
           });
-          this.controlValues = newControlValues;
+        } else if (oldConfigControls && configControls === oldConfigControls) {
+          return;
+        } else {
+          this.setPlugins([...this.plugins, configControls]);
+          configControls.controls.forEach(control => {
+            this.controlValues.set(control, {
+              value: control.options?.defaultValue ?? null,
+              plugin: configControls,
+            });
+          });
         }
       } else {
         this.setPlugins([configControls]);
@@ -104,17 +113,15 @@ export class PluginsController implements ReactiveController {
 
   /** 修改/触发插件控制器值的方法 */
   setControlValue (control: PluginItem | ScriptConfigItem, value: string | number | boolean | null) {
-    const newControlValues = new Map(this.controlValues);
-    const controlInfo = newControlValues.get(control);
+    const controlInfo = this.controlValues.get(control);
     if (!controlInfo) {
       console.warn('插件控制器值未找到:', control.channel);
       return;
     }
-    newControlValues.set(control, {
+    this.controlValues.set(control, {
       value,
       plugin: controlInfo.plugin,
     });
-    this.controlValues = newControlValues;
 
     const triggerFunction = this.triggerExecutorFunctions.get(control);
     if (!triggerFunction) {
@@ -174,7 +181,7 @@ export class PluginsController implements ReactiveController {
     this.setActiveTab('');
     this.setActivePlugin(null);
     this.channelControlMap = null;
-    this.controlValues = new Map();
+    this.controlValues.clear();
 
     try {
       const plugins = await fetchPlugins(this.configController.config);
@@ -220,11 +227,11 @@ export class PluginsController implements ReactiveController {
     }
 
     // 更新插件控制器的触发器函数
-    const newTriggerExecutorFunctions = new Map<PluginItem | ScriptConfigItem, (pluginId: string, channel: string, control: PluginItem | ScriptConfigItem, value: string | number | boolean | null) => void>();
+    this.triggerExecutorFunctions.clear();
     plugins?.forEach(plugin => {
       plugin.controls.forEach(control => {
         const needLazyFetchType = ['input:text', 'input:number'].includes(control.type);
-        newTriggerExecutorFunctions.set(
+        this.triggerExecutorFunctions.set(
           control,
           isConfigItem(control)
             ? (_pluginId: string, _channel: string, control: PluginItem | ScriptConfigItem, value: string | number | boolean | null) => {
@@ -249,7 +256,6 @@ export class PluginsController implements ReactiveController {
             })
       });
     });
-    this.triggerExecutorFunctions = newTriggerExecutorFunctions;
 
     const newChannelControlMap: Record<string, PluginItem> = {};
     [...(plugins ?? []), this.configController.configControls].forEach(plugin => {
@@ -259,16 +265,15 @@ export class PluginsController implements ReactiveController {
     });
     this.channelControlMap = newChannelControlMap;
     // 尝试保持之前的控制器值
-    const newControlValues = new Map<PluginItem, { value: string | number | boolean | null; plugin: PluginConfig }>(this.controlValues);
     plugins?.forEach(plugin => {
       plugin.controls.forEach(control => {
         const oldControl = oldPlugins?.find(p => p.id === plugin.id)?.controls.find(c => c.channel === control.channel);
         if (oldControl) {
-          newControlValues.set(control, this.controlValues.get(oldControl) ?? { value: control.options?.defaultValue ?? null, plugin });
+          this.controlValues.set(control, this.controlValues.get(oldControl) ?? { value: control.options?.defaultValue ?? null, plugin });
         } else {
-          newControlValues.set(control, { value: control.options?.defaultValue ?? null, plugin });
+          this.controlValues.set(control, { value: control.options?.defaultValue ?? null, plugin });
         }
-        console.log('设置控制器值:', control.channel, newControlValues.get(control));
+        console.log('设置控制器值:', control.channel, this.controlValues.get(control));
       });
     });
 
