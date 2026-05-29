@@ -3,7 +3,7 @@
   "module": "./server/index.ts",
   "description": "A web extension for selectively crawling web content.",
   "type": "module",
-  "version": "1.4.1",
+  "version": "2.0.0",
   "author": "XunJi & XunJiJiang",
   "repository": {
     "type": "git",

@@ -1,8 +1,8 @@
-# selectively-crawl-web-content
+# Selectively Crawl Web Content
 
 ## 简介
 
-用于选择性抓取网页内容，由前端油猴脚本（React/Vite/TypeScript）和 Node 服务端（Express）组成。支持在任意网页上通过悬浮窗选择、管理、抓取页面元素内容，并将结果上传到本地服务器。
+用于选择性抓取网页内容，由前端油猴脚本（Lit/TypeScript）和 Node 服务端（Express）组成。支持在任意网页上通过悬浮窗选择、管理、抓取页面元素内容，并将结果上传到本地服务器。
 
 > [!WARNING]
 >
@@ -22,7 +22,7 @@
 
 > [!NOTE]
 >
-> 建议使用支持直接运行 ts 的环境，例如 `bun`、`node v24+` 等，此时可以直接运行服务和 ts 插件
+> 建议使用支持直接运行 ts 的环境，例如 `bun`、`node v24+`、`tsx` 等，可以直接运行服务和 ts 插件
 >
 > 否则，必须手动编译为 js
 
@@ -45,7 +45,7 @@ bun install
 2. 启动服务：
 
 ```bash
-npm run start
+bun run start
 ```
 
 > [!TIP]
