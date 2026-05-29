@@ -444,7 +444,7 @@ class SCWCContentClaw extends LitElement {
       }}
                   >
                     <scwc-input
-                      label="描述"
+                      label=${idx === 0 ? '描述' : ''}
                       placeholder="请输入对选中元素的描述. 需要留空则输入${`<null>`}"
                       title="对选中元素的描述，方便区分和理解. 必填, 需要留空则输入${`<null>`}."
                       aria-label="Description of the selected element, required. If no description is needed, please input ${`<null>`}."
@@ -456,7 +456,7 @@ class SCWCContentClaw extends LitElement {
       }}
                     ></scwc-input>
                     <scwc-input
-                      label="前缀"
+                      label=${idx === 0 ? '前缀' : ''}
                       placeholder="请输入选中元素的前缀"
                       title="选中元素的前缀，抓取时会将前缀与选中元素的文本内容拼接后输出. 选填, 留空时默认为一个空格."
                       aria-label="Prefix of the selected element, optional. If no prefix is needed, please leave it blank."
