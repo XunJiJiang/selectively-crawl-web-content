@@ -18,7 +18,7 @@ class SCWCHeaderLayout extends LitElement {
 
   /** 是否处于拖动中 */
   private isDragging = false;
-  /** 鼠标位置偏移量 */
+  /** 鼠标位置偏移量, 相对于窗口左上角的位置 */
   private offset = { x: 0, y: 0 };
 
   /** 鼠标按下事件 */
@@ -40,7 +40,7 @@ class SCWCHeaderLayout extends LitElement {
     // 计算悬浮窗宽高
     const winW = window.innerWidth;
     const winH = window.innerHeight;
-    const width = this.selectionExpanded ? 320 : 100; // minWidth
+    const width = this.selectionExpanded ? 320 : 150; // minWidth
     const height = this.selectionExpanded ? 180 : 56; // minHeight
     const maxWidth = 420;
     const maxHeight = this.selectionExpanded ? winH * 0.7 : 56;
@@ -49,7 +49,7 @@ class SCWCHeaderLayout extends LitElement {
     let y = e.clientY - this.offset.y;
     // 限制范围：全部在窗口内
     // 取实际宽高（max/min）
-    let w = this.selectionExpanded ? Math.min(maxWidth, Math.max(width, 320)) : 100;
+    let w = this.selectionExpanded ? Math.min(maxWidth, Math.max(width, 320)) : 150;
     let h = this.selectionExpanded ? Math.min(maxHeight, Math.max(height, 180)) : 56;
     if (typeof w === 'string') w = parseInt(w);
     if (typeof h === 'string') h = parseInt(h);
@@ -104,11 +104,11 @@ class SCWCHeaderLayout extends LitElement {
   private handleWindowResize = debounce(() => {
     const winW = window.innerWidth;
     const winH = window.innerHeight;
-    const width = this.selectionExpanded ? 320 : 100;
+    const width = this.selectionExpanded ? 320 : 150;
     const height = this.selectionExpanded ? 180 : 56;
     const maxWidth = 420;
     const maxHeight = this.selectionExpanded ? winH * 0.7 : 56;
-    let w = this.selectionExpanded ? Math.min(maxWidth, Math.max(width, 320)) : 100;
+    let w = this.selectionExpanded ? Math.min(maxWidth, Math.max(width, 320)) : 150;
     let h = this.selectionExpanded ? Math.min(maxHeight, Math.max(height, 180)) : 56;
     if (typeof w === 'string') w = parseInt(w);
     if (typeof h === 'string') h = parseInt(h);
