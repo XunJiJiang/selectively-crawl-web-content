@@ -54,9 +54,9 @@ class SCWCMinimizedLayout extends LitElement {
     return html`
       <div
         class="scwc-layout-minimized"
-        style=${styleMap({ top: `${this.position.y}px`, })}
-        onclick=${() => this.dispatchEvent(new CustomEvent('maximize', { bubbles: false }))}
-        onmousedown=${this.onMouseDown}
+        style=${styleMap({ top: `${this.position.y}px`, position: 'fixed' })}
+        @click=${() => this.dispatchEvent(new CustomEvent('maximize', { bubbles: false }))}
+        @mousedown=${this.onMouseDown}
       >
         <span class="scwc-layout-minimized-drag-area">SCWC</span>
       </div>
