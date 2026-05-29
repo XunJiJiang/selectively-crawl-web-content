@@ -40,7 +40,7 @@ class SCWCInput extends LitElement {
   render () {
     return html`
       <label part="label" for=${this.id} class="scwc-input-label" data-inline=${this.inline}>
-        <span part="description" class="scwc-input-desc">${this.label}</span>
+        <span part="description" class="scwc-input-desc" style=${this.label === '' ? 'display: none;' : ''} >${this.label}</span>
         <input
           part="input"
           class=${classMap({
