@@ -8,6 +8,10 @@
   flex-wrap: nowrap;
 }
 
+.claw-header scwc-button {
+  margin: 2px 0 2px 2px;
+}
+
 /* .claw-body {
 } */
 

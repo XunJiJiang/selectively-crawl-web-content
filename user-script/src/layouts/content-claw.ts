@@ -318,7 +318,6 @@ class SCWCContentClaw extends LitElement {
           class="claw-header"
           style=${styleMap({
       'border-bottom': this.expanded ? '1px solid #eee6' : 'none',
-      padding: this.expanded ? 0 : '0 4px',
       width: this.expanded ? void 0 : 142,
       height: this.expanded ? void 0 : 32,
     })}
