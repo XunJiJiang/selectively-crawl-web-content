@@ -8,9 +8,9 @@ import { getCrawlData } from "../../utils/claw";
 import type { SCWCContentPlugin } from "../content-plugin";
 
 /** 插件项是否没有加载远程控制器 */
-function isPluginItemUnloaded (plugins: (PluginConfig | ScriptConfig)[] | null) {
-  return plugins === null || plugins.every(plugin => isConfig(plugin))
-}
+// function isPluginItemUnloaded (plugins: (PluginConfig | ScriptConfig)[] | null) {
+//   return plugins === null || plugins.every(plugin => isConfig(plugin))
+// }
 
 /** 获取完整的选项 */
 function getFullOptions (control: PluginItem): TRequiredOptions {
@@ -153,13 +153,17 @@ export class PluginsController implements ReactiveController {
   // /** 本次值更改发生变化的 PluginItem 列表 */
   // private changedItems: (PluginItem)[] = []
 
+  /** 是否为初次加载 */
+  private isInitialLoad = true;
+
   /** 请求插件列表 */
   async requestPlugins () {
     if (!this.host.expanded) {
       return;
     }
-    if (isPluginItemUnloaded(this.plugins)) {
+    if (this.isInitialLoad) {
       this.reloadPlugins();
+      this.isInitialLoad = false;
     }
   }
 
