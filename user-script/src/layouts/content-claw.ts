@@ -248,7 +248,8 @@ class SCWCContentClaw extends LitElement {
     if (!this.selecting) return;
     this.hoverEl = document.elementFromPoint(e.clientX, e.clientY);
     if (this.hoverEl && isExcludedElement(this.hoverEl)) {
-      this.hoverEl = null;
+      this.highlightEl?.remove();
+      this.highlightEl = null;
     } else if (this.hoverEl) {
       if (!this.highlightEl) {
         this.highlightEl = document.createElement('scwc-element-highlight');
@@ -260,10 +261,6 @@ class SCWCContentClaw extends LitElement {
 
   /** 选择元素处理函数 */
   private onElementClick = (e: MouseEvent) => {
-    this.selectedEl = null;
-    this.descInput = '';
-    this.prefixInput = '';
-    this.undoStack = [];
     if (!this.selecting) return;
     e.preventDefault();
     // 只允许选中未被排除的元素
@@ -275,9 +272,9 @@ class SCWCContentClaw extends LitElement {
       this.prefixInput = '';
       this.undoStack = [getSelector(this.selectedEl)];
       this.dispatchEvent(new CustomEvent('trigger-selection-expanded', { detail: true }));
+      document.removeEventListener('click', this.onElementClick, true);
+      document.removeEventListener('mousemove', this.onElementHover);
     }
-    document.removeEventListener('click', this.onElementClick, true);
-    document.removeEventListener('mousemove', this.onElementHover);
   }
 
   /** 触发抓取数据 */
