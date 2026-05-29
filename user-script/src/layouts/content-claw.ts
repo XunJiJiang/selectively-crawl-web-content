@@ -176,6 +176,12 @@ class SCWCContentClaw extends LitElement {
     if (this.selecting) {
       document.addEventListener('click', this.onElementClick, true);
       document.addEventListener('mousemove', this.onElementHover);
+      this.hoverEl = null;
+      this.selectedEl = null;
+      this.undoStack = [];
+      this.descInput = '';
+      this.prefixInput = '';
+      this.dispatchEvent(new CustomEvent('trigger-selection-expanded', { detail: false }));
     } else {
       document.removeEventListener('click', this.onElementClick, true);
       document.removeEventListener('mousemove', this.onElementHover);
