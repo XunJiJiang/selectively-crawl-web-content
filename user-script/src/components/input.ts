@@ -18,6 +18,10 @@ class SCWCInput extends LitElement {
   @property({ type: String, reflect: true })
   accessor type: 'text' | 'number' = 'text';
 
+  /** 描述与输入框是否在一行 */
+  @property({ type: Boolean, reflect: true })
+  accessor inline = false;
+
   @property({ type: String })
   accessor label = '';
 
@@ -35,15 +39,16 @@ class SCWCInput extends LitElement {
 
   render () {
     return html`
-      <label part="label" for=${this.id} class="scwc-input-label">
+      <label part="label" for=${this.id} class="scwc-input-label" data-inline=${this.inline}>
         <span part="description" class="scwc-input-desc">${this.label}</span>
         <input
           part="input"
-          class=${['scwc-input', classMap({
+          class=${classMap({
       'scwc-input-text': this.type === 'text',
       'scwc-input-number': this.type === 'number',
       'scwc-input-disabled': this.disabled,
-    })]}
+      'scwc-input': true,
+    })}
           placeholder=${this.placeholder}
           id=${this.id}
           type=${this.type}
