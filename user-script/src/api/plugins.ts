@@ -111,6 +111,7 @@ function handleFetchResponse (promise: Promise<Response>, /* pluginId: string, _
         return;
       } else if (data.code === 200) {
         if (data.data.type === 'notification') {
+          console.log('插件请求成功，消息:', data.data.data);
           // TODO: 需要添加弹窗通知
           // const notifyFunc = notify[data.data.data.type as 'info' | 'success' | 'warn' | 'error'];
           // notifyFunc({
@@ -120,6 +121,7 @@ function handleFetchResponse (promise: Promise<Response>, /* pluginId: string, _
           // });
         }
       } else {
+        console.warn('插件请求返回了未知的响应代码: ' + data.code);
         // TODO: 需要添加弹窗通知
         // scwcWarn(`插件请求失败: ${data.code} ${data.message}`);
         // notify.warn({
@@ -131,6 +133,7 @@ function handleFetchResponse (promise: Promise<Response>, /* pluginId: string, _
       }
     })
     .catch(() => {
+      console.warn('插件请求失败');
       // TODO: 需要添加弹窗通知
       // scwcError('插件请求失败:', e);
       // notify.error({

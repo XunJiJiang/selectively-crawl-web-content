@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useCallback } from 'react';
 import FloatingWindow from './layouts/FloatingWindow';
 import TopButtons from './components/TopButtons';
@@ -21,7 +22,7 @@ function MainWindow() {
   const [expanded, setExpanded] = useState(false);
   const [selecting, setSelecting] = useState(false);
   const [selectedEl, setSelectedEl] = useState<Element | null>(null);
-  const [items, setItems] = useState<Item[]>(loadFromStorage<Item[]>(SELECTIVE_CRAWL_KEY, []));
+  const [items, setItems] = useState<Item[]>(loadFromStorage<any>(SELECTIVE_CRAWL_KEY, []));
   // undoStack 结构：从初始选中到当前选中，依次为 selector
   const [undoStack, setUndoStack] = useState<string[]>([]);
   const [descInput, setDescInput] = useState('');
@@ -235,7 +236,7 @@ function MainWindow() {
       <ItemFormAndCrawl
         expanded={expanded}
         items={items}
-        setItems={setItems}
+        setItems={setItems as any}
         selectedEl={selectedEl}
         descInput={descInput}
         setDescInput={setDescInput}

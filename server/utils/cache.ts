@@ -7,7 +7,7 @@ import { CacheableMemory } from 'cacheable';
 import { createCache } from 'cache-manager';
 import stream, { Readable } from 'node:stream';
 import z from 'zod';
-import type { TLogger } from './log.ts';
+import type { TLogger } from '../types/log.d.ts';
 
 /**
  * 保存未处理的错误实例
@@ -101,7 +101,7 @@ const keyvInstances = [
 ] as const;
 
 /** 提供错误处理程序 */
-export function addErrorHandler(store: string, handler: (errorInfo: { channel: string; error: Error }) => void) {
+export function addErrorHandler (store: string, handler: (errorInfo: { channel: string; error: Error }) => void) {
   if (!errorHandlers.has(store)) {
     errorHandlers.set(store, new Set());
   }
@@ -115,7 +115,7 @@ export function addErrorHandler(store: string, handler: (errorInfo: { channel: s
 }
 
 /** 执行错误处理 */
-function handleKeyvError(store?: string) {
+function handleKeyvError (store?: string) {
   if (keyvErrorInfo.size <= 0) {
     return;
   }
@@ -181,7 +181,7 @@ export const FILE_CACHE_DIR = path.join(process.cwd(), 'cache', 'files');
 /**
  * 检查数据是否是支持的类型
  */
-function isCacheableData(data: any): data is TCacheableData {
+function isCacheableData (data: any): data is TCacheableData {
   return (
     typeof data === 'string' ||
     typeof data === 'number' ||
@@ -202,7 +202,7 @@ function isCacheableData(data: any): data is TCacheableData {
  * @param log 日志记录器
  * @returns data
  */
-export async function setCache<T>(
+export async function setCache<T> (
   key: string,
   data: T,
   namespace: string | undefined,
@@ -389,7 +389,7 @@ export async function setCache<T>(
  * @param namespace 可选的命名空间，为插件提供隔离的缓存空间
  * @returns 缓存的数据，若不存在则返回 undefined
  */
-export async function getCache<T>(key: string, namespace: string | undefined): Promise<T | undefined> {
+export async function getCache<T> (key: string, namespace: string | undefined): Promise<T | undefined> {
   const cacheKey = namespace ? `${namespace}:${key}` : key;
   const cachedData = await cache.get<{
     type: 'redirect' | 'value' | `filecache:${TFileCacheType | TOtherCacheType}`;
@@ -466,7 +466,7 @@ export async function getCache<T>(key: string, namespace: string | undefined): P
  * @param key 缓存键
  * @param namespace 可选的命名空间，为插件提供隔离的缓存空间
  */
-export async function deleteCache(key: string, namespace: string | undefined): Promise<boolean> {
+export async function deleteCache (key: string, namespace: string | undefined): Promise<boolean> {
   const cacheKey = namespace ? `${namespace}:${key}` : key;
   return await cache.del(cacheKey);
 }
@@ -475,7 +475,7 @@ export async function deleteCache(key: string, namespace: string | undefined): P
  * @param keys 缓存键列表
  * @param namespace 可选的命名空间，为插件提供隔离的缓存空间
  */
-export async function mDeleteCache(keys: string[], namespace: string | undefined): Promise<boolean> {
+export async function mDeleteCache (keys: string[], namespace: string | undefined): Promise<boolean> {
   const cacheKeys = keys.map(key => (namespace ? `${namespace}:${key}` : key));
   return await cache.mdel(cacheKeys);
 }

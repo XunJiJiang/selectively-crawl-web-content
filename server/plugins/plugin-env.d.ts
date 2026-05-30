@@ -4,7 +4,7 @@ namespace SCWC {
   export type TCreateRetryGet<
     RES,
     A extends AxiosRequestConfig = AxiosRequestConfig,
-  > = import('../utils/axios').TCreateRetryGet<RES, A>;
+  > = import('../types/axios.d.ts').TCreateRetryGet<RES, A>;
 
   /**
    * 插件加载时的上下文对象
@@ -15,7 +15,7 @@ namespace SCWC {
     createRetryGet<RES, A extends AxiosRequestConfig = AxiosRequestConfig> (
       ...args: Parameters<TCreateRetryGet<RES, A>>
     ): ReturnType<TCreateRetryGet<RES, A>>;
-    LimitPromise: typeof import('../utils/axios').LimitPromise;
+    LimitPromise: typeof import('../types/axios.d.ts').LimitPromise;
   }
 
   /**
@@ -30,11 +30,11 @@ namespace SCWC {
   export type TRetryGet<
     RES,
     A extends AxiosRequestConfig = AxiosRequestConfig<any>,
-  > = import('../utils/axios').TRetryGet<RES, A>;
+  > = import('../types/axios.d.ts').TRetryGet<RES, A>;
 
-  export type TCommandExecute = import('../utils/command').TCommandExecute;
-  export type TCommandOption = import('../utils/command').TCommandOption;
-  export type TSubCommand = import('../utils/command').TSubCommand;
+  export type TCommandExecute = import('../types/command.d.ts').TCommandExecute;
+  export type TCommandOption = import('../types/command.d.ts').TCommandOption;
+  export type TSubCommand = import('../types/command.d.ts').TSubCommand;
 
   export type TDataItem = {
     label: string;
@@ -116,7 +116,7 @@ namespace SCWC {
     };
   }) => TPluginItem[] | Promise<TPluginItem[]>;
 
-  export type TLogger = import('../utils/log').TLogger;
+  export type TLogger = import('../types/log.d.ts').TLogger;
 
   export interface IPluginHandler {
     name?: string;

@@ -3,7 +3,6 @@ import style from './header.css?raw';
 import { LitElement, html, css, unsafeCSS } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { debounce } from 'es-toolkit'
-import { styleMap } from 'lit/directives/style-map.js';
 
 @customElement('scwc-layout-header')
 class SCWCHeaderLayout extends LitElement {

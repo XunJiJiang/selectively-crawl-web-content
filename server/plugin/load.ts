@@ -4,8 +4,9 @@ import { createLogger } from '../utils/log.ts';
 import { CommandError, registerCommand } from '../utils/command.ts';
 import { createRequire } from 'node:module';
 import { addErrorHandler } from '../utils/cache.ts';
-import { createRetryGet, LimitPromise, type TCreateRetryGet } from '../utils/axios.ts';
+import { createRetryGet, LimitPromise } from '../utils/axios.ts';
 import type { AxiosRequestConfig } from 'axios';
+import type { TCreateRetryGet } from '../types/axios';
 
 const __dirname = process.cwd();
 
@@ -28,7 +29,7 @@ export const inactivePlugins: (SCWC.IPluginMeta & {
  * > 这个函数目前和插件没有关系, 可以修改成根据缓存命名空间判断错误来源
  * @param logger 日志实例
  */
-export function initCacheErrorHandler(logger: SCWC.TLogger) {
+export function initCacheErrorHandler (logger: SCWC.TLogger) {
   addErrorHandler('env', ({ channel, error }) => {
     logger.error(`Environment error: ${error.message}`);
   });
@@ -40,7 +41,7 @@ export function initCacheErrorHandler(logger: SCWC.TLogger) {
   });
 }
 
-export async function loadPlugins() {
+export async function loadPlugins () {
   if (!fs.existsSync(PLUGIN_DIR)) return;
   const dirs = fs
     .readdirSync(PLUGIN_DIR, { withFileTypes: true })
@@ -143,13 +144,13 @@ export async function loadPlugins() {
     }
     const linkWith: string[] = Array.isArray(pkg['link-with'])
       ? pkg['link-with'].map(item => {
-          // 去除尾部斜杠
-          if (item.endsWith('/')) {
-            return item.slice(0, -1);
-          } else {
-            return item;
-          }
-        })
+        // 去除尾部斜杠
+        if (item.endsWith('/')) {
+          return item.slice(0, -1);
+        } else {
+          return item;
+        }
+      })
       : [];
     plugins.push({
       name: name,
@@ -201,7 +202,7 @@ export async function loadPlugins() {
 
     if (typeof plugin.handler.onLoad === 'function') {
       await plugin.handler.onLoad(logger, {
-        createRetryGet: <RES, A extends AxiosRequestConfig = AxiosRequestConfig>(
+        createRetryGet: <RES, A extends AxiosRequestConfig = AxiosRequestConfig> (
           ...args: Parameters<TCreateRetryGet<RES, A>>
         ) => {
           const namespace = `plugin:${plugin.name}`;
