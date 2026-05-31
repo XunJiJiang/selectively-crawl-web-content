@@ -13,7 +13,19 @@ import type { Item } from '../types/claw';
 
 @customElement('scwc-layout-root')
 class SCWCRootLayout extends LitElement {
-  static styles = [css`${unsafeCSS(style)}`];
+  static styles = [
+    css`
+      :host {
+        position: fixed;
+        width: 0;
+        height: 0;
+        top: 0;
+        left: 0;
+        z-index: 2147483647;
+      }
+    `,
+    css`${unsafeCSS(style)}`
+  ];
 
   /** 是否最小化 */
   @property({ type: Boolean, reflect: true })

@@ -6,7 +6,19 @@ import { styleMap } from 'lit/directives/style-map.js';
 
 @customElement('scwc-layout-minimized')
 class SCWCMinimizedLayout extends LitElement {
-  static styles = [css`${unsafeCSS(style)}`];
+  static styles = [
+    css`
+      :host {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 0;
+        height: 0;
+        z-index: 2147483647;
+      }
+    `,
+    css`${unsafeCSS(style)}`
+  ];
 
   @property({ type: Object })
   public accessor position: { readonly x: number, readonly y: number } = { x: 0, y: 0 };

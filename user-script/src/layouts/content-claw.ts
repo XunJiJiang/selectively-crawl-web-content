@@ -69,6 +69,15 @@ class RectController implements ReactiveController {
 @customElement('scwc-element-highlight')
 class SCWCElementHighlight extends LitElement {
   static styles = css`
+    :host {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 0;
+      height: 0;
+      z-index: 2147483647;
+    }
+
     .scwc-highlight-root {
       position: fixed;
       pointer-events: none;
@@ -76,7 +85,6 @@ class SCWCElementHighlight extends LitElement {
       left: 0;
       width: 0;
       height: 0;
-      z-index: 2147483646;
     }
 
     .scwc-highlight-box {
