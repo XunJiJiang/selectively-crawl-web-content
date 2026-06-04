@@ -1,6 +1,10 @@
+import style from './notify.css?raw';
+
 import { customElement, state } from 'lit/decorators.js';
+import { ref } from 'lit/directives/ref.js';
+import { repeat } from 'lit/directives/repeat.js';
 import type { INotifyOptions, TNotify } from '../types/notify.d.ts';
-import { css, html, LitElement } from 'lit';
+import { css, html, LitElement, noChange, nothing, unsafeCSS } from 'lit';
 import { v4 as uuidv4 } from 'uuid';
 
 export const notify = (options: INotifyOptions) => {
@@ -32,16 +36,7 @@ class SCWCNotify extends LitElement {
     SCWCNotify.getInstance().notify(options);
   }
 
-  static styles = css`
-    :host {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 0;
-      height: 0;
-      z-index: 2147483647;
-    }
-  `
+  static styles = [css`${unsafeCSS(style)}`];
 
   @state()
   infoList = {
@@ -67,6 +62,8 @@ class SCWCNotify extends LitElement {
       height: 0,
       // TODO: 需要在通知渲染后获取实际高度, 当 height 为 0 时，表示尚未获取到高度，需要先渲染到可视区域外
       // 获取到实际高度后，更新 notifyItem 的 height 属性，并调用 updateNotifyOffsets 以调整所有通知的位置
+      state: 'beforePreparation',
+      ref: void 0,
     }
     this.infoList[notifyOptions.placement].set(notifyItem.id, notifyItem);
     notifyItem.timeoutId = setTimeout(() => {
@@ -94,18 +91,29 @@ class SCWCNotify extends LitElement {
         notifyItem.onclose(source);
       }
       clearTimeout(notifyItem.timeoutId);
-      this.infoList[placement].delete(id);
+      notifyItem.state = 'beforeLeave';
       this.updateNotifyOffsets(placement);
       return true;
     }
     return false;
   }
 
+  /** 变化了的位置 */
+  private changedPlacement = {
+    tl: false,
+    tr: false,
+    tc: false,
+    bl: false,
+    br: false,
+    bc: false,
+  }
+
   /**
    * 当通知数量变化时，重新计算通知的 offset，并更新状态以触发重新渲染
    */
   private updateNotifyOffsets (placement: Required<INotifyOptions>['placement']) {
-
+    this.changedPlacement[placement] = true;
+    this.requestUpdate();
   }
 
   render () {
@@ -113,12 +121,129 @@ class SCWCNotify extends LitElement {
 
     return html`
       <div class="notify-container">
-        ${lists.map(([placement, list]) => html`
-          <div class="notify-list ${placement}">
-            ${Array.from(list.values()).map(item => html`
-            `)}
-          </div>
-        `)}
+        ${lists.map(([placement, list]) => {
+      if (this.changedPlacement[placement]) {
+        this.changedPlacement[placement] = false;
+      } else {
+        return noChange;
+      }
+      const listValues = Array.from(list.values());
+      return html`
+        <div class="notify-list ${placement}-list">
+          ${repeat(listValues, (item) => item.id, (item, idx) => {
+        if (item.state === 'beforePreparation') {
+          item.state = 'preparation';
+          return html`
+            <div class="notify-item preparation ${placement}-item" ${ref((ele) => {
+            item.ref = ele;
+            if (ele) {
+              // 刚添加到列表中, 尚未渲染到页面上, 需要隐式渲染计算高度
+              // 获取到实际高度后，更新 notifyItem 的 height 属性，并调用 updateNotifyOffsets 以调整所有通知的位置
+              const rect = ele.getBoundingClientRect();
+              item.height = rect.height;
+              item.state = 'beforeEnter';
+              this.updateNotifyOffsets(placement);
+            }
+          })}
+          >
+              <div class="notify-title">
+                <div class="notify-title-text">${item.title}</div>
+                <!-- 此处不注册关闭事件, 因为处于隐式渲染状态 -->
+                <div class="notify-close"></div>
+              </div>
+              <div class="notify-description">${item.description}</div>
+            </div>
+          `;
+        } else if (item.state === 'beforeEnter') {
+          return html`
+            <div
+              class="notify-item beforeEnter ${placement}-item"
+              style=${(() => {
+              // 获取上一个通知的 offset 和 height 以计算当前通知的 offset
+              const prevItem = listValues[idx - 1];
+              if (prevItem) {
+                item.offset = prevItem.offset + prevItem.height + 8;
+              } else {
+                item.offset = 0;
+              }
+              return placement.startsWith('b') ? `bottom: ${item.offset}px;` : `top: ${item.offset}px;`;
+            })()}
+              ${ref((ele) => {
+              item.ref = ele;
+              requestAnimationFrame(() => {
+                item.state = 'enter';
+                if (ele) {
+                  ele.classList.remove('beforeEnter');
+                  ele.classList.add('enter');
+                }
+              })
+            })}
+            @click=${(e: MouseEvent) => {
+              e.stopPropagation();
+              item.onclick();
+            }}
+              >
+              <div class="notify-title">
+                <div class="notify-title-text">${item.title}</div>
+                <div class="notify-close" @click=${(e: MouseEvent) => {
+              e.stopPropagation();
+              item.state = 'beforeLeave';
+              item.onclose('user');
+            }}></div>
+              </div>
+              <div class="notify-description">${item.description}</div>
+            </div>
+          `;
+        } else if (item.state === 'beforeLeave') {
+          return html`
+            <div
+              class="notify-item beforeLeave ${placement}-item"
+              style=${placement.startsWith('b') ? `bottom: ${item.offset}px;` : `top: ${item.offset}px;`}
+              ${ref((ele) => {
+            item.ref = ele;
+            requestAnimationFrame(() => {
+              item.state = 'leave';
+              if (ele) {
+                ele.classList.remove('beforeLeave');
+                ele.classList.add('leave');
+                setTimeout(() => {
+                  item.state = 'removed';
+                  const notifyList = this.infoList[placement];
+                  notifyList.delete(item.id);
+                  // 更新后面通知的 offset
+                  for (let i = idx + 1; i < listValues.length; i++) {
+                    listValues[i].offset -= item.height + 8;
+                    const ele = listValues[i].ref;
+                    if (ele && ele instanceof HTMLElement) {
+                      ele.style.transform = placement.startsWith('b') ? `bottom: ${listValues[i].offset}px;` : `top: ${listValues[i].offset}px;`;
+                    }
+                  }
+                  this.updateNotifyOffsets(placement);
+                }, 250 /* 此处应该根据离开动画的执行速度来执行 */)
+              }
+            })
+          })}
+          @click=${(e: MouseEvent) => {
+              e.stopPropagation();
+              item.onclick();
+            }}
+          >
+              <div class="notify-title">
+                <div class="notify-title-text">${item.title}</div>
+                <!-- 此处不注册关闭事件, 因为已经进入关闭状态了 -->
+                <div class="notify-close"></div>
+              </div>
+              <div class="notify-description">${item.description}</div>
+            </div>
+          `;
+        } else if (item.state === 'removed') {
+          return nothing;
+        } else {
+          return noChange;
+        }
+      })}
+        </div>
+      `})}
       </div>
     `;
   }
