@@ -25,25 +25,26 @@ class SCWCMinimizedLayout extends LitElement {
 
   /** 是否处于拖动中 */
   private isDragging = false;
+  /** 本次点击是否为拖动 */
+  private isDrag = false
   /** 鼠标位置偏移量 */
   private offsetY = 0;
 
   /** 鼠标按下事件 */
-  private onMouseDown (e: MouseEvent) {
+  private handleMouseDown (e: MouseEvent) {
     this.isDragging = true;
-    // 由于 click 的触发时间晚于 onMouseUp 所以不能在 onMouseDown 里设置 isDragging
-    // 虽然已经触发了 onMouseDown，但还不能算是拖动
-    this.isDragging = false;
+    this.isDrag = false;
     this.offsetY = e.clientY - this.position.y;
-    document.addEventListener('mousemove', this.onMouseMove);
-    document.addEventListener('mouseup', this.onMouseUp);
+    document.addEventListener('mousemove', this.handleMouseMove);
+    document.addEventListener('mouseup', this.handleMouseUp);
     e.stopPropagation();
     e.preventDefault();
   }
 
   /** 鼠标移动事件 */
-  private onMouseMove = (e: MouseEvent) => {
+  private handleMouseMove = (e: MouseEvent) => {
     if (!this.isDragging) return;
+    this.isDrag = true
     // 触发了拖动
     this.isDragging = true;
     let newY = e.clientY - this.offsetY;
@@ -56,10 +57,10 @@ class SCWCMinimizedLayout extends LitElement {
   }
 
   /** 鼠标释放事件 */
-  private onMouseUp = () => {
+  private handleMouseUp = () => {
     this.isDragging = false;
-    document.removeEventListener('mousemove', this.onMouseMove);
-    document.removeEventListener('mouseup', this.onMouseUp);
+    document.removeEventListener('mousemove', this.handleMouseMove);
+    document.removeEventListener('mouseup', this.handleMouseUp);
   }
 
   render () {
@@ -67,8 +68,11 @@ class SCWCMinimizedLayout extends LitElement {
       <div
         class="scwc-layout-minimized"
         style=${styleMap({ top: `${this.position.y}px`, position: 'fixed' })}
-        @click=${() => this.dispatchEvent(new CustomEvent('maximize', { bubbles: false }))}
-        @mousedown=${this.onMouseDown}
+        @click=${() => {
+        if (this.isDrag) return;
+        this.dispatchEvent(new CustomEvent('maximize', { bubbles: false }))
+      }}
+        @mousedown=${this.handleMouseDown}
       >
         <span class="scwc-layout-minimized-drag-area">SCWC</span>
       </div>
