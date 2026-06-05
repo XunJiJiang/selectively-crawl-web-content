@@ -3,12 +3,52 @@ import style from './notify.css?raw';
 import { customElement, state } from 'lit/decorators.js';
 import { ref } from 'lit/directives/ref.js';
 import { repeat } from 'lit/directives/repeat.js';
-import type { INotifyOptions, TNotify } from '../types/notify';
+import type { INotifyOptions, TNotify } from '../types/notify.d.ts';
 import { css, html, LitElement, noChange, nothing, unsafeCSS } from 'lit';
 import { v4 as uuidv4 } from 'uuid';
 
+
+class Notify {
+  private static instance: SCWCNotify | null = null;
+
+  constructor() {
+    Notify.getInstance();
+  }
+
+  static getInstance () {
+    if (!Notify.instance) {
+      Notify.instance = document.createElement('scwc-notify');
+      const notifyRoot = document.createElement('div');
+      notifyRoot.className = 'scwc-notify-root';
+      notifyRoot.style.cssText = `
+        position: fixed;
+        z-index: 2147483646;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+      `;
+      notifyRoot.appendChild(Notify.instance);
+      console.log('append notify root to body', Notify.instance);
+      document.body.appendChild(notifyRoot);
+    }
+    return Notify.instance;
+  }
+
+  static notify (options: INotifyOptions) {
+    Notify.getInstance().notify(options);
+  }
+
+  notify (options: INotifyOptions) {
+    Notify.notify(options);
+  }
+}
+
+const notifyClass = new Notify();
+
 export const notify = (options: INotifyOptions) => {
-  SCWCNotify.notify(options);
+  notifyClass.notify(options);
 }
 
 const defaultNotifyOptions: Omit<Required<INotifyOptions>, 'title'> = {
@@ -20,22 +60,9 @@ const defaultNotifyOptions: Omit<Required<INotifyOptions>, 'title'> = {
   onclick: () => {},
 }
 
+
 @customElement('scwc-notify')
 class SCWCNotify extends LitElement {
-  private static instance: SCWCNotify | null = null;
-
-  static getInstance () {
-    if (!SCWCNotify.instance) {
-      SCWCNotify.instance = document.createElement('scwc-notify') as SCWCNotify;
-      document.body.appendChild(SCWCNotify.instance);
-    }
-    return SCWCNotify.instance;
-  }
-
-  static notify (options: INotifyOptions) {
-    SCWCNotify.getInstance().notify(options);
-  }
-
   static styles = [css`${unsafeCSS(style)}`];
 
   @state()
@@ -48,7 +75,7 @@ class SCWCNotify extends LitElement {
     bc: new Map<string, TNotify>(),
   }
 
-  private notify (options: INotifyOptions) {
+  notify (options: INotifyOptions) {
     const notifyOptions = { ...defaultNotifyOptions, ...options };
     const placement = notifyOptions.placement ?? defaultNotifyOptions.placement;
     const notifyItem: TNotify = {
@@ -99,6 +126,7 @@ class SCWCNotify extends LitElement {
   }
 
   /** 变化了的位置 */
+  @state()
   private changedPlacement = {
     tl: false,
     tr: false,
@@ -114,11 +142,12 @@ class SCWCNotify extends LitElement {
   private updateNotifyOffsets (placement: Required<INotifyOptions>['placement']) {
     this.changedPlacement[placement] = true;
     this.requestUpdate();
+    console.log('update notify offsets');
   }
 
   render () {
     const lists = Object.entries(this.infoList) as ['tl' | 'tr' | 'tc' | 'bl' | 'br' | 'bc', Map<string, TNotify>][]
-
+    console.log('render notify');
     return html`
       <div class="notify-container">
         ${lists.map(([placement, list]) => {
