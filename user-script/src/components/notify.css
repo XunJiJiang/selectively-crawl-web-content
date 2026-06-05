@@ -1,0 +1,141 @@
+:host {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  z-index: 2147483647;
+}
+
+.notify-container {
+  position: fixed;
+  top: 10px;
+  bottom: 10px;
+  left: 10px;
+  right: 10px;
+  pointer-events: none;
+  background-color: transparent;
+}
+
+.notify-list {
+  position: absolute;
+}
+
+.notify-list.tl-list {
+  top: 0;
+  left: 0;
+}
+
+.notify-list.tr-list {
+  top: 0;
+  right: 0;
+}
+
+.notify-list.tc-list {
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.notify-list.bl-list {
+  bottom: 0;
+  left: 0;
+}
+
+.notify-list.br-list {
+  bottom: 0;
+  right: 0;
+}
+
+.notify-list.bc-list {
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.notify-item {
+  display: flex;
+  align-items: center;
+  width: 300px;
+  margin: 10px;
+  padding: 10px 15px;
+  border-radius: 4px;
+  background-color: rgba(0, 0, 0, 0.8);
+  color: #fff;
+  pointer-events: auto;
+}
+
+.notify-item .notify-title {
+  font-weight: bold;
+  margin-bottom: 5px;
+  font-size: 16px;
+}
+
+.notify-item .notify-title .notify-title-text {
+  width: calc(100% - 20px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.notify-item .notify-title .notify-close {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 10px;
+  height: 10px;
+  line-height: 10px;
+  text-align: center;
+  cursor: pointer;
+  border-radius: 50%;
+  background-color: rgba(255, 255, 255, 0.8);
+}
+
+.notify-item .notify-content {
+  font-size: 14px;
+}
+
+.notify-item.preparation {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.notify-item.before-enter {
+  opacity: 0;
+  transform: translateY(-20px);
+}
+
+.notify-item.enter {
+  animation: enter 0.25s forwards;
+}
+
+@keyframes enter {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.notify-item.before-leave {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.notify-item.leave {
+  animation: leave 0.25s forwards;
+}
+
+@keyframes leave {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+}
