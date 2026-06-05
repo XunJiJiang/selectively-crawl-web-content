@@ -74,13 +74,16 @@ class SCWCRootLayout extends LitElement {
   private accessor clawItems: Item[] = [];
 
   render () {
-    return this.minimized ? html`
+    return [html`
       <scwc-layout-minimized
+        style=${styleMap({
+      display: this.minimized ? '' : 'none',
+    })}
         @maximize=${() => this.setMinimized(false)}
         @move=${(e: CustomEvent<{ x: number, y: number }>) => this.setPosition(e.detail.x, e.detail.y)}
         .position=${this.position}
       ></scwc-layout-minimized>
-    ` : html`
+    ` , html`
       <div
         class="scwc-layout-root"
         style=${styleMap({
@@ -88,6 +91,7 @@ class SCWCRootLayout extends LitElement {
       top: `${this.position.y}px`,
       'min-width': this.selectionExpanded ? '320px' : '120px',
       'min-height': this.selectionExpanded ? '180px' : '56px',
+      display: this.minimized ? 'none' : '',
     })}
         .position=${this.position}
         .selectionExpanded=${this.selectionExpanded}
@@ -112,7 +116,7 @@ class SCWCRootLayout extends LitElement {
         ></scwc-layout-content>
         <scwc-layout-footer></scwc-layout-footer>
       </div>
-    `;
+    `];
   }
 }
 
