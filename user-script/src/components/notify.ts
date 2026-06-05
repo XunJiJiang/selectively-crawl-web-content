@@ -66,7 +66,7 @@ class SCWCNotify extends LitElement {
   static styles = [css`${unsafeCSS(style)}`];
 
   @state()
-  infoList = {
+  private accessor infoList = {
     tl: new Map<string, TNotify>(),
     tr: new Map<string, TNotify>(),
     tc: new Map<string, TNotify>(),
@@ -127,7 +127,7 @@ class SCWCNotify extends LitElement {
 
   /** 变化了的位置 */
   @state()
-  private changedPlacement = {
+  private accessor changedPlacement = {
     tl: false,
     tr: false,
     tc: false,
