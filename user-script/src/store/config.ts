@@ -1,13 +1,14 @@
 import { createContext } from '@lit/context';
 import { v4 } from "uuid";
-import type { ScriptConfig, ScriptConfigItem, TConfig } from "../types/config";
-import { cache } from "../utils/cache";
-import { CONFIG_KEY } from "../utils/common";
-import { RefreshRuleParser } from "../utils/refreshRuleParser";
-import { loadFromStorage, saveToStorage } from "../utils/storage";
+import type { ScriptConfig, ScriptConfigItem, TConfig } from "../types/config.d.ts";
+import { cache } from "../utils/cache.ts";
+import { CONFIG_KEY } from "../utils/common.ts";
+import { RefreshRuleParser } from "../utils/refreshRuleParser.ts";
+import { loadFromStorage, saveToStorage } from "../utils/storage.ts";
 import type { ReactiveController, ReactiveControllerHost } from 'lit';
-import { debounce } from '../utils/debounce';
+import { debounce } from '../utils/debounce.ts';
 import { isEqual } from 'es-toolkit';
+import { notify } from '../utils/notify.ts';
 
 /** 匹配规则解析 */
 export const parseRefreshRule = cache((rule: string) => {
@@ -165,6 +166,20 @@ export class ConfigController implements ReactiveController {
               },
             }),
           500)(value)
+    }, {
+      'script-config-symbol': CONFIG_SYMBOL,
+      type: 'button',
+      label: 'notify-test',
+      channel: `${configId}-notify-test`,
+      trigger: () => {
+        console.log('trigger notify test');
+        notify({
+          title: '测试通知',
+          description: '这是一条测试通知',
+          type: 'success',
+          placement: 'tr',
+        });
+      }
     }];
   }
 

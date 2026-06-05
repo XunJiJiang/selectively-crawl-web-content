@@ -2,22 +2,23 @@ import style from './content-claw.css?raw';
 
 import { LitElement, html, css, unsafeCSS, nothing, type ReactiveController, type ReactiveControllerHost } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { ConfigController } from '../store/config';
-import type { Item } from '../types/claw';
-import { loadFromStorage, saveToStorage } from '../utils/storage';
-import { SELECTIVE_CRAWL_KEY } from '../utils/common';
-import type { ArrayProcessor, JSONValueWithFunction } from '../types/utils';
+import { ConfigController } from '../store/config.ts';
+import type { Item } from '../types/claw.ts';
+import { loadFromStorage, saveToStorage } from '../utils/storage.ts';
+import { SELECTIVE_CRAWL_KEY } from '../utils/common.ts';
+import type { ArrayProcessor, JSONValueWithFunction } from '../types/utils.ts';
 import { styleMap } from 'lit/directives/style-map.js';
-import { getElementBySelector, getSelector } from '../utils/selector';
-import { getCrawlData } from '../utils/claw';
-import { sendCrawlRequest } from '../api/crawl';
-import type { SCWCInputEventMap } from '../components/input';
+import { getElementBySelector, getSelector } from '../utils/selector.ts';
+import { getCrawlData } from '../utils/claw.ts';
+import { sendCrawlRequest } from '../api/crawl.ts';
+import type { SCWCInputEventMap } from '../components/input.ts';
+import { notify } from '../utils/notify.ts';
 
 /** 判断是否为悬浮窗或其子元素 */
 function isExcludedElement (el: Element): boolean {
   let cur: Element | null = el;
   while (cur) {
-    if (cur.id === 'selective-crawl-floating-root' || cur.classList.contains('scw-floating-window')) {
+    if (cur.id === 'selective-crawl-floating-root' || cur.id === 'scwc-notify-root' || cur.classList.contains('scw-floating-window')) {
       return true;
     }
     cur = cur.parentElement;
@@ -304,14 +305,23 @@ class SCWCContentClaw extends LitElement {
     } else {
       console.log(data.message);
       // console.log(data.data);
-      // for (const item of data.data ?? []) {
-      // TODO: 弹窗通知
-      // notify[item.type as 'info' | 'success' | 'warn' | 'error']({
-      //   title: `插件 ${item.pluginInfo.name} 的抓取结果`,
-      //   description: item.info,
-      //   placement: 'topRight',
-      // });
-      // }
+      for (const item of data.data ?? []) {
+        if (typeof item === 'string') {
+          notify({
+            title: `抓取结果`,
+            description: item,
+            placement: 'tr',
+            type: 'info',
+          })
+        } else {
+          notify({
+            title: `插件 ${item.pluginInfo.name} 的抓取结果`,
+            description: item.info,
+            placement: 'tr',
+            type: item.type as 'info' | 'success' | 'warn' | 'error'
+          });
+        }
+      }
     }
   }
 

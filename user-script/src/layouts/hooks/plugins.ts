@@ -1,11 +1,12 @@
 import type { ReactiveController } from "lit";
-import type { PluginConfig, PluginItem, TRequiredOptions } from "../../types/plugin";
-import type { ScriptConfig, ScriptConfigItem } from "../../types/config";
-import { ConfigController, isConfig, isConfigItem } from "../../store/config";
-import { debounce } from "../../utils/debounce";
-import { fetchPlugins, triggerPlugin } from "../../api/plugins";
-import { getCrawlData } from "../../utils/claw";
-import type { SCWCContentPlugin } from "../content-plugin";
+import type { PluginConfig, PluginItem, TRequiredOptions } from "../../types/plugin.d.ts";
+import type { ScriptConfig, ScriptConfigItem } from "../../types/config.d.ts";
+import { ConfigController, isConfig, isConfigItem } from "../../store/config.ts";
+import { debounce } from "../../utils/debounce.ts";
+import { fetchPlugins, triggerPlugin } from "../../api/plugins.ts";
+import { getCrawlData } from "../../utils/claw.ts";
+import type { SCWCContentPlugin } from "../content-plugin.ts";
+import { notify } from "../../utils/notify.ts";
 
 /** 插件项是否没有加载远程控制器 */
 // function isPluginItemUnloaded (plugins: (PluginConfig | ScriptConfig)[] | null) {
@@ -126,7 +127,12 @@ export class PluginsController implements ReactiveController {
     const triggerFunction = this.triggerExecutorFunctions.get(control);
     if (!triggerFunction) {
       console.warn('未找到控制器触发函数:', control.channel);
-      // TODO: 需要添加弹窗通知
+      notify({
+        title: '插件控制器错误',
+        description: `未找到控制器触发函数: ${control.channel}`,
+        placement: 'tr',
+        type: 'error',
+      });
       return;
     }
     triggerFunction(
@@ -188,6 +194,12 @@ export class PluginsController implements ReactiveController {
       this.setPlugins([...plugins, this.configController.configControls]);
     } catch (e) {
       console.error('Failed to reload plugins:', e);
+      notify({
+        title: '插件加载失败',
+        description: (e as Error).message,
+        type: 'error',
+        placement: 'tr',
+      });
       this.setPlugins(this.configController.configControls ? [this.configController.configControls] : []);
     }
   }

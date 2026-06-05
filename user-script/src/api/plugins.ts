@@ -1,6 +1,7 @@
-import type { TCrawlData } from "../types/claw";
-import type { TConfig } from "../types/config";
-import type { PluginConfig, PluginItem, TRequiredOptions } from "../types/plugin";
+import type { TCrawlData } from "../types/claw.ts";
+import type { TConfig } from "../types/config.ts";
+import type { PluginConfig, PluginItem, TRequiredOptions } from "../types/plugin.ts";
+import { notify } from "../utils/notify.ts";
 
 /** 请求插件列表 */
 export async function fetchPlugins (config: TConfig): Promise<(PluginConfig)[]> {
@@ -44,13 +45,13 @@ export async function triggerPlugin (
   }
   const { result, failed } = data;
   if (options.requireFullContent && failed.length > 0) {
-    // TODO: 需要添加弹窗通知
     console.warn('无法发送请求，存在未获取到的元素索引:', failed);
-    // notify.warn({
-    //   title: '无法执行插件操作',
-    //   description: `存在未获取到的元素索引: ${failed.join(', ')}`,
-    //   placement: 'topRight',
-    // });
+    notify({
+      title: '无法执行插件操作',
+      description: `存在未获取到的元素索引: ${failed.join(', ')}`,
+      type: 'warn',
+      placement: 'tr',
+    })
     return;
   }
   handleFetchResponse(fetch(
@@ -78,13 +79,13 @@ function handleFetchResponse (promise: Promise<Response>, /* pluginId: string, _
   promise
     .then(res => {
       if (!res.ok) {
-        // TODO: 需要添加弹窗通知
-        console.warn(`插件请求失败: ${res.status} ${res.statusText}`);
-        // notify.warn({
-        //   title: '插件请求失败',
-        //   description: `${res.status} ${res.statusText}`,
-        //   placement: 'topRight',
-        // });
+        console.error(`插件请求失败: ${res.status} ${res.statusText}`);
+        notify({
+          title: '插件请求失败',
+          description: `${res.status} ${res.statusText}`,
+          placement: 'tr',
+          type: 'error',
+        });
         return null;
       }
       return res.json() as Promise<{
@@ -102,44 +103,42 @@ function handleFetchResponse (promise: Promise<Response>, /* pluginId: string, _
     .then(data => {
       if (!data) return;
       if (data.code >= 400 && data.code < 600) {
-        console.warn('插件请求错误: ' + data.message);
-        // notify.warn({
-        //   title: '插件请求错误',
-        //   description: data.message,
-        //   placement: 'topRight',
-        // });
+        console.error('插件请求错误: ' + data.message);
+        notify({
+          title: '插件请求错误',
+          description: data.message,
+          placement: 'tr',
+          type: 'error',
+        });
         return;
       } else if (data.code === 200) {
         if (data.data.type === 'notification') {
           console.log('插件请求成功，消息:', data.data.data);
-          // TODO: 需要添加弹窗通知
-          // const notifyFunc = notify[data.data.data.type as 'info' | 'success' | 'warn' | 'error'];
-          // notifyFunc({
-          //   title: `插件 ${pluginId} 的处理结果`,
-          //   description: data.data.data.message,
-          //   placement: 'topRight',
-          // });
+          notify({
+            title: `插件处理结果`,
+            description: data.data.data.message,
+            placement: 'tr',
+            type: data.data.data.type as 'info' | 'success' | 'warn' | 'error',
+          });
         }
       } else {
         console.warn('插件请求返回了未知的响应代码: ' + data.code);
-        // TODO: 需要添加弹窗通知
-        // scwcWarn(`插件请求失败: ${data.code} ${data.message}`);
-        // notify.warn({
-        //   title: '插件请求失败',
-        //   description: `${data.code} ${data.message}`,
-        //   placement: 'topRight',
-        // });
+        notify({
+          title: '插件请求失败',
+          description: `${data.code} ${data.message}`,
+          placement: 'tr',
+          type: 'error',
+        });
         return;
       }
     })
-    .catch(() => {
+    .catch((e) => {
       console.warn('插件请求失败');
-      // TODO: 需要添加弹窗通知
-      // scwcError('插件请求失败:', e);
-      // notify.error({
-      //   title: '插件请求失败',
-      //   description: e instanceof Error ? e.message : String(e),
-      //   placement: 'topRight',
-      // });
+      notify({
+        title: '插件请求失败',
+        description: e instanceof Error ? e.message : String(e),
+        placement: 'tr',
+        type: 'error',
+      });
     });
 }
