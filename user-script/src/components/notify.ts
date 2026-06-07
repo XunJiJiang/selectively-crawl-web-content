@@ -118,6 +118,7 @@ class SCWCNotify extends LitElement {
         notifyItem.onclose(source);
       }
       clearTimeout(notifyItem.timeoutId);
+      notifyItem.timeoutId = void 0;
       notifyItem.state = 'beforeLeave';
       this.updateNotifyOffsets(placement);
       return true;
@@ -224,7 +225,6 @@ class SCWCNotify extends LitElement {
               @mouseleave=${() => {
               clearTimeout(item.timeoutId);
               item.timeoutId = setTimeout(() => {
-                item.timeoutId = void 0;
                 this.handleNotifyClose(item.id, placement, 'auto');
               }, defaultNotifyOptions.duration);
             }}
@@ -235,7 +235,6 @@ class SCWCNotify extends LitElement {
               e.stopPropagation();
               item.state = 'beforeLeave';
               this.handleNotifyClose(item.id, placement, 'user');
-              item.onclose('user');
             }}></div>
               </div>
               <div class="notify-content">${item.description}</div>
