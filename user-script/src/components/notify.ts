@@ -163,7 +163,8 @@ class SCWCNotify extends LitElement {
         if (item.state === 'beforePreparation') {
           item.state = 'preparation';
           return html`
-            <div class="notify-item preparation ${placement}-item" ${ref((ele) => {
+            <div class="notify-item preparation ${placement}-item  ${item.type}-item"
+            ${ref((ele) => {
             item.ref = ele;
             if (ele) {
               // 刚添加到列表中, 尚未渲染到页面上, 需要隐式渲染计算高度
@@ -186,7 +187,7 @@ class SCWCNotify extends LitElement {
         } else if (item.state === 'beforeEnter') {
           return html`
             <div
-              class="notify-item before-enter ${placement}-item"
+              class="notify-item before-enter ${placement}-item ${item.type}-item"
               style=${(() => {
               // 获取上一个通知的 offset 和 height 以计算当前通知的 offset
               const prevItem = listValues[idx - 1];
@@ -227,7 +228,7 @@ class SCWCNotify extends LitElement {
         } else if (item.state === 'beforeLeave') {
           return html`
             <div
-              class="notify-item before-leave ${placement}-item"
+              class="notify-item before-leave ${placement}-item ${item.type}-item"
               style=${placement.startsWith('b') ? `bottom: ${item.offset}px;` : `top: ${item.offset}px;`}
               ${ref((ele) => {
             item.ref = ele;

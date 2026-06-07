@@ -205,7 +205,7 @@ export class ConfigController implements ReactiveController {
         notify({
           title: '测试通知测试通知测试通知测试通知测试通知测试通知测试通知测试通知',
           description: '这是一条测试通知这是一条测试通知这是一条测试通知这是一条测试通知这是一条测试通知这是一条测试通知这是一条测试通知',
-          type: 'success',
+          type: 'warn',
           placement: this.config.notify.placement,
         });
       }
