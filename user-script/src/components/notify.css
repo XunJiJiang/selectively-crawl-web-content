@@ -60,6 +60,7 @@
   margin: auto;
   padding: 10px 15px;
   box-sizing: border-box;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   border-radius: 4px;
   background-color: #1d1b16;
   color: #fff;

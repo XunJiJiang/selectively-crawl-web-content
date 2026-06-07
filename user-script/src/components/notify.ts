@@ -192,6 +192,11 @@ class SCWCNotify extends LitElement {
               style=${(() => {
               // 获取上一个通知的 offset 和 height 以计算当前通知的 offset
               const prevItem = listValues[idx - 1];
+
+              // TODO: 当通知数量大于 4 时默认折叠, 需要写到插件设置里
+              // if (prevItem && listValues.length > 4) {
+              //   item.offset = prevItem.offset + 8;
+              // } else if
               if (prevItem) {
                 item.offset = prevItem.offset + prevItem.height + 8;
               } else {
