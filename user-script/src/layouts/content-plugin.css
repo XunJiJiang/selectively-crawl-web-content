@@ -49,8 +49,9 @@
   cursor: pointer;
   border-radius: 4px;
   transition: all 0.2s;
+  margin-inline-start: 4px;
   margin-inline-end: 8px;
-  margin-block-end: 8px;
+  margin-block-end: 6px;
 }
 
 .plugin-window .plugin-window-content scwc-button::part(button):hover {
