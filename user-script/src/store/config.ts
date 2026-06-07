@@ -176,25 +176,14 @@ export class ConfigController implements ReactiveController {
       channel: `${configId}-notify-placement`,
       options: {
         defaultValue: this.config.notify.placement,
-        options: [{
-          value: 'tl',
-          label: '左上',
-        }, {
-          value: 'tc',
-          label: '上侧',
-        }, {
-          value: 'tr',
-          label: '右上',
-        }, {
-          value: 'bl',
-          label: '左下',
-        }, {
-          value: 'bc',
-          label: '下侧',
-        }, {
-          value: 'br',
-          label: '右下',
-        }]
+        options: [
+          { value: 'tl', label: '左上', },
+          { value: 'tc', label: '上侧', },
+          { value: 'tr', label: '右上', },
+          { value: 'bl', label: '左下', },
+          { value: 'bc', label: '下侧', },
+          { value: 'br', label: '右下', }
+        ]
       },
       trigger: (v) => {
         console.log(this.config.notify.placement, v);
