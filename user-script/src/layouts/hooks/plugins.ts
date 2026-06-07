@@ -130,7 +130,7 @@ export class PluginsController implements ReactiveController {
       notify({
         title: '插件控制器错误',
         description: `未找到控制器触发函数: ${control.channel}`,
-        placement: 'tr',
+        placement: this.configController.config.notify.placement,
         type: 'error',
       });
       return;
@@ -198,7 +198,7 @@ export class PluginsController implements ReactiveController {
         title: '插件加载失败',
         description: (e as Error).message,
         type: 'error',
-        placement: 'tr',
+        placement: this.configController.config.notify.placement,
       });
       this.setPlugins(this.configController.configControls ? [this.configController.configControls] : []);
     }

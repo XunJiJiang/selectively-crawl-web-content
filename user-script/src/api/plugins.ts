@@ -50,7 +50,7 @@ export async function triggerPlugin (
       title: '无法执行插件操作',
       description: `存在未获取到的元素索引: ${failed.join(', ')}`,
       type: 'warn',
-      placement: 'tr',
+      placement: config.notify.placement,
     })
     return;
   }
@@ -71,11 +71,11 @@ export async function triggerPlugin (
         },
       }),
     },
-  ), /* pluginId, channel, control */);
+  ), /* pluginId, channel, control, */config);
 }
 
 /** 处理需要 fetch 的控件的请求返回值 */
-function handleFetchResponse (promise: Promise<Response>, /* pluginId: string, _channel: string, _control: PluginItem */) {
+function handleFetchResponse (promise: Promise<Response>, /* pluginId: string, _channel: string, _control: PluginItem, */ config: TConfig) {
   promise
     .then(res => {
       if (!res.ok) {
@@ -83,7 +83,7 @@ function handleFetchResponse (promise: Promise<Response>, /* pluginId: string, _
         notify({
           title: '插件请求失败',
           description: `${res.status} ${res.statusText}`,
-          placement: 'tr',
+          placement: config.notify.placement,
           type: 'error',
         });
         return null;
@@ -107,7 +107,7 @@ function handleFetchResponse (promise: Promise<Response>, /* pluginId: string, _
         notify({
           title: '插件请求错误',
           description: data.message,
-          placement: 'tr',
+          placement: config.notify.placement,
           type: 'error',
         });
         return;
@@ -117,7 +117,7 @@ function handleFetchResponse (promise: Promise<Response>, /* pluginId: string, _
           notify({
             title: `插件处理结果`,
             description: data.data.data.message,
-            placement: 'tr',
+            placement: config.notify.placement,
             type: data.data.data.type as 'info' | 'success' | 'warn' | 'error',
           });
         }
@@ -126,7 +126,7 @@ function handleFetchResponse (promise: Promise<Response>, /* pluginId: string, _
         notify({
           title: '插件请求失败',
           description: `${data.code} ${data.message}`,
-          placement: 'tr',
+          placement: config.notify.placement,
           type: 'error',
         });
         return;
@@ -137,7 +137,7 @@ function handleFetchResponse (promise: Promise<Response>, /* pluginId: string, _
       notify({
         title: '插件请求失败',
         description: e instanceof Error ? e.message : String(e),
-        placement: 'tr',
+        placement: config.notify.placement,
         type: 'error',
       });
     });

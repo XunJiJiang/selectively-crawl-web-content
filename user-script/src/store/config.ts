@@ -25,6 +25,9 @@ const defaultValue: TConfig = {
   },
   plugin: {
     refreshRule: '//', // 默认匹配整个pathname的变化, 不检测search和hash的变化
+  },
+  notify: {
+    placement: 'tr',
   }
 };
 
@@ -168,16 +171,52 @@ export class ConfigController implements ReactiveController {
           500)(value)
     }, {
       'script-config-symbol': CONFIG_SYMBOL,
+      type: 'select',
+      label: '通知位置',
+      channel: `${configId}-notify-placement`,
+      options: {
+        defaultValue: 'tr',
+        options: [{
+          value: 'tl',
+          label: '左上',
+        }, {
+          value: 'tc',
+          label: '上侧',
+        }, {
+          value: 'tr',
+          label: '右上',
+        }, {
+          value: 'bl',
+          label: '左下',
+        }, {
+          value: 'bc',
+          label: '下侧',
+        }, {
+          value: 'br',
+          label: '右下',
+        }]
+      },
+      trigger: (v) => {
+        this.setConfig({
+          ...this.config,
+          notify: {
+            ...this.config.notify,
+            placement: v as TConfig['notify']['placement']
+          }
+        })
+      }
+    }, {
+      'script-config-symbol': CONFIG_SYMBOL,
       type: 'button',
       label: 'notify-test',
       channel: `${configId}-notify-test`,
       trigger: () => {
         console.log('trigger notify test');
         notify({
-          title: '测试通知',
-          description: '这是一条测试通知',
+          title: '测试通知测试通知测试通知测试通知测试通知测试通知测试通知测试通知',
+          description: '这是一条测试通知这是一条测试通知这是一条测试通知这是一条测试通知这是一条测试通知这是一条测试通知这是一条测试通知',
           type: 'success',
-          placement: 'tr',
+          placement: this.config.notify.placement,
         });
       }
     }];

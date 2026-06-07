@@ -310,14 +310,14 @@ class SCWCContentClaw extends LitElement {
           notify({
             title: `抓取结果`,
             description: item,
-            placement: 'tr',
+            placement: this.configController.config.notify.placement,
             type: 'info',
           })
         } else {
           notify({
             title: `插件 ${item.pluginInfo.name} 的抓取结果`,
             description: item.info,
-            placement: 'tr',
+            placement: this.configController.config.notify.placement,
             type: item.type as 'info' | 'success' | 'warn' | 'error'
           });
         }
