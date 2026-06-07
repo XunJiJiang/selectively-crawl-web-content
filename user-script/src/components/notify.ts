@@ -217,6 +217,7 @@ class SCWCNotify extends LitElement {
                 <div class="notify-close" @click=${(e: MouseEvent) => {
               e.stopPropagation();
               item.state = 'beforeLeave';
+              this.handleNotifyClose(item.id, placement, 'user');
               item.onclose('user');
             }}></div>
               </div>
