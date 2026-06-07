@@ -259,7 +259,6 @@ class SCWCNotify extends LitElement {
                   for (let i = idx + 1; i < listValues.length; i++) {
                     listValues[i].offset -= item.height + 8;
                     const ele = listValues[i].ref;
-                    console.log('update notify offset', listValues[i].offset, ele);
                     if (ele && ele instanceof HTMLElement) {
                       if (placement.startsWith('b')) {
                         ele.style.bottom = `${listValues[i].offset}px`;
@@ -269,7 +268,7 @@ class SCWCNotify extends LitElement {
                     }
                   }
 
-                }, 100)
+                }, 0)
               }
             })
           })}
