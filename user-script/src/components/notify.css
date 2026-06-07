@@ -108,14 +108,33 @@
   transform: translateY(-20px);
 }
 
-.notify-item.enter {
-  animation: enter 0.25s forwards;
+.notify-item.enter.tl-item,
+.notify-item.enter.tr-item,
+.notify-item.enter.tc-item {
+  animation: enter-t 0.25s forwards;
 }
 
-@keyframes enter {
+@keyframes enter-t {
   from {
     opacity: 0;
     transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.notify-item.enter.bl-item,
+.notify-item.enter.br-item,
+.notify-item.enter.bc-item {
+  animation: enter-b 0.25s forwards;
+}
+
+@keyframes enter-b {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
   }
   to {
     opacity: 1;
@@ -128,11 +147,13 @@
   transform: translateY(0);
 }
 
-.notify-item.leave {
-  animation: leave 0.25s forwards;
+.notify-item.leave.tl-item,
+.notify-item.leave.tr-item,
+.notify-item.leave.tc-item {
+  animation: leave-t 0.25s forwards;
 }
 
-@keyframes leave {
+@keyframes leave-t {
   from {
     opacity: 1;
     transform: translateY(0);
@@ -140,5 +161,22 @@
   to {
     opacity: 0;
     transform: translateY(-20px);
+  }
+}
+
+.notify-item.leave.bl-item,
+.notify-item.leave.br-item,
+.notify-item.leave.bc-item {
+  animation: leave-b 0.25s forwards;
+}
+
+@keyframes leave-b {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(20px);
   }
 }
