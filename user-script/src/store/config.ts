@@ -175,7 +175,7 @@ export class ConfigController implements ReactiveController {
       label: '通知位置',
       channel: `${configId}-notify-placement`,
       options: {
-        defaultValue: 'tr',
+        defaultValue: this.config.notify.placement,
         options: [{
           value: 'tl',
           label: '左上',
@@ -197,6 +197,7 @@ export class ConfigController implements ReactiveController {
         }]
       },
       trigger: (v) => {
+        console.log(this.config.notify.placement, v);
         this.setConfig({
           ...this.config,
           notify: {
@@ -211,7 +212,7 @@ export class ConfigController implements ReactiveController {
       label: 'notify-test',
       channel: `${configId}-notify-test`,
       trigger: () => {
-        console.log('trigger notify test');
+        console.log('trigger notify test', this.config.notify.placement);
         notify({
           title: '测试通知测试通知测试通知测试通知测试通知测试通知测试通知测试通知',
           description: '这是一条测试通知这是一条测试通知这是一条测试通知这是一条测试通知这是一条测试通知这是一条测试通知这是一条测试通知',
