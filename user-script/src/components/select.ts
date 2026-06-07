@@ -44,12 +44,11 @@ class SCWCSelect extends LitElement {
     })}
           title=${this.title}
           aria-label=${this.ariaLabel}
-          value=${this.value}
           ?disabled=${this.disabled}
           @change=${(e: Event) => { e.stopPropagation(); this.dispatchEvent(new CustomEvent('change', { detail: (e.target as HTMLSelectElement).value })); }}>
           ${this.options.length === 0 ? html`<option part="option placeholder" value="" disabled>${this.placeholder}</option>` : ''}
           ${this.options.map(option => html`
-            <option part="option" value=${option.value}>${option.label}</option>
+            <option part="option" value=${option.value} ?selected=${this.value === option.value}>${option.label}</option>
           `)}
         </select>
       </div>
