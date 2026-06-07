@@ -54,8 +54,6 @@
 }
 
 .notify-item {
-  display: flex;
-  align-items: center;
   width: 300px;
   margin: 10px;
   padding: 10px 15px;
@@ -63,7 +61,11 @@
   background-color: rgba(0, 0, 0, 0.8);
   color: #fff;
   pointer-events: auto;
-  transition: opacity 0.25s, transform 0.25s, top 0.25s, bottom 0.25s;
+  transition:
+    opacity 0.25s,
+    transform 0.25s,
+    top 0.25s,
+    bottom 0.25s;
 }
 
 .notify-item .notify-title {
