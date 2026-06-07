@@ -142,12 +142,10 @@ class SCWCNotify extends LitElement {
   private updateNotifyOffsets (placement: Required<INotifyOptions>['placement']) {
     this.changedPlacement[placement] = true;
     this.requestUpdate();
-    console.log('update notify offsets');
   }
 
   render () {
     const lists = Object.entries(this.infoList) as ['tl' | 'tr' | 'tc' | 'bl' | 'br' | 'bc', Map<string, TNotify>][]
-    console.log('render notify');
     return html`
       <div class="notify-container">
         ${lists.map(([placement, list]) => {
@@ -157,6 +155,7 @@ class SCWCNotify extends LitElement {
         return noChange;
       }
       const listValues = Array.from(list.values());
+      // BUG: 当某个通知删除时, 其在dom中一并渲染的注释节点<!-- -->没有被删除
       return html`
         <div class="notify-list ${placement}-list">
           ${repeat(listValues, (item) => item.id, (item, idx) => {
@@ -165,14 +164,16 @@ class SCWCNotify extends LitElement {
           return html`
             <div class="notify-item preparation ${placement}-item  ${item.type}-item"
             ${ref((ele) => {
-            item.ref = ele;
             if (ele) {
+              item.ref = ele;
               // 刚添加到列表中, 尚未渲染到页面上, 需要隐式渲染计算高度
               // 获取到实际高度后，更新 notifyItem 的 height 属性，并调用 updateNotifyOffsets 以调整所有通知的位置
-              const rect = ele.getBoundingClientRect();
-              item.height = rect.height;
-              item.state = 'beforeEnter';
-              this.updateNotifyOffsets(placement);
+              requestAnimationFrame(() => {
+                const rect = ele.getBoundingClientRect();
+                item.height = rect.height;
+                item.state = 'beforeEnter';
+                this.updateNotifyOffsets(placement);
+              })
             }
           })}
           >
@@ -199,10 +200,10 @@ class SCWCNotify extends LitElement {
               return placement.startsWith('b') ? `bottom: ${item.offset}px;` : `top: ${item.offset}px;`;
             })()}
               ${ref((ele) => {
-              item.ref = ele;
               requestAnimationFrame(() => {
                 item.state = 'enter';
                 if (ele) {
+                  item.ref = ele;
                   ele.classList.remove('before-enter');
                   ele.classList.add('enter');
                 }
@@ -241,26 +242,34 @@ class SCWCNotify extends LitElement {
               class="notify-item before-leave ${placement}-item ${item.type}-item"
               style=${placement.startsWith('b') ? `bottom: ${item.offset}px;` : `top: ${item.offset}px;`}
               ${ref((ele) => {
-            item.ref = ele;
             requestAnimationFrame(() => {
               item.state = 'leave';
               if (ele) {
+                item.ref = ele;
                 ele.classList.remove('before-leave');
                 ele.classList.add('leave');
                 setTimeout(() => {
                   item.state = 'removed';
                   const notifyList = this.infoList[placement];
                   notifyList.delete(item.id);
+                  this.updateNotifyOffsets(placement);
+                }, 250 /* 此处应该根据离开动画的执行速度来执行 */)
+                setTimeout(() => {
                   // 更新后面通知的 offset
                   for (let i = idx + 1; i < listValues.length; i++) {
                     listValues[i].offset -= item.height + 8;
                     const ele = listValues[i].ref;
+                    console.log('update notify offset', listValues[i].offset, ele);
                     if (ele && ele instanceof HTMLElement) {
-                      ele.style.transform = placement.startsWith('b') ? `bottom: ${listValues[i].offset}px;` : `top: ${listValues[i].offset}px;`;
+                      if (placement.startsWith('b')) {
+                        ele.style.bottom = `${listValues[i].offset}px`;
+                      } else {
+                        ele.style.top = `${listValues[i].offset}px`;
+                      }
                     }
                   }
-                  this.updateNotifyOffsets(placement);
-                }, 250 /* 此处应该根据离开动画的执行速度来执行 */)
+
+                }, 100)
               }
             })
           })}

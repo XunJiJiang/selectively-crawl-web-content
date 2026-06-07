@@ -19,6 +19,7 @@
 
 .notify-list {
   position: absolute;
+  width: 330px;
 }
 
 .notify-list.tl-list {
@@ -54,9 +55,11 @@
 }
 
 .notify-item {
-  width: 300px;
-  margin: 10px;
+  position: absolute;
+  width: 330px;
+  margin: auto;
   padding: 10px 15px;
+  box-sizing: border-box;
   border-radius: 4px;
   background-color: #1d1b16;
   color: #fff;
