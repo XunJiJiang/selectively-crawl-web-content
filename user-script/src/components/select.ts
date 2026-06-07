@@ -3,6 +3,7 @@ import style from './select.css?raw';
 import { LitElement, html, css, unsafeCSS } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
+import { v4 } from 'uuid'
 
 @customElement('scwc-select')
 class SCWCSelect extends LitElement {
@@ -30,10 +31,12 @@ class SCWCSelect extends LitElement {
   accessor ariaLabel = ''
 
   render () {
+    console.log(this.options, this.value)
     return html`
       <div part="root" class="scwc-select">
-        <span part="description" class="scwc-select-label">${this.label}</span>
+        <label for=${`${this.title}-${v4()}`} part="description" class="scwc-select-label">${this.label}</label>
         <select
+          id=${`${this.title}-${v4()}`}
           part="select"
           class=${classMap({
       'scwc-select-control': true,
@@ -41,10 +44,10 @@ class SCWCSelect extends LitElement {
     })}
           title=${this.title}
           aria-label=${this.ariaLabel}
-          .value=${this.value}
+          value=${this.value}
           ?disabled=${this.disabled}
           @change=${(e: Event) => { e.stopPropagation(); this.dispatchEvent(new CustomEvent('change', { detail: (e.target as HTMLSelectElement).value })); }}>
-          <option part="option placeholder" value="" disabled>${this.placeholder}</option>
+          ${this.options.length === 0 ? html`<option part="option placeholder" value="" disabled>${this.placeholder}</option>` : ''}
           ${this.options.map(option => html`
             <option part="option" value=${option.value}>${option.label}</option>
           `)}
