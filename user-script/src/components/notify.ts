@@ -208,9 +208,19 @@ class SCWCNotify extends LitElement {
                 }
               })
             })}
-            @click=${(e: MouseEvent) => {
+              @click=${(e: MouseEvent) => {
               e.stopPropagation();
               item.onclick();
+            }}
+              @mouseenter=${() => {
+              clearTimeout(item.timeoutId);
+            }}
+              @mouseleave=${() => {
+              clearTimeout(item.timeoutId);
+              item.timeoutId = setTimeout(() => {
+                item.timeoutId = void 0;
+                this.handleNotifyClose(item.id, placement, 'auto');
+              }, defaultNotifyOptions.duration);
             }}
               >
               <div class="notify-title">
