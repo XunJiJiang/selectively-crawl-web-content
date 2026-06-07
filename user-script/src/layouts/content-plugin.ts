@@ -84,7 +84,7 @@ export class SCWCContentPlugin extends LitElement {
                 title=${control.label}
                 aria-label=${control.label}
                 value=${this.pluginsController.getControlValue(control)?.toString()}
-                options=${control.options?.options ?? []}
+                .options=${control.options?.options ?? []}
                 @change=${(e: SCWCSelectEventMap['change']) => this.pluginsController.setControlValue(control, e.detail)}
               ></scwc-select>
             `
