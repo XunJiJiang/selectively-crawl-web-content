@@ -4,7 +4,7 @@ import cacheController from './cache.ts';
 import tryCatch from './tryCatch.ts';
 import type { Readable } from 'node:stream';
 import type { TLogger } from '../types/log.d.ts';
-import type { ResponseTypeMap, TRetryGet, TRetryGetReturn } from '../types/axios.d.ts';
+import type { IRetryRequest, ResponseTypeMap, TRetryGet, TRetryGetReturn } from '../types/axios.d.ts';
 
 const TIMEOUT = 10000;
 
@@ -29,7 +29,7 @@ const CUSTOM_RES_DATA_UNSET = Symbol('CUSTOM_RES_DATA_UNSET');
 /**
  * 带重试的请求
  */
-class RetryRequest<RAW, CUSTOM_RES> {
+class RetryRequest<RAW, CUSTOM_RES> implements IRetryRequest<RAW, CUSTOM_RES> {
   /** 最大重试次数 */
   private static defaultLimit = 5;
   /** 重试延迟时间 (毫秒) */
@@ -57,7 +57,7 @@ class RetryRequest<RAW, CUSTOM_RES> {
   /**
    * 自定义的返回数据类型
    */
-  protected customResData: CUSTOM_RES | typeof CUSTOM_RES_DATA_UNSET = CUSTOM_RES_DATA_UNSET;
+  customResData: CUSTOM_RES | typeof CUSTOM_RES_DATA_UNSET = CUSTOM_RES_DATA_UNSET;
 
   public getCustomResData (): CUSTOM_RES | typeof CUSTOM_RES_DATA_UNSET {
     return this.customResData;
@@ -109,7 +109,7 @@ class RetryRequest<RAW, CUSTOM_RES> {
    * 初始化新一次的请求配置
    * @param url 请求 URL, 用于更新重定向链
    */
-  protected initConfig (url: string) {
+  initConfig (url: string) {
     this.abort = originAxios.CancelToken.source();
     this.config.cancelToken = this.abort.token;
     this.customResData = CUSTOM_RES_DATA_UNSET;

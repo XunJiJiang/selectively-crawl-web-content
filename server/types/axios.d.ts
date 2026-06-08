@@ -1,5 +1,20 @@
 import { type AxiosRequestConfig } from 'axios';
+import type { TLogger } from '../types/log.d.ts';
 
+export interface IRetryRequest<RAW, CUSTOM_RES> {
+  customResData: CUSTOM_RES | symbol;
+  getCustomResData (): CUSTOM_RES | symbol;
+  delCache (): Promise<boolean>;
+  initConfig (url: string): void;
+  retryGet (): Promise<RAW>;
+}
+
+export type TRetryRequestClass<RAW, CUSTOM_RES> = abstract new (
+  url: string,
+  config: AxiosRequestConfig,
+  namespace: string | undefined,
+  logger: TLogger,
+) => IRetryRequest<RAW, CUSTOM_RES>;
 
 /** retryGet 函数的类型 */
 export type TRetryGet<RES, A extends AxiosRequestConfig = AxiosRequestConfig> = (
@@ -34,7 +49,7 @@ type TRetryGetReturn<RES, A extends AxiosRequestConfig> = {
  */
 export type TCreateRetryGet<RES, A extends AxiosRequestConfig = AxiosRequestConfig> = (
   createRetryRequestClass?: (
-    ClassRetryRequest: typeof RetryRequest<
+    ClassRetryRequest: TRetryRequestClass<
       A extends { responseType: infer R }
       ? R extends keyof ResponseTypeMap
       ? ResponseTypeMap[R]
@@ -42,7 +57,7 @@ export type TCreateRetryGet<RES, A extends AxiosRequestConfig = AxiosRequestConf
       : ResponseTypeMap['text'],
       RES
     >,
-  ) => typeof RetryRequest<
+  ) => TRetryRequestClass<
     A extends { responseType: infer R }
     ? R extends keyof ResponseTypeMap
     ? ResponseTypeMap[R]
