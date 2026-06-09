@@ -159,7 +159,7 @@ async function main () {
         console.log(`${chalk.gray('[')}${chalk.blue('INFO')}${chalk.gray(']')} ${chalk.green('服务器重启')}`);
         resolve('restart');
       } else {
-        console.error(`${chalk.gray('[')}${chalk.red('ERROR')}${chalk.gray(']')} ${chalk.red('服务器进程意外退出, 退出码: ${code}, 信号: ${signal}')}`);
+        console.error(`${chalk.gray('[')}${chalk.red('ERROR')}${chalk.gray(']')} ${chalk.red(`服务器进程意外退出, 退出码: ${code}, 信号: ${signal}`)}`);
         resolve('restart');
       }
     });
