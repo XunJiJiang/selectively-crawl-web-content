@@ -311,6 +311,8 @@ onRequest: async ({ utils: { writeData, writeDataURL }, data, site }, logger) =>
 
 ## TODO
 
+- [ ] onLoad 内提供建议数据保存目录
+- [ ] 将 State 作为公共工具提供给插件使用
 - [ ] 在url发生变化时自动重加载插件控制器配置
 - [ ] 添加浏览脚本部分的设置界面, 允许用户设置一些选项, 例如服务端地址和端口, 以及一些功能开关等
 - [ ] 重启命令
