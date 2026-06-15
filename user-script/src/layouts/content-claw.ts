@@ -301,10 +301,11 @@ class SCWCContentClaw extends LitElement {
     }
     const data = await sendCrawlRequest(result, this.configController.config)
     if (data && data.success === true) {
-      console.warn(data.message);
-    } else {
-      console.log(data.message);
-      // console.log(data.data);
+      notify({
+        title: `抓取成功`,
+        placement: this.configController.config.notify.placement,
+        type: 'success',
+      });
       for (const item of data.data ?? []) {
         if (typeof item === 'string') {
           notify({
@@ -318,7 +319,30 @@ class SCWCContentClaw extends LitElement {
             title: `插件 ${item.pluginInfo.name} 的抓取结果`,
             description: item.info,
             placement: this.configController.config.notify.placement,
-            type: item.type as 'info' | 'success' | 'warn' | 'error'
+            type: item.type,
+          })
+        }
+      }
+    } else {
+      notify({
+        title: data.message,
+        placement: this.configController.config.notify.placement,
+        type: 'error',
+      });
+      for (const item of data.data ?? []) {
+        if (typeof item === 'string') {
+          notify({
+            title: `抓取结果`,
+            description: item,
+            placement: this.configController.config.notify.placement,
+            type: 'info',
+          })
+        } else {
+          notify({
+            title: `插件 ${item.pluginInfo.name} 的抓取结果`,
+            description: item.info,
+            placement: this.configController.config.notify.placement,
+            type: item.type,
           });
         }
       }
