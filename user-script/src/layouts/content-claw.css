@@ -12,6 +12,14 @@
   margin: 2px 0 2px 2px;
 }
 
+.claw-header scwc-button::part(button) {
+  padding: 5px 3px 3px 5px;
+}
+
+.claw-header scwc-button::part(button) svg {
+  /* left: 2px; */
+}
+
 /* .claw-body {
 } */
 
