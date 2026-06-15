@@ -69,7 +69,8 @@ function resolveJSONValueWithFunction<T extends JSONValueWithFunction> (value: T
 export function completeProperties<T extends JSONValue, U extends JSONValueWithFunction> (a: T, b: U /* , keepExtra = false */, notRunFun: boolean): ResolvedJSONValue<U> {
   if (typeof a === 'string' || typeof a === 'number' || typeof a === 'boolean' || a === null) {
     if (typeof b === 'string' || typeof b === 'number' || typeof b === 'boolean' || b === null) {
-      return a as unknown as ResolvedJSONValue<U>;
+      // 当a和b都是基本类型时, 直接使用b的值, 不进行深度检查
+      return b as unknown as ResolvedJSONValue<U>;
     } else {
       return resolveJSONValueWithFunction(b, notRunFun);
     }
