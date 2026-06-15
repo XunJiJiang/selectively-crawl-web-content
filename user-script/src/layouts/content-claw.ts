@@ -302,7 +302,7 @@ class SCWCContentClaw extends LitElement {
     const data = await sendCrawlRequest(result, this.configController.config)
     if (data && data.success === true) {
       notify({
-        title: `抓取成功`,
+        title: data.message,
         placement: this.configController.config.notify.placement,
         type: 'success',
       });
