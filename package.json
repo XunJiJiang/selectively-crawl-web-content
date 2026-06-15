@@ -63,6 +63,7 @@
     "proxy-agent": "^7.0.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
+    "reflect-metadata": "^0.2.2",
     "trash": "^10.1.1",
     "tsx": "^4.21.0",
     "url-change-event": "^0.1.7",
