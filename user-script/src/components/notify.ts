@@ -170,8 +170,18 @@ class SCWCNotify extends LitElement {
               // 刚添加到列表中, 尚未渲染到页面上, 需要隐式渲染计算高度
               // 获取到实际高度后，更新 notifyItem 的 height 属性，并调用 updateNotifyOffsets 以调整所有通知的位置
               requestAnimationFrame(() => {
-                const rect = ele.getBoundingClientRect();
-                item.height = rect.height;
+                if (item.height === 0) {
+                  const rect = ele.getBoundingClientRect();
+                  item.height = rect.height;
+                }
+                if (idx > 0) {
+                  // 检查前一个通知是否已经获取到偏移量和高度
+                  const prevItem = listValues[idx - 1];
+                  if (["beforePreparation", "preparation"].includes(prevItem.state)) {
+                    // 前一个通知尚未准备好，先不更新位置，等待下一次状态更新时再处理
+                    return;
+                  }
+                }
                 item.state = 'beforeEnter';
                 this.updateNotifyOffsets(placement);
               })
