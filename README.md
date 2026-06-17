@@ -311,6 +311,7 @@ onRequest: async ({ utils: { writeData, writeDataURL }, data, site }, logger) =>
 
 ## TODO
 
+- [ ] 允许插件获取所有网站的数据
 - [ ] onLoad 内提供建议数据保存目录
 - [ ] 重新加载单独插件的功能
 - [ ] 将 State 作为公共工具提供给插件使用
