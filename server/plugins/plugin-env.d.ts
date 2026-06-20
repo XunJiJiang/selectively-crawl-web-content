@@ -15,7 +15,7 @@ namespace SCWC {
     createRetryGet<RES, A extends AxiosRequestConfig = AxiosRequestConfig> (
       ...args: Parameters<TCreateRetryGet<RES, A>>
     ): ReturnType<TCreateRetryGet<RES, A>>;
-    LimitPromise: typeof import('../types/axios.d.ts').LimitPromise;
+    LimitPromise: typeof import('../utils/axios.ts').LimitPromise;
   }
 
   /**
@@ -187,6 +187,10 @@ namespace SCWC {
         // TODO: 支持一些钩子函数, 例如: 某网站启动、加载插件配置、调用插件项等
       };
     };
+    // ui 相关的配置项
+    ui?: {
+      entry: string; // 入口 html, 绝对路径或相对于当前插件目录的路径
+    }
   }
 
   export interface IPluginMeta {
