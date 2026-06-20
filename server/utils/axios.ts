@@ -4,7 +4,7 @@ import cacheController from './cache.ts';
 import tryCatch from './tryCatch.ts';
 import type { Readable } from 'node:stream';
 import type { TLogger } from '../types/log.d.ts';
-import type { IRetryRequest, ResponseTypeMap, TRetryGet, TRetryGetReturn } from '../types/axios.d.ts';
+import type { IRetryRequest, ResponseTypeMap, TRetryGet, TRetryGetReturn, TRetryRequestClass } from '../types/axios.d.ts';
 
 const TIMEOUT = 10000;
 
@@ -26,17 +26,17 @@ axios.interceptors.request.use(config => {
 /** 标记: 自定义返回数据未设置 */
 const CUSTOM_RES_DATA_UNSET = Symbol('CUSTOM_RES_DATA_UNSET');
 
+/** 最大重试次数 */
+const defaultLimit = 5;
+/** 重试延迟时间 (毫秒) */
+const defaultRetryDelay = 2000;
+/** 超时时间 (毫秒) */
+const defaultTimeout = TIMEOUT;
+
 /**
  * 带重试的请求
  */
 class RetryRequest<RAW, CUSTOM_RES> implements IRetryRequest<RAW, CUSTOM_RES> {
-  /** 最大重试次数 */
-  private static defaultLimit = 5;
-  /** 重试延迟时间 (毫秒) */
-  private static defaultRetryDelay = 2000;
-  /** 超时时间 (毫秒) */
-  private static defaultTimeout = TIMEOUT;
-
   /**
    * 插件命名空间, 用于区分不同插件的缓存
    */
@@ -118,9 +118,9 @@ class RetryRequest<RAW, CUSTOM_RES> implements IRetryRequest<RAW, CUSTOM_RES> {
     }
     this.timeoutHandle = setTimeout(() => {
       if (this.abort) {
-        this.abort.cancel(`Timeout of ${RetryRequest.defaultTimeout}ms.`);
+        this.abort.cancel(`Timeout of ${defaultTimeout}ms.`);
       }
-    }, RetryRequest.defaultTimeout);
+    }, defaultTimeout);
   }
 
   /**
@@ -183,7 +183,7 @@ class RetryRequest<RAW, CUSTOM_RES> implements IRetryRequest<RAW, CUSTOM_RES> {
       return data;
     } catch (error) {
       if (
-        this.retryCount + 1 < RetryRequest.defaultLimit &&
+        this.retryCount + 1 < defaultLimit &&
         error instanceof originAxios.AxiosError &&
         (!error.response || (error.response && error.response.status >= 500))
       ) {
@@ -199,7 +199,7 @@ class RetryRequest<RAW, CUSTOM_RES> implements IRetryRequest<RAW, CUSTOM_RES> {
           this.logger.info(`请求被重定向到 ${this.url}`);
         }
 
-        await new Promise(resolve => setTimeout(resolve, RetryRequest.defaultRetryDelay));
+        await new Promise(resolve => setTimeout(resolve, defaultRetryDelay));
         return this.retryGet();
       } else {
         throw error;
@@ -219,7 +219,7 @@ export function createRetryGet<RES, A extends AxiosRequestConfig = AxiosRequestC
   namespace: string | undefined,
   logger: TLogger,
   createRetryRequestClass?: (
-    ClassRetryRequest: typeof RetryRequest<
+    ClassRetryRequest: TRetryRequestClass<
       A extends { responseType: infer R }
       ? R extends keyof ResponseTypeMap
       ? ResponseTypeMap[R]
@@ -227,7 +227,7 @@ export function createRetryGet<RES, A extends AxiosRequestConfig = AxiosRequestC
       : ResponseTypeMap['text'],
       RES
     >,
-  ) => typeof RetryRequest<
+  ) => TRetryRequestClass<
     A extends { responseType: infer R }
     ? R extends keyof ResponseTypeMap
     ? ResponseTypeMap[R]
@@ -250,7 +250,7 @@ export function createRetryGet<RES, A extends AxiosRequestConfig = AxiosRequestC
       : string
       : string;
     const customResData = request.getCustomResData();
-    const data = customResData === CUSTOM_RES_DATA_UNSET ? undefined : customResData;
+    const data = customResData === CUSTOM_RES_DATA_UNSET ? void 0 : (customResData as RES);
     return {
       raw,
       data,

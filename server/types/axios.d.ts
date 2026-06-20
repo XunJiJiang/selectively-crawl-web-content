@@ -2,14 +2,14 @@ import { type AxiosRequestConfig } from 'axios';
 import type { TLogger } from '../types/log.d.ts';
 
 export interface IRetryRequest<RAW, CUSTOM_RES> {
-  customResData: CUSTOM_RES | symbol;
-  getCustomResData (): CUSTOM_RES | symbol;
+  customResData: CUSTOM_RES | unique symbol;
+  getCustomResData (): CUSTOM_RES | unique symbol;
   delCache (): Promise<boolean>;
   initConfig (url: string): void;
   retryGet (): Promise<RAW>;
 }
 
-export type TRetryRequestClass<RAW, CUSTOM_RES> = abstract new (
+export type TRetryRequestClass<RAW, CUSTOM_RES> = new (
   url: string,
   config: AxiosRequestConfig,
   namespace: string | undefined,
