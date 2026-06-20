@@ -8,7 +8,7 @@ import { writeData, writeDataURL } from '../utils/writeData.ts';
 import pluginRouter from './plugin.ts';
 import { plugins } from '../plugin/load.ts';
 import { createLogger } from '../utils/log.ts';
-import { getRootUrl } from './utils/index.ts';
+import { getRootUrl, matchLink } from './utils/index.ts';
 import { TOKEN } from '../common/env.ts';
 import { serverLogger } from '../common/logger.ts';
 
@@ -110,7 +110,7 @@ metadataRouter.post(
     for (const plugin of plugins) {
       // 当 plugin.linkWith 存在时，且匹配当前网址时才执行
       // 当 plugin.linkWith 为空数组时，视为匹配所有网址
-      if (plugin.linkWith && (plugin.linkWith.some(link => root.startsWith(link)) || plugin.linkWith.length === 0)) {
+      if (plugin.linkWith && matchLink(decodedSite, plugin.linkWith)) {
         const log = createLogger(`plugin:${plugin.name}`, path.relative(process.cwd(), plugin.entry));
         log.info(`处理网址: ${decodedSite}`);
         // log.info(`插件入口: ${plugin.entry}`);

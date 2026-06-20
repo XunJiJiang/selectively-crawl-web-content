@@ -2,7 +2,7 @@ import express from 'express';
 import { query } from 'express-validator';
 import z from 'zod';
 import { plugins } from '../plugin/load.ts';
-import { getRootUrl } from './utils/index.ts';
+import { matchLink, getRootUrl } from './utils/index.ts';
 import { pluginLogger } from '../plugin/log.ts';
 
 const router = express.Router();
@@ -74,11 +74,12 @@ router.get('/config', query('site').isURL(), async (req, res) => {
     controls: Omit<SCWC.TPluginItem, 'trigger'>[];
   }[] = [];
   for (const plugin of plugins) {
-    if (!plugin.linkWith || (!plugin.linkWith.some(link => root.startsWith(link)) && !(plugin.linkWith.length === 0))) {
+    const decodedSite = decodeURIComponent(site);
+
+    if (!plugin.linkWith || !matchLink(decodedSite, plugin.linkWith)) {
       continue;
     }
 
-    const decodedSite = decodeURIComponent(site);
     const urlObj = new URL(decodedSite);
 
     const controls = typeof plugin.handler?.pluginConfig?.scripts?.controls === 'function'
