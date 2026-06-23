@@ -27,8 +27,10 @@ export function matchLink (link: string, patterns: string[]): boolean {
   /** startsWith 匹配结果 */
   let isStartsWithMatch = false;
   {
+    // 统一去除尾部斜杠
+    const unifiedRoot = root.endsWith('/') ? root.slice(0, -1) : root;
     // 尝试直接匹配
-    const isDirectMatch = (nonWildcardPatterns.some(link => root.startsWith(link)) || nonWildcardPatterns.length === 0)
+    const isDirectMatch = (nonWildcardPatterns.some(link => unifiedRoot.startsWith(link)) || nonWildcardPatterns.length === 0)
     if (isDirectMatch) {
       isStartsWithMatch = true;
     }
@@ -55,5 +57,5 @@ export function matchLink (link: string, patterns: string[]): boolean {
       return !isNegated;
     }
   }
-  return false;
+  return isStartsWithMatch;
 }
