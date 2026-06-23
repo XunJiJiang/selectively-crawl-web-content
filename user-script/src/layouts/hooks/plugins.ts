@@ -66,7 +66,7 @@ export class PluginsController implements ReactiveController {
         } else if (oldConfigControls && configControls === oldConfigControls) {
           return;
         } else {
-          this.setPlugins([...this.plugins, configControls]);
+          this.setPlugins([configControls, ...this.plugins]);
           configControls.controls.forEach(control => {
             this.controlValues.set(control, {
               value: control.options?.defaultValue ?? null,
@@ -191,7 +191,7 @@ export class PluginsController implements ReactiveController {
 
     try {
       const plugins = await fetchPlugins(this.configController.config);
-      this.setPlugins([...plugins, this.configController.configControls]);
+      this.setPlugins([this.configController.configControls, ...plugins]);
     } catch (e) {
       console.error('Failed to reload plugins:', e);
       notify({
