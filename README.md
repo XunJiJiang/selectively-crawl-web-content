@@ -318,6 +318,7 @@ onRequest: async ({ utils: { writeData, writeDataURL }, data, site }, logger) =>
 - [ ] 允许插件设置哪个控制器触发后需要重新加载当前插件控制器
 - [ ] 将 State 作为公共工具提供给插件使用
 - [ ] onLoad 内提供建议数据保存目录
+- [ ] bug: 当呼出两次 notify, 每次呼出两个后, 第一次呼出的 notify 消失时, 第二次呼出 notify 的定位有误
 - [ ] log 文件日志
 - [ ] 插件配置请求缓存, 允许插件控制缓存的时效和清理
 - [ ] 将插件移动到独立进程执行
