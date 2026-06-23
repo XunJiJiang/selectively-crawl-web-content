@@ -22,10 +22,13 @@ const defaultValue: TConfig = {
   },
   plugin: {
     refreshRule: '//', // 默认匹配整个pathname的变化, 不检测search和hash的变化
+  },
+  notify: {
+    placement: 'tr',
   }
 };
 
-const config: TConfig = loadFromStorage(CONFIG_KEY, defaultValue);
+const config: TConfig = loadFromStorage(CONFIG_KEY, defaultValue, 'a');
 
 const ConfigContext = createContext(config);
 
@@ -41,7 +44,7 @@ export function useConfig (): {
   isConfigItem: (item: unknown) => item is ScriptConfigItem,
   isConfig: (config: unknown) => config is ScriptConfig,
 } {
-  const [_config, setConfig] = useState<TConfig>(loadFromStorage(CONFIG_KEY, defaultValue));
+  const [_config, setConfig] = useState<TConfig>(loadFromStorage(CONFIG_KEY, defaultValue, 'a'));
 
   const createConfigControls = useCallback((): ScriptConfig => ({
     id: configId,

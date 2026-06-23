@@ -154,7 +154,7 @@ class SCWCContentClaw extends LitElement {
     if ('selector' in item && 'label' in item)
       return { ...item, prefix: '' };
     return [] as Item[];
-  });
+  }, 'a');
 
   /** 更新 items */
   private setItems (value: Item[]) {

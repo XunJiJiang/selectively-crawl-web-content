@@ -6,7 +6,7 @@ import { createRequire } from 'node:module';
 import { addErrorHandler } from '../utils/cache.ts';
 import { createRetryGet, LimitPromise } from '../utils/axios.ts';
 import type { AxiosRequestConfig } from 'axios';
-import type { TCreateRetryGet } from '../types/axios';
+import type { TCreateRetryGet } from '../types/axios.d.ts';
 
 const __dirname = process.cwd();
 

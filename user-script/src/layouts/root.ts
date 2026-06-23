@@ -29,7 +29,7 @@ class SCWCRootLayout extends LitElement {
 
   /** 是否最小化 */
   @property({ type: Boolean, reflect: true })
-  private accessor minimized: boolean = loadFromStorage(MINIMIZED_KEY, true);
+  private accessor minimized: boolean = loadFromStorage(MINIMIZED_KEY, true, 'a');
 
   /** 设置是否最小化 */
   private setMinimized (value: boolean) {
@@ -39,7 +39,7 @@ class SCWCRootLayout extends LitElement {
 
   /** 窗口位置 */
   @property({ type: Object })
-  private accessor position: { readonly x: number, readonly y: number } = loadFromStorage(POS_KEY, INIT_POS);
+  private accessor position: { readonly x: number, readonly y: number } = loadFromStorage(POS_KEY, INIT_POS, 'a');
 
   /** 设置窗口位置 */
   private setPosition (x: number | null, y: number | null) {
@@ -61,7 +61,7 @@ class SCWCRootLayout extends LitElement {
 
   /** 是否展开插件 */
   @property({ type: Boolean, reflect: true })
-  private accessor pluginExpanded: boolean = loadFromStorage(PLUGIN_EXPANDED_KEY, false);
+  private accessor pluginExpanded: boolean = loadFromStorage(PLUGIN_EXPANDED_KEY, false, 'a');
 
   /** 设置是否展开插件 */
   private setPluginExpanded (value: boolean) {

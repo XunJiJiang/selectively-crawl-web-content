@@ -65,12 +65,12 @@ function resolveJSONValueWithFunction<T extends JSONValueWithFunction> (value: T
  * @param a 需要被修改的对象
  * @param b 用于修改的对象
  * @param notRunFun 是否不执行函数, 当为 true 时将不再对数组进行检查, 默认值直接使用空数组. 用于规避外部函数中可能出现的报错.
+ * @param whichOnSameType 在a和b类型相同时，选择使用哪个值
  */
-export function completeProperties<T extends JSONValue, U extends JSONValueWithFunction> (a: T, b: U /* , keepExtra = false */, notRunFun: boolean): ResolvedJSONValue<U> {
+export function completeProperties<T extends JSONValue, U extends JSONValueWithFunction> (a: T, b: U /* , keepExtra = false */, notRunFun: boolean, whichOnSameType: 'a' | 'b'): ResolvedJSONValue<U> {
   if (typeof a === 'string' || typeof a === 'number' || typeof a === 'boolean' || a === null) {
     if (typeof b === 'string' || typeof b === 'number' || typeof b === 'boolean' || b === null) {
-      // 当a和b都是基本类型时, 直接使用b的值, 不进行深度检查
-      return b as unknown as ResolvedJSONValue<U>;
+      return (whichOnSameType === 'a' ? a : b) as ResolvedJSONValue<U>;
     } else {
       return resolveJSONValueWithFunction(b, notRunFun);
     }
@@ -79,7 +79,7 @@ export function completeProperties<T extends JSONValue, U extends JSONValueWithF
   if (Array.isArray(a)) {
     if (typeof b === 'function') {
       try {
-        return a.map(item => completeProperties(item, (notRunFun ? item : b(item)) as JSONValueWithFunction /* , keepExtra */, notRunFun)) as ResolvedJSONValue<U>;
+        return a.map(item => completeProperties(item, (notRunFun ? item : b(item)) as JSONValueWithFunction /* , keepExtra */, notRunFun, whichOnSameType)) as ResolvedJSONValue<U>;
       } catch (error) {
         scwcError('Error while resolving array processor in config:', error);
         throw new InternalError(error);
@@ -98,7 +98,7 @@ export function completeProperties<T extends JSONValue, U extends JSONValueWithF
         const bVal = bObj[key];
         if (key in a) {
           const aVal = a[key];
-          result[key] = completeProperties(aVal, bVal /* , keepExtra */, notRunFun);
+          result[key] = completeProperties(aVal, bVal /* , keepExtra */, notRunFun, whichOnSameType);
         } else {
           result[key] = resolveJSONValueWithFunction(bVal, notRunFun);
         }
@@ -125,12 +125,12 @@ export function saveToStorage<T extends JSONValue> (key: string, items: T) {
   return items;
 }
 
-export function loadFromStorage<T extends JSONValueWithFunction> (key: string, defaultValue: T): ResolvedJSONValue<T> {
+export function loadFromStorage<T extends JSONValueWithFunction> (key: string, defaultValue: T, whichOnSameType: 'a' | 'b'): ResolvedJSONValue<T> {
   try {
     const val = JSON.parse(localStorage.getItem(key) ?? '');
-    return saveToStorage(key, completeProperties(val, defaultValue, false));
+    return saveToStorage(key, completeProperties(val, defaultValue, false, whichOnSameType));
   } catch (e) {
     scwcWarn(`Failed to load config for key "${key}", using default value.`, (e as Error).message ?? '');
-    return saveToStorage(key, completeProperties(null, defaultValue, true));
+    return saveToStorage(key, completeProperties(null, defaultValue, true, whichOnSameType));
   }
 }

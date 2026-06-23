@@ -57,7 +57,7 @@ window.addEventListener('storage', (e: StorageEvent) => {
 });
 
 export class ConfigController implements ReactiveController {
-  static config: TConfig = loadFromStorage(CONFIG_KEY, defaultValue);
+  static config: TConfig = loadFromStorage(CONFIG_KEY, defaultValue, 'a');
   static allControllers: Set<ConfigController> = new Set();
   /** 同样是所有控制器的 Set, 但是使用 WeakSet */
   static allControllersWeak: WeakSet<ConfigController> = new WeakSet();
