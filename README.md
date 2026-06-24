@@ -316,6 +316,8 @@ onRequest: async ({ utils: { writeData, writeDataURL }, data, site }, logger) =>
 - [ ] 重新加载单独插件的功能
 - [ ] 在url发生变化时自动重加载插件控制器配置
 - [ ] 允许插件设置哪个控制器触发后需要重新加载当前插件控制器
+- [ ] 将元素选择功能提供给插件使用
+- [ ] 支持控制器自定义快捷键
 - [ ] 将 State 作为公共工具提供给插件使用
 - [ ] onLoad 内提供建议数据保存目录
 - [ ] bug: 当呼出两次 notify, 每次呼出两个后, 第一次呼出的 notify 消失时, 第二次呼出 notify 的定位有误
