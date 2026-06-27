@@ -14,7 +14,7 @@
   "module": "./server/index.ts",
   "scripts": {
     "start": "tsx server/scripts/setup.ts",
-    "build": "cd ./user-script && bun run build",
+    "build": "tsc -b && cd ./user-script && bun run build",
     "dev": "cd ./user-script && bun run dev",
     "test": "vitest",
     "lint": "oxlint",
