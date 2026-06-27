@@ -5,6 +5,10 @@ import './components/trigger';
 import './components/toggle';
 import './components/select';
 import './components/checkbox'
+import updateLocalStorage from './utils/updateLocalStorage';
+
+// 更新本地存储的数据格式
+updateLocalStorage()
 
 // 悬浮窗挂载点
 const FLOATING_ID = 'selective-crawl-floating-root';
