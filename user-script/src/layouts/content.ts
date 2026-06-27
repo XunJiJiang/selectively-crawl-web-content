@@ -13,6 +13,8 @@ class SCWCContentLayout extends LitElement {
   public accessor selectionExpanded = false;
   @property({ type: Boolean })
   public accessor pluginExpanded = false;
+  @property({ type: String, attribute: 'current-plugin-tab' })
+  public accessor currentPluginTab = '';
 
   @state()
   private accessor clawItems = [];
@@ -33,6 +35,10 @@ class SCWCContentLayout extends LitElement {
         <scwc-layout-content-plugin
           .expanded=${this.pluginExpanded}
           .clawItems=${this.clawItems}
+          .currentPluginTab=${this.currentPluginTab}
+          @current-plugin-tab-changed=${(e: CustomEvent<string>) => {
+        this.dispatchEvent(new CustomEvent('current-plugin-tab-changed', { detail: e.detail }));
+      }}
         ></scwc-layout-content-plugin>
       </div>
     `;

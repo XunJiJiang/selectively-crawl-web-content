@@ -169,13 +169,23 @@ export class PluginsController implements ReactiveController {
   /** 是否为初次加载 */
   private isInitialLoad = true;
 
-  /** 请求插件列表 */
+  /** 
+   * 请求插件列表
+   * 要求插件窗口展开
+   * 且是第一次请求
+   */
   async requestPlugins () {
     if (!this.host.expanded) {
       return;
     }
     if (this.isInitialLoad) {
       this.reloadPlugins();
+      // 获取本次持久化的当前激活的插件标签页
+      const activeTab = this.host.currentPluginTab;
+      const pluginsWithConfig = this.plugins ?? [this.configController.configControls];
+      const activePlugin = pluginsWithConfig.find(plugin => plugin.id === activeTab) ?? null;
+      this.setActiveTab(activePlugin?.id ?? (pluginsWithConfig.length > 0 ? pluginsWithConfig[0].id : ''));
+      this.setActivePlugin(activePlugin ?? (pluginsWithConfig.length > 0 ? pluginsWithConfig[0] : null));
       this.isInitialLoad = false;
     }
   }
@@ -191,7 +201,8 @@ export class PluginsController implements ReactiveController {
 
     try {
       const plugins = await fetchPlugins(this.configController.config);
-      this.setPlugins([this.configController.configControls, ...plugins]);
+      const pluginsWithConfig = [this.configController.configControls, ...plugins];
+      this.setPlugins(pluginsWithConfig);
     } catch (e) {
       console.error('Failed to reload plugins:', e);
       notify({

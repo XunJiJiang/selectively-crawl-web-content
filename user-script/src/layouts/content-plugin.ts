@@ -19,6 +19,9 @@ export class SCWCContentPlugin extends LitElement {
   @property({ type: Array, attribute: false })
   accessor clawItems: Item[] = [];
 
+  @property({ type: String, attribute: 'current-plugin-tab' })
+  accessor currentPluginTab: string = '';
+
   private pluginsController = new PluginsController(this);
 
   render () {

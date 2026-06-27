@@ -41,9 +41,14 @@ function updateLocalStorageFormat_0_to_2_0_0_1 (): UpdateResult {
   if (pos || minimized || pluginExpanded) {
     const persistentData = {
       version: '2.0.0-1',
-      ...(pos ? { pos } : {}),
-      ...(minimized !== null ? { minimized: minimized === 'true' } : { minimized: true }),
-      ...(pluginExpanded !== null ? { pluginExpanded: pluginExpanded === 'true' } : { pluginExpanded: false }),
+      window: {
+        ...(pos ? { pos } : {}),
+        ...(minimized !== null ? { minimized: minimized === 'true' } : { minimized: true }),
+      },
+      plugin: {
+        ...(pluginExpanded !== null ? { expanded: pluginExpanded === 'true' } : { expanded: false }),
+        activeTab: '',
+      }
     }
     localStorage.setItem(PERSISTENT_DATA_KEY, JSON.stringify(persistentData))
     localStorage.removeItem(POS_KEY)
