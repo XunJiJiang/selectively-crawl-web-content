@@ -179,7 +179,7 @@ export class PluginsController implements ReactiveController {
       return;
     }
     if (this.isInitialLoad) {
-      this.reloadPlugins();
+      await this.reloadPlugins();
       // 获取本次持久化的当前激活的插件标签页
       const activeTab = this.host.currentPluginTab;
       const pluginsWithConfig = this.plugins ?? [this.configController.configControls];
@@ -203,6 +203,7 @@ export class PluginsController implements ReactiveController {
       const plugins = await fetchPlugins(this.configController.config);
       const pluginsWithConfig = [this.configController.configControls, ...plugins];
       this.setPlugins(pluginsWithConfig);
+      this.host.requestUpdate();
     } catch (e) {
       console.error('Failed to reload plugins:', e);
       notify({
@@ -212,6 +213,7 @@ export class PluginsController implements ReactiveController {
         placement: this.configController.config.notify.placement,
       });
       this.setPlugins(this.configController.configControls ? [this.configController.configControls] : []);
+      this.host.requestUpdate();
     }
   }
 
@@ -296,7 +298,6 @@ export class PluginsController implements ReactiveController {
         } else {
           this.controlValues.set(control, { value: control.options?.defaultValue ?? null, plugin });
         }
-        console.log('设置控制器值:', control.channel, this.controlValues.get(control));
       });
     });
 
