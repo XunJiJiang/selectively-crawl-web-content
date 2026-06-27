@@ -1,6 +1,6 @@
 import dotenv from 'dotenv';
-import { serverLogger } from './logger';
-import { v4 } from 'uuid'
+import { serverLogger } from './logger.ts';
+import { v4 } from 'uuid';
 
 dotenv.config();
 

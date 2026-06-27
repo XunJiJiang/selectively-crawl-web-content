@@ -5,7 +5,11 @@ import { customElement, property } from 'lit/decorators.js';
 
 @customElement('scwc-trigger')
 class SCWCTrigger extends LitElement {
-  static styles = [css`${unsafeCSS(style)}`];
+  static styles = [
+    css`
+      ${unsafeCSS(style)}
+    `,
+  ];
 
   @property({ type: String })
   accessor label = '';
@@ -20,9 +24,9 @@ class SCWCTrigger extends LitElement {
   accessor title = '';
 
   @property({ type: String, attribute: 'aria-label' })
-  accessor ariaLabel = ''
+  accessor ariaLabel = '';
 
-  render () {
+  render() {
     return html`
       <scwc-button
         type=${this.type}
@@ -31,20 +35,20 @@ class SCWCTrigger extends LitElement {
         title=${this.title}
         aria-label=${this.ariaLabel}
         @click=${(e: MouseEvent) => {
-        e.stopPropagation();
-        this.dispatchEvent(new CustomEvent('trigger', { bubbles: true }));
-      }}
+          e.stopPropagation();
+          this.dispatchEvent(new CustomEvent('trigger', { bubbles: true }));
+        }}
       ></scwc-button>
     `;
   }
 }
 
 export interface SCWCTriggerEventMap {
-  'trigger': CustomEvent<void>;
+  trigger: CustomEvent<void>;
 }
 
 declare global {
   interface HTMLElementTagNameMap {
-    "scwc-trigger": SCWCTrigger;
+    'scwc-trigger': SCWCTrigger;
   }
 }

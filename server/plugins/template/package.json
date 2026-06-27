@@ -1,14 +1,14 @@
 {
   "name": "template-plugin",
-  "main": "index.ts",
   "type": "module",
-  "enabled": false,
-  "commandName": "template",
-  "link-with": [],
+  "main": "index.ts",
   "devDependencies": {
     "@types/bun": "latest"
   },
   "peerDependencies": {
     "typescript": "^5.0.0"
-  }
+  },
+  "commandName": "template",
+  "enabled": false,
+  "link-with": []
 }

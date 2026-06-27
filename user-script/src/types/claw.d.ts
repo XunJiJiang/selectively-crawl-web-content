@@ -1,10 +1,10 @@
 export type Item = {
-  selector: string,
-  label: string,
-  prefix: string,
-}
+  selector: string;
+  label: string;
+  prefix: string;
+};
 
-export type TCrawlData = {
-  result: SCWC.TDataItem[],
-  failed: string[],
+export interface TCrawlData {
+  result: SCWC.TDataItem[];
+  failed: string[];
 }

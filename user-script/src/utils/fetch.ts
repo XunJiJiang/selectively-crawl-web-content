@@ -10,11 +10,11 @@ export class FetchError extends Error {
     }
   }
 
-  get response (): Response | void {
+  get response(): Response | undefined {
     return this._response;
   }
 }
 
-export function isFetchError (error: unknown): error is FetchError {
+export function isFetchError(error: unknown): error is FetchError {
   return error instanceof FetchError;
 }

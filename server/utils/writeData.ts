@@ -1,8 +1,8 @@
 import fs from 'fs';
 import path from 'path';
-import log from './log';
-import { fetchImage } from './fetchImage';
 import { v4 as uuidv4 } from 'uuid';
+import log from './log.ts';
+import { fetchImage } from './fetchImage.ts';
 
 /**
  * 处理 dataURL
@@ -18,9 +18,11 @@ import { v4 as uuidv4 } from 'uuid';
  * - 返回值为最终保存的文件路径
  * @returns 如果成功, 返回保存的文件路径; 如果失败, 返回 false
  */
-export async function writeDataURL (
+export async function writeDataURL(
   dataUrl: string,
-  filePath: string | ((props: { fullname: string; filename: string; ext: string; datePrefix: string }) => string),
+  filePath:
+    | string
+    | ((props: { fullname: string; filename: string; ext: string; datePrefix: string }) => string),
 ): Promise<false | string> {
   const _writeImg = (buf: Buffer, ext: string) => {
     const _filePath = (() => {
@@ -53,7 +55,9 @@ export async function writeDataURL (
       const imgBuffer = await fetchImage(dataUrl);
       if (imgBuffer) {
         const _filePath = _writeImg(imgBuffer, 'png');
-        if (_filePath) return _filePath;
+        if (_filePath) {
+          return _filePath;
+        }
       } else {
         throw new Error('获取图片失败');
       }
@@ -68,7 +72,9 @@ export async function writeDataURL (
   try {
     // 解析dataURL
     const match = /^data:image\/(\w+);base64,(.+)$/.exec(dataUrl);
-    if (!match) return false;
+    if (!match) {
+      return false;
+    }
     const ext = match[1] ?? 'png';
     const base64 = match[2];
     const buf = Buffer.from(base64, 'base64');
@@ -88,20 +94,24 @@ export async function writeDataURL (
  * @param data 要保存的数据, 支持保存允许转换为 json 的任意数据类型。如果是 DataItem[], 会自动处理其中的图片数据（dataURL）并将其转换为图片文件,  data.json 中只保存图片文件路径。
  * @returns
  */
-export async function writeData<D> (
+export async function writeData<D>(
   dirPath: string,
   data: D,
 ): Promise<
   | false
   | {
-    data: D;
-  }
+      data: D;
+    }
 > {
   try {
-    if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
+    if (!fs.existsSync(dirPath)) {
+      fs.mkdirSync(dirPath, { recursive: true });
+    }
     // 确保images目录存在
     const imagesDir = path.join(dirPath, 'images');
-    if (!fs.existsSync(imagesDir)) fs.mkdirSync(imagesDir, { recursive: true });
+    if (!fs.existsSync(imagesDir)) {
+      fs.mkdirSync(imagesDir, { recursive: true });
+    }
 
     const dataJsonPath = path.join(dirPath, 'data.json');
     let raw: unknown[];
@@ -131,18 +141,26 @@ export async function writeData<D> (
     if (
       Array.isArray(data) &&
       data.length &&
-      data.some(item => typeof item === 'object' && item !== null && 'images' in item)
+      data.some((item) => typeof item === 'object' && item !== null && 'images' in item)
     ) {
       // 处理所有图片
       const newData: unknown[] = [];
 
       for (const item of data) {
-        if (typeof item !== 'object' || item === null || !('images' in item) || !Array.isArray(item.images))
+        if (
+          typeof item !== 'object' ||
+          item === null ||
+          !('images' in item) ||
+          !Array.isArray(item.images)
+        ) {
           return item;
+        }
         const newImages: string[] = [];
         for (const imgDataUrl of item.images) {
           const filePath = await writeDataURL(imgDataUrl, imagesDir);
-          if (!filePath) continue;
+          if (!filePath) {
+            continue;
+          }
           newImages.push(filePath);
         }
         newData.push({ ...item, images: newImages });

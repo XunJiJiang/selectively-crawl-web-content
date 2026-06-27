@@ -1,10 +1,10 @@
-export type TCommandOption = {
+export interface TCommandOption {
   name: string;
   alias?: string;
   description?: string;
   required?: boolean; // 默认 false
   defaultValue?: string | boolean | number;
-};
+}
 
 export type TCommandExecute = (
   log: TLogger,
@@ -15,9 +15,9 @@ export type TCommandExecute = (
   originArgs: string[],
 ) => Promise<void> | void;
 
-export type TSubCommand = {
+export interface TSubCommand {
   name: string;
   description?: string;
   exampleUsage?: string;
   execute: TCommandExecute;
-};
+}

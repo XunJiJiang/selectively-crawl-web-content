@@ -1,49 +1,62 @@
-import type { JSONValue, JSONValueWithFunction, ResolvedJSONValue } from "../types/utils";
-import { scwcError, scwcWarn } from "./console";
+import type { JSONValue, JSONValueWithFunction, ResolvedJSONValue } from '../types/utils.d.ts';
+import { scwcError, scwcWarn } from './console.ts';
 
 /** 不可控的内部错误 */
 class InternalError extends Error {
   private _error: unknown;
 
   constructor(error: unknown) {
+    super(
+      (() => {
+        if (error instanceof Error) {
+          return error.message;
+        } else {
+          return String(error);
+        }
+      })(),
+    );
     if (error instanceof InternalError) {
       return error;
-    } else if (error instanceof Error) {
-      super(error.message);
-    } else {
-      super(String(error));
     }
     this._error = error;
   }
 
-  get __internalError__ () {
-    return true;
-  }
-  get name () {
-    return 'InternalError';
-  }
-  get originalError () {
+  readonly __internalError__ = true;
+  readonly name = 'InternalError';
+  get originalError() {
     return this._error;
   }
 }
 
-function resolveJSONValueWithFunction<T extends JSONValueWithFunction> (value: T, notRunFun: boolean): ResolvedJSONValue<T> {
-  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean' || value === null) {
+function resolveJSONValueWithFunction<T extends JSONValueWithFunction>(
+  value: T,
+  notRunFun: boolean,
+): ResolvedJSONValue<T> {
+  if (
+    typeof value === 'string' ||
+    typeof value === 'number' ||
+    typeof value === 'boolean' ||
+    value === null
+  ) {
     return value as ResolvedJSONValue<T>;
   } else if (typeof value === 'function') {
     try {
-      const result = notRunFun ? [] : value() as unknown[];
+      const result = notRunFun ? [] : (value() as unknown[]);
       return result as ResolvedJSONValue<T>;
     } catch (error) {
       scwcError('Error while resolving function in config:', error);
       throw new InternalError(error);
     }
   } else if (Array.isArray(value)) {
-    scwcWarn('Unexpected array in config value. Arrays should be defined as functions that return arrays. Value:', value);
-    return value.map(item => resolveJSONValueWithFunction(item, notRunFun)) as ResolvedJSONValue<T>;
+    scwcWarn(
+      'Unexpected array in config value. Arrays should be defined as functions that return arrays. Value:',
+      value,
+    );
+    return value.map((item: JSONValueWithFunction) =>
+      resolveJSONValueWithFunction(item, notRunFun),
+    ) as ResolvedJSONValue<T>;
   } else if (typeof value === 'object') {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const result: any = {};
+    const result: Record<string, unknown> = {};
     for (const key in value) {
       result[key] = resolveJSONValueWithFunction(value[key], notRunFun);
     }
@@ -67,7 +80,12 @@ function resolveJSONValueWithFunction<T extends JSONValueWithFunction> (value: T
  * @param notRunFun 是否不执行函数, 当为 true 时将不再对数组进行检查, 默认值直接使用空数组. 用于规避外部函数中可能出现的报错.
  * @param whichOnSameType 在a和b类型相同时，选择使用哪个值
  */
-export function completeProperties<T extends JSONValue, U extends JSONValueWithFunction> (a: T, b: U /* , keepExtra = false */, notRunFun: boolean, whichOnSameType: 'a' | 'b'): ResolvedJSONValue<U> {
+export function completeProperties<T extends JSONValue, U extends JSONValueWithFunction>(
+  a: T,
+  b: U /* , keepExtra = false */,
+  notRunFun: boolean,
+  whichOnSameType: 'a' | 'b',
+): ResolvedJSONValue<U> {
   if (typeof a === 'string' || typeof a === 'number' || typeof a === 'boolean' || a === null) {
     if (typeof b === 'string' || typeof b === 'number' || typeof b === 'boolean' || b === null) {
       return (whichOnSameType === 'a' ? a : b) as ResolvedJSONValue<U>;
@@ -79,7 +97,14 @@ export function completeProperties<T extends JSONValue, U extends JSONValueWithF
   if (Array.isArray(a)) {
     if (typeof b === 'function') {
       try {
-        return a.map(item => completeProperties(item, (notRunFun ? item : b(item)) as JSONValueWithFunction /* , keepExtra */, notRunFun, whichOnSameType)) as ResolvedJSONValue<U>;
+        return a.map((item) =>
+          completeProperties(
+            item,
+            (notRunFun ? item : b(item)) as JSONValueWithFunction /* , keepExtra */,
+            notRunFun,
+            whichOnSameType,
+          ),
+        ) as ResolvedJSONValue<U>;
       } catch (error) {
         scwcError('Error while resolving array processor in config:', error);
         throw new InternalError(error);
@@ -91,14 +116,18 @@ export function completeProperties<T extends JSONValue, U extends JSONValueWithF
 
   if (typeof a === 'object' && a !== null) {
     if (typeof b === 'object' && b !== null) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const result: any = {};
+      const result: Record<string, unknown> = {};
       const bObj = b as Record<string, JSONValueWithFunction>;
       for (const key in bObj) {
         const bVal = bObj[key];
         if (key in a) {
           const aVal = a[key];
-          result[key] = completeProperties(aVal, bVal /* , keepExtra */, notRunFun, whichOnSameType);
+          result[key] = completeProperties(
+            aVal,
+            bVal /* , keepExtra */,
+            notRunFun,
+            whichOnSameType,
+          );
         } else {
           result[key] = resolveJSONValueWithFunction(bVal, notRunFun);
         }
@@ -120,17 +149,24 @@ export function completeProperties<T extends JSONValue, U extends JSONValueWithF
   throw new Error(`Unsupported type in config value: ${typeof a}`);
 }
 
-export function saveToStorage<T extends JSONValue> (key: string, items: T) {
+export function saveToStorage<T extends JSONValue>(key: string, items: T) {
   localStorage.setItem(key, JSON.stringify(items));
   return items;
 }
 
-export function loadFromStorage<T extends JSONValueWithFunction> (key: string, defaultValue: T, whichOnSameType: 'a' | 'b'): ResolvedJSONValue<T> {
+export function loadFromStorage<T extends JSONValueWithFunction>(
+  key: string,
+  defaultValue: T,
+  whichOnSameType: 'a' | 'b',
+): ResolvedJSONValue<T> {
   try {
     const val = JSON.parse(localStorage.getItem(key) ?? '');
     return saveToStorage(key, completeProperties(val, defaultValue, false, whichOnSameType));
   } catch (e) {
-    scwcWarn(`Failed to load config for key "${key}", using default value.`, (e as Error).message ?? '');
+    scwcWarn(
+      `Failed to load config for key "${key}", using default value.`,
+      (e as Error).message ?? '',
+    );
     return saveToStorage(key, completeProperties(null, defaultValue, true, whichOnSameType));
   }
 }

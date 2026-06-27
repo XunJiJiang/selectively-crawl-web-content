@@ -29,30 +29,43 @@ export const inactivePlugins: (SCWC.IPluginMeta & {
  * > 这个函数目前和插件没有关系, 可以修改成根据缓存命名空间判断错误来源
  * @param logger 日志实例
  */
-export function initCacheErrorHandler (logger: SCWC.TLogger) {
-  addErrorHandler('env', ({ channel, error }) => {
+export function initCacheErrorHandler(logger: SCWC.TLogger) {
+  addErrorHandler('env', ({ /* channel, */ error }) => {
     logger.error(`Environment error: ${error.message}`);
   });
-  addErrorHandler('memory', ({ channel, error }) => {
+  addErrorHandler('memory', ({ /* channel, */ error }) => {
     logger.error(`Memory cache error: ${error.message}`);
   });
-  addErrorHandler('redis', ({ channel, error }) => {
+  addErrorHandler('redis', ({ /* channel, */ error }) => {
     logger.error(`Redis cache error: ${error.message}`);
   });
 }
 
-export async function loadPlugins () {
-  if (!fs.existsSync(PLUGIN_DIR)) return;
+export async function loadPlugins() {
+  if (!fs.existsSync(PLUGIN_DIR)) {
+    return;
+  }
   const dirs = fs
     .readdirSync(PLUGIN_DIR, { withFileTypes: true })
-    .filter(d => d.isDirectory())
-    .map(d => d.name);
+    .filter((d) => d.isDirectory())
+    .map((d) => d.name);
   for (const dir of dirs) {
     const pkgPath = path.join(PLUGIN_DIR, dir, 'package.json');
-    if (!fs.existsSync(pkgPath)) continue;
-    const logger = createLogger(`plugin:${dir}`, path.relative(process.cwd(), path.join(PLUGIN_DIR, dir)));
-    let pkg: any;
-    let name: string;
+    if (!fs.existsSync(pkgPath)) {
+      continue;
+    }
+    const logger = createLogger(
+      `plugin:${dir}`,
+      path.relative(process.cwd(), path.join(PLUGIN_DIR, dir)),
+    );
+    let pkg: {
+      name?: string;
+      main?: string;
+      enabled?: boolean;
+      'link-with'?: string[];
+      commandName?: string;
+    } = {};
+    let name = '';
     try {
       pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
     } catch (e) {
@@ -114,10 +127,12 @@ export async function loadPlugins () {
       });
       continue;
     }
-    let mod: any;
+    let mod: SCWC.IPluginHandler = {} as SCWC.IPluginHandler;
     try {
-      mod = require(entryAbs);
-      if (mod.__esModule && mod.default) mod = mod.default;
+      const _mod = require(entryAbs);
+      if (_mod.__esModule && _mod.default) {
+        mod = _mod.default;
+      }
     } catch (e) {
       logger.warn(`动态导入 ${dir} 失败:`, e);
       inactivePlugins.push({
@@ -143,14 +158,14 @@ export async function loadPlugins () {
       continue;
     }
     const linkWith: string[] = Array.isArray(pkg['link-with'])
-      ? pkg['link-with'].map(item => {
-        // 去除尾部斜杠
-        if (item.endsWith('/')) {
-          return item.slice(0, -1);
-        } else {
-          return item;
-        }
-      })
+      ? pkg['link-with'].map((item) => {
+          // 去除尾部斜杠
+          if (item.endsWith('/')) {
+            return item.slice(0, -1);
+          } else {
+            return item;
+          }
+        })
       : [];
     plugins.push({
       name: name,
@@ -161,7 +176,9 @@ export async function loadPlugins () {
       commandName: pkg['commandName'] ?? void 0,
       logger,
     });
-    createLogger(`plugin:${name}`, path.relative(process.cwd(), path.join(PLUGIN_DIR, dir))).info(`加载完成`);
+    createLogger(`plugin:${name}`, path.relative(process.cwd(), path.join(PLUGIN_DIR, dir))).info(
+      `加载完成`,
+    );
   }
 
   for (const plugin of plugins) {
@@ -169,7 +186,10 @@ export async function loadPlugins () {
       continue;
     }
 
-    const logger = createLogger(`plugin:${plugin.name}`, path.relative(process.cwd(), plugin.entry));
+    const logger = createLogger(
+      `plugin:${plugin.name}`,
+      path.relative(process.cwd(), plugin.entry),
+    );
 
     const commandConfig = plugin.handler.pluginConfig?.command;
     if (commandConfig) {
@@ -180,7 +200,10 @@ export async function loadPlugins () {
             logger,
             commandName,
             // TODO: 当没有定义 execute 时, 可以提供一个默认的执行函数, 例如打印命令描述和用法等信息
-            commandConfig.execute ?? (() => {}),
+            commandConfig.execute ??
+              (() => {
+                /* */
+              }),
             plugin.pluginId,
             commandConfig.description,
             commandConfig.subCommands,
@@ -202,7 +225,7 @@ export async function loadPlugins () {
 
     if (typeof plugin.handler.onLoad === 'function') {
       await plugin.handler.onLoad(logger, {
-        createRetryGet: <RES, A extends AxiosRequestConfig = AxiosRequestConfig> (
+        createRetryGet: <RES, A extends AxiosRequestConfig = AxiosRequestConfig>(
           ...args: Parameters<TCreateRetryGet<RES, A>>
         ) => {
           const namespace = `plugin:${plugin.name}`;

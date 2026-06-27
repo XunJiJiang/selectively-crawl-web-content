@@ -37,14 +37,18 @@ app.use((req, res, next) => {
   const authHeader = req.headers['authorization'];
 
   if (!authHeader) {
-    serverLogger.warn(`请求缺少 Authorization 头: ${req.method} ${req.url}, 来源: ${decodeURIComponent(req.headers.origin ?? req.headers.referer ?? req.query?.site?.toString() ?? '未知')}`);
+    serverLogger.warn(
+      `请求缺少 Authorization 头: ${req.method} ${req.url}, 来源: ${decodeURIComponent(req.headers.origin ?? req.headers.referer ?? req.query?.site?.toString() ?? '未知')}`,
+    );
     res.status(401).json({ success: false, message: '缺少 Authorization 头' });
     return;
   }
 
   const [type, token] = authHeader.toString().split(' ');
   if (type !== 'Bearer' || token !== TOKEN) {
-    serverLogger.warn(`请求使用了无效的 token: ${req.method} ${req.url}, 来源: ${decodeURIComponent(req.headers.origin ?? req.headers.referer ?? req.query?.site?.toString() ?? '未知')}`);
+    serverLogger.warn(
+      `请求使用了无效的 token: ${req.method} ${req.url}, 来源: ${decodeURIComponent(req.headers.origin ?? req.headers.referer ?? req.query?.site?.toString() ?? '未知')}`,
+    );
     res.status(403).json({ success: false, message: '无效的 token' });
     return;
   }
@@ -70,19 +74,32 @@ metadataRouter.post(
   '/scrape',
   async (
     req: Request<
-      any,
-      any,
+      unknown,
+      unknown,
       {
         site: string;
         data: SCWC.TDataItem[];
       }
     >,
-    res: any,
+    res: express.Response<
+      | {
+          success: boolean;
+          message: string;
+          data: {
+            pluginInfo: {
+              name: string;
+            };
+            info: string;
+            type: 'success' | 'error' | 'warn' | 'info';
+          }[];
+        }
+      | { success: false; message: string; data: string[] }
+    >,
   ) => {
     const parsedBody = scrapeSchema.safeParse(req.body);
 
     if (!parsedBody.success) {
-      res.status(400).json({ success: false, message: '请求体格式错误' });
+      res.status(400).json({ success: false, message: '请求体格式错误', data: [] });
       return;
     }
 
@@ -99,7 +116,9 @@ metadataRouter.post(
     // 匹配插件
     let root = getRootUrl(decodedSite);
     // 统一去除尾部斜杠
-    if (root.endsWith('/')) root = root.slice(0, -1);
+    if (root.endsWith('/')) {
+      root = root.slice(0, -1);
+    }
 
     let called = false;
     const resInfo: {
@@ -111,12 +130,15 @@ metadataRouter.post(
       // 当 plugin.linkWith 存在时，且匹配当前网址时才执行
       // 当 plugin.linkWith 为空数组时，视为匹配所有网址
       if (plugin.linkWith && matchLink(decodedSite, plugin.linkWith)) {
-        const log = createLogger(`plugin:${plugin.name}`, path.relative(process.cwd(), plugin.entry));
+        const log = createLogger(
+          `plugin:${plugin.name}`,
+          path.relative(process.cwd(), plugin.entry),
+        );
         log.info(`处理网址: ${decodedSite}`);
         // log.info(`插件入口: ${plugin.entry}`);
         try {
-          plugin.handler &&
-            (await plugin.handler.onRequest(
+          if (plugin.handler) {
+            await plugin.handler.onRequest(
               {
                 site: {
                   url: decodedSite,
@@ -129,7 +151,7 @@ metadataRouter.post(
                   strValidation: (str: string) => strValidation(str),
                   convertToCN: (str: string) => convertToCN(str),
                   fetchImage: (url: string) => fetchImage(url, log),
-                  writeData: <D> (...args: Parameters<typeof writeData>) => <D>writeData(...args),
+                  writeData: <D>(...args: Parameters<typeof writeData>) => writeData(...args) as D,
                   writeDataURL: (...args: Parameters<typeof writeDataURL>) => writeDataURL(...args),
                 },
               },
@@ -143,7 +165,8 @@ metadataRouter.post(
                   });
                 },
               },
-            ));
+            );
+          }
           called = true;
         } catch (e) {
           log.warn(`调用插件 ${plugin.name} 时出现错误:`, e);
@@ -156,7 +179,10 @@ metadataRouter.post(
       res.json({
         success: true,
         message: 'success',
-        data: resInfo.map(item => ({ ...item, pluginInfo: { name: item.pluginInfo.name } })),
+        data: resInfo.map((item) => ({
+          ...item,
+          pluginInfo: { name: item.pluginInfo.name },
+        })),
       });
     } else {
       res.json({
@@ -172,6 +198,6 @@ apiRouter.use('/metadata', metadataRouter);
 apiRouter.use('/plugin', pluginRouter);
 app.use('/api', apiRouter);
 
-export function listen (port: number, callback?: () => void) {
+export function listen(port: number, callback?: () => void) {
   app.listen(port, callback);
 }

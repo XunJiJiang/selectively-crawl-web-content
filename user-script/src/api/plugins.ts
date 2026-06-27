@@ -1,19 +1,24 @@
-import type { TCrawlData } from "../types/claw.ts";
-import type { TConfig } from "../types/config.ts";
-import type { PluginConfig, PluginItem, TRequiredOptions } from "../types/plugin.ts";
-import { notify } from "../utils/notify.ts";
+import type { TCrawlData } from '../types/claw.ts';
+import type { TConfig } from '../types/config.ts';
+import type { PluginConfig, PluginItem, TRequiredOptions } from '../types/plugin.ts';
+import { notify } from '../utils/notify.ts';
 
 /** 请求插件列表 */
-export async function fetchPlugins (config: TConfig): Promise<(PluginConfig)[]> {
+export async function fetchPlugins(config: TConfig): Promise<PluginConfig[]> {
   const url = window.location.href;
   const res = await fetch(
     `${config.api.host}:${config.api.port.replace(/[^\d]/g, '')}/api/plugin/config?site=${encodeURIComponent(url)}`,
     {
       method: 'GET',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.api.token}` },
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${config.api.token}`,
+      },
     },
   );
-  if (!res.ok) throw new Error('Failed to fetch plugin config');
+  if (!res.ok) {
+    throw new Error('Failed to fetch plugin config');
+  }
   const data = (await res.json()) as {
     code: number;
     message: string;
@@ -29,7 +34,7 @@ export async function fetchPlugins (config: TConfig): Promise<(PluginConfig)[]> 
 }
 
 /** 触发插件 */
-export async function triggerPlugin (
+export async function triggerPlugin(
   type: 'click' | 'change',
   pluginId: string,
   channel: string,
@@ -51,33 +56,42 @@ export async function triggerPlugin (
       description: `存在未获取到的元素索引: ${failed.join(', ')}`,
       type: 'warn',
       placement: config.notify.placement,
-    })
+    });
     return;
   }
-  handleFetchResponse(fetch(
-    `${config.api.host}:${config.api.port.replace(/[^\d]/g, '')}/api/plugin/toggle?site=${encodeURIComponent(window.location.href)}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.api.token}` },
-      body: JSON.stringify({
-        type,
-        channel,
-        id: pluginId,
-        context: {
-          data: result,
-          site: window.location.href,
-          relatedValues,
-          value,
+  handleFetchResponse(
+    fetch(
+      `${config.api.host}:${config.api.port.replace(/[^\d]/g, '')}/api/plugin/toggle?site=${encodeURIComponent(window.location.href)}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${config.api.token}`,
         },
-      }),
-    },
-  ), /* pluginId, channel, control, */config);
+        body: JSON.stringify({
+          type,
+          channel,
+          id: pluginId,
+          context: {
+            data: result,
+            site: window.location.href,
+            relatedValues,
+            value,
+          },
+        }),
+      },
+    ),
+    /* pluginId, channel, control, */ config,
+  );
 }
 
 /** 处理需要 fetch 的控件的请求返回值 */
-function handleFetchResponse (promise: Promise<Response>, /* pluginId: string, _channel: string, _control: PluginItem, */ config: TConfig) {
+function handleFetchResponse(
+  promise: Promise<Response>,
+  /* pluginId: string, _channel: string, _control: PluginItem, */ config: TConfig,
+) {
   promise
-    .then(res => {
+    .then((res) => {
       if (!res.ok) {
         console.error(`插件请求失败: ${res.status} ${res.statusText}`);
         notify({
@@ -100,8 +114,10 @@ function handleFetchResponse (promise: Promise<Response>, /* pluginId: string, _
         };
       }>;
     })
-    .then(data => {
-      if (!data) return;
+    .then((data) => {
+      if (!data) {
+        return;
+      }
       if (data.code >= 400 && data.code < 600) {
         console.error('插件请求错误: ' + data.message);
         notify({

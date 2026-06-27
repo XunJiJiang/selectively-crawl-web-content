@@ -1,8 +1,6 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": [
-    "unicorn"
-  ],
+  "plugins": ["unicorn"],
   "categories": {
     "correctness": "off"
   },
@@ -13,9 +11,7 @@
   "rules": {},
   "overrides": [
     {
-      "files": [
-        "**/*.ts"
-      ],
+      "files": ["**/*.ts"],
       "rules": {
         "import/namespace": "error",
         "import/default": "error",
@@ -144,25 +140,16 @@
         "es2018": true,
         "es2026": true
       },
-      "plugins": [
-        "import",
-        "typescript"
-      ]
+      "plugins": ["import", "typescript"]
     },
     {
-      "files": [
-        "user-script/**/*.ts",
-        "web/**/*.ts"
-      ],
+      "files": ["user-script/**/*.ts", "web/**/*.ts"],
       "env": {
         "browser": true
       }
     },
     {
-      "files": [
-        "server/**/*.ts",
-        "scripts/**/*.ts"
-      ],
+      "files": ["server/**/*.ts", "scripts/**/*.ts"],
       "env": {
         "node": true
       }

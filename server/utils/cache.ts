@@ -22,7 +22,10 @@ const keyvErrorInfo = new Set<{
 }>();
 
 /** 错误处理程序列表 */
-const errorHandlers = new Map<string, Set<(errorInfo: { channel: string; error: Error }) => void>>();
+const errorHandlers = new Map<
+  string,
+  Set<(errorInfo: { channel: string; error: Error }) => void>
+>();
 
 /** redis user */
 const REDIS_USER = process.env.REDIS_USER ?? '';
@@ -101,11 +104,14 @@ const keyvInstances = [
 ] as const;
 
 /** 提供错误处理程序 */
-export function addErrorHandler (store: string, handler: (errorInfo: { channel: string; error: Error }) => void) {
+export function addErrorHandler(
+  store: string,
+  handler: (errorInfo: { channel: string; error: Error }) => void,
+) {
   if (!errorHandlers.has(store)) {
     errorHandlers.set(store, new Set());
   }
-  errorHandlers.get(store)!.add(handler);
+  errorHandlers.get(store)?.add(handler);
 
   // 添加后立即处理之前积累的错误
   handleKeyvError(store);
@@ -115,7 +121,7 @@ export function addErrorHandler (store: string, handler: (errorInfo: { channel: 
 }
 
 /** 执行错误处理 */
-function handleKeyvError (store?: string) {
+function handleKeyvError(store?: string) {
   if (keyvErrorInfo.size <= 0) {
     return;
   }
@@ -128,7 +134,7 @@ function handleKeyvError (store?: string) {
     }
     for (const errorInfo of keyvErrorInfo) {
       if (errorInfo.channel === store) {
-        handlers.forEach(handler => handler(errorInfo));
+        handlers.forEach((handler) => handler(errorInfo));
         keyvErrorInfo.delete(errorInfo);
         break;
       }
@@ -138,15 +144,15 @@ function handleKeyvError (store?: string) {
     for (const errorInfo of keyvErrorInfo) {
       const handlers = errorHandlers.get(errorInfo.channel);
       if (handlers) {
-        handlers.forEach(handler => handler(errorInfo));
+        handlers.forEach((handler) => handler(errorInfo));
       }
       keyvErrorInfo.delete(errorInfo);
     }
   }
 }
 
-keyvInstances.forEach(keyv => {
-  keyv[1].on('error', err => {
+keyvInstances.forEach((keyv) => {
+  keyv[1].on('error', (err) => {
     const storeName = keyv[0];
     keyvErrorInfo.add({
       channel: storeName,
@@ -161,11 +167,11 @@ keyvInstances.forEach(keyv => {
 export const cache = createCache({
   ttl: 60 * 60 * 1000, // 1 hour
   refreshThreshold: 30 * 60 * 1000, // 30 minutes
-  stores: keyvInstances.map(i => i[1]),
+  stores: keyvInstances.map((i) => i[1]),
 });
 
 /** 缓存支持的数据类型 */
-export type TCacheableData = string | number | BigInt | boolean | object | Buffer | Readable;
+export type TCacheableData = string | number | bigint | boolean | object | Buffer | Readable;
 
 /** 流式缓存的标志字面量 */
 export type TFileCacheType = 'stream';
@@ -181,7 +187,7 @@ export const FILE_CACHE_DIR = path.join(process.cwd(), 'cache', 'files');
 /**
  * 检查数据是否是支持的类型
  */
-function isCacheableData (data: any): data is TCacheableData {
+function isCacheableData(data: unknown): data is TCacheableData {
   return (
     typeof data === 'string' ||
     typeof data === 'number' ||
@@ -202,7 +208,7 @@ function isCacheableData (data: any): data is TCacheableData {
  * @param log 日志记录器
  * @returns data
  */
-export async function setCache<T> (
+export async function setCache<T>(
   key: string,
   data: T,
   namespace: string | undefined,
@@ -231,13 +237,17 @@ export async function setCache<T> (
     while (true) {
       if (visitedKeys.has(currentKey)) {
         // 出现循环，停止写入
-        throw new Error(`检测到重定向循环，停止写入缓存，循环链: ${Array.from(visitedKeys).join(' -> ')}`);
+        throw new Error(
+          `检测到重定向循环，停止写入缓存，循环链: ${Array.from(visitedKeys).join(' -> ')}`,
+        );
       }
       visitedKeys.add(currentKey);
 
-      const cachedData = await cache.get<{ type: 'redirect' | 'value' | 'filecache'; dataType: string; data: any }>(
-        currentKey,
-      );
+      const cachedData = await cache.get<{
+        type: 'redirect' | 'value' | 'filecache';
+        dataType: string;
+        data: unknown;
+      }>(currentKey);
       if (!cachedData) {
         throw new Error(`重定向目标 ${currentKey} 不存在，无法设置重定向缓存`);
       } else if (cachedData.type === 'redirect') {
@@ -277,18 +287,20 @@ export async function setCache<T> (
     try {
       await new Promise<void>((resolve, reject) => {
         data.pipe(writeStream);
-        data.on('error', err => {
+        data.on('error', (err) => {
           reject(err);
         });
         writeStream.on('finish', () => {
           resolve();
         });
-        writeStream.on('error', err => {
+        writeStream.on('error', (err) => {
           reject(err);
         });
       });
     } catch (error) {
-      throw new Error(`写入流式数据缓存失败: ${(error as Error).message}`, { cause: error });
+      throw new Error(`写入流式数据缓存失败: ${(error as Error).message}`, {
+        cause: error,
+      });
     }
 
     /** 原始数据类型 */
@@ -336,7 +348,8 @@ export async function setCache<T> (
       const filepath = path.join(FILE_CACHE_DIR, filename);
 
       /** 原始数据类型 */
-      const fileType: TOtherCacheType = data instanceof Buffer ? 'Buffer' : (typeof data as TOtherCacheType);
+      const fileType: TOtherCacheType =
+        data instanceof Buffer ? 'Buffer' : (typeof data as TOtherCacheType);
 
       await fs.promises.writeFile(
         filepath,
@@ -366,7 +379,7 @@ export async function setCache<T> (
         data: filepath,
       });
 
-      return data;
+      return data as T;
     } else {
       await cache.set<{
         type: 'value';
@@ -378,7 +391,7 @@ export async function setCache<T> (
         data: data instanceof BigInt ? data.toString() : data,
       });
 
-      return data;
+      return data as T;
     }
   }
 }
@@ -389,12 +402,15 @@ export async function setCache<T> (
  * @param namespace 可选的命名空间，为插件提供隔离的缓存空间
  * @returns 缓存的数据，若不存在则返回 undefined
  */
-export async function getCache<T> (key: string, namespace: string | undefined): Promise<T | undefined> {
+export async function getCache<T>(
+  key: string,
+  namespace: string | undefined,
+): Promise<T | undefined> {
   const cacheKey = namespace ? `${namespace}:${key}` : key;
   const cachedData = await cache.get<{
     type: 'redirect' | 'value' | `filecache:${TFileCacheType | TOtherCacheType}`;
     dataType: string;
-    data: any;
+    data: unknown;
   }>(cacheKey);
   if (!cachedData) {
     return void 0;
@@ -407,14 +423,16 @@ export async function getCache<T> (key: string, namespace: string | undefined): 
     while (true) {
       if (visitedKeys.has(currentKey)) {
         // 出现循环，停止读取
-        throw new Error(`检测到重定向循环，停止读取缓存，循环链: ${Array.from(visitedKeys).join(' -> ')}`);
+        throw new Error(
+          `检测到重定向循环，停止读取缓存，循环链: ${Array.from(visitedKeys).join(' -> ')}`,
+        );
       }
       visitedKeys.add(currentKey);
 
       const nextCachedData = await cache.get<{
         type: 'redirect' | 'value' | `filecache:${TFileCacheType | TOtherCacheType}`;
         dataType: string;
-        data: any;
+        data: unknown;
       }>(currentKey);
       if (!nextCachedData) {
         return void 0;
@@ -466,7 +484,7 @@ export async function getCache<T> (key: string, namespace: string | undefined): 
  * @param key 缓存键
  * @param namespace 可选的命名空间，为插件提供隔离的缓存空间
  */
-export async function deleteCache (key: string, namespace: string | undefined): Promise<boolean> {
+export async function deleteCache(key: string, namespace: string | undefined): Promise<boolean> {
   const cacheKey = namespace ? `${namespace}:${key}` : key;
   return await cache.del(cacheKey);
 }
@@ -475,8 +493,11 @@ export async function deleteCache (key: string, namespace: string | undefined): 
  * @param keys 缓存键列表
  * @param namespace 可选的命名空间，为插件提供隔离的缓存空间
  */
-export async function mDeleteCache (keys: string[], namespace: string | undefined): Promise<boolean> {
-  const cacheKeys = keys.map(key => (namespace ? `${namespace}:${key}` : key));
+export async function mDeleteCache(
+  keys: string[],
+  namespace: string | undefined,
+): Promise<boolean> {
+  const cacheKeys = keys.map((key) => (namespace ? `${namespace}:${key}` : key));
   return await cache.mdel(cacheKeys);
 }
 
@@ -517,7 +538,9 @@ const cacheController = {
       logger.info('已清空所有缓存');
     } else {
       // TODO: 无法获取特定命名空间的所有键，因此无法实现针对特定命名空间的清空
-      logger.warn('clearAll 方法暂不支持命名空间参数，无法针对特定命名空间清空缓存，将清空所有缓存');
+      logger.warn(
+        'clearAll 方法暂不支持命名空间参数，无法针对特定命名空间清空缓存，将清空所有缓存',
+      );
       cacheController.clearAll(logger);
     }
   },

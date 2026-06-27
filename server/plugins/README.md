@@ -59,7 +59,7 @@ export default async function (
     info: (...args: any[]) => void;
     warn: (...args: any[]) => void;
     error: (...args: any[]) => void;
-  }
+  },
 ): Promise<void> {
   // 这里编写你的处理逻辑
   log.info('插件已加载');
@@ -76,7 +76,6 @@ export default async function (
 > `writeData(dirPath, data)` 是服务端提供的工具函数，用于将数据写入指定路径的 `data.json` 文件和 `images` 文件夹。
 >
 > - `path`：文件夹路径（绝对路径）。
->
 > - `data`：要写入的数据, 可以直接将 data 传入, 或经过某些处理后再传入。
 >
 > 如果文件不存在，则会自动创建。

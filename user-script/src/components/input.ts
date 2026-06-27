@@ -7,7 +7,11 @@ import { v4 as uuidv4 } from 'uuid';
 
 @customElement('scwc-input')
 class SCWCInput extends LitElement {
-  static styles = [css`${unsafeCSS(style)}`];
+  static styles = [
+    css`
+      ${unsafeCSS(style)}
+    `,
+  ];
 
   @property({ type: Boolean })
   accessor disabled = false;
@@ -35,20 +39,25 @@ class SCWCInput extends LitElement {
   accessor title = '';
 
   @property({ type: String, attribute: 'aria-label' })
-  accessor ariaLabel = ''
+  accessor ariaLabel = '';
 
-  render () {
+  render() {
     return html`
       <label part="label" for=${this.id} class="scwc-input-label" data-inline=${this.inline}>
-        <span part="description" class="scwc-input-desc" style=${this.label === '' ? 'display: none;' : ''} >${this.label}</span>
+        <span
+          part="description"
+          class="scwc-input-desc"
+          style=${this.label === '' ? 'display: none;' : ''}
+          >${this.label}</span
+        >
         <input
           part="input"
           class=${classMap({
-      'scwc-input-text': this.type === 'text',
-      'scwc-input-number': this.type === 'number',
-      'scwc-input-disabled': this.disabled,
-      'scwc-input': true,
-    })}
+            'scwc-input-text': this.type === 'text',
+            'scwc-input-number': this.type === 'number',
+            'scwc-input-disabled': this.disabled,
+            'scwc-input': true,
+          })}
           placeholder=${this.placeholder}
           id=${this.id}
           type=${this.type}
@@ -56,9 +65,30 @@ class SCWCInput extends LitElement {
           aria-label=${this.ariaLabel}
           .value=${this.value}
           ?disabled=${this.disabled}
-          @input=${(e: Event) => { e.stopPropagation(); this.dispatchEvent(new CustomEvent('input', { detail: (e.target as HTMLInputElement).value })); }}
-          @change=${(e: Event) => { e.stopPropagation(); this.dispatchEvent(new CustomEvent('change', { detail: (e.target as HTMLInputElement).value })); }}
-          @blur=${(e: Event) => { e.stopPropagation(); this.dispatchEvent(new CustomEvent('blur', { detail: (e.target as HTMLInputElement).value })); }}
+          @input=${(e: Event) => {
+            e.stopPropagation();
+            this.dispatchEvent(
+              new CustomEvent('input', {
+                detail: (e.target as HTMLInputElement).value,
+              }),
+            );
+          }}
+          @change=${(e: Event) => {
+            e.stopPropagation();
+            this.dispatchEvent(
+              new CustomEvent('change', {
+                detail: (e.target as HTMLInputElement).value,
+              }),
+            );
+          }}
+          @blur=${(e: Event) => {
+            e.stopPropagation();
+            this.dispatchEvent(
+              new CustomEvent('blur', {
+                detail: (e.target as HTMLInputElement).value,
+              }),
+            );
+          }}
         />
       </label>
     `;
@@ -66,13 +96,13 @@ class SCWCInput extends LitElement {
 }
 
 export interface SCWCInputEventMap {
-  'input': CustomEvent<string>;
-  'change': CustomEvent<string>;
-  'blur': CustomEvent<string>;
+  input: CustomEvent<string>;
+  change: CustomEvent<string>;
+  blur: CustomEvent<string>;
 }
 
 declare global {
   interface HTMLElementTagNameMap {
-    "scwc-input": SCWCInput;
+    'scwc-input': SCWCInput;
   }
 }

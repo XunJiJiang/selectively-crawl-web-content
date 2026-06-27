@@ -6,9 +6,7 @@ import { defineConfig, loadEnv } from 'vite';
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd());
   return {
-    plugins: [
-
-    ],
+    plugins: [],
     define: {
       'import.meta.env.HOST': JSON.stringify(env.HOST),
       'import.meta.env.PORT': JSON.stringify(env.PORT),

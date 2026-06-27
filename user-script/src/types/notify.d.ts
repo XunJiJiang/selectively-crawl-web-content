@@ -21,6 +21,13 @@ export type TNotify = Required<INotifyOptions> & {
   // beforeLeave: 开始离开动画, 但尚未开始离开动画
   // leave: 正在离开动画中
   // removed: 已经离开动画完成, 可以从列表中删除
-  state: 'beforePreparation' | 'preparation' | 'beforeEnter' | 'enter' | 'beforeLeave' | 'leave' | 'removed';
+  state:
+    | 'beforePreparation'
+    | 'preparation'
+    | 'beforeEnter'
+    | 'enter'
+    | 'beforeLeave'
+    | 'leave'
+    | 'removed';
   ref: Element | undefined;
-}
+};

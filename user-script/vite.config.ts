@@ -15,7 +15,8 @@ export default defineConfig(({ mode }) => {
           namespace: 'XunJi',
           version: require('./package.json').version,
           author: 'XunJi & XunJiJiang',
-          description: 'A user script to selectively crawl web content and save it to a local server.',
+          description:
+            'A user script to selectively crawl web content and save it to a local server.',
           match: ['*://*/*'],
           grant: ['unsafeWindow'],
         },

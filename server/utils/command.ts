@@ -39,7 +39,7 @@ const pluginCommandMap = new Map<string, string>();
 const commandPluginMap = new Map<string, string[]>();
 
 /** 检查命令有没有非法字符 */
-function isValidCommandName (name: string) {
+function isValidCommandName(name: string) {
   return /^[a-zA-Z0-9-_]+$/.test(name);
 }
 
@@ -49,7 +49,7 @@ const reservedCommands = new Set<string>();
 export const SYSTEM_SYMBOL = Symbol('system');
 
 export class CommandError extends Error {
-  constructor(message: string, needPrintOriginal: boolean = true) {
+  constructor(message: string, needPrintOriginal = true) {
     super(message);
     this.name = 'CommandError';
     this.needPrintOriginal = needPrintOriginal;
@@ -82,7 +82,7 @@ export type TRegisterCommand = (
  * @param exampleUsage 示例用法
  * @throws {Error} 如果命令名称非法或多次注册命令
  */
-export function registerCommand (
+export function registerCommand(
   log: TLogger,
   commandName: string,
   execute: TCommandExecute,
@@ -110,24 +110,28 @@ export function registerCommand (
     );
   }
 
-  if (commandPluginMap.has(commandName)) {
+  const existingPluginIds = commandPluginMap.get(commandName);
+  if (existingPluginIds) {
     // 添加命令前缀避免冲突
     // 之前的命令也添加前缀
     // 如果 existingPluginIds 的长度大于1，说明已经有多个插件占用了该命令, 且已经添加过前缀
     // 如果长度为1，说明是第一次冲突, 需要先给之前的插件添加前缀
-    const existingPluginIds = commandPluginMap.get(commandName)!;
 
     if (existingPluginIds.length === 1) {
       const existingPluginId = existingPluginIds[0];
       const existingCommandName = `${existingPluginId.toString()}:${commandName}`;
-      const commandDef = commandRegistry.get(commandName)!;
-      // 从命令字典中删除旧的命令名称
-      commandRegistry.delete(commandName);
-      // 使用带前缀的新命令名称重新注册
-      commandRegistry.set(existingCommandName, commandDef);
-      // 更新 pluginCommandMap
-      pluginCommandMap.set(existingPluginId, existingCommandName);
-      commandDef.log.warn(`命令名称 ${commandName} 被重复注册，添加前缀 ${existingPluginId.toString()}: 以避免冲突`);
+      const commandDef = commandRegistry.get(commandName);
+      if (commandDef) {
+        // 从命令字典中删除旧的命令名称
+        commandRegistry.delete(commandName);
+        // 使用带前缀的新命令名称重新注册
+        commandRegistry.set(existingCommandName, commandDef);
+        // 更新 pluginCommandMap
+        pluginCommandMap.set(existingPluginId, existingCommandName);
+        commandDef.log.warn(
+          `命令名称 ${commandName} 被重复注册，添加前缀 ${existingPluginId.toString()}: 以避免冲突`,
+        );
+      }
     }
 
     // 当前命令也添加前缀
@@ -136,11 +140,11 @@ export function registerCommand (
   }
 
   // 获取当前命令已被哪些插件占用
-  const existingPluginIds = commandPluginMap.get(commandName) ?? [];
+  const existingPluginIdsNotVoid = existingPluginIds ?? [];
   // 记录当前插件占用该命令
-  existingPluginIds.push(pluginId.toString());
+  existingPluginIdsNotVoid.push(pluginId.toString());
   if (!reservedCommands.has(commandName)) {
-    commandPluginMap.set(commandName, existingPluginIds);
+    commandPluginMap.set(commandName, existingPluginIdsNotVoid);
     // 更新命令插件映射
     pluginCommandMap.set(pluginId.toString(), commandName);
   }
@@ -162,7 +166,7 @@ export function registerCommand (
  * @param rawCommand 原始命令字符串
  * @returns 拆分后的命令数组
  */
-export function splitCommand (rawCommand: string): string[] {
+export function splitCommand(rawCommand: string): string[] {
   const parts: string[] = [];
   let currentPart = ''; // 当前部分
   let inQuotes = false; // 是否在引号内
@@ -199,7 +203,7 @@ export function splitCommand (rawCommand: string): string[] {
  * 只执行一个回调, 优先级: 子命令 > 主命令
  * @param originCommand 原始命令字符串
  */
-export async function parseAndRunCommands (originCommand: string) {
+export async function parseAndRunCommands(originCommand: string) {
   const parts = splitCommand(originCommand);
   if (parts.length === 0) {
     throw new CommandError('未提供命令', false);
@@ -211,18 +215,18 @@ export async function parseAndRunCommands (originCommand: string) {
    * 未使用的参数
    * 包括除去主命令和子命令名称和所有注册参数之外的参数
    */
-  const unusedArgs: string[] = parts.filter(arg => !arg.startsWith('-')).slice(2);
+  const unusedArgs: string[] = parts.filter((arg) => !arg.startsWith('-')).slice(2);
   // 备份原始参数数组
   const originArgs = parts.slice(0);
-  if (!commandRegistry.has(commandName)) {
+  const commandDef = commandRegistry.get(commandName);
+  if (!commandDef) {
     throw new CommandError(`未知命令: ${commandName}`, false);
   }
-  const commandDef = commandRegistry.get(commandName)!;
   const log = commandDef.log;
   // 解析选项
   const options: Record<string, string | boolean | number> = {};
   // 输入的选项部分
-  const optionParts = args.filter(arg => arg.startsWith('-'));
+  const optionParts = args.filter((arg) => arg.startsWith('-'));
 
   for (let i = 0; i < optionParts.length; i++) {
     const part = optionParts[i];
@@ -254,14 +258,14 @@ export async function parseAndRunCommands (originCommand: string) {
       // 短选项
       optionName = optionName.slice(1);
       // 查找对应的长选项名称
-      const optionDef = commandDef.options.find(opt => opt.alias === optionName);
+      const optionDef = commandDef.options.find((opt) => opt.alias === optionName);
       if (optionDef) {
         optionName = optionDef.name;
       } else {
         unusedArgs.push(part);
       }
     }
-    const optionDef = commandDef.options.find(opt => opt.name === optionName);
+    const optionDef = commandDef.options.find((opt) => opt.name === optionName);
     if (!optionDef) {
       log.warn(`未知选项: ${part}，已忽略`);
       continue;
@@ -296,7 +300,7 @@ export async function parseAndRunCommands (originCommand: string) {
   }
 
   // 填充默认值
-  commandDef.options.forEach(opt => {
+  commandDef.options.forEach((opt) => {
     if (!(opt.name in options)) {
       if (opt.defaultValue !== void 0) {
         options[opt.name] = opt.defaultValue;
@@ -310,23 +314,26 @@ export async function parseAndRunCommands (originCommand: string) {
   let executedSubCommand = false;
   // 检查是否有子命令
   // 获取第一个非选项参数
-  const nonOptionArgs = args.filter(arg => !arg.startsWith('-'));
+  const nonOptionArgs = args.filter((arg) => !arg.startsWith('-'));
 
   if (nonOptionArgs.length > 0) {
     const subCommandName = nonOptionArgs[0];
-    const subCommand = commandDef.subCommands.find(sub => sub.name === subCommandName);
+    const subCommand = commandDef.subCommands.find((sub) => sub.name === subCommandName);
     if (subCommand) {
       try {
         // 执行子命令回调
         const prom = await subCommand.execute(
           commandDef.log,
-          commandDef.options.map(opt => ({ ...opt, value: options[opt.name] })),
+          commandDef.options.map((opt) => ({
+            ...opt,
+            value: options[opt.name],
+          })),
           unusedArgs,
           originArgs,
         );
         executedSubCommand = true;
         if (isPromiseLike(prom)) {
-          prom.catch(error => {
+          prom.catch((error) => {
             log.error(`执行子命令时出错: ${(error as Error).message}`);
             if (error instanceof CommandError && error.needPrintOriginal) {
               log.error(error);
@@ -351,12 +358,12 @@ export async function parseAndRunCommands (originCommand: string) {
     try {
       const prom = await commandDef.execute(
         commandDef.log,
-        commandDef.options.map(opt => ({ ...opt, value: options[opt.name] })),
+        commandDef.options.map((opt) => ({ ...opt, value: options[opt.name] })),
         unusedArgs,
         originArgs,
       );
       if (isPromiseLike(prom)) {
-        prom.catch(error => {
+        prom.catch((error) => {
           log.error(`执行命令时出错: ${(error as Error).message}`);
           if (error instanceof CommandError && error.needPrintOriginal) {
             log.error(error);
@@ -374,7 +381,7 @@ export async function parseAndRunCommands (originCommand: string) {
 }
 
 /** 打印 help */
-export function printHelp (log: TLogger) {
+export function printHelp(log: TLogger) {
   log.info('可用命令列表:');
   for (const [commandName, commandDef] of commandRegistry.entries()) {
     log.info(`- ${commandName}${commandDef.description ? `: ${commandDef.description}` : ''}`);
@@ -386,11 +393,11 @@ export function printHelp (log: TLogger) {
  * 打印指定命令的 help
  * @param commandName 命令名称 [pluginId:]commandName
  */
-export function printCommandHelp (commandName: string) {
-  if (!commandRegistry.has(commandName)) {
+export function printCommandHelp(commandName: string) {
+  const commandDef = commandRegistry.get(commandName);
+  if (!commandDef) {
     throw new CommandError(`未知命令: ${commandName}`, false);
   }
-  const commandDef = commandRegistry.get(commandName)!;
   const log = commandDef.log;
 
   log.info(`命令: ${commandName}`);
@@ -402,16 +409,17 @@ export function printCommandHelp (commandName: string) {
   }
   if (commandDef.options.length > 0) {
     log.info('选项:');
-    commandDef.options.forEach(opt => {
+    commandDef.options.forEach((opt) => {
       log.info(
-        `  --${opt.name}${opt.alias ? ` (-${opt.alias})` : ''}${opt.required ? ' [必填]' : ''}${opt.defaultValue !== undefined ? ` [默认值: ${opt.defaultValue}]` : ''
+        `  --${opt.name}${opt.alias ? ` (-${opt.alias})` : ''}${opt.required ? ' [必填]' : ''}${
+          opt.defaultValue !== undefined ? ` [默认值: ${opt.defaultValue}]` : ''
         } - ${opt.description ?? '无描述'}`,
       );
     });
   }
   if (commandDef.subCommands.length > 0) {
     log.info('子命令:');
-    commandDef.subCommands.forEach(sub => {
+    commandDef.subCommands.forEach((sub) => {
       log.info(`  ${sub.name} - ${sub.description ?? '无描述'}`);
       if (sub.exampleUsage) {
         log.info(`    示例用法: ${sub.exampleUsage}`);

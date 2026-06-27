@@ -6,7 +6,11 @@ import { classMap } from 'lit/directives/class-map.js';
 
 @customElement('scwc-button')
 class SCWCButton extends LitElement {
-  static styles = [css`${unsafeCSS(style)}`];
+  static styles = [
+    css`
+      ${unsafeCSS(style)}
+    `,
+  ];
 
   @property({ type: Boolean })
   accessor active = false;
@@ -35,26 +39,26 @@ class SCWCButton extends LitElement {
   // @property({ type: String })
   // accessor id = '';
 
-  render () {
+  render() {
     return html`
       <button
         part="button"
         class=${classMap({
-      'scwc-btn-primary': this.type === 'primary',
-      'scwc-btn-secondary': this.type === 'secondary',
-      'scwc-btn-inline': this.type === 'inline',
-      'scwc-btn-disabled': this.disabled,
-      'active': this.active,
-      'scwc-btn': true,
-    })}
+          'scwc-btn-primary': this.type === 'primary',
+          'scwc-btn-secondary': this.type === 'secondary',
+          'scwc-btn-inline': this.type === 'inline',
+          'scwc-btn-disabled': this.disabled,
+          active: this.active,
+          'scwc-btn': true,
+        })}
         title=${this.title}
         aria-label=${this.ariaLabel}
         style=${this.btnStyle}
         ?disabled=${this.disabled}
         @click=${(e: MouseEvent) => {
-        e.stopPropagation();
-        this.dispatchEvent(new CustomEvent('click', { bubbles: true }))
-      }}
+          e.stopPropagation();
+          this.dispatchEvent(new CustomEvent('click', { bubbles: true }));
+        }}
       >
         <slot name="before"></slot>
         <slot>${this.label || nothing}</slot>
@@ -65,11 +69,11 @@ class SCWCButton extends LitElement {
 }
 
 export interface SCWCButtonEventMap {
-  'click': CustomEvent<void>;
+  click: CustomEvent<void>;
 }
 
 declare global {
   interface HTMLElementTagNameMap {
-    "scwc-button": SCWCButton;
+    'scwc-button': SCWCButton;
   }
 }

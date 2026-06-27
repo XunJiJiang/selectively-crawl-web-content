@@ -12,10 +12,10 @@ namespace SCWC {
    * 允许插件长期持有该对象并在需要时调用其中的函数
    */
   export interface ILoadContext {
-    createRetryGet<RES, A extends AxiosRequestConfig = AxiosRequestConfig> (
+    createRetryGet<RES, A extends AxiosRequestConfig = AxiosRequestConfig>(
       ...args: Parameters<TCreateRetryGet<RES, A>>
     ): ReturnType<TCreateRetryGet<RES, A>>;
-    LimitPromise: typeof import('../utils/axios.ts').LimitPromise;
+    LimitPromise: import('../types/axios.d.ts').TLimitPromise;
   }
 
   /**
@@ -29,20 +29,20 @@ namespace SCWC {
 
   export type TRetryGet<
     RES,
-    A extends AxiosRequestConfig = AxiosRequestConfig<any>,
+    A extends AxiosRequestConfig = AxiosRequestConfig<unknown>,
   > = import('../types/axios.d.ts').TRetryGet<RES, A>;
 
   export type TCommandExecute = import('../types/command.d.ts').TCommandExecute;
   export type TCommandOption = import('../types/command.d.ts').TCommandOption;
   export type TSubCommand = import('../types/command.d.ts').TSubCommand;
 
-  export type TDataItem = {
+  export interface TDataItem {
     label: string;
     value: string;
     images: string[]; // 图片数据，dataURL
-  };
+  }
 
-  export type TPluginItem = {
+  export interface TPluginItem {
     type: 'button' | 'toggle' | 'select' | 'input:text' | 'input:number' | 'checkbox';
     label: string;
     // TODO: 检查这个通道是否会在用户界面显示. 如果不显示, 则可以修改为非必填项, 并生成唯一的通道名称
@@ -63,12 +63,12 @@ namespace SCWC {
         label: string;
         value: string | number;
       }[];
-    }
+    };
     /**
      * 插件项触发时的回调函数
-     * @param logger 
-     * @param context 
-     * @returns 
+     * @param logger
+     * @param context
+     * @returns
      */
     trigger: (
       logger: SCWC.TLogger,
@@ -90,31 +90,34 @@ namespace SCWC {
       },
     ) =>
       | {
-        type: 'notification';
-        data: {
-          type: 'success' | 'error' | 'warn' | 'info';
-          message: string;
-        };
-      }
+          type: 'notification';
+          data: {
+            type: 'success' | 'error' | 'warn' | 'info';
+            message: string;
+          };
+        }
       | Promise<{
-        type: 'notification';
-        data: {
-          type: 'success' | 'error' | 'warn' | 'info';
-          message: string;
-        };
-      }>;
-  };
+          type: 'notification';
+          data: {
+            type: 'success' | 'error' | 'warn' | 'info';
+            message: string;
+          };
+        }>;
+  }
 
-  export type TCreatePluginItem = (logger: TLogger, context: {
-    site: {
-      url: string;
-      rootUrl: string;
-      origin: string;
-      pathname: string;
-      host: string;
-      hostname: string;
-    };
-  }) => TPluginItem[] | Promise<TPluginItem[]>;
+  export type TCreatePluginItem = (
+    logger: TLogger,
+    context: {
+      site: {
+        url: string;
+        rootUrl: string;
+        origin: string;
+        pathname: string;
+        host: string;
+        hostname: string;
+      };
+    },
+  ) => TPluginItem[] | Promise<TPluginItem[]>;
 
   export type TLogger = import('../types/log.d.ts').TLogger;
 
@@ -155,7 +158,12 @@ namespace SCWC {
             dataUrl: string,
             filePath:
               | string
-              | ((props: { fullname: string; filename: string; ext: string; datePrefix: string }) => string),
+              | ((props: {
+                  fullname: string;
+                  filename: string;
+                  ext: string;
+                  datePrefix: string;
+                }) => string),
           ) => Promise<string | false>;
         };
         data: TDataItem[];
@@ -190,7 +198,7 @@ namespace SCWC {
     // ui 相关的配置项
     ui?: {
       entry: string; // 入口 html, 绝对路径或相对于当前插件目录的路径
-    }
+    };
   }
 
   export interface IPluginMeta {

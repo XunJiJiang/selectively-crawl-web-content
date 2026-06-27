@@ -1,5 +1,5 @@
-import { createLogger } from "../utils/log";
-import path from "node:path";
+import { createLogger } from '../utils/log.ts';
+import path from 'node:path';
 
 const __dirname = process.cwd();
 

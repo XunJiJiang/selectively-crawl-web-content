@@ -1,44 +1,25 @@
 {
   "name": "selectively-crawl-web-content",
-  "module": "./server/index.ts",
-  "description": "A web extension for selectively crawling web content.",
-  "type": "module",
   "version": "2.0.0",
+  "description": "A web extension for selectively crawling web content.",
+  "bugs": {
+    "url": "https://github.com/XunJiJinag/selectively-crawl-web-content/issues"
+  },
   "author": "XunJi & XunJiJiang",
   "repository": {
     "type": "git",
     "url": "https://github.com/XunJiJinag/selectively-crawl-web-content"
   },
-  "bugs": {
-    "url": "https://github.com/XunJiJinag/selectively-crawl-web-content/issues"
-  },
+  "type": "module",
+  "module": "./server/index.ts",
   "scripts": {
     "start": "tsx server/scripts/setup.ts",
     "build": "cd ./user-script && bun run build",
     "dev": "cd ./user-script && bun run dev",
-    "test": "vitest"
+    "test": "vitest",
+    "lint": "oxlint",
+    "fmt": "oxfmt"
   },
-  "devDependencies": {
-    "@eslint/js": "^10.0.1",
-    "@oxlint/migrate": "^1.71.0",
-    "@types/better-sqlite3": "^7.6.13",
-    "@types/bun": "latest",
-    "@types/opencc-js": "^1.0.3",
-    "eslint": "^10.6.0",
-    "eslint-config-prettier": "^10.1.8",
-    "eslint-plugin-import": "^2.32.0",
-    "eslint-plugin-lit": "^2.3.1",
-    "globals": "^17.7.0",
-    "oxfmt": "^0.56.0",
-    "oxlint": "^1.71.0",
-    "prettier": "^3.9.0",
-    "typescript": "~6.0.3",
-    "typescript-eslint": "^8.62.0",
-    "vite": "^8.1.0",
-    "vite-plugin-monkey": "^8.0.6",
-    "vitest": "^4.1.9"
-  },
-  "peerDependencies": {},
   "dependencies": {
     "@keyv/redis": "^5.1.6",
     "@lit/context": "^1.1.6",
@@ -67,5 +48,27 @@
     "url-change-event": "^0.1.7",
     "uuid": "^14.0.1",
     "zod": "^4.4.3"
-  }
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@oxlint/migrate": "^1.71.0",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/bun": "latest",
+    "@types/opencc-js": "^1.0.3",
+    "eslint": "^10.6.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-import": "^2.32.0",
+    "eslint-plugin-lit": "^2.3.1",
+    "globals": "^17.7.0",
+    "oxfmt": "^0.56.0",
+    "oxlint": "^1.71.0",
+    "oxlint-tsgolint": "^0.23.0",
+    "prettier": "^3.9.0",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.62.0",
+    "vite": "^8.1.0",
+    "vite-plugin-monkey": "^8.0.6",
+    "vitest": "^4.1.9"
+  },
+  "peerDependencies": {}
 }

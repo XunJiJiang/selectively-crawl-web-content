@@ -1,14 +1,14 @@
-import './layouts/root';
-import './components/button';
-import './components/input';
-import './components/trigger';
-import './components/toggle';
-import './components/select';
-import './components/checkbox'
-import updateLocalStorage from './utils/updateLocalStorage';
+import './layouts/root.ts';
+import './components/button.ts';
+import './components/input.ts';
+import './components/trigger.ts';
+import './components/toggle.ts';
+import './components/select.ts';
+import './components/checkbox.ts';
+import updateLocalStorage from './utils/updateLocalStorage.ts';
 
 // 更新本地存储的数据格式
-updateLocalStorage()
+updateLocalStorage();
 
 // 悬浮窗挂载点
 const FLOATING_ID = 'selective-crawl-floating-root';

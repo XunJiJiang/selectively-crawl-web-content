@@ -23,7 +23,7 @@ function parseArgs(): Record<string, string> {
 
 /** 等待 */
 async function wait(ms: number) {
-  return new Promise(resolve => setTimeout(resolve, ms));
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /** 项目根路径 */
@@ -35,8 +35,8 @@ const RESTART_SCRIPT_PATH = path.join(PROJECT_ROOT_PATH, RESTART_SCRIPT_RELATIVE
 
 /** 检查环境 */
 function checkEnvironment(
-  runtime: string,
-  version: string,
+  // runtime: string,
+  // version: string,
 ):
   | false
   | {
@@ -77,7 +77,7 @@ function checkOldProcess(pid: number) {
 }
 
 /** 循环检查 */
-async function waitForOldProcessExit(pid: number, delay: number = 1000, defaultTimeout: number = 60000) {
+async function waitForOldProcessExit(pid: number, delay = 1000, defaultTimeout = 60000) {
   const startTime = Date.now();
   while (checkOldProcess(pid)) {
     console.log(`等待旧的进程 ${pid} 退出...`);
@@ -105,7 +105,7 @@ function main() {
     process.exit(1);
   }
 
-  const envCheckResult = checkEnvironment(runtime, version);
+  const envCheckResult = checkEnvironment(/* runtime, version */);
   if (!envCheckResult) {
     console.error(`当前环境不满足重启要求: runtime=${runtime}, version=${version}`);
     process.exit(1);
@@ -113,7 +113,7 @@ function main() {
 
   const { preCommand, runtime: rt } = envCheckResult;
   if (pid) {
-    waitForOldProcessExit(Number(pid)).then(done => {
+    waitForOldProcessExit(Number(pid)).then((done) => {
       if (done) {
         runStartCommand(preCommand, rt);
       } else {
@@ -130,4 +130,5 @@ const isMain = __filename === __mainFilename;
 if (isMain) {
   main();
 } else {
+  /* */
 }

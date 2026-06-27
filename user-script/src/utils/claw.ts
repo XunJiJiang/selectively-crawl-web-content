@@ -1,19 +1,21 @@
-import type { Item, TCrawlData } from "../types/claw";
-import { getElementBySelector } from "./selector";
+import type { Item, TCrawlData } from '../types/claw.d.ts';
+import { getElementBySelector } from './selector.ts';
 
 /** 解析抓取项获取抓取的数据 */
-export function getCrawlData (items: Item[]): TCrawlData {
+export function getCrawlData(items: Item[]): TCrawlData {
   const result: SCWC.TDataItem[] = [];
   const failed: string[] = [];
 
   /** 辅助：将img元素转为dataURL */
-  function getImgElementData (img: HTMLImageElement): string | null {
+  function getImgElementData(img: HTMLImageElement): string | null {
     try {
       const canvas = document.createElement('canvas');
       canvas.width = img.naturalWidth;
       canvas.height = img.naturalHeight;
       const ctx = canvas.getContext('2d');
-      if (!ctx) return null;
+      if (!ctx) {
+        return null;
+      }
       ctx.drawImage(img, 0, 0);
       const data = canvas.toDataURL('image/png');
       return data;
@@ -36,7 +38,9 @@ export function getCrawlData (items: Item[]): TCrawlData {
     let node;
     while ((node = walker.nextNode())) {
       const text = node.textContent?.trim();
-      if (text) fragments.push(prefix + text);
+      if (text) {
+        fragments.push(prefix + text);
+      }
     }
     const value = fragments.join(' ').trim();
     // 收集图片
@@ -51,7 +55,9 @@ export function getCrawlData (items: Item[]): TCrawlData {
     }
     imgElements = Array.from(new Set(imgElements));
     // 直接转dataURL
-    const images: string[] = imgElements.map(img => getImgElementData(img)).filter(Boolean) as string[];
+    const images: string[] = imgElements
+      .map((img) => getImgElementData(img))
+      .filter(Boolean) as string[];
     if (images.length > 0) {
       result.push({ label, value, images });
     } else {

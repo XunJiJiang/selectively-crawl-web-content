@@ -5,17 +5,23 @@ import { customElement } from 'lit/decorators.js';
 
 @customElement('scwc-layout-footer')
 class SCWCFooterLayout extends LitElement {
-  static styles = [css`${unsafeCSS(style)}`];
+  static styles = [
+    css`
+      ${unsafeCSS(style)}
+    `,
+  ];
 
-  render () {
+  render() {
     return html``;
   }
 
-  connectedCallback () {}
+  connectedCallback() {
+    //
+  }
 }
 
 declare global {
   interface HTMLElementTagNameMap {
-    "scwc-layout-footer": SCWCFooterLayout;
+    'scwc-layout-footer': SCWCFooterLayout;
   }
 }

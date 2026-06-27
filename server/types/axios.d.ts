@@ -3,10 +3,10 @@ import type { TLogger } from '../types/log.d.ts';
 
 export interface IRetryRequest<RAW, CUSTOM_RES> {
   customResData: CUSTOM_RES | unique symbol;
-  getCustomResData (): CUSTOM_RES | unique symbol;
-  delCache (): Promise<boolean>;
-  initConfig (url: string): void;
-  retryGet (): Promise<RAW>;
+  getCustomResData(): CUSTOM_RES | unique symbol;
+  delCache(): Promise<boolean>;
+  initConfig(url: string): void;
+  retryGet(): Promise<RAW>;
 }
 
 export type TRetryRequestClass<RAW, CUSTOM_RES> = new (
@@ -23,25 +23,25 @@ export type TRetryGet<RES, A extends AxiosRequestConfig = AxiosRequestConfig> = 
 ) => Promise<TRetryGetReturn<RES, A>>;
 
 /** responseType 和 返回数据类型的映射关系 */
-type ResponseTypeMap = {
+interface ResponseTypeMap {
   arraybuffer: ArrayBuffer;
   blob: Blob;
   document: Document;
-  json: any;
+  json: unknown;
   text: string;
   stream: Readable;
-};
+}
 
 /** retryGet 函数的返回类型 */
-type TRetryGetReturn<RES, A extends AxiosRequestConfig> = {
+interface TRetryGetReturn<RES, A extends AxiosRequestConfig> {
   raw: A extends { responseType: infer R }
-  ? R extends keyof ResponseTypeMap
-  ? ResponseTypeMap[R]
-  : ResponseTypeMap['text']
-  : ResponseTypeMap['text'];
+    ? R extends keyof ResponseTypeMap
+      ? ResponseTypeMap[R]
+      : ResponseTypeMap['text']
+    : ResponseTypeMap['text'];
   data: RES | undefined;
   delCache: () => Promise<boolean>;
-};
+}
 
 /**
  * 这是为 plugin-env.d.ts 提供的类型声明, 和 createRetryGet 函数相比, 移除了 namespace 参数和    参数
@@ -51,18 +51,25 @@ export type TCreateRetryGet<RES, A extends AxiosRequestConfig = AxiosRequestConf
   createRetryRequestClass?: (
     ClassRetryRequest: TRetryRequestClass<
       A extends { responseType: infer R }
-      ? R extends keyof ResponseTypeMap
-      ? ResponseTypeMap[R]
-      : ResponseTypeMap['text']
-      : ResponseTypeMap['text'],
+        ? R extends keyof ResponseTypeMap
+          ? ResponseTypeMap[R]
+          : ResponseTypeMap['text']
+        : ResponseTypeMap['text'],
       RES
     >,
   ) => TRetryRequestClass<
     A extends { responseType: infer R }
-    ? R extends keyof ResponseTypeMap
-    ? ResponseTypeMap[R]
-    : ResponseTypeMap['text']
-    : ResponseTypeMap['text'],
+      ? R extends keyof ResponseTypeMap
+        ? ResponseTypeMap[R]
+        : ResponseTypeMap['text']
+      : ResponseTypeMap['text'],
     RES
   >,
 ) => TRetryGet<RES, A>;
+
+export type TLimitPromise = new (concurrency: number) => ILimitPromise;
+
+export interface ILimitPromise {
+  addTask<T>(task: () => Promise<T>): Promise<T>;
+  waitAll(): Promise<void>;
+}

@@ -2,11 +2,13 @@ import type { TLogger } from '../types/log.d.ts';
 import { createLogger } from './log.ts';
 
 /** 传入一个图片url, 尝试访问并获取返回的数据 Buffer */
-export async function fetchImage (url: string, log?: TLogger): Promise<Buffer | null> {
+export async function fetchImage(url: string, log?: TLogger): Promise<Buffer | null> {
   log = log ? log : createLogger(`[fetchImage]`, url);
   try {
     const response = await fetch(url);
-    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
     const buffer = await response.arrayBuffer();
     return Buffer.from(buffer);
   } catch (error) {

@@ -4,7 +4,12 @@
  * @returns
  */
 export function isPromiseLike<T>(value: T | Promise<T>): value is Promise<T> {
-  return typeof value === 'object' && value !== null && 'then' in value && typeof value.then === 'function';
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'then' in value &&
+    typeof value.then === 'function'
+  );
 }
 
 /**
@@ -12,7 +17,9 @@ export function isPromiseLike<T>(value: T | Promise<T>): value is Promise<T> {
  * @param callback
  * @returns 如果执行成功，返回 [undefined, 结果]；如果抛出异常，返回 [错误对象, undefined]
  */
-export default function tryCatch<T>(callback: () => Promise<T>): Promise<[undefined, T] | [Error, undefined]>;
+export default function tryCatch<T>(
+  callback: () => Promise<T>,
+): Promise<[undefined, T] | [Error, undefined]>;
 export default function tryCatch<T>(callback: () => T): [undefined, T] | [Error, undefined];
 export default function tryCatch<T>(
   callback: () => T | Promise<T>,
@@ -22,8 +29,14 @@ export default function tryCatch<T>(
 
     if (isPromiseLike(result)) {
       return result
-        .then(res => [void 0, res] as [undefined, T])
-        .catch(err => [err instanceof Error ? err : new Error('Unknown error: ' + err), void 0] as [Error, undefined]);
+        .then((res) => [void 0, res] as [undefined, T])
+        .catch(
+          (err) =>
+            [err instanceof Error ? err : new Error('Unknown error: ' + err), void 0] as [
+              Error,
+              undefined,
+            ],
+        );
     }
 
     return [void 0, result];
@@ -62,7 +75,7 @@ type TryCatchResult<E, T> =
  * @param ErrorClass 预定的错误类型
  * @returns 包装后的 tryCatch 函数
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// oxlint-disable-next-line typescript/no-explicit-any
 export function createTryCatch<E>(ErrorClass: new (...arg: any[]) => E) {
   function _tryCatch<T>(callback: () => Promise<T>): Promise<TryCatchResult<E, T>>;
   function _tryCatch<T>(callback: () => T): TryCatchResult<E, T>;
@@ -74,8 +87,8 @@ export function createTryCatch<E>(ErrorClass: new (...arg: any[]) => E) {
 
       if (isPromiseLike(result)) {
         return result
-          .then(res => [void 0, res] as [undefined, T])
-          .catch(err => [
+          .then((res) => [void 0, res] as [undefined, T])
+          .catch((err) => [
             {
               isExpectedError: err instanceof ErrorClass,
               error: err,

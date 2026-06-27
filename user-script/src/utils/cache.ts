@@ -2,7 +2,9 @@
  * 缓存函数
  * 当参数相同时，返回之前的结果
  */
-export function cache<ARGS extends unknown[], RETURN> (fn: (...args: ARGS) => RETURN): (...args: ARGS) => RETURN {
+export function cache<ARGS extends unknown[], RETURN>(
+  fn: (...args: ARGS) => RETURN,
+): (...args: ARGS) => RETURN {
   const cacheMap = new Map<string, RETURN>();
 
   return (...args: ARGS) => {

@@ -2,9 +2,15 @@ import originAxios, { type AxiosRequestConfig, type CancelTokenSource } from 'ax
 import { ProxyAgent } from 'proxy-agent';
 import cacheController from './cache.ts';
 import tryCatch from './tryCatch.ts';
-import type { Readable } from 'node:stream';
+// import type { Readable } from 'node:stream';
 import type { TLogger } from '../types/log.d.ts';
-import type { IRetryRequest, ResponseTypeMap, TRetryGet, TRetryGetReturn, TRetryRequestClass } from '../types/axios.d.ts';
+import type {
+  IRetryRequest,
+  ResponseTypeMap,
+  TRetryGet,
+  TRetryGetReturn,
+  TRetryRequestClass,
+} from '../types/axios.d.ts';
 
 const TIMEOUT = 10000;
 
@@ -17,7 +23,7 @@ const axios = originAxios.create();
 axios.defaults.timeout = TIMEOUT;
 
 // 拦截请求 (http 代理)
-axios.interceptors.request.use(config => {
+axios.interceptors.request.use((config) => {
   config.httpAgent = agent.httpAgent;
   config.httpsAgent = agent.httpsAgent;
   return config;
@@ -46,7 +52,7 @@ class RetryRequest<RAW, CUSTOM_RES> implements IRetryRequest<RAW, CUSTOM_RES> {
 
   private url: string;
   /** 当前重试次数 */
-  private retryCount: number = 0;
+  private retryCount = 0;
   /** axios config */
   private config: AxiosRequestConfig;
 
@@ -59,11 +65,16 @@ class RetryRequest<RAW, CUSTOM_RES> implements IRetryRequest<RAW, CUSTOM_RES> {
    */
   customResData: CUSTOM_RES | typeof CUSTOM_RES_DATA_UNSET = CUSTOM_RES_DATA_UNSET;
 
-  public getCustomResData (): CUSTOM_RES | typeof CUSTOM_RES_DATA_UNSET {
+  public getCustomResData(): CUSTOM_RES | typeof CUSTOM_RES_DATA_UNSET {
     return this.customResData;
   }
 
-  public constructor(url: string, config: AxiosRequestConfig, namespace: string | undefined, logger: TLogger) {
+  public constructor(
+    url: string,
+    config: AxiosRequestConfig,
+    namespace: string | undefined,
+    logger: TLogger,
+  ) {
     this.url = url;
     this.config = config;
     this.namespace = namespace;
@@ -79,19 +90,25 @@ class RetryRequest<RAW, CUSTOM_RES> implements IRetryRequest<RAW, CUSTOM_RES> {
   private redirectedUrls = new Set<string>();
 
   /** 读取缓存 */
-  private async getCache (): Promise<RAW | void> {
+  private async getCache(): Promise<RAW | undefined> {
     return cacheController.get<RAW>(this.url, this.namespace);
   }
 
   /** 写入缓存以及重定向链 */
-  private async setCache (data: RAW): Promise<RAW> {
+  private async setCache(data: RAW): Promise<RAW> {
     if (this.redirectedUrls.size <= 1) {
       return await cacheController.set<RAW>(this.url, data, this.namespace, false, this.logger);
     } else {
       // 写入重定向链
       // 最后一个 URL 写入实际数据
       const urls = Array.from(this.redirectedUrls).reverse();
-      const _data = await cacheController.set<RAW>(urls[0], data, this.namespace, false, this.logger);
+      const _data = await cacheController.set<RAW>(
+        urls[0],
+        data,
+        this.namespace,
+        false,
+        this.logger,
+      );
       // 其他 URL 写入重定向指向
       for (let i = 1; i < urls.length; i++) {
         await cacheController.setRedirect(urls[i], urls[i - 1], this.namespace, this.logger);
@@ -101,7 +118,7 @@ class RetryRequest<RAW, CUSTOM_RES> implements IRetryRequest<RAW, CUSTOM_RES> {
   }
 
   /** 删除缓存 */
-  public async delCache () {
+  public async delCache() {
     return await cacheController.mdel(Array.from(this.redirectedUrls), this.namespace);
   }
 
@@ -109,7 +126,7 @@ class RetryRequest<RAW, CUSTOM_RES> implements IRetryRequest<RAW, CUSTOM_RES> {
    * 初始化新一次的请求配置
    * @param url 请求 URL, 用于更新重定向链
    */
-  initConfig (url: string) {
+  initConfig(url: string) {
     this.abort = originAxios.CancelToken.source();
     this.config.cancelToken = this.abort.token;
     this.customResData = CUSTOM_RES_DATA_UNSET;
@@ -126,8 +143,8 @@ class RetryRequest<RAW, CUSTOM_RES> implements IRetryRequest<RAW, CUSTOM_RES> {
   /**
    * 发起静态页面请求
    */
-  private async get (): Promise<RAW> {
-    return new Promise<RAW>(async (resolve, reject) => {
+  private async get(): Promise<RAW> {
+    return new Promise<RAW>((resolve, reject) => {
       const [err] = tryCatch(() => this.initConfig(this.url));
 
       if (err) {
@@ -136,47 +153,54 @@ class RetryRequest<RAW, CUSTOM_RES> implements IRetryRequest<RAW, CUSTOM_RES> {
         );
       }
 
-      // 先读取缓存
-      const [cacheErr, cachedData] = await tryCatch(async () => await this.getCache());
-      if (!cacheErr && cachedData) {
-        clearTimeout(this.timeoutHandle!);
-        this.logger.info(`从缓存中读取数据: ${this.url}`);
-        resolve(cachedData);
-        return;
-      }
-
-      try {
-        this.logger.info(`尝试请求: ${this.url}`);
-        const response = await axios.get(this.url, this.config);
-        clearTimeout(this.timeoutHandle!);
-
-        let data: RAW = response.data;
-
-        resolve(await this.setCache(data));
-        return;
-      } catch (error) {
-        if (originAxios.isCancel(error)) {
-          reject(
-            new originAxios.AxiosError(
-              `Request cancelled: ${error.message}`,
-              error.code,
-              error.config,
-              error.request,
-              error.response,
-            ),
-          );
-          return;
-        } else {
-          clearTimeout(this.timeoutHandle!);
-          reject(error);
-          return;
-        }
-      }
+      tryCatch(async () => await this.getCache())
+        .then(([cacheErr, cachedData]) => {
+          // 先读取缓存
+          if (!cacheErr && cachedData) {
+            clearTimeout(this.timeoutHandle ?? void 0);
+            this.logger.info(`从缓存中读取数据: ${this.url}`);
+            resolve(cachedData);
+            return;
+          }
+        })
+        .then(() => {
+          // 发起请求
+          this.logger.info(`尝试请求: ${this.url}`);
+          return axios.get(this.url, this.config);
+        })
+        .then((response) => {
+          // 请求成功, 写入缓存
+          clearTimeout(this.timeoutHandle ?? void 0);
+          const data: RAW = response.data;
+          return this.setCache(data);
+        })
+        .then((data) => {
+          // 请求成功, 返回数据
+          resolve(data);
+        })
+        .catch((error) => {
+          if (originAxios.isCancel(error)) {
+            reject(
+              new originAxios.AxiosError(
+                `Request cancelled: ${error.message}`,
+                error.code,
+                error.config,
+                error.request,
+                error.response,
+              ),
+            );
+            return;
+          } else {
+            clearTimeout(this.timeoutHandle ?? void 0);
+            reject(error);
+            return;
+          }
+        });
     });
   }
 
   /** 发起重试请求 */
-  public async retryGet (): Promise<RAW> {
+  public async retryGet(): Promise<RAW> {
     try {
       this.logger.info(`${this.url} 第 ${this.retryCount + 1} 次尝试`);
       const data = await this.get();
@@ -199,7 +223,7 @@ class RetryRequest<RAW, CUSTOM_RES> implements IRetryRequest<RAW, CUSTOM_RES> {
           this.logger.info(`请求被重定向到 ${this.url}`);
         }
 
-        await new Promise(resolve => setTimeout(resolve, defaultRetryDelay));
+        await new Promise((resolve) => setTimeout(resolve, defaultRetryDelay));
         return this.retryGet();
       } else {
         throw error;
@@ -215,29 +239,31 @@ class RetryRequest<RAW, CUSTOM_RES> implements IRetryRequest<RAW, CUSTOM_RES> {
  * @param createRetryRequestClass 自定义请求类
  * @returns
  */
-export function createRetryGet<RES, A extends AxiosRequestConfig = AxiosRequestConfig> (
+export function createRetryGet<RES, A extends AxiosRequestConfig = AxiosRequestConfig>(
   namespace: string | undefined,
   logger: TLogger,
   createRetryRequestClass?: (
     ClassRetryRequest: TRetryRequestClass<
       A extends { responseType: infer R }
-      ? R extends keyof ResponseTypeMap
-      ? ResponseTypeMap[R]
-      : ResponseTypeMap['text']
-      : ResponseTypeMap['text'],
+        ? R extends keyof ResponseTypeMap
+          ? ResponseTypeMap[R]
+          : ResponseTypeMap['text']
+        : ResponseTypeMap['text'],
       RES
     >,
   ) => TRetryRequestClass<
     A extends { responseType: infer R }
-    ? R extends keyof ResponseTypeMap
-    ? ResponseTypeMap[R]
-    : ResponseTypeMap['text']
-    : ResponseTypeMap['text'],
+      ? R extends keyof ResponseTypeMap
+        ? ResponseTypeMap[R]
+        : ResponseTypeMap['text']
+      : ResponseTypeMap['text'],
     RES
   >,
 ): TRetryGet<RES, A> {
-  const RequestClass = createRetryRequestClass ? createRetryRequestClass(RetryRequest) : RetryRequest;
-  return async function retryGet<A extends AxiosRequestConfig> (
+  const RequestClass = createRetryRequestClass
+    ? createRetryRequestClass(RetryRequest)
+    : RetryRequest;
+  return async function retryGet<A extends AxiosRequestConfig>(
     url: string,
     config: A,
   ): Promise<TRetryGetReturn<RES, A>> {
@@ -246,8 +272,8 @@ export function createRetryGet<RES, A extends AxiosRequestConfig = AxiosRequestC
       responseType: infer R;
     }
       ? R extends keyof ResponseTypeMap
-      ? ResponseTypeMap[R]
-      : string
+        ? ResponseTypeMap[R]
+        : string
       : string;
     const customResData = request.getCustomResData();
     const data = customResData === CUSTOM_RES_DATA_UNSET ? void 0 : (customResData as RES);
@@ -306,14 +332,14 @@ export function createRetryGet<RES, A extends AxiosRequestConfig = AxiosRequestC
  */
 export class LimitPromise {
   private concurrency: number;
-  private runningCount: number = 0;
-  private taskQueue: (() => Promise<any>)[] = [];
+  private runningCount = 0;
+  private taskQueue: (() => Promise<unknown>)[] = [];
 
   public constructor(concurrency: number) {
     this.concurrency = concurrency;
   }
 
-  public addTask<T> (task: () => Promise<T>): Promise<T> {
+  public addTask<T>(task: () => Promise<T>): Promise<T> {
     return new Promise<T>((resolve, reject) => {
       const runTask = async () => {
         this.runningCount++;
@@ -336,7 +362,7 @@ export class LimitPromise {
     });
   }
 
-  private next () {
+  private next() {
     if (this.taskQueue.length > 0 && this.runningCount < this.concurrency) {
       const task = this.taskQueue.shift();
       task?.();
@@ -354,14 +380,16 @@ export class LimitPromise {
   /**
    * 等待所有任务完成, 包括之后添加的任务
    */
-  public async waitAll (): Promise<void> {
+  public async waitAll(): Promise<void> {
     if (!this.allTasksDonePromise) {
       this.allTasksDonePromise = {} as {
         resolve: () => void;
         promise: Promise<void>;
       };
-      const promise = new Promise<void>(resolve => {
-        this.allTasksDonePromise!.resolve = resolve;
+      const promise = new Promise<void>((resolve) => {
+        if (this.allTasksDonePromise) {
+          this.allTasksDonePromise.resolve = resolve;
+        }
       });
       this.allTasksDonePromise.promise = promise;
     }

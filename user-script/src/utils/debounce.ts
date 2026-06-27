@@ -1,4 +1,7 @@
-export function debounce<ARGS extends unknown[]> (fn: (...args: ARGS) => void, delay: number): (...args: ARGS) => void {
+export function debounce<ARGS extends unknown[]>(
+  fn: (...args: ARGS) => void,
+  delay: number,
+): (...args: ARGS) => void {
   let timer: ReturnType<typeof setTimeout> | null = null;
 
   return (...args: ARGS) => {

@@ -67,15 +67,16 @@ listenProcessStdin(serverLogger);
  *```
  */
 
-const exitHandler = async (
-  type: 'exit' | 'restart',
-) => {
+const exitHandler = async (type: 'exit' | 'restart') => {
   const RESTART = type === 'restart';
 
   for (const plugin of plugins) {
     // TODO: 当实现重启后, 调用时需要告知插件本次关闭为重启
     if (plugin.handler && typeof plugin.handler.onUnload === 'function') {
-      const logger = createLogger(`plugin:${plugin.name}`, path.relative(process.cwd(), plugin.entry));
+      const logger = createLogger(
+        `plugin:${plugin.name}`,
+        path.relative(process.cwd(), plugin.entry),
+      );
       await plugin.handler.onUnload(logger, {
         isRestart: RESTART,
       });
@@ -94,7 +95,7 @@ const exitHandler = async (
   }
 
   process.exit(0);
-}
+};
 
 // 监听退出信号
 process.once('SIGINT', async () => {
@@ -117,7 +118,7 @@ process.on('SIGINT', () => {
   sigintCount++;
 });
 
-process.stdin.on('error', err => {
+process.stdin.on('error', (err) => {
   if (sigintCount > 0 && 'code' in err && err.code === 'EIO') {
     // 这是在某些环境（如 Windows）中按下 Ctrl+C 时 stdin 关闭导致的错误，可以安全忽略
     return;

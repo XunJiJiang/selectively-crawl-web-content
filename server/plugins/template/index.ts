@@ -69,7 +69,13 @@ export default {
           label: '测试 Button 控件',
           options: {
             requireFullContent: false, // 是否需要完整捕获内容, 默认为 true. 如果为 true, 则在触发这个插件项时, 只有当当前页面的内容完全被捕获时才会触发. 如果为 false, 则无论内容是否完全捕获都可以触发
-            relatedChannel: ['testToggle', 'testSelect', 'testInputText', 'testInputNumber', 'testCheckbox'], // 相关控制器通道列表, 可选. 当这个插件项被触发时, 浏览器脚本会同时获取这些通道的当前值, 并将它们作为 context.relatedValues 传递给触发函数. 这样插件就可以根据这些相关控制器的值来决定如何响应这个插件项的触发
+            relatedChannel: [
+              'testToggle',
+              'testSelect',
+              'testInputText',
+              'testInputNumber',
+              'testCheckbox',
+            ], // 相关控制器通道列表, 可选. 当这个插件项被触发时, 浏览器脚本会同时获取这些通道的当前值, 并将它们作为 context.relatedValues 传递给触发函数. 这样插件就可以根据这些相关控制器的值来决定如何响应这个插件项的触发
           },
           trigger: async (logger, context) => {
             logger.info('Button 控件触发了');
@@ -105,7 +111,6 @@ export default {
               },
             };
           },
-
         },
         {
           type: 'select',
@@ -194,7 +199,7 @@ export default {
               },
             };
           },
-        }
+        },
       ],
     },
   },

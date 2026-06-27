@@ -1,12 +1,12 @@
-import type { ReactiveController } from "lit";
-import type { PluginConfig, PluginItem, TRequiredOptions } from "../../types/plugin.d.ts";
-import type { ScriptConfig, ScriptConfigItem } from "../../types/config.d.ts";
-import { ConfigController, isConfig, isConfigItem } from "../../store/config.ts";
-import { debounce } from "../../utils/debounce.ts";
-import { fetchPlugins, triggerPlugin } from "../../api/plugins.ts";
-import { getCrawlData } from "../../utils/claw.ts";
-import type { SCWCContentPlugin } from "../content-plugin.ts";
-import { notify } from "../../utils/notify.ts";
+import type { ReactiveController } from 'lit';
+import type { PluginConfig, PluginItem, TRequiredOptions } from '../../types/plugin.d.ts';
+import type { ScriptConfig, ScriptConfigItem } from '../../types/config.d.ts';
+import { ConfigController, isConfig, isConfigItem } from '../../store/config.ts';
+import { debounce } from '../../utils/debounce.ts';
+import { fetchPlugins, triggerPlugin } from '../../api/plugins.ts';
+import { getCrawlData } from '../../utils/claw.ts';
+import type { SCWCContentPlugin } from '../content-plugin.ts';
+import { notify } from '../../utils/notify.ts';
 
 /** 插件项是否没有加载远程控制器 */
 // function isPluginItemUnloaded (plugins: (PluginConfig | ScriptConfig)[] | null) {
@@ -14,7 +14,7 @@ import { notify } from "../../utils/notify.ts";
 // }
 
 /** 获取完整的选项 */
-function getFullOptions (control: PluginItem): TRequiredOptions {
+function getFullOptions(control: PluginItem): TRequiredOptions {
   return {
     requireFullContent: true,
     relatedChannel: [],
@@ -28,7 +28,7 @@ function getFullOptions (control: PluginItem): TRequiredOptions {
 // 监听网页 url 变化
 const urlChangeCallbacks = new Set<() => void>();
 window.addEventListener('urlchangeevent', () => {
-  urlChangeCallbacks.forEach(callback => callback());
+  urlChangeCallbacks.forEach((callback) => callback());
 });
 
 export class PluginsController implements ReactiveController {
@@ -54,10 +54,10 @@ export class PluginsController implements ReactiveController {
         if (oldConfigControls && configControls !== oldConfigControls) {
           filtered.unshift(configControls);
           this.setPlugins(filtered);
-          oldConfigControls.controls.forEach(control => {
+          oldConfigControls.controls.forEach((control) => {
             this.controlValues.delete(control);
           });
-          configControls.controls.forEach(control => {
+          configControls.controls.forEach((control) => {
             this.controlValues.set(control, {
               value: control.options?.defaultValue ?? null,
               plugin: configControls,
@@ -67,7 +67,7 @@ export class PluginsController implements ReactiveController {
           return;
         } else {
           this.setPlugins([configControls, ...this.plugins]);
-          configControls.controls.forEach(control => {
+          configControls.controls.forEach((control) => {
             this.controlValues.set(control, {
               value: control.options?.defaultValue ?? null,
               plugin: configControls,
@@ -82,38 +82,49 @@ export class PluginsController implements ReactiveController {
 
   private onUrlChange = () => {
     this.reloadPlugins();
-  }
+  };
 
-  hostConnected () {
+  hostConnected() {
     urlChangeCallbacks.add(this.onUrlChange);
   }
-  hostDisconnected () {
+  hostDisconnected() {
     urlChangeCallbacks.delete(this.onUrlChange);
   }
 
-  plugins: (PluginConfig | ScriptConfig)[] | null = null
+  plugins: (PluginConfig | ScriptConfig)[] | null = null;
   /** 当前激活的标签页的ID */
-  activeTab = ''
+  activeTab = '';
   /** 当前激活的插件 */
-  activePlugin: PluginConfig | ScriptConfig | null = null
+  activePlugin: PluginConfig | ScriptConfig | null = null;
 
   /** 插件控制器触发器 */
-  private triggerExecutorFunctions = new Map<PluginItem | ScriptConfigItem, (pluginId: string, channel: string, control: PluginItem | ScriptConfigItem, value: string | number | boolean | null) => void>();
+  private triggerExecutorFunctions = new Map<
+    PluginItem | ScriptConfigItem,
+    (
+      pluginId: string,
+      channel: string,
+      control: PluginItem | ScriptConfigItem,
+      value: string | number | boolean | null,
+    ) => void
+  >();
 
   /** 通道 -> 插件项 的映射关系, 用于在触发插件项时找到对应的插件项配置 */
-  private channelControlMap: Record<string, PluginItem> | null = null
+  private channelControlMap: Record<string, PluginItem> | null = null;
 
   /**
    * 不同插件的控制器值
    * 这里没有区分不同插件, 因为通道名称在全局范围内是唯一的
    */
-  private controlValues = new Map<PluginItem | ScriptConfigItem, {
-    value: string | number | boolean | null;
-    plugin: PluginConfig | ScriptConfig;
-  }>()
+  private controlValues = new Map<
+    PluginItem | ScriptConfigItem,
+    {
+      value: string | number | boolean | null;
+      plugin: PluginConfig | ScriptConfig;
+    }
+  >();
 
   /** 修改/触发插件控制器值的方法 */
-  setControlValue (control: PluginItem | ScriptConfigItem, value: string | number | boolean | null) {
+  setControlValue(control: PluginItem | ScriptConfigItem, value: string | number | boolean | null) {
     const controlInfo = this.controlValues.get(control);
     if (!controlInfo) {
       console.warn('插件控制器值未找到:', control.channel);
@@ -135,26 +146,23 @@ export class PluginsController implements ReactiveController {
       });
       return;
     }
-    triggerFunction(
-      controlInfo.plugin.id,
-      control.channel,
-      control,
-      value,
-    );
+    triggerFunction(controlInfo.plugin.id, control.channel, control, value);
   }
 
-  getControlValue (control: PluginItem | ScriptConfigItem): string | number | boolean | null {
+  getControlValue(control: PluginItem | ScriptConfigItem): string | number | boolean | null {
     return this.controlValues.get(control)?.value ?? null;
   }
 
   /** 获取某个插件项的控制器的相关的值 */
-  private getRelatedValues (control: PluginItem): Record<string, string | number | boolean | null> {
+  private getRelatedValues(control: PluginItem): Record<string, string | number | boolean | null> {
     const relatedValues: Record<string, string | number | boolean | null> = {};
     const options = getFullOptions(control);
-    options.relatedChannel?.forEach(channel => {
+    options.relatedChannel?.forEach((channel) => {
       const relatedControl = this.channelControlMap?.[channel];
       if (relatedControl) {
-        relatedValues[channel] = this.controlValues.get(relatedControl)?.value ?? (console.warn(`未找到控制器值: ${channel}`), null);
+        relatedValues[channel] =
+          this.controlValues.get(relatedControl)?.value ??
+          (console.warn(`未找到控制器值: ${channel}`), null);
       } else {
         console.warn(`未找到控制器: ${channel}`);
         relatedValues[channel] = null;
@@ -169,12 +177,12 @@ export class PluginsController implements ReactiveController {
   /** 是否为初次加载 */
   private isInitialLoad = true;
 
-  /** 
+  /**
    * 请求插件列表
    * 要求插件窗口展开
    * 且是第一次请求
    */
-  async requestPlugins () {
+  async requestPlugins() {
     if (!this.host.expanded) {
       return;
     }
@@ -183,15 +191,19 @@ export class PluginsController implements ReactiveController {
       // 获取本次持久化的当前激活的插件标签页
       const activeTab = this.host.currentPluginTab;
       const pluginsWithConfig = this.plugins ?? [this.configController.configControls];
-      const activePlugin = pluginsWithConfig.find(plugin => plugin.id === activeTab) ?? null;
-      this.setActiveTab(activePlugin?.id ?? (pluginsWithConfig.length > 0 ? pluginsWithConfig[0].id : ''));
-      this.setActivePlugin(activePlugin ?? (pluginsWithConfig.length > 0 ? pluginsWithConfig[0] : null));
+      const activePlugin = pluginsWithConfig.find((plugin) => plugin.id === activeTab) ?? null;
+      this.setActiveTab(
+        activePlugin?.id ?? (pluginsWithConfig.length > 0 ? pluginsWithConfig[0].id : ''),
+      );
+      this.setActivePlugin(
+        activePlugin ?? (pluginsWithConfig.length > 0 ? pluginsWithConfig[0] : null),
+      );
       this.isInitialLoad = false;
     }
   }
 
   /** 重新请求插件列表 */
-  async reloadPlugins () {
+  async reloadPlugins() {
     // 这里直接将 plugins 置为 null, 让页面进入加载状态, 等新的插件列表加载完成后再更新 plugins
     this.setPlugins(null);
     this.setActiveTab('');
@@ -212,26 +224,28 @@ export class PluginsController implements ReactiveController {
         type: 'error',
         placement: this.configController.config.notify.placement,
       });
-      this.setPlugins(this.configController.configControls ? [this.configController.configControls] : []);
+      this.setPlugins(
+        this.configController.configControls ? [this.configController.configControls] : [],
+      );
       this.host.requestUpdate();
     }
   }
 
-  setPlugins (plugins: (PluginConfig | ScriptConfig)[] | null) {
+  setPlugins(plugins: (PluginConfig | ScriptConfig)[] | null) {
     if (plugins === this.plugins) {
       return;
     }
     const oldPlugins = this.plugins;
     this.plugins = plugins;
     // 当插件列表发生变化时, 需要根据新的插件列表和当前的activeTab来更新activeTab和activePlugin
-    const activePluginIdx = this.plugins?.map(plugin => plugin.id).indexOf(this.activeTab);
+    const activePluginIdx = this.plugins?.map((plugin) => plugin.id).indexOf(this.activeTab);
     const res: {
       activeTab: string;
       activePlugin: PluginConfig | ScriptConfig | null;
     } = {
       activeTab: '',
       activePlugin: null,
-    }
+    };
     if (this.plugins && activePluginIdx && activePluginIdx !== -1) {
       if (this.activePlugin !== this.plugins[activePluginIdx]) {
         // 当id相同但是实例不同时, 说明插件被重新加载了, 需要更新activePlugin的实例
@@ -253,50 +267,83 @@ export class PluginsController implements ReactiveController {
 
     // 更新插件控制器的触发器函数
     this.triggerExecutorFunctions.clear();
-    plugins?.forEach(plugin => {
-      plugin.controls.forEach(control => {
+    plugins?.forEach((plugin) => {
+      plugin.controls.forEach((control) => {
         const needLazyFetchType = ['input:text', 'input:number'].includes(control.type);
         this.triggerExecutorFunctions.set(
           control,
           isConfigItem(control)
-            ? (_pluginId: string, _channel: string, control: PluginItem | ScriptConfigItem, value: string | number | boolean | null) => {
-              if (isConfigItem(control)) {
-                control.trigger(value);
-              } else {
-                console.error('错误的分支判断, control 应该是 ScriptConfigItem 类型');
+            ? (
+                _pluginId: string,
+                _channel: string,
+                control: PluginItem | ScriptConfigItem,
+                value: string | number | boolean | null,
+              ) => {
+                if (isConfigItem(control)) {
+                  control.trigger(value);
+                } else {
+                  console.error('错误的分支判断, control 应该是 ScriptConfigItem 类型');
+                }
               }
-            }
-            : (pluginId: string, channel: string, control: PluginItem, value: string | number | boolean | null) => {
-              this.host.requestUpdate();
-              debounce((pluginId: string, channel: string, control: PluginItem, value: string | number | boolean | null) => {
-                triggerPlugin(
-                  control.type === 'button' ? 'click' : 'change',
-                  pluginId, channel, control, value,
-                  getFullOptions(control),
-                  getCrawlData(this.host.clawItems),
-                  this.getRelatedValues(control),
-                  this.configController.config
-                );
-              }, needLazyFetchType ? 500 : 0)(pluginId, channel, control, value)
-            })
+            : (
+                pluginId: string,
+                channel: string,
+                control: PluginItem,
+                value: string | number | boolean | null,
+              ) => {
+                this.host.requestUpdate();
+                debounce(
+                  (
+                    pluginId: string,
+                    channel: string,
+                    control: PluginItem,
+                    value: string | number | boolean | null,
+                  ) => {
+                    triggerPlugin(
+                      control.type === 'button' ? 'click' : 'change',
+                      pluginId,
+                      channel,
+                      control,
+                      value,
+                      getFullOptions(control),
+                      getCrawlData(this.host.clawItems),
+                      this.getRelatedValues(control),
+                      this.configController.config,
+                    );
+                  },
+                  needLazyFetchType ? 500 : 0,
+                )(pluginId, channel, control, value);
+              },
+        );
       });
     });
 
     const newChannelControlMap: Record<string, PluginItem> = {};
-    [...(plugins ?? []), this.configController.configControls].forEach(plugin => {
-      plugin.controls.forEach(control => {
+    [...(plugins ?? []), this.configController.configControls].forEach((plugin) => {
+      plugin.controls.forEach((control) => {
         newChannelControlMap[control.channel] = control;
       });
     });
     this.channelControlMap = newChannelControlMap;
     // 尝试保持之前的控制器值
-    plugins?.forEach(plugin => {
-      plugin.controls.forEach(control => {
-        const oldControl = oldPlugins?.find(p => p.id === plugin.id)?.controls.find(c => c.channel === control.channel);
+    plugins?.forEach((plugin) => {
+      plugin.controls.forEach((control) => {
+        const oldControl = oldPlugins
+          ?.find((p) => p.id === plugin.id)
+          ?.controls.find((c) => c.channel === control.channel);
         if (oldControl) {
-          this.controlValues.set(control, this.controlValues.get(oldControl) ?? { value: control.options?.defaultValue ?? null, plugin });
+          this.controlValues.set(
+            control,
+            this.controlValues.get(oldControl) ?? {
+              value: control.options?.defaultValue ?? null,
+              plugin,
+            },
+          );
         } else {
-          this.controlValues.set(control, { value: control.options?.defaultValue ?? null, plugin });
+          this.controlValues.set(control, {
+            value: control.options?.defaultValue ?? null,
+            plugin,
+          });
         }
       });
     });
@@ -305,7 +352,7 @@ export class PluginsController implements ReactiveController {
     this.setActivePlugin(res.activePlugin);
   }
 
-  setActiveTab (activeTab: string) {
+  setActiveTab(activeTab: string) {
     if (activeTab === this.activeTab) {
       return;
     }
@@ -313,7 +360,7 @@ export class PluginsController implements ReactiveController {
     this.host.requestUpdate();
   }
 
-  setActivePlugin (activePlugin: PluginConfig | ScriptConfig | null) {
+  setActivePlugin(activePlugin: PluginConfig | ScriptConfig | null) {
     if (activePlugin === this.activePlugin) {
       return;
     }

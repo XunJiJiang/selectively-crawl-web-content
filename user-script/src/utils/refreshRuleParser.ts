@@ -1,14 +1,14 @@
-type TStruct = {
+interface TStruct {
   type: '//' | '?' | '#' | '&' | '\\i' | '\\c' | '\\a' | '\\d' | '/' | 'param' | 'unknown';
   str: string;
   startIdx: number;
   endIdx: number;
 }
 
-export type TParseResult = {
+export interface TParseResult {
   pathname: {
     base: 'i' | 'c' | 'a' | 'd' | '';
-    segments: { rule: 'i' | 'c' | 'a' | 'd'; }[];
+    segments: { rule: 'i' | 'c' | 'a' | 'd' }[];
   };
   search: {
     base: 'i' | 'c' | 'a' | 'd' | '';
@@ -16,16 +16,16 @@ export type TParseResult = {
   };
   hash: {
     base: 'i' | 'c' | 'a' | 'd' | '';
-    segments: { rule: 'i' | 'c' | 'a' | 'd'; }[];
+    segments: { rule: 'i' | 'c' | 'a' | 'd' }[];
   };
 }
 
 /** 匹配规则解析器 */
 class RefreshRuleParser {
   private _rule = '';
-  private _length = 0
+  private _length = 0;
 
-  constructor() {}
+  // constructor() {}
 
   private _result: TParseResult = {
     pathname: {
@@ -40,7 +40,7 @@ class RefreshRuleParser {
       base: '',
       segments: [],
     },
-  }
+  };
 
   private _charIdx = 0;
   /** 当前解析区域, 用于在解析过程中记录当前正在解析 pathname、search、 hash 还是 ignore */
@@ -52,7 +52,7 @@ class RefreshRuleParser {
     hash: false,
   };
 
-  private _reset () {
+  private _reset() {
     this._charIdx = 0;
     this._currentArea = 'none';
     this._areaDone = {
@@ -78,7 +78,7 @@ class RefreshRuleParser {
   }
 
   /** 读取下一个字符 */
-  private _nextChar () {
+  private _nextChar() {
     if (this._charIdx >= this._length) {
       return {
         char: '',
@@ -93,7 +93,7 @@ class RefreshRuleParser {
   }
 
   /** 预读取接下来某个字符 */
-  private _peekChar (n = 1) {
+  private _peekChar(n = 1) {
     if (this._charIdx + n - 1 >= this._length) {
       return {
         char: '',
@@ -108,13 +108,13 @@ class RefreshRuleParser {
   }
 
   /** 解析后的结构数组 */
-  private _structParseResult: TStruct[] = []
+  private _structParseResult: TStruct[] = [];
 
   /** 解析规则字符串为结构数组 */
-  private _parseNextStruct () {
+  private _parseNextStruct() {
     const { char, done } = this._nextChar();
     if (done) {
-      return false
+      return false;
     }
     switch (char) {
       case '/': {
@@ -215,7 +215,11 @@ class RefreshRuleParser {
           let str = char;
           while (true) {
             const { char: nextChar, done: nextDone } = this._peekChar();
-            if (!nextDone && !/^[a-zA-Z0-9_$-]+$/.test(nextChar) && !['/', '?', '#', '&', '\\'].includes(nextChar)) {
+            if (
+              !nextDone &&
+              !/^[a-zA-Z0-9_$-]+$/.test(nextChar) &&
+              !['/', '?', '#', '&', '\\'].includes(nextChar)
+            ) {
               str += nextChar;
               this._nextChar();
             } else {
@@ -238,7 +242,7 @@ class RefreshRuleParser {
   private _structIdx = 0;
 
   /** 读取下一个结构 */
-  private _nextStruct () {
+  private _nextStruct() {
     const { struct, done } = this._peekStruct();
     if (!done && struct) {
       this._structIdx++;
@@ -251,7 +255,7 @@ class RefreshRuleParser {
   }
 
   /** 预读取下一个结构 */
-  private _peekStruct () {
+  private _peekStruct() {
     if (this._structIdx === this._structParseResult.length) {
       if (!this._parseNextStruct()) {
         return {
@@ -270,7 +274,7 @@ class RefreshRuleParser {
     return {
       struct: null,
       done: true,
-    } as const
+    } as const;
   }
 
   /** 信息 */
@@ -279,10 +283,10 @@ class RefreshRuleParser {
     idx: number;
     endIdx?: number;
     type: 'error' | 'warning' | 'info';
-  }[] = []
+  }[] = [];
 
   /** 解析 // 区域  */
-  private _parsePathname () {
+  private _parsePathname() {
     this._areaDone.pathname = true;
 
     let currentSegmentRule: 'i' | 'c' | 'a' | 'd' | '' = '';
@@ -292,7 +296,7 @@ class RefreshRuleParser {
       const { struct, done } = this._peekStruct();
       if (done || !struct) {
         if (preStructType === null) {
-          this._result.pathname.base = 'c'
+          this._result.pathname.base = 'c';
         } else {
           this._result.pathname.base = currentSegmentRule || 'i';
         }
@@ -300,13 +304,18 @@ class RefreshRuleParser {
       }
       if (struct.type === '//' || struct.type === '?' || struct.type === '#') {
         if (preStructType === null) {
-          this._result.pathname.base = 'c'
+          this._result.pathname.base = 'c';
         } else {
           this._result.pathname.base = currentSegmentRule || 'i';
         }
         break;
       }
-      if (struct.type === '\\i' || struct.type === '\\c' || struct.type === '\\a' || struct.type === '\\d') {
+      if (
+        struct.type === '\\i' ||
+        struct.type === '\\c' ||
+        struct.type === '\\a' ||
+        struct.type === '\\d'
+      ) {
         currentSegmentRule = struct.str.slice(1) as 'i' | 'c' | 'a' | 'd';
         this._result.pathname.segments.push({ rule: currentSegmentRule });
         preStructType = struct.type;
@@ -326,7 +335,7 @@ class RefreshRuleParser {
   }
 
   /** 解析 search 区域 */
-  private _parseSearch () {
+  private _parseSearch() {
     this._areaDone.search = true;
 
     let regionRule: 'i' | 'c' | 'a' | 'd' | '' = '';
@@ -336,7 +345,7 @@ class RefreshRuleParser {
       const { struct, done } = this._peekStruct();
       if (done || !struct) {
         if (preStructType === null) {
-          this._result.search.base = 'c'
+          this._result.search.base = 'c';
         } else {
           this._result.search.base = regionRule || 'i';
         }
@@ -345,7 +354,7 @@ class RefreshRuleParser {
 
       if (struct.type === '//' || struct.type === '?' || struct.type === '#') {
         if (preStructType === null) {
-          this._result.search.base = 'c'
+          this._result.search.base = 'c';
         } else if (preStructType === '&') {
           // INFO: 这里可能有一个 ts 类型解析解析bug
           // 当 let preStructType: TStruct['type'] | null = null 时, 此处会解析为 let preStructType: "\\i" | "\\c" | "\\a" | "\\d" | "param", 导致 preStructType === '&' 被认为永远不成立
@@ -393,7 +402,7 @@ class RefreshRuleParser {
                 idx: struct.startIdx,
                 endIdx: struct.endIdx,
                 type: 'warning',
-              })
+              });
             }
             continue;
           }
@@ -441,7 +450,7 @@ class RefreshRuleParser {
   }
 
   /** 解析 hash 区域 */
-  private _parseHash () {
+  private _parseHash() {
     this._areaDone.hash = true;
 
     let currentSegmentRule: 'i' | 'c' | 'a' | 'd' | '' = '';
@@ -451,7 +460,7 @@ class RefreshRuleParser {
       const { struct, done } = this._peekStruct();
       if (done || !struct) {
         if (preStructType === null) {
-          this._result.hash.base = 'c'
+          this._result.hash.base = 'c';
         } else {
           this._result.hash.base = currentSegmentRule || 'i';
         }
@@ -459,13 +468,18 @@ class RefreshRuleParser {
       }
       if (struct.type === '//' || struct.type === '?' || struct.type === '#') {
         if (preStructType === null) {
-          this._result.hash.base = 'c'
+          this._result.hash.base = 'c';
         } else {
           this._result.hash.base = currentSegmentRule || 'i';
         }
         break;
       }
-      if (struct.type === '\\i' || struct.type === '\\c' || struct.type === '\\a' || struct.type === '\\d') {
+      if (
+        struct.type === '\\i' ||
+        struct.type === '\\c' ||
+        struct.type === '\\a' ||
+        struct.type === '\\d'
+      ) {
         currentSegmentRule = struct.str.slice(1) as 'i' | 'c' | 'a' | 'd';
         this._result.hash.segments.push({ rule: currentSegmentRule });
         preStructType = struct.type;
@@ -484,17 +498,15 @@ class RefreshRuleParser {
     }
   }
 
-  private _parse () {
+  private _parse() {
     while (true) {
       const { struct, done } = this._nextStruct();
       if (done || !struct) {
         break;
       }
 
-
       switch (struct.type) {
         case '//':
-
           if (this._currentArea === 'pathname') {
             this._info.push({
               message: `重复进入 pathname 区域`,
@@ -566,30 +578,35 @@ class RefreshRuleParser {
             const { struct: nextStruct, done: nextDone } = this._peekStruct();
             if (nextDone || !nextStruct) {
               break;
-            } else if (nextStruct.type === '//' || nextStruct.type === '?' || nextStruct.type === '#') {
+            } else if (
+              nextStruct.type === '//' ||
+              nextStruct.type === '?' ||
+              nextStruct.type === '#'
+            ) {
               break;
             }
             errorRegion.push(nextStruct);
             this._nextStruct();
           }
           this._info.push({
-            message: `区域外的规则: ${struct.str}${errorRegion.map(r => r.str).join('')}. 规则必须在 //、?、# 之后定义`,
+            message: `区域外的规则: ${struct.str}${errorRegion.map((r) => r.str).join('')}. 规则必须在 //、?、# 之后定义`,
             idx: struct.startIdx,
-            endIdx: errorRegion.length > 0 ? errorRegion[errorRegion.length - 1].endIdx : struct.endIdx,
+            endIdx:
+              errorRegion.length > 0 ? errorRegion[errorRegion.length - 1].endIdx : struct.endIdx,
             type: 'warning',
-          })
+          });
         }
       }
     }
   }
 
-  public parse (rule: string) {
+  public parse(rule: string) {
     this._rule = rule;
     this._length = rule.length;
     this._reset();
     this._parse();
-    const errorCount = this._info.filter(i => i.type === 'error').length;
-    const warningCount = this._info.filter(i => i.type === 'warning').length;
+    const errorCount = this._info.filter((i) => i.type === 'error').length;
+    const warningCount = this._info.filter((i) => i.type === 'warning').length;
     return {
       result: this._result,
       info: this._info,

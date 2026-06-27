@@ -15,7 +15,7 @@ const router = express.Router();
  * @param channel 通道名称
  * @returns 拼接后的通道字符串
  */
-function getPluginChannel (pluginName: string, pluginId: string, channel: string): string {
+function getPluginChannel(pluginName: string, pluginId: string, channel: string): string {
   return `plugin:${pluginName}:${pluginId}:${channel}`;
 }
 
@@ -24,13 +24,15 @@ function getPluginChannel (pluginName: string, pluginId: string, channel: string
  * @param fullChannel 完整通道字符串
  * @returns 解析结果对象
  */
-function parsePluginChannel (fullChannel: string): {
+function parsePluginChannel(fullChannel: string): {
   pluginName: string;
   pluginId: string;
   channel: string;
 } | null {
   const match = fullChannel.match(/^plugin:([^:]+):([^:]+):(.+)$/);
-  if (!match) return null;
+  if (!match) {
+    return null;
+  }
   return {
     pluginName: match[1],
     pluginId: match[2],
@@ -64,7 +66,9 @@ router.get('/config', query('site').isURL(), async (req, res) => {
   // 匹配插件
   let root = getRootUrl(decodedSite);
   // 统一去除尾部斜杠
-  if (root.endsWith('/')) root = root.slice(0, -1);
+  if (root.endsWith('/')) {
+    root = root.slice(0, -1);
+  }
 
   const pluginConfigs: {
     id: string;
@@ -82,18 +86,19 @@ router.get('/config', query('site').isURL(), async (req, res) => {
 
     const urlObj = new URL(decodedSite);
 
-    const controls = typeof plugin.handler?.pluginConfig?.scripts?.controls === 'function'
-      ? await plugin.handler.pluginConfig.scripts.controls(plugin.logger, {
-        site: {
-          url: decodedSite,
-          rootUrl: root,
-          origin: urlObj.origin,
-          pathname: urlObj.pathname,
-          host: urlObj.host,
-          hostname: urlObj.hostname,
-        },
-      })
-      : plugin.handler?.pluginConfig?.scripts?.controls ?? [];
+    const controls =
+      typeof plugin.handler?.pluginConfig?.scripts?.controls === 'function'
+        ? await plugin.handler.pluginConfig.scripts.controls(plugin.logger, {
+            site: {
+              url: decodedSite,
+              rootUrl: root,
+              origin: urlObj.origin,
+              pathname: urlObj.pathname,
+              host: urlObj.host,
+              hostname: urlObj.hostname,
+            },
+          })
+        : (plugin.handler?.pluginConfig?.scripts?.controls ?? []);
 
     if (
       plugin.handler &&
@@ -105,16 +110,21 @@ router.get('/config', query('site').isURL(), async (req, res) => {
       pluginConfigs.push({
         id: plugin.pluginId,
         title: plugin.handler.pluginConfig.scripts.title,
-        description: plugin.handler.pluginConfig.scripts.description ?? plugin.handler.pluginConfig.scripts.title,
+        description:
+          plugin.handler.pluginConfig.scripts.description ??
+          plugin.handler.pluginConfig.scripts.title,
         // 用于浏览器脚本判断是否为脚本设置, 存在该项的 config 将被认为是脚本设置
         // 插件项不能传递这个值
         'script-config-symbol': void 0,
         controls:
-          controls.map(item => ({
+          controls.map((item) => ({
             ...item,
             options: {
               ...item.options,
-              relatedChannel: item.options?.relatedChannel?.map(channel => getPluginChannel(plugin.name, plugin.pluginId, channel)) ?? [],
+              relatedChannel:
+                item.options?.relatedChannel?.map((channel) =>
+                  getPluginChannel(plugin.name, plugin.pluginId, channel),
+                ) ?? [],
             },
             channel: getPluginChannel(plugin.name, plugin.pluginId, item.channel),
             trigger: void 0,
@@ -164,7 +174,7 @@ router.post('/toggle', async (req, res) => {
   }
 
   const {
-    type,
+    // type,
     channel,
     id: pluginId,
     context: { data, site, relatedValues, value },
@@ -181,7 +191,9 @@ router.post('/toggle', async (req, res) => {
   // 匹配插件
   let root = getRootUrl(decodedSite);
   // 统一去除尾部斜杠
-  if (root.endsWith('/')) root = root.slice(0, -1);
+  if (root.endsWith('/')) {
+    root = root.slice(0, -1);
+  }
 
   const urlObj = new URL(decodedSite);
 
@@ -203,20 +215,21 @@ router.post('/toggle', async (req, res) => {
 
   const { pluginName, channel: pluginChannel } = parsed;
 
-  const plugin = plugins.find(p => p.pluginId === pluginId && p.name === pluginName);
+  const plugin = plugins.find((p) => p.pluginId === pluginId && p.name === pluginName);
 
   if (!plugin) {
     res.status(404).json({ code: 404, message: `未找到插件: ${pluginId}` });
     return;
   }
 
-  const controls = typeof plugin.handler?.pluginConfig?.scripts?.controls === 'function'
-    ? await plugin.handler.pluginConfig.scripts.controls(plugin.logger, {
-      site: siteInfo,
-    })
-    : plugin.handler?.pluginConfig?.scripts?.controls ?? [];
+  const controls =
+    typeof plugin.handler?.pluginConfig?.scripts?.controls === 'function'
+      ? await plugin.handler.pluginConfig.scripts.controls(plugin.logger, {
+          site: siteInfo,
+        })
+      : (plugin.handler?.pluginConfig?.scripts?.controls ?? []);
 
-  const pluginItem = controls.find(item => item.channel === pluginChannel);
+  const pluginItem = controls.find((item) => item.channel === pluginChannel);
 
   // 调用插件的 trigger 处理函数
   if (pluginItem) {
@@ -230,7 +243,9 @@ router.post('/toggle', async (req, res) => {
           const map: Record<string, string | number | boolean | null> = {};
           Object.entries(relatedValues).forEach(([channel, value]) => {
             const channelParts = parsePluginChannel(channel)?.channel;
-            if (!channelParts) return;
+            if (!channelParts) {
+              return;
+            }
             map[channelParts] = value;
           });
           return map;

@@ -1,33 +1,38 @@
 /** 可以被 JSON 序列化的类型 */
 type JSONPrimitive = string | number | boolean | null;
-export interface JSONObject { [key: string]: JSONValue; }
+export interface JSONObject {
+  [key: string]: JSONValue;
+}
 export type JSONValue = JSONPrimitive | JSONObject | JSONValue[];
 
 /** 可以被 JSON 序列化的类型, 但是将数组替换为函数 */
-export interface JSONObjectWithFunction { [key: string]: JSONValueWithFunction; }
+export interface JSONObjectWithFunction {
+  [key: string]: JSONValueWithFunction;
+}
 export type JSONValueWithFunction = JSONPrimitive | JSONObjectWithFunction | ArrayProcessor;
 
 /** 处理数组的函数 */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type ArrayProcessor<T = any> = (item?: JSONValue) => item extends JSONValue ? JSONValueWithFunction : T[];
+export type ArrayProcessor<T> = (
+  item?: JSONValue,
+) => item extends JSONValue ? JSONValueWithFunction : T[];
 
 /** 将 JSONValue 转换为 JSONValueWithFunction */
 export type JSONValueToFunction<T extends JSONValue> = T extends JSONPrimitive
   ? T
   : T extends (infer U)[]
-  ? ArrayProcessor<U>
-  : T extends JSONObject
-  ? { [K in keyof T]: JSONValueToFunction<T[K]> }
-  : never;
+    ? ArrayProcessor<U>
+    : T extends JSONObject
+      ? { [K in keyof T]: JSONValueToFunction<T[K]> }
+      : never;
 
 /** 将 JSONValueWithFunction 转换为 JSONValue */
 export type ResolvedJSONValue<T extends JSONValueWithFunction> = T extends JSONPrimitive
   ? T
   : T extends ArrayProcessor<infer U>
-  ? U[]
-  : T extends JSONObjectWithFunction
-  ? { [K in keyof T]: ResolvedJSONValue<T[K]> }
-  : never;
+    ? U[]
+    : T extends JSONObjectWithFunction
+      ? { [K in keyof T]: ResolvedJSONValue<T[K]> }
+      : never;
 
 /** 合并 JSONValue 和 JSONValueWithFunction(先替换为数组) */
 // export type MergedJSONValue<T extends JSONValue, U extends JSONValueWithFunction, KEEPEXTRA extends boolean> =

@@ -1,16 +1,16 @@
-import type { PluginConfig, PluginItem } from "./plugin";
+import type { PluginConfig, PluginItem } from './plugin';
 
 export type ScriptConfig = Omit<PluginConfig, 'controls'> & {
   'script-config-symbol': typeof CONFIG_SYMBOL; // 用于标识这是一个脚本配置项
   controls: ScriptConfigItem[];
-}
+};
 
 export type ScriptConfigItem = PluginItem & {
   'script-config-symbol': typeof CONFIG_SYMBOL; // 用于标识这是一个脚本配置项
   trigger: (value: string | number | boolean | null) => void;
-}
+};
 
-export type TConfig = {
+export interface TConfig {
   api: {
     host: string;
     port: string;
@@ -48,8 +48,8 @@ export type TConfig = {
     //        ?\aparam&param2,            表示param2参数的变化被检测, 其他参数的变化被忽略. param匹配 (i), param2匹配 (ii), 其他参数匹配 (iv)
     //    对于 hash, 与 pathname 的规则相同, 将 // 替换为 # 即可
     refreshRule: string;
-  },
+  };
   notify: {
     placement: 'tl' | 'tr' | 'tc' | 'bl' | 'br' | 'bc';
-  }
-};
+  };
+}

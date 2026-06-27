@@ -7,7 +7,11 @@ import { v4 as uuidv4 } from 'uuid';
 
 @customElement('scwc-checkbox')
 class SCWCCheckbox extends LitElement {
-  static styles = [css`${unsafeCSS(style)}`];
+  static styles = [
+    css`
+      ${unsafeCSS(style)}
+    `,
+  ];
 
   @property({ type: Boolean })
   accessor checked = false;
@@ -25,17 +29,17 @@ class SCWCCheckbox extends LitElement {
   accessor title = '';
 
   @property({ type: String, attribute: 'aria-label' })
-  accessor ariaLabel = ''
+  accessor ariaLabel = '';
 
-  render () {
+  render() {
     return html`
       <label part="label" for=${this.id} class="scwc-checkbox-label">
         <input
           part="checkbox"
           class=${classMap({
-      'scwc-checkbox': true,
-      'scwc-checkbox-disabled': this.disabled,
-    })}
+            'scwc-checkbox': true,
+            'scwc-checkbox-disabled': this.disabled,
+          })}
           id=${this.id}
           type="checkbox"
           title=${this.title}
@@ -43,12 +47,14 @@ class SCWCCheckbox extends LitElement {
           .checked=${this.checked}
           ?disabled=${this.disabled}
           @change=${(e: Event) => {
-        e.stopPropagation();
-        this.dispatchEvent(new CustomEvent('change', {
-          detail: (e.target as HTMLInputElement).checked,
-          bubbles: true,
-        }));
-      }}
+            e.stopPropagation();
+            this.dispatchEvent(
+              new CustomEvent('change', {
+                detail: (e.target as HTMLInputElement).checked,
+                bubbles: true,
+              }),
+            );
+          }}
         />
         <span part="description" class="scwc-checkbox-desc">${this.label}</span>
       </label>
@@ -57,11 +63,11 @@ class SCWCCheckbox extends LitElement {
 }
 
 export interface SCWCCheckboxEventMap {
-  'change': CustomEvent<boolean>;
+  change: CustomEvent<boolean>;
 }
 
 declare global {
   interface HTMLElementTagNameMap {
-    "scwc-checkbox": SCWCCheckbox;
+    'scwc-checkbox': SCWCCheckbox;
   }
 }

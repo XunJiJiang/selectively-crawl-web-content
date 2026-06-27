@@ -6,7 +6,11 @@ import { v4 as uuidv4 } from 'uuid';
 
 @customElement('scwc-toggle')
 class SCWCToggle extends LitElement {
-  static styles = [css`${unsafeCSS(style)}`];
+  static styles = [
+    css`
+      ${unsafeCSS(style)}
+    `,
+  ];
 
   @property({ type: Boolean })
   accessor checked = false;
@@ -24,9 +28,9 @@ class SCWCToggle extends LitElement {
   accessor title = '';
 
   @property({ type: String, attribute: 'aria-label' })
-  accessor ariaLabel = ''
+  accessor ariaLabel = '';
 
-  render () {
+  render() {
     return html`
       <scwc-checkbox
         id=${this.id}
@@ -36,23 +40,25 @@ class SCWCToggle extends LitElement {
         ?disabled=${this.disabled}
         .label=${this.label}
         @change=${(e: CustomEvent<boolean>) => {
-        e.stopPropagation();
-        this.dispatchEvent(new CustomEvent('change', {
-          detail: e.detail,
-          bubbles: true,
-        }));
-      }}
+          e.stopPropagation();
+          this.dispatchEvent(
+            new CustomEvent('change', {
+              detail: e.detail,
+              bubbles: true,
+            }),
+          );
+        }}
       ></scwc-checkbox>
     `;
   }
 }
 
 export interface SCWCToggleEventMap {
-  'change': CustomEvent<boolean>;
+  change: CustomEvent<boolean>;
 }
 
 declare global {
   interface HTMLElementTagNameMap {
-    "scwc-toggle": SCWCToggle;
+    'scwc-toggle': SCWCToggle;
   }
 }
