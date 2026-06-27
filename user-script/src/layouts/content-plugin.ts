@@ -19,7 +19,7 @@ export class SCWCContentPlugin extends LitElement {
   @property({ type: Array, attribute: false })
   accessor clawItems: Item[] = [];
 
-  @property({ type: String, attribute: 'current-plugin-tab' })
+  @property({ type: String })
   accessor currentPluginTab: string = '';
 
   private pluginsController = new PluginsController(this);
@@ -52,6 +52,7 @@ export class SCWCContentPlugin extends LitElement {
               @click=${() => {
         this.pluginsController.setActiveTab(plugin.id);
         this.pluginsController.setActivePlugin(plugin);
+        this.dispatchEvent(new CustomEvent('current-plugin-tab-changed', { detail: plugin.id }));
       }}
             >
               ${plugin.title}

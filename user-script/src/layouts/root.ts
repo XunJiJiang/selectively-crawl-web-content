@@ -51,35 +51,43 @@ class SCWCRootLayout extends LitElement {
     }
   }, 'a');
 
-  /** 设置是否最小化 */
-  private setMinimized (value: boolean) {
-    this.persistentData = {
-      ...this.persistentData,
+  private updatePersistentData () {
+    const persistentData = {
+      version: this.persistentData.version,
       window: {
-        ...this.persistentData.window,
-        minimized: value,
+        pos: this.position,
+        minimized: this.minimized,
+      },
+      plugin: {
+        expanded: this.pluginExpanded,
+        activeTab: this.currentPluginTab,
       }
     };
-    saveToStorage(PERSISTENT_DATA_KEY, this.persistentData);
+    this.persistentData = persistentData;
+    saveToStorage(PERSISTENT_DATA_KEY, persistentData);
   }
 
+  @state()
+  private accessor minimized = this.persistentData.window.minimized;
+  /** 设置是否最小化 */
+  private setMinimized (value: boolean) {
+    this.minimized = value;
+    this.updatePersistentData();
+  }
+
+  @state()
+  private accessor position = this.persistentData.window.pos;
   /** 设置窗口位置 */
   private setPosition (x: number | null, y: number | null) {
-    this.persistentData = {
-      ...this.persistentData,
-      window: {
-        ...this.persistentData.window,
-        pos: {
-          x: x ?? this.persistentData.window.pos.x,
-          y: y ?? this.persistentData.window.pos.y,
-        },
-      }
+    this.position = {
+      x: x ?? this.position.x,
+      y: y ?? this.position.y,
     };
-    saveToStorage(PERSISTENT_DATA_KEY, this.persistentData);
+    this.updatePersistentData();
   }
 
   /** 是否展开选择框 */
-  @property({ type: Boolean, reflect: true })
+  @property({ type: Boolean, reflect: true, attribute: 'selection-expanded' })
   private accessor selectionExpanded = false;
 
   /** 设置是否展开选择框 */
@@ -87,28 +95,20 @@ class SCWCRootLayout extends LitElement {
     this.selectionExpanded = value;
   }
 
+  @state()
+  private accessor pluginExpanded = this.persistentData.plugin.expanded;
   /** 设置是否展开插件 */
   private setPluginExpanded (value: boolean) {
-    this.persistentData = {
-      ...this.persistentData,
-      plugin: {
-        ...this.persistentData.plugin,
-        expanded: value,
-      }
-    };
-    saveToStorage(PERSISTENT_DATA_KEY, this.persistentData);
+    this.pluginExpanded = value;
+    this.updatePersistentData();
   }
 
+  @state()
+  private accessor currentPluginTab = this.persistentData.plugin.activeTab
   /** 设置当前聚焦的插件标签页 */
   private setCurrentPluginTab (tab: string) {
-    this.persistentData = {
-      ...this.persistentData,
-      plugin: {
-        ...this.persistentData.plugin,
-        activeTab: tab,
-      }
-    };
-    saveToStorage(PERSISTENT_DATA_KEY, this.persistentData);
+    this.currentPluginTab = tab;
+    this.updatePersistentData();
   }
 
   /** 抓取的元素项列表 */
@@ -123,37 +123,34 @@ class SCWCRootLayout extends LitElement {
     })}
         @maximize=${() => this.setMinimized(false)}
         @move=${(e: CustomEvent<{ x: number, y: number }>) => this.setPosition(e.detail.x, e.detail.y)}
-        .position=${this.persistentData.window.pos}
+        .position=${this.position}
       ></scwc-layout-minimized>
     ` , html`
       <div
         class="scwc-layout-root"
         style=${styleMap({
-      left: `${this.persistentData.window.pos.x}px`,
-      top: `${this.persistentData.window.pos.y}px`,
+      left: `${this.position.x}px`,
+      top: `${this.position.y}px`,
       'min-width': this.selectionExpanded ? '320px' : '120px',
       'min-height': this.selectionExpanded ? '180px' : '56px',
       display: this.persistentData.window.minimized ? 'none' : '',
     })}
-        .position=${this.persistentData.window.pos}
-        .selectionExpanded=${this.selectionExpanded}
-        .pluginExpanded=${this.persistentData.plugin.expanded}
       >
         <scwc-layout-header
           @move=${(e: CustomEvent<{ x: number, y: number }>) => this.setPosition(e.detail.x, e.detail.y)}
           @toggleclaw=${() => this.setSelectionExpanded(!this.selectionExpanded)}
-          @toggleplugin=${() => this.setPluginExpanded(!this.persistentData.plugin.expanded)}
+          @toggleplugin=${() => this.setPluginExpanded(!this.pluginExpanded)}
           @minimize=${() => this.setMinimized(true)}
           .selectionExpanded=${this.selectionExpanded}
-          .pluginExpanded=${this.persistentData.plugin.expanded}
-          .position=${this.persistentData.window.pos}
+          .pluginExpanded=${this.pluginExpanded}
+          .position=${this.position}
         ></scwc-layout-header>
         <scwc-layout-content
           .selectionExpanded=${this.selectionExpanded}
           @trigger-selection-expanded=${(e: CustomEvent<boolean>) => this.setSelectionExpanded(e.detail)}
-          .pluginExpanded=${this.persistentData.plugin.expanded}
+          .pluginExpanded=${this.pluginExpanded}
           @claw-items-changed=${(e: CustomEvent<Item[]>) => { this.clawItems = e.detail; }}
-          .current-plugin-tab=${this.persistentData.plugin.activeTab}
+          .currentPluginTab=${this.currentPluginTab}
           @current-plugin-tab-changed=${(e: CustomEvent<string>) => this.setCurrentPluginTab(e.detail)}
         ></scwc-layout-content>
         <scwc-layout-footer></scwc-layout-footer>

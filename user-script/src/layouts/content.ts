@@ -13,7 +13,7 @@ class SCWCContentLayout extends LitElement {
   public accessor selectionExpanded = false;
   @property({ type: Boolean })
   public accessor pluginExpanded = false;
-  @property({ type: String, attribute: 'current-plugin-tab' })
+  @property({ type: String })
   public accessor currentPluginTab = '';
 
   @state()
