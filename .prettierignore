@@ -1,0 +1,11 @@
+node_modules
+dist
+dist-electron
+dist-ssr
+coverage
+build
+release
+resources
+pnpm-lock.yaml
+package-lock.json
+.vite

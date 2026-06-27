@@ -1,6 +1,6 @@
-import { spawn } from 'node:child_process';
-import path from 'node:path';
-import fs from 'node:fs';
+// import { spawn } from 'node:child_process';
+// import path from 'node:path';
+// import fs from 'node:fs';
 import { inactivePlugins, plugins } from '../plugin/load.ts';
 import { pluginLogger } from '../plugin/log.ts';
 import {
@@ -14,7 +14,7 @@ import {
 import { TOKEN } from '../common/env.ts';
 
 /** 重启脚本位置 */
-const RESTART_SCRIPT_PATH = path.join(process.cwd(), 'server', 'scripts', 'restart.ts');
+// const RESTART_SCRIPT_PATH = path.join(process.cwd(), 'server', 'scripts', 'restart.ts');
 
 /**
  * 注册默认系统命令

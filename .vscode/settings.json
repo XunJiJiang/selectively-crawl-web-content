@@ -7,6 +7,7 @@
     "HVDB",
     "mdel",
     "opencc",
+    "oxlint",
     "pixiv",
     "rgcode",
     "Rjcode",
@@ -22,5 +23,8 @@
       "database": "/Users/xunji/Documents/Entertainment/ASMR-ONE/data/claw-data.sqlite"
     }
   ],
-  "search.useIgnoreFiles": false
+  "search.useIgnoreFiles": false,
+  "oxc.fmt.configPath": ".oxfmtrc.json",
+  "editor.defaultFormatter": "oxc.oxc-vscode",
+  "editor.formatOnSave": true
 }
