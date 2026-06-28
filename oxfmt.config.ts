@@ -23,5 +23,5 @@ export default defineConfig({
     '.vite/**',
     '.vscode/**',
   ],
-  include: ['**/*.ts'],
+  include: ['**/*.ts', 'projects/server/plugins/**/*.ts'],
 });

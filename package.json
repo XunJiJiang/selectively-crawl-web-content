@@ -10,6 +10,10 @@
     "type": "git",
     "url": "https://github.com/XunJiJinag/selectively-crawl-web-content"
   },
+  "workspaces": [
+    "projects/*"
+  ],
+  "type": "module",
   "scripts": {
     "start": "tsx projects/server/scripts/setup.ts",
     "build": "tsc -b && cd projects/user-script && bun run build",
@@ -18,9 +22,6 @@
     "lint": "oxlint",
     "fmt": "oxfmt"
   },
-  "workspaces": [
-    "projects/*"
-  ],
   "dependencies": {
     "@keyv/redis": "^5.1.6",
     "@lit/context": "^1.1.6",

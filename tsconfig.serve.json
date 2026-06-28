@@ -3,10 +3,7 @@
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
     // Enable latest features
-    "lib": [
-      "ESNext",
-      "DOM"
-    ],
+    "lib": ["ESNext", "DOM"],
     "target": "ESNext",
     "module": "ESNext",
     "moduleDetection": "force",
@@ -26,7 +23,5 @@
     "noUnusedParameters": false,
     "noPropertyAccessFromIndexSignature": false
   },
-  "include": [
-    "./projects/server/**/*.ts"
-  ]
+  "include": ["./projects/server/**/*.ts"]
 }

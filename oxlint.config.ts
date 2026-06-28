@@ -12,11 +12,11 @@ export default defineConfig({
   env: {
     builtin: true,
   },
-  ignorePatterns: ['server/plugins/template/**'],
+  ignorePatterns: ['projects/server/plugins/template/**'],
   rules: {},
   overrides: [
     {
-      files: ['**/*.ts'],
+      files: ['**/*.ts', 'projects/server/plugins/**/*.ts'],
       rules: {
         'eslint/curly': ['error', 'all'],
         'import/namespace': 'error',
