@@ -5,7 +5,7 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 
-const __dirname = process.cwd();
+const __dirname = import.meta.dirname;
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd());
@@ -29,6 +29,7 @@ export default defineConfig(({ mode }) => {
       'import.meta.env.HOST': JSON.stringify(env.HOST),
       'import.meta.env.PORT': JSON.stringify(env.PORT),
     },
+    root: path.join(__dirname),
     build: {
       outDir: path.join(__dirname, '..', '..', 'dist'),
       minify: false,
