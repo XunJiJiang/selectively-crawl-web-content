@@ -242,6 +242,19 @@ async function main() {
         console.error(
           `${chalk.gray('[')}${chalk.red('ERROR')}${chalk.gray(']')} ${chalk.red(`服务器进程意外退出, 退出码: ${code}, 信号: ${signal}`)}`,
         );
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+        consecutiveExitCount++;
+        timeoutId = setTimeout(() => {
+          consecutiveExitCount = 0;
+        }, 5000);
+        if (consecutiveExitCount >= 3) {
+          console.error(
+            `${chalk.gray('[')}${chalk.red('ERROR')}${chalk.gray(']')} ${chalk.red('服务器连续快速退出超过 3 次, 请检查代码或配置是否有误')}`,
+          );
+          resolve('exit');
+        }
         resolve('restart');
       }
     });
