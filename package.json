@@ -16,8 +16,9 @@
   "type": "module",
   "scripts": {
     "start": "tsx projects/server/scripts/setup.ts",
-    "build": "tsc -b && cd projects/user-script && bun run build",
-    "dev": "cd projects/user-script && bun run dev",
+    "build": "tsc -b && cd projects/user-script && bun run build && cd ../web && bun run build",
+    "dev:us": "cd projects/user-script && bun run dev",
+    "dev:web": "cd projects/web && bun run dev",
     "test": "vitest",
     "lint": "oxlint",
     "fmt": "oxfmt"

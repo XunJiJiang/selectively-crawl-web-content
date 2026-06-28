@@ -176,6 +176,8 @@ dist
 # Finder (MacOS) folder config
 .DS_Store
 
+projects/server/public/web/*
+
 # Exclude all files in server/plugins except README.md
 projects/server/plugins/*
 !projects/server/plugins/README.md
