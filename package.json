@@ -15,8 +15,8 @@
   ],
   "type": "module",
   "scripts": {
-    "server:dev": "tsx projects/server/scripts/setup.ts --mode=dev --web-port=3201",
-    "server:prod": "tsx projects/server/scripts/setup.ts --mode=prod",
+    "server:dev": "node projects/server/scripts/setup.ts --mode=dev --web-port=3201",
+    "server:prod": "node projects/server/scripts/setup.ts --mode=prod",
     "dev:us": "cd projects/user-script && bun run dev",
     "dev:web": "cd projects/web && bun run dev",
     "build": "tsc -b && cd projects/user-script && bun run build && cd ../web && bun run build",

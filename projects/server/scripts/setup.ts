@@ -30,7 +30,7 @@ registerArg('mode', {
 // 当为 false 时, 将根据其他参数判断是否需要构建 web 项目
 registerArg('build', {
   abbreviation: 'b',
-  description: '是否构建 web 项目',
+  description: '是否强制构建 web 项目',
   options: {
     type: 'boolean',
     required: false,
@@ -60,10 +60,21 @@ registerArg('web-port', {
   },
 });
 
+registerArg('use-tsx', {
+  abbreviation: 'ut',
+  description: '不检查 node, 直接通过 tsx 启动',
+  options: {
+    type: 'boolean',
+    required: false,
+    defaultValue: false,
+  },
+});
+
 const mode = getNameArg<string>('mode') ?? 'prod';
 const build = getNameArg<boolean>('build') ?? false;
 // const webHost = getNameArg<string>('web-host') ?? 'localhost';
 // const webPort = getNameArg<number>('web-port') ?? 3201;
+const useTsx = getNameArg<boolean>('use-tsx') ?? false;
 
 // registerArg('port', {
 //   abbreviation: 'p',
@@ -141,6 +152,50 @@ async function findNpx() {
   }
 }
 
+/** 检查 node 版本 */
+async function checkNodeVersion() {
+  const [error, child] = await tryCatch(async () =>
+    spawn('node', ['-v'], {
+      stdio: ['pipe', 'pipe', 'inherit'],
+      shell: true,
+    }),
+  );
+
+  if (error) {
+    console.warn(
+      `${chalk.gray('[')}${chalk.red('ERROR')}${chalk.gray(']')} ${chalk.red('检查 Node.js 版本失败:')}`,
+      error,
+    );
+    return 'error';
+  }
+
+  let version = '';
+  for await (const chunk of child.stdout) {
+    version += chunk;
+  }
+  version = version.trim();
+
+  if (!version.startsWith('v')) {
+    console.warn(
+      `${chalk.gray('[')}${chalk.red('ERROR')}${chalk.gray(']')} ${chalk.red('无法获取 Node.js 版本, 输出:')}`,
+      version,
+    );
+    return 'error';
+  }
+
+  // 限制版本为 24+
+  const majorVersion = parseInt(version.slice(1).split('.')[0], 10);
+  if (majorVersion < 24) {
+    console.warn(
+      `${chalk.gray('[')}${chalk.red('ERROR')}${chalk.gray(']')} ${chalk.red('Node.js 版本过低, 需要 v24+，当前版本:')}`,
+      version,
+    );
+    return 'error';
+  }
+
+  return 'ok';
+}
+
 async function main() {
   await buildWebIfNeeded(build, mode);
   // startProxy(mode, webHost, webPort);
@@ -149,17 +204,31 @@ async function main() {
   let consecutiveExitCount = 0;
   let timeoutId: NodeJS.Timeout | undefined = void 0;
 
+  /** command */
+  let spawnCommand = 'node';
+  /** args */
+  const spawnArgs = [path.join(PROJECTS_PATH, 'server/index.ts'), `--mode=${mode}`];
+
+  if (!useTsx) {
+    /** node 可用性 */
+    const nodeCheckResult = await checkNodeVersion();
+    if (nodeCheckResult === 'error') {
+      // node 版本不符合要求, 尝试使用 npx 来启动
+      spawnCommand = await findNpx();
+      spawnArgs.unshift('tsx');
+    }
+  } else {
+    spawnCommand = await findNpx();
+    spawnArgs.unshift('tsx');
+  }
+
   while (true) {
     const [error, child] = await tryCatch(async () =>
-      spawn(
-        await findNpx(),
-        ['tsx', path.join(PROJECTS_PATH, 'server/index.ts'), `--mode=${mode}`],
-        {
-          stdio: ['pipe', 'inherit', 'inherit'],
-          env: { ...process.env, FORCE_COLOR: '1' },
-          shell: true,
-        },
-      ),
+      spawn(spawnCommand, spawnArgs, {
+        stdio: ['pipe', 'inherit', 'inherit'],
+        env: { ...process.env, FORCE_COLOR: '1' },
+        shell: true,
+      }),
     );
 
     if (error) {

@@ -13,8 +13,8 @@
   "type": "module",
   "module": "index.ts",
   "scripts": {
-    "server:dev": "tsx scripts/setup.ts --mode=dev --web-port=3201",
-    "server:prod": "tsx scripts/setup.ts --mode=prod",
+    "server:dev": "node scripts/setup.ts --mode=dev --web-port=3201",
+    "server:prod": "node scripts/setup.ts --mode=prod",
     "test": "vitest",
     "lint": "oxlint",
     "fmt": "oxfmt"
