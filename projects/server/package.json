@@ -18,5 +18,8 @@
     "test": "vitest",
     "lint": "oxlint",
     "fmt": "oxfmt"
+  },
+  "engines": {
+    "node": "^24"
   }
 }

@@ -67,5 +67,8 @@
     "vite-plugin-monkey": "^8.0.6",
     "vitest": "^4.1.9"
   },
-  "peerDependencies": {}
+  "peerDependencies": {},
+  "engines": {
+    "node": "^24"
+  }
 }
