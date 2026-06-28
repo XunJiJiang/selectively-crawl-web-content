@@ -1,0 +1,18 @@
+{
+  "name": "selectively-crawl-web-content-server-user-script",
+  "version": "2.0.0",
+  "description": "A web extension for selectively crawling web content.",
+  "bugs": {
+    "url": "https://github.com/XunJiJinag/selectively-crawl-web-content/issues"
+  },
+  "author": "XunJi & XunJiJiang",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/XunJiJinag/selectively-crawl-web-content"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "oxlint"
+  }
+}

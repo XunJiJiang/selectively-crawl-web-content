@@ -13,7 +13,7 @@ const __dirname = process.cwd();
 const require = createRequire(import.meta.url);
 
 // 插件加载逻辑
-const PLUGIN_DIR = path.join(__dirname, 'server', 'plugins');
+const PLUGIN_DIR = path.join(__dirname, 'projects', 'server', 'plugins');
 
 /** 加载的插件列表 */
 export const plugins: SCWC.IPluginMeta[] = [];
