@@ -6,6 +6,7 @@ import { convertToCN } from '../utils/convertToCN.ts';
 import { fetchImage } from '../utils/fetchImage.ts';
 import { writeData, writeDataURL } from '../utils/writeData.ts';
 import pluginRouter from './plugin.ts';
+import webRouter from './web/index.ts';
 import { plugins } from '../plugin/load.ts';
 import { createLogger } from '../utils/log.ts';
 import { getRootUrl, matchLink } from './utils/index.ts';
@@ -24,6 +25,18 @@ app.use((req, res, next) => {
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') {
     res.sendStatus(200);
+    return;
+  }
+
+  // 如果是 /web/* 的 get 请求, 则不进行权限验证, 直接放行
+  // /web/api 和 /web/api/* 的请求仍然需要进行权限验证
+  if (
+    (req.path === '/web' || req.path.startsWith('/web/')) &&
+    req.method === 'GET' &&
+    !(req.path === '/web/api') &&
+    !req.path.startsWith('/web/api/')
+  ) {
+    next();
     return;
   }
 
@@ -197,6 +210,7 @@ metadataRouter.post(
 apiRouter.use('/metadata', metadataRouter);
 apiRouter.use('/plugin', pluginRouter);
 app.use('/api', apiRouter);
+app.use('/web', webRouter);
 
 export function listen(port: number, callback?: () => void) {
   app.listen(port, callback);

@@ -6,10 +6,64 @@ import { spawn } from 'node:child_process';
 import readline from 'node:readline';
 import os from 'node:os';
 // import stream from 'node:stream';
-// import { registerArg } from './parseArgs';
-
+import { getNameArg, registerArg } from './parseArgs.ts';
 import chalk from 'chalk';
 import tryCatch from '../utils/tryCatch.ts';
+import { buildWebIfNeeded } from './build.ts';
+// import { startProxy } from './proxy.ts';
+
+// 模式
+// 当模式为 'prod' 时, 使用 server/public/web 中的 index.html 文件
+// 当模式为 'dev' 时, 将所有请求转发到指定端口的 web 服务器, 不再使用 server/public/web 中的 index.html 文件
+registerArg('mode', {
+  abbreviation: 'm',
+  description: '运行模式',
+  options: {
+    type: 'string',
+    required: false,
+    defaultValue: 'prod', // 'dev' | 'prod'
+  },
+});
+
+// 是否在启动时构建 web 项目
+// 当为 true 时, 将不考虑其他参数, 均构建 web 项目
+// 当为 false 时, 将根据其他参数判断是否需要构建 web 项目
+registerArg('build', {
+  abbreviation: 'b',
+  description: '是否构建 web 项目',
+  options: {
+    type: 'boolean',
+    required: false,
+    defaultValue: false,
+  },
+});
+
+// 注册 web 服务器 host
+registerArg('web-host', {
+  abbreviation: 'wh',
+  description: 'Web 服务器 host',
+  options: {
+    type: 'string',
+    required: false,
+    defaultValue: 'localhost',
+  },
+});
+
+// 注册 web 服务器端口参数
+registerArg('web-port', {
+  abbreviation: 'wp',
+  description: 'Web 服务器端口',
+  options: {
+    type: 'number',
+    required: false,
+    defaultValue: 3201,
+  },
+});
+
+const mode = getNameArg<string>('mode') ?? 'prod';
+const build = getNameArg<boolean>('build') ?? false;
+// const webHost = getNameArg<string>('web-host') ?? 'localhost';
+// const webPort = getNameArg<number>('web-port') ?? 3201;
 
 // registerArg('port', {
 //   abbreviation: 'p',
@@ -60,8 +114,8 @@ import tryCatch from '../utils/tryCatch.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-/** 项目根目录 */
-const projectRoot = path.resolve(__dirname, '..', '..');
+/** 项目目录 */
+const PROJECTS_PATH = path.resolve(__dirname, '..', '..');
 
 /** 查找 npx */
 async function findNpx() {
@@ -88,13 +142,24 @@ async function findNpx() {
 }
 
 async function main() {
+  await buildWebIfNeeded(build, mode);
+  // startProxy(mode, webHost, webPort);
+
+  /** 连续快速服务器进程意外退出次数 */
+  let consecutiveExitCount = 0;
+  let timeoutId: NodeJS.Timeout | undefined = void 0;
+
   while (true) {
     const [error, child] = await tryCatch(async () =>
-      spawn(await findNpx(), ['tsx', path.join(projectRoot, 'server/index.ts')], {
-        stdio: ['pipe', 'inherit', 'inherit'],
-        env: { ...process.env, FORCE_COLOR: '1' },
-        shell: true,
-      }),
+      spawn(
+        await findNpx(),
+        ['tsx', path.join(PROJECTS_PATH, 'server/index.ts'), `--mode=${mode}`],
+        {
+          stdio: ['pipe', 'inherit', 'inherit'],
+          env: { ...process.env, FORCE_COLOR: '1' },
+          shell: true,
+        },
+      ),
     );
 
     if (error) {
