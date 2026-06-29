@@ -48,6 +48,18 @@
         "vitest": "^4.1.9",
       },
     },
+    "projects/server": {
+      "name": "selectively-crawl-web-content-server",
+      "version": "2.0.0",
+    },
+    "projects/user-script": {
+      "name": "selectively-crawl-web-content-server-user-script",
+      "version": "2.0.0",
+    },
+    "projects/web": {
+      "name": "selectively-crawl-web-content-web",
+      "version": "2.0.0",
+    },
   },
   "packages": {
     "@asamuzakjp/css-color": ["@asamuzakjp/css-color@5.1.11", "", { "dependencies": { "@asamuzakjp/generational-cache": "^1.0.1", "@csstools/css-calc": "^3.2.0", "@csstools/css-color-parser": "^4.1.0", "@csstools/css-parser-algorithms": "^4.0.0", "@csstools/css-tokenizer": "^4.0.0" } }, "sha512-KVw6qIiCTUQhByfTd78h2yD1/00waTmm9uy/R7Ck/ctUyAPj+AEDLkQIdJW0T8+qGgj3j5bpNKK7Q3G+LedJWg=="],
@@ -937,6 +949,12 @@
     "safer-buffer": ["safer-buffer@2.1.2", "", {}, "sha512-YZo3K82SD7Riyi0E1EQPojLz7kpepnSQI9IyPbHHg1XXXevb5dJI7tpyN2ADxGcQbHG7vcyRHk0cbwqcQriUtg=="],
 
     "saxes": ["saxes@6.0.0", "", { "dependencies": { "xmlchars": "^2.2.0" } }, "sha512-xAg7SOnEhrm5zI3puOOKyy1OMcMlIJZYNJY7xLBwSze0UjhPLnWfj2GF2EpT0jmzaJKIWKHLsaSSajf35bcYnA=="],
+
+    "selectively-crawl-web-content-server": ["selectively-crawl-web-content-server@workspace:projects/server"],
+
+    "selectively-crawl-web-content-server-user-script": ["selectively-crawl-web-content-server-user-script@workspace:projects/user-script"],
+
+    "selectively-crawl-web-content-web": ["selectively-crawl-web-content-web@workspace:projects/web"],
 
     "semver": ["semver@6.3.1", "", { "bin": { "semver": "bin/semver.js" } }, "sha512-BR7VvDCVHO+q2xBEWskxS6DJE1qRnb7DxzUrogb71CWoSficBxYsiAGd+Kl0mmq/MprG9yArRkyrQxTO6XjMzA=="],
 
