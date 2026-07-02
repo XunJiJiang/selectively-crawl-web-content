@@ -12,6 +12,7 @@ import { createLogger } from '../utils/log.ts';
 import { getRootUrl, matchLink } from './utils/index.ts';
 import { TOKEN } from '../common/env.ts';
 import { serverLogger } from '../common/logger.ts';
+import { isSameDomain } from '../utils/url.ts';
 
 export const app = express();
 
@@ -40,6 +41,28 @@ app.use((req, res, next) => {
     return;
   }
 
+  const origin = req.get('Origin');
+  const referer = req.get('Referer');
+
+  // origin 和 referer 必须至少存在一个, site参数必须存在
+  // 且主机名相同, 才能通过验证
+  if ((!origin && !referer) || !req.query?.site) {
+    serverLogger.warn(`请求缺少主机信息: ${req.method} ${req.url}`);
+    serverLogger.warn(`- origin: ${decodeURIComponent(origin ?? '未知')}`);
+    serverLogger.warn(`- referer: ${decodeURIComponent(referer ?? '未知')}`);
+    serverLogger.warn(`- site: ${decodeURIComponent(req.query?.site?.toString() ?? '未知')}`);
+    res.status(400).json({ success: false, message: '验证不通过' });
+    return;
+  }
+  if (!isSameDomain(origin ?? referer ?? '', req.query.site.toString())) {
+    serverLogger.warn(`请求的主机不匹配: ${req.method} ${req.url}`);
+    serverLogger.warn(`- origin: ${decodeURIComponent(origin ?? '未知')}`);
+    serverLogger.warn(`- referer: ${decodeURIComponent(referer ?? '未知')}`);
+    serverLogger.warn(`- site: ${decodeURIComponent(req.query.site.toString())}`);
+    res.status(400).json({ success: false, message: '验证不通过' });
+    return;
+  }
+
   // 权限验证
   // 如果没有配置 TOKEN, 则不进行验证, 直接放行
   if (!TOKEN) {
@@ -51,7 +74,7 @@ app.use((req, res, next) => {
 
   if (!authHeader) {
     serverLogger.warn(
-      `请求缺少 Authorization 头: ${req.method} ${req.url}, 来源: ${decodeURIComponent(req.headers.origin ?? req.headers.referer ?? req.query?.site?.toString() ?? '未知')}`,
+      `请求缺少 Authorization 头: ${req.method} ${req.url}, 来源: ${decodeURIComponent(req.query.site.toString())}`,
     );
     res.status(401).json({ success: false, message: '缺少 Authorization 头' });
     return;
@@ -60,7 +83,7 @@ app.use((req, res, next) => {
   const [type, token] = authHeader.toString().split(' ');
   if (type !== 'Bearer' || token !== TOKEN) {
     serverLogger.warn(
-      `请求使用了无效的 token: ${req.method} ${req.url}, 来源: ${decodeURIComponent(req.headers.origin ?? req.headers.referer ?? req.query?.site?.toString() ?? '未知')}`,
+      `请求使用了无效的 token: ${req.method} ${req.url}, 来源: ${decodeURIComponent(req.query.site.toString())}`,
     );
     res.status(403).json({ success: false, message: '无效的 token' });
     return;
