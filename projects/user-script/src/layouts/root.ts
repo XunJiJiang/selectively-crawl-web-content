@@ -47,7 +47,7 @@ class SCWCRootLayout extends LitElement {
       version: '2.0.0-1', // 2.0.0-1 表示在 2.0.0 版本中第一次更新本地存储数据格式. 仅在数据格式发生变化时更新 version 字段, 如果版本号更新但是数据格式没有变化, 则不更新 version 字段.
       window: {
         pos: INIT_POS,
-        minimized: false,
+        minimized: true,
       },
       plugin: {
         expanded: false,
