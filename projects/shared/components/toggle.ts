@@ -1,7 +1,8 @@
 import style from './toggle.css?raw';
 
 import { LitElement, html, css, unsafeCSS } from 'lit';
-import { customElement, property } from 'lit/decorators.js';
+import { property } from 'lit/decorators.js';
+import { customElement } from '../utils/customElement.ts';
 import { v4 as uuidv4 } from 'uuid';
 
 @customElement('scwc-toggle')

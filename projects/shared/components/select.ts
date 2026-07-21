@@ -1,7 +1,8 @@
 import style from './select.css?raw';
 
 import { LitElement, html, css, unsafeCSS } from 'lit';
-import { customElement, property } from 'lit/decorators.js';
+import { property } from 'lit/decorators.js';
+import { customElement } from '../utils/customElement.ts';
 import { classMap } from 'lit/directives/class-map.js';
 import { v4 } from 'uuid';
 

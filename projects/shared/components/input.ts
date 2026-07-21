@@ -1,9 +1,10 @@
 import style from './input.css?raw';
 
 import { LitElement, html, css, unsafeCSS } from 'lit';
-import { customElement, property } from 'lit/decorators.js';
+import { property } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
 import { v4 as uuidv4 } from 'uuid';
+import { customElement } from '../utils/customElement.ts';
 
 @customElement('scwc-input')
 class SCWCInput extends LitElement {

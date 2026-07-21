@@ -1,6 +1,7 @@
 import style from './notify.css?raw';
 
-import { customElement, state } from 'lit/decorators.js';
+import { state } from 'lit/decorators.js';
+import { customElement } from '../utils/customElement.ts';
 import { ref } from 'lit/directives/ref.js';
 import { repeat } from 'lit/directives/repeat.js';
 import type { INotifyOptions, TNotify } from '../types/notify.d.ts';

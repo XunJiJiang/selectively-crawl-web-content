@@ -1,7 +1,8 @@
 import style from './trigger.css?raw';
 
 import { LitElement, html, css, unsafeCSS } from 'lit';
-import { customElement, property } from 'lit/decorators.js';
+import { property } from 'lit/decorators.js';
+import { customElement } from '../utils/customElement.ts';
 
 @customElement('scwc-trigger')
 class SCWCTrigger extends LitElement {

@@ -1,8 +1,9 @@
 import style from './button.css?raw';
 
 import { LitElement, html, css, unsafeCSS, nothing } from 'lit';
-import { customElement, property } from 'lit/decorators.js';
+import { property } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
+import { customElement } from '../utils/customElement.ts';
 
 @customElement('scwc-button')
 class SCWCButton extends LitElement {
