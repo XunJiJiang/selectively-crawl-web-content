@@ -126,7 +126,7 @@ class SCWCRootLayout extends LitElement {
       html`
         <scwc-layout-minimized
           style=${styleMap({
-            display: this.persistentData.window.minimized ? '' : 'none',
+            display: this.persistentData.window.minimized ? 'initial' : 'none',
           })}
           @maximize=${() => this.setMinimized(false)}
           @move=${(e: CustomEvent<{ x: number; y: number }>) =>
@@ -142,7 +142,7 @@ class SCWCRootLayout extends LitElement {
             top: `${this.position.y}px`,
             'min-width': this.selectionExpanded ? '320px' : '120px',
             'min-height': this.selectionExpanded ? '180px' : '56px',
-            display: this.persistentData.window.minimized ? 'none' : '',
+            display: this.persistentData.window.minimized ? 'none' : 'initial',
           })}
         >
           <scwc-layout-header
@@ -151,15 +151,15 @@ class SCWCRootLayout extends LitElement {
             @toggleclaw=${() => this.setSelectionExpanded(!this.selectionExpanded)}
             @toggleplugin=${() => this.setPluginExpanded(!this.pluginExpanded)}
             @minimize=${() => this.setMinimized(true)}
-            .selectionExpanded=${this.selectionExpanded}
-            .pluginExpanded=${this.pluginExpanded}
+            .selectionExpanded=${!this.persistentData.window.minimized && this.selectionExpanded}
+            .pluginExpanded=${!this.persistentData.window.minimized && this.pluginExpanded}
             .position=${this.position}
           ></scwc-layout-header>
           <scwc-layout-content
-            .selectionExpanded=${this.selectionExpanded}
+            .selectionExpanded=${!this.persistentData.window.minimized && this.selectionExpanded}
             @trigger-selection-expanded=${(e: CustomEvent<boolean>) =>
               this.setSelectionExpanded(e.detail)}
-            .pluginExpanded=${this.pluginExpanded}
+            .pluginExpanded=${!this.persistentData.window.minimized && this.pluginExpanded}
             @claw-items-changed=${(e: CustomEvent<Item[]>) => {
               this.clawItems = e.detail;
             }}
