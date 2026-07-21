@@ -1,3 +1,5 @@
+import type { ResponseData } from '../../../shared/types/api.d.ts';
+
 export type TCrawlResult =
   | {
       pluginInfo: {
@@ -7,11 +9,5 @@ export type TCrawlResult =
       type: 'success' | 'error' | 'warn' | 'info';
     }[]
   | string[];
-
-export interface ResponseData<T = unknown> {
-  success: boolean;
-  message: string;
-  data?: T;
-}
 
 export type TCrawlResponse = ResponseData<TCrawlResult>;
