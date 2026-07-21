@@ -1,5 +1,5 @@
 import type { TCrawlResponse } from '../types/api.d.ts';
-import type { TConfig } from '../types/config.d.ts';
+import type { TConfig } from '../../../shared/types/config.d.ts';
 
 export async function sendCrawlRequest(
   data: SCWC.TDataItem[],

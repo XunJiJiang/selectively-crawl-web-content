@@ -8,8 +8,8 @@ import { loadFromStorage, saveToStorage } from '../utils/storage.ts';
 import type { ReactiveController, ReactiveControllerHost } from 'lit';
 import { debounce } from '../utils/debounce.ts';
 import { isEqual } from 'es-toolkit';
-import { notify } from '../utils/notify.ts';
-import type { JSONValue, JSONValueWithFunction } from '../types/utils.d.ts';
+import { notify } from '../components/notify.ts';
+import type { JSONValue, JSONValueWithFunction } from '../types/utils';
 
 /** 匹配规则解析 */
 export const parseRefreshRule = cache((rule: string) => {
@@ -33,6 +33,7 @@ const defaultValue: TConfig = {
 };
 
 const CONFIG_SYMBOL = Symbol('config');
+export type TConfigSymbol = typeof CONFIG_SYMBOL;
 const configId = `config-${v4()}`;
 
 // oxlint-disable-next-line typescript/no-explicit-any

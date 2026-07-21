@@ -10,11 +10,11 @@ import {
   type ReactiveControllerHost,
 } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { ConfigController } from '../store/config.ts';
+import { ConfigController } from '../../../shared/store/config.ts';
 import type { Item } from '../types/claw.d.ts';
-import { loadFromStorage, saveToStorage } from '../utils/storage.ts';
-import { SELECTIVE_CRAWL_KEY } from '../utils/common.ts';
-import type { ArrayProcessor, JSONValueWithFunction } from '../types/utils.d.ts';
+import { loadFromStorage, saveToStorage } from '../../../shared/utils/storage.ts';
+import { SELECTIVE_CRAWL_KEY } from '../../../shared/utils/common.ts';
+import type { ArrayProcessor, JSONValueWithFunction } from '../../../shared/types/utils';
 import { styleMap } from 'lit/directives/style-map.js';
 import { getElementBySelector, getSelector } from '../utils/selector.ts';
 import { getCrawlData } from '../utils/claw.ts';

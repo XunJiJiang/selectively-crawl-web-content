@@ -1,4 +1,4 @@
-import type { JSONValue, JSONValueWithFunction, ResolvedJSONValue } from '../types/utils.d.ts';
+import type { JSONValue, JSONValueWithFunction, ResolvedJSONValue } from '../types/utils';
 import { scwcError, scwcWarn } from './console.ts';
 
 /** 不可控的内部错误 */

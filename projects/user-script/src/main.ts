@@ -1,6 +1,6 @@
 import './layouts/root.ts';
 import '../../shared/components/index.ts';
-import updateLocalStorage from './utils/updateLocalStorage.ts';
+import updateLocalStorage from '../../shared/utils/updateLocalStorage.ts';
 
 // 更新本地存储的数据格式
 updateLocalStorage();

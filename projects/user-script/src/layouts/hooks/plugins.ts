@@ -1,8 +1,8 @@
 import type { ReactiveController } from 'lit';
-import type { PluginConfig, PluginItem, TRequiredOptions } from '../../types/plugin.d.ts';
-import type { ScriptConfig, ScriptConfigItem } from '../../types/config.d.ts';
-import { ConfigController, isConfig, isConfigItem } from '../../store/config.ts';
-import { debounce } from '../../utils/debounce.ts';
+import type { PluginConfig, PluginItem, TRequiredOptions } from '../../../../shared/types/plugin';
+import type { ScriptConfig, ScriptConfigItem } from '../../../../shared/types/config.d.ts';
+import { ConfigController, isConfig, isConfigItem } from '../../../../shared/store/config.ts';
+import { debounce } from '../../../../shared/utils/debounce.ts';
 import { fetchPlugins, triggerPlugin } from '../../api/plugins.ts';
 import { getCrawlData } from '../../utils/claw.ts';
 import type { SCWCContentPlugin } from '../content-plugin.ts';

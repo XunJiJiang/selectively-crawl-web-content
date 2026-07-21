@@ -6,8 +6,8 @@ import './footer.ts';
 
 import { LitElement, css, html, unsafeCSS } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { loadFromStorage, saveToStorage } from '../utils/storage.ts';
-import { INIT_POS, PERSISTENT_DATA_KEY } from '../utils/common.ts';
+import { loadFromStorage, saveToStorage } from '../../../shared/utils/storage.ts';
+import { INIT_POS, PERSISTENT_DATA_KEY } from '../../../shared/utils/common.ts';
 import { styleMap } from 'lit/directives/style-map.js';
 import type { Item } from '../types/claw.d.ts';
 

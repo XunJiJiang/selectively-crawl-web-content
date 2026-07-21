@@ -1,6 +1,6 @@
 import type { TCrawlData } from '../types/claw.ts';
-import type { TConfig } from '../types/config.ts';
-import type { PluginConfig, PluginItem, TRequiredOptions } from '../types/plugin.ts';
+import type { TConfig } from '../../../shared/types/config.d.ts';
+import type { PluginConfig, PluginItem, TRequiredOptions } from '../../../shared/types/plugin';
 import { notify } from '../utils/notify.ts';
 
 /** 请求插件列表 */
