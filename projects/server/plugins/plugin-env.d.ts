@@ -211,5 +211,9 @@ namespace SCWC {
     // 占用的一级命令
     commandName?: string;
     logger: TLogger;
+    // 插件入口文件
+    entryFile: string;
+    // 插件所在目录
+    pluginDir: string;
   }
 }

@@ -19,6 +19,9 @@ export const app = express();
 // 修改为支持大体积json
 app.use(express.json({ limit: '100mb' }));
 
+/** 当前服务所在主机和端口 */
+// const baseUrl = `${HOST}:${PORT}`;
+
 app.use((req, res, next) => {
   // CORS
   res.header('Access-Control-Allow-Origin', '*');

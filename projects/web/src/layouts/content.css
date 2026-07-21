@@ -1,0 +1,30 @@
+:host {
+  flex: 1;
+  align-self: stretch;
+}
+
+#root-content {
+  display: flex;
+  width: 100%;
+  height: calc(100vh - 34px);
+}
+
+.root-aside {
+  flex: 0 0 150px;
+  /* 高度占满 flex 父元素容器 */
+  height: 100%;
+}
+
+.root-aside[hidden] {
+  display: none;
+}
+
+.root-main {
+  flex: 1;
+}
+
+.root-main .plugin-iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+}

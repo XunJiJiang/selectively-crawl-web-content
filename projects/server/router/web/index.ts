@@ -1,6 +1,7 @@
 import express from 'express';
 import path from 'node:path';
 import apiRouter from './api/index.ts';
+import pageRouter from './page/index.ts';
 import { isDev, isProd } from '../../common/setupParam.ts';
 import { SERVER_ROOT } from '../../common/env.ts';
 
@@ -18,13 +19,11 @@ if (isProd) {
     const indexHtmlPath = path.join(WEB_DIR, 'index.html');
     res.sendFile(indexHtmlPath);
   });
-
   // 重载 / 请求到 /index.html
   router.get('/', (req, res) => {
     const indexHtmlPath = path.join(WEB_DIR, 'index.html');
     res.sendFile(indexHtmlPath);
   });
-
   // 处理 /assets/* 的请求
   router.get('/assets/{*path}', (req, res) => {
     const assetPath = req.path.replace('/assets/', '');
@@ -52,5 +51,6 @@ if (isDev) {
 }
 
 router.use('/api', apiRouter);
+router.use('/page', pageRouter);
 
 export default router;

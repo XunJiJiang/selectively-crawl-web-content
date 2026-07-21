@@ -1,0 +1,36 @@
+:host {
+  flex: 0;
+}
+
+#root-header {
+  height: 34px;
+  font-size: 16px;
+  box-sizing: border-box;
+  border-bottom: 1px solid #ccc;
+  display: flex;
+}
+
+.expand-collapse-btn {
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--base-text-color);
+  background-color: var(--base-background-color);
+}
+
+.expand-collapse-btn scwc-button::part(button) {
+  width: 34px;
+  height: 34px;
+  border-radius: 0;
+}
+
+.expand-collapse-btn scwc-button::part(button):hover {
+  background-color: rgba(0, 0, 0, 0.1);
+}
+
+#root-header p {
+  margin: 0;
+  padding: 10px;
+}

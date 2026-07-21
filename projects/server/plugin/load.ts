@@ -82,6 +82,8 @@ export async function loadPlugins() {
         pluginId: dir,
         reason: '插件已禁用',
         logger,
+        entryFile: path.join(PLUGIN_DIR, dir, pkg.main ?? ''),
+        pluginDir: path.join(PLUGIN_DIR, dir),
       });
       continue;
     }
@@ -97,6 +99,8 @@ export async function loadPlugins() {
         pluginId: dir,
         reason: 'package.json 中缺少 name 字段',
         logger,
+        entryFile: path.join(PLUGIN_DIR, dir, pkg.main ?? ''),
+        pluginDir: path.join(PLUGIN_DIR, dir),
       });
       continue;
     }
@@ -110,6 +114,8 @@ export async function loadPlugins() {
         pluginId: dir,
         reason: 'package.json 中缺少 main 字段',
         logger,
+        entryFile: path.join(PLUGIN_DIR, dir, pkg.main ?? ''),
+        pluginDir: path.join(PLUGIN_DIR, dir),
       });
       continue;
     }
@@ -124,6 +130,8 @@ export async function loadPlugins() {
         pluginId: dir,
         reason: '入口文件不存在或不是 js/ts 文件',
         logger,
+        entryFile: path.join(PLUGIN_DIR, dir, pkg.main ?? ''),
+        pluginDir: path.join(PLUGIN_DIR, dir),
       });
       continue;
     }
@@ -142,6 +150,8 @@ export async function loadPlugins() {
         pluginId: dir,
         reason: '动态导入插件失败',
         logger,
+        entryFile: path.join(PLUGIN_DIR, dir, pkg.main ?? ''),
+        pluginDir: path.join(PLUGIN_DIR, dir),
       });
       continue;
     }
@@ -154,6 +164,8 @@ export async function loadPlugins() {
         pluginId: dir,
         reason: '插件缺少 onRequest 方法',
         logger,
+        entryFile: path.join(PLUGIN_DIR, dir, pkg.main ?? ''),
+        pluginDir: path.join(PLUGIN_DIR, dir),
       });
       continue;
     }
@@ -168,13 +180,15 @@ export async function loadPlugins() {
         })
       : [];
     plugins.push({
-      name: name,
+      name: mod.name ?? name,
       entry: entryAbs,
       linkWith,
       handler: mod,
       pluginId: dir,
       commandName: pkg['commandName'] ?? void 0,
       logger,
+      entryFile: path.join(PLUGIN_DIR, dir, pkg.main ?? ''),
+      pluginDir: path.join(PLUGIN_DIR, dir),
     });
     createLogger(`plugin:${name}`, path.relative(process.cwd(), path.join(PLUGIN_DIR, dir))).info(
       `加载完成`,

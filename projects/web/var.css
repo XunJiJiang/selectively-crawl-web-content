@@ -1,0 +1,14 @@
+:root {
+  --base-background-color: #f5f5f5;
+  --base-text-color: #333;
+
+  color: var(--base-text-color);
+  background-color: var(--base-background-color);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --base-background-color: #1e1e1e;
+    --base-text-color: #f5f5f5;
+  }
+}

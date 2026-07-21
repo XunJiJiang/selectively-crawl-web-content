@@ -4,7 +4,7 @@ import { listen } from './router/index.ts';
 import { initCacheErrorHandler, loadPlugins, plugins } from './plugin/load.ts';
 import { createLogger } from './utils/log.ts';
 import cacheController from './utils/cache.ts';
-import { PORT } from './common/env.ts';
+import { HOST, PORT } from './common/env.ts';
 import { serverLogger } from './common/logger.ts';
 
 // 初始化缓存错误处理
@@ -19,7 +19,7 @@ loadPlugins();
 
 // 启动服务器
 listen(PORT, () => {
-  const log = createLogger('server', `http://localhost:${PORT}`);
+  const log = createLogger('server', `${HOST}:${PORT}`);
   log.pathInfo(`服务启动`);
 });
 
