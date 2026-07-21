@@ -1,1 +1,1 @@
-export { notify } from '../components/notify.ts';
+export { notify } from '../../../shared/components/notify.ts';

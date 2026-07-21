@@ -19,7 +19,7 @@ import { styleMap } from 'lit/directives/style-map.js';
 import { getElementBySelector, getSelector } from '../utils/selector.ts';
 import { getCrawlData } from '../utils/claw.ts';
 import { sendCrawlRequest } from '../api/crawl.ts';
-import type { SCWCInputEventMap } from '../components/input.ts';
+import type { SCWCInputEventMap } from '../../../shared/components/input.ts';
 import { notify } from '../utils/notify.ts';
 
 /** 判断是否为悬浮窗或其子元素 */

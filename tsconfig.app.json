@@ -24,6 +24,7 @@
   },
   "include": [
     "./projects/user-script/src",
+    "./projects/shared/components",
     "./projects/web/src",
     "./projects/server/plugins/plugin-env.d.ts"
   ]

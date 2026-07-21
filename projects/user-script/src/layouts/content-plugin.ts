@@ -5,9 +5,9 @@ import { customElement, property } from 'lit/decorators.js';
 import type { Item } from '../types/claw.d.ts';
 import { styleMap } from 'lit/directives/style-map.js';
 import { PluginsController } from './hooks/plugins.ts';
-import type { SCWCCheckboxEventMap } from '../components/checkbox';
-import type { SCWCSelectEventMap } from '../components/select';
-import type { SCWCInputEventMap } from '../components/input';
+import type { SCWCCheckboxEventMap } from '../../../shared/components/checkbox.ts';
+import type { SCWCSelectEventMap } from '../../../shared/components/select.ts';
+import type { SCWCInputEventMap } from '../../../shared/components/input.ts';
 
 @customElement('scwc-layout-content-plugin')
 export class SCWCContentPlugin extends LitElement {

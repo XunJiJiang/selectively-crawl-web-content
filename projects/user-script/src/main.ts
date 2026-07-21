@@ -1,10 +1,5 @@
 import './layouts/root.ts';
-import './components/button.ts';
-import './components/input.ts';
-import './components/trigger.ts';
-import './components/toggle.ts';
-import './components/select.ts';
-import './components/checkbox.ts';
+import '../../shared/components/index.ts';
 import updateLocalStorage from './utils/updateLocalStorage.ts';
 
 // 更新本地存储的数据格式
