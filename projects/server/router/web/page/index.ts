@@ -142,8 +142,8 @@ const errorPageTemplate = fs.readFileSync(path.join(__dirname, 'worry.html'), 'u
 router.get('/worry/:id', (req: Request<{ id: string }>, res: Response) => {
   const worryId = req.params.id;
   if (!(worryId in errorDefinitions)) {
-    // 转发到 /worry/404
-    res.redirect('/worry/404');
+    // 转发到 /web/page/worry/404
+    res.redirect('/web/page/worry/404');
     return;
   }
   const errorInfo = errorDefinitions[worryId as keyof typeof errorDefinitions];
