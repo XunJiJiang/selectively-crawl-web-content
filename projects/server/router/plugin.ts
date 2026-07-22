@@ -1,11 +1,12 @@
-import express from 'express';
+import { Router } from 'express';
 import { query } from 'express-validator';
 import z from 'zod';
 import { plugins } from '../plugin/load.ts';
 import { matchLink, getRootUrl } from './utils/index.ts';
 import { pluginLogger } from '../plugin/log.ts';
 
-const router = express.Router();
+/** /api/plugin */
+const router = Router();
 
 /**
  * 拼接插件通道

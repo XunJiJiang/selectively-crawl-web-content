@@ -5,8 +5,10 @@ import { CommandError, registerCommand } from '../utils/command.ts';
 import { createRequire } from 'node:module';
 import { addErrorHandler } from '../utils/cache.ts';
 import { createRetryGet, LimitPromise } from '../utils/axios.ts';
+import { v4 as uuid } from 'uuid';
 import type { AxiosRequestConfig } from 'axios';
 import type { TCreateRetryGet } from '../types/axios.d.ts';
+import { registerPluginApi } from '../router/web/api/load.ts';
 
 const __dirname = process.cwd();
 
@@ -79,6 +81,7 @@ export async function loadPlugins() {
         name: pkg.name ?? path.join(PLUGIN_DIR, dir),
         entry: '',
         linkWith: [],
+        safeId: uuid(),
         pluginId: dir,
         reason: '插件已禁用',
         logger,
@@ -96,6 +99,7 @@ export async function loadPlugins() {
         name: path.join(PLUGIN_DIR, dir),
         entry: '',
         linkWith: [],
+        safeId: uuid(),
         pluginId: dir,
         reason: 'package.json 中缺少 name 字段',
         logger,
@@ -111,6 +115,7 @@ export async function loadPlugins() {
         name,
         entry: '',
         linkWith: [],
+        safeId: uuid(),
         pluginId: dir,
         reason: 'package.json 中缺少 main 字段',
         logger,
@@ -127,6 +132,7 @@ export async function loadPlugins() {
         name,
         entry: '',
         linkWith: [],
+        safeId: uuid(),
         pluginId: dir,
         reason: '入口文件不存在或不是 js/ts 文件',
         logger,
@@ -147,6 +153,7 @@ export async function loadPlugins() {
         name,
         entry: '',
         linkWith: [],
+        safeId: uuid(),
         pluginId: dir,
         reason: '动态导入插件失败',
         logger,
@@ -161,6 +168,7 @@ export async function loadPlugins() {
         name,
         entry: '',
         linkWith: [],
+        safeId: uuid(),
         pluginId: dir,
         reason: '插件缺少 onRequest 方法',
         logger,
@@ -184,6 +192,7 @@ export async function loadPlugins() {
       entry: entryAbs,
       linkWith,
       handler: mod,
+      safeId: uuid(),
       pluginId: dir,
       commandName: pkg['commandName'] ?? void 0,
       logger,
@@ -205,6 +214,7 @@ export async function loadPlugins() {
       path.relative(process.cwd(), plugin.entry),
     );
 
+    // 注册插件命令
     const commandConfig = plugin.handler.pluginConfig?.command;
     if (commandConfig) {
       const commandName = plugin.commandName;
@@ -237,6 +247,7 @@ export async function loadPlugins() {
       }
     }
 
+    // 调用插件的 onLoad 方法
     if (typeof plugin.handler.onLoad === 'function') {
       await plugin.handler.onLoad(logger, {
         createRetryGet: <RES, A extends AxiosRequestConfig = AxiosRequestConfig>(
@@ -248,5 +259,8 @@ export async function loadPlugins() {
         LimitPromise,
       });
     }
+
+    // 注册插件的 api
+    registerPluginApi(plugin);
   }
 }

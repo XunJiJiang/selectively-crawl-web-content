@@ -23,5 +23,6 @@
     "noUnusedParameters": false,
     "noPropertyAccessFromIndexSignature": false
   },
-  "include": ["./projects/server/**/*.ts"]
+  "include": ["./projects/server/**/*.ts"],
+  "exclude": ["./projects/server/plugins/*/web/**/*"]
 }

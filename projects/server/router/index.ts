@@ -95,7 +95,9 @@ app.use((req, res, next) => {
   next();
 });
 
+/** /api */
 const apiRouter = express.Router();
+/** /api/metadata */
 const metadataRouter = express.Router();
 
 const scrapeSchema = z.object({

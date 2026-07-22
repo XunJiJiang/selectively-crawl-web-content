@@ -1,11 +1,12 @@
-import express from 'express';
+import { Router } from 'express';
 import path from 'node:path';
 import apiRouter from './api/index.ts';
 import pageRouter from './page/index.ts';
 import { isDev, isProd } from '../../common/setupParam.ts';
 import { SERVER_ROOT } from '../../common/env.ts';
 
-const router = express.Router();
+/** /web */
+const router = Router();
 
 /** 当前程序启动文件路径 */
 

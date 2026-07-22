@@ -23,6 +23,7 @@ class AppContent extends LitElement {
   private accessor focusPluginPage: TPluginPagesResult[number] | null = null;
 
   render() {
+    const iframeId = `plugin-iframe-${this.focusPluginPage?.dir ?? 'none'}`;
     return html`
       <main id="root-content">
         <div class="root-aside" ?hidden=${!this.isLeftBarExpanded}>
@@ -36,9 +37,28 @@ class AppContent extends LitElement {
         </div>
         <div class="root-main">
           <iframe
+            id=${iframeId}
             class="plugin-iframe"
             src=${`${this.configController.config.api.host}:${this.configController.config.api.port.replace(/[^\d]/g, '')}/web/page/plugin/${this.focusPluginPage?.dir}?site=${encodeURIComponent(window.location.href)}`}
             ?hidden=${!this.focusPluginPage}
+            @load=${() => {
+              const iframe = this.shadowRoot?.getElementById(iframeId) as HTMLIFrameElement | null;
+              if (iframe && this.focusPluginPage) {
+                const plugin = this.pluginPages.find((p) => p.dir === this.focusPluginPage?.dir);
+                if (plugin) {
+                  const iframeWindow = iframe.contentWindow;
+                  if (iframeWindow) {
+                    iframeWindow.postMessage(
+                      {
+                        type: 'plugin-config',
+                        config: this.configController.config,
+                      },
+                      '*',
+                    );
+                  }
+                }
+              }
+            }}
           ></iframe>
         </div>
       </main>

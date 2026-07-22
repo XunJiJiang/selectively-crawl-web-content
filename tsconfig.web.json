@@ -22,13 +22,5 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true
   },
-  "include": [
-    "./projects/user-script/src/**/*",
-    "./projects/shared/components/**/*",
-    "./projects/shared/types/**/*",
-    "./projects/shared/store/**/*",
-    "./projects/web/src/**/*",
-    "./projects/webUtils/lib/**/*",
-    "./projects/server/plugins/plugin-env.d.ts"
-  ]
+  "include": ["./projects/webUtils/lib.d.ts", "./projects/server/plugins/*/web/**/*"]
 }

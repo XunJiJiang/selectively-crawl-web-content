@@ -177,6 +177,7 @@ dist
 .DS_Store
 
 projects/server/public/web/*
+projects/server/public/lib/*
 
 # Exclude all files in server/plugins except README.md
 projects/server/plugins/*

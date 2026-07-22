@@ -105,6 +105,15 @@ namespace SCWC {
         }>;
   }
 
+  export type TPluginApi = {
+    method: 'GET' | 'POST' | 'PUT' | 'DELETE';
+    path: string;
+    handler: (data: unknown) => unknown | Promise<unknown>;
+  };
+  export type TPluginAddApi = (...apis: TPluginApi[]) => void;
+  // export type TPluginRemoveApi = (path: string) => void;
+  export type TPluginApiFn = (tools: { add: TPluginAddApi /* remove: TPluginRemoveApi */ }) => void;
+
   export type TCreatePluginItem = (
     logger: TLogger,
     context: {
@@ -198,6 +207,7 @@ namespace SCWC {
     // ui 相关的配置项
     ui?: {
       entry: string; // 入口 html, 绝对路径或相对于当前插件目录的路径
+      api?: TPluginApi[] | TPluginApiFn;
     };
   }
 
@@ -206,6 +216,8 @@ namespace SCWC {
     entry: string;
     linkWith: string[];
     handler?: IPluginHandler;
+    // 不包含任何实际信息的唯一 ID
+    safeId: string;
     // 插件 id 实际上是插件相对路径, 根目录为插件目录
     pluginId: string;
     // 占用的一级命令
