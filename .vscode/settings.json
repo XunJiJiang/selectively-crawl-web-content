@@ -35,5 +35,6 @@
   "editor.formatOnSaveMode": "file",
   "editor.codeActionsOnSave": {
     "source.organizeImports": "never"
-  }
+  },
+  "js/ts.experimental.useTsgo": true
 }
