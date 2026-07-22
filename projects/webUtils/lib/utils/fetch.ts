@@ -41,6 +41,6 @@ export const createFetch: TCreateFetch = async (config: TConfig) => {
     };
   }
   return async (_url: string, _options?: RequestInit) => {
-    console.warn('获取插件 safeId 失败, 无法使用 webUtils.fetch');
+    console.warn('获取插件 safeId 失败, 无法使用 webutils.fetch');
   };
 };

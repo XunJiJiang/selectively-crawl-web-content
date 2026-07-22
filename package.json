@@ -19,7 +19,7 @@
     "prod:server": "node projects/server/scripts/setup.ts --mode=prod",
     "dev:us": "cd projects/user-script && bun run dev",
     "dev:web": "cd projects/web && bun run dev",
-    "build": "tsc -b && cd projects/user-script && bun run build && cd ../web && bun run build && cd ../webUtils && bun run build",
+    "build": "tsc -b && cd projects/user-script && bun run build && cd ../web && bun run build && cd ../webutils && bun run build",
     "test": "vitest",
     "lint": "oxlint",
     "fmt": "oxfmt"

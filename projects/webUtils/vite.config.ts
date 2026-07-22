@@ -17,14 +17,14 @@ export default defineConfig(({ mode }) => {
     build: {
       lib: {
         entry: resolve(import.meta.dirname, 'lib/index.ts'),
-        name: 'webUtils',
+        name: 'webutils',
         format: ['iife'],
         // 将添加适当的扩展名后缀
         fileName: () => `web-utils.iife.${new Date().getTime().toString(36)}.js`,
       },
       rolldownOptions: {
         output: {
-          name: 'webUtils',
+          name: 'webutils',
         },
       },
       outDir: join(__dirname, '..', 'server', 'public', 'lib'),
