@@ -8,8 +8,18 @@ import type { INotifyOptions, TNotify } from '../types/notify.d.ts';
 import { css, html, LitElement, noChange, nothing, unsafeCSS } from 'lit';
 import { v4 as uuidv4 } from 'uuid';
 
+declare global {
+  interface Window {
+    scwc?: {
+      notify?: (options: INotifyOptions) => void;
+    };
+  }
+}
+
 class Notify {
   private static instance: SCWCNotify | null = null;
+  /** 是否已经由其他通知来源实例化过 scwc-notify */
+  private static isNotifyElementInstantiated = false;
 
   constructor() {
     Notify.getInstance();
@@ -17,6 +27,13 @@ class Notify {
 
   static getInstance() {
     if (!Notify.instance) {
+      const existingNotifyElement = document.querySelector('scwc-notify') && !!window.scwc?.notify;
+      if (existingNotifyElement) {
+        Notify.instance = null;
+        Notify.isNotifyElementInstantiated = true;
+        return;
+      }
+
       Notify.instance = document.createElement('scwc-notify');
       const notifyRoot = document.createElement('div');
       notifyRoot.className = 'scwc-notify-root';
@@ -32,12 +49,24 @@ class Notify {
       notifyRoot.appendChild(Notify.instance);
       console.log('append notify root to body', Notify.instance);
       document.body.appendChild(notifyRoot);
+
+      // 在 window.scwc 上注册 notify 方法
+      if (!window.scwc) {
+        window.scwc = {};
+      }
+      window.scwc.notify = (options: INotifyOptions) => {
+        Notify.instance?.notify(options);
+      };
     }
     return Notify.instance;
   }
 
   static notify(options: INotifyOptions) {
-    Notify.getInstance().notify(options);
+    if (Notify.isNotifyElementInstantiated) {
+      window.scwc?.notify?.(options);
+      return;
+    }
+    Notify.getInstance()?.notify(options);
   }
 
   notify(options: INotifyOptions) {
