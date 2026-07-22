@@ -23,12 +23,10 @@
     "noUncheckedSideEffectImports": true
   },
   "include": [
-    "./projects/user-script/src/**/*",
-    "./projects/shared/components/**/*",
-    "./projects/shared/types/**/*",
-    "./projects/shared/store/**/*",
-    "./projects/web/src/**/*",
-    "./projects/webUtils/lib/**/*",
-    "./projects/server/plugins/plugin-env.d.ts"
+    "projects/user-script/src/**/*",
+    "projects/shared/**/*",
+    "projects/web/src/**/*",
+    "projects/server/plugins/plugin-env.d.ts",
+    "vite-env.d.ts"
   ]
 }
