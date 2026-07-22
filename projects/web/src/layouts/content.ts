@@ -28,11 +28,15 @@ class AppContent extends LitElement {
       <main id="root-content">
         <div class="root-aside" ?hidden=${!this.isLeftBarExpanded}>
           ${this.pluginPages.map(
-            (pluginPage) => html`<div>
-              <scwc-button @click=${() => (this.focusPluginPage = pluginPage)}>
-                ${pluginPage.dir}
-              </scwc-button>
-            </div>`,
+            (pluginPage) => html`
+              <div
+                class=${`plugin-item ${this.focusPluginPage?.dir === pluginPage.dir ? 'active' : ''}`}
+              >
+                <scwc-button type="secondary" @click=${() => (this.focusPluginPage = pluginPage)}>
+                  ${pluginPage.dir}
+                </scwc-button>
+              </div>
+            `,
           )}
         </div>
         <div class="root-main">

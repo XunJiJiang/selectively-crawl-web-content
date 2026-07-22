@@ -19,8 +19,28 @@
   display: none;
 }
 
+.root-aside .plugin-item scwc-button::part(button) {
+  width: 150px;
+  height: 34px;
+  font-size: 14px;
+  border-radius: 0;
+  color: var(--base-text-color);
+  background-color: var(--base-background-color);
+  align-items: center;
+  justify-content: left;
+}
+
+.root-aside .plugin-item scwc-button::part(button):hover {
+  background-color: rgba(0, 0, 0, 0.1);
+}
+
+.root-aside .plugin-item.active scwc-button::part(button) {
+  background-color: rgba(0, 0, 0, 0.1);
+}
+
 .root-main {
   flex: 1;
+  border-left: 1px solid #ccc;
 }
 
 .root-main .plugin-iframe {
