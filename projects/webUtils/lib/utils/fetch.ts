@@ -23,7 +23,11 @@ export const createFetch: TCreateFetch = async (config: TConfig) => {
   if (data && data.success === true) {
     const safeId = data.data.safeId;
     return async (url: string, options?: RequestInit) => {
-      const fullUrl = `/web/api/plugin/${safeId}${url.startsWith('/') ? '' : '/'}${url}?site=${encodeURIComponent(window.location.href)}`;
+      // 判断 url 中是否包含 param 参数
+      const hasParam = url.includes('?');
+      const fullUrl = `/web/api/plugin/${safeId}${
+        url.startsWith('/') ? '' : '/'
+      }${url}${hasParam ? '&' : '?'}site=${encodeURIComponent(window.location.href)}`;
       const _opt = {
         ...options,
         headers: {
