@@ -20,11 +20,6 @@ window.addEventListener('message', (event) => {
   };
   createFetch(message.config).then((fetch) => {
     webUtils.fetch = fetch;
-    console.log('webUtils.fetch 初始化完成');
-    setTimeout(() => {
-      console.log('webUtils' in window ? 'webUtils 已挂载到 window' : 'webUtils 未挂载到 window');
-      console.log('webUtils' in window ? window.webUtils : 'window.webUtils 未定义');
-    }, 1000);
   });
 });
 

@@ -8,7 +8,6 @@ export type TCreateFetch = (config: TConfig) => Promise<TFetch>;
 export const createFetch: TCreateFetch = async (config: TConfig) => {
   // /web/page/plugin/:pluginDir
   const pluginDir = window.location.pathname.split('/')[4];
-  console.log('pluginDir', pluginDir);
   // 请求插件的 safeId
   const res = await fetch(
     `/web/api/safeId/${pluginDir}?site=${encodeURIComponent(window.location.href)}`,
