@@ -13,7 +13,6 @@ export function registerPluginApi(plugin: SCWC.IPluginMeta) {
       // api.path 是否以 / 开头
       const slash = api.path.startsWith('/') ? '' : '/';
       const fullPath = `/${plugin.safeId}${slash}${api.path}`;
-      console.log('fullPath----------', fullPath);
       router[api.method.toLowerCase() as 'get' | 'post' | 'put' | 'delete'](
         fullPath,
         async (req, res) => {
