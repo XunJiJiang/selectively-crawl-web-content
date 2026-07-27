@@ -4,6 +4,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import { ConfigController } from '../../../shared/store/config.ts';
 import type { TPluginPagesResult } from '../types/api.d.ts';
 import { getPluginPages } from '../api/plugins.ts';
+import tryCatch from '../../../shared/utils/tryCatch.ts';
 
 @customElement('app-content')
 class AppContent extends LitElement {
@@ -54,8 +55,18 @@ class AppContent extends LitElement {
                   if (iframeWindow) {
                     iframeWindow.postMessage(
                       {
-                        type: 'plugin-config',
+                        type: 'scwc-plugin-config',
                         config: this.configController.config,
+                      },
+                      '*',
+                    );
+                    iframeWindow.postMessage(
+                      {
+                        type: 'scwc-plugin-hinder',
+                        config: this.configController.config,
+                        isSameOrigin:
+                          window.location.origin ===
+                          tryCatch(() => iframeWindow.location.origin)[1],
                       },
                       '*',
                     );

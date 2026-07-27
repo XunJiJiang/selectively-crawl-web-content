@@ -1,6 +1,7 @@
 import './layouts/root.ts';
 import '../../shared/components/index.ts';
 import updateLocalStorage from '../../shared/utils/updateLocalStorage.ts';
+import type { TConfig } from '../../shared/store/config.ts';
 
 // 更新本地存储的数据格式
 updateLocalStorage();
@@ -23,4 +24,20 @@ if (!mount) {
 }
 
 const rootEl = document.createElement('scwc-layout-root');
-mount.appendChild(rootEl);
+
+window.addEventListener('message', (event) => {
+  const message = event.data as {
+    type: 'scwc-plugin-hinder';
+    config: TConfig;
+    isSameOrigin: boolean;
+  };
+  if (message.type !== 'scwc-plugin-hinder') {
+    return;
+  } else if (message.isSameOrigin) {
+    rootEl.style.display = 'none';
+  }
+});
+
+window.addEventListener('load', () => {
+  mount.appendChild(rootEl);
+});
