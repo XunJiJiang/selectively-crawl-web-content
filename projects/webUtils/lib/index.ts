@@ -1,26 +1,31 @@
 import type { TConfig } from '../../shared/store/config.ts';
 import { createFetch, type TFetch } from './utils/fetch.ts';
 
-console.log('webutils loaded');
+// TODO: 动态更新配置
+// TODO: 当处于子页面时, 从父页面获取配置, 此时允许隐藏子页面 SCWC 窗口
+// TODO: 单独打开子页面时从 localStorage 获取配置, 此时不允许隐藏子页面 SCWC 窗口
 
-export type TWebUtils = {
+export type TSCWCUtils = {
   fetch: TFetch;
 };
 
-const webutils: TWebUtils = {
+const scwcutils: TSCWCUtils = {
   fetch: (() => {
-    console.warn('webutils.fetch 未初始化, 请在页面加载完成后再使用 webutils.fetch');
+    console.warn('scwcutils.fetch 未初始化, 请在页面加载完成后再使用 scwcutils.fetch');
   }) as unknown as TFetch,
 };
 
 window.addEventListener('message', (event) => {
   const message = event.data as {
-    type: 'plugin-config';
+    type: 'scwc-plugin-config';
     config: TConfig;
   };
+  if (message.type !== 'scwc-plugin-config') {
+    return;
+  }
   createFetch(message.config).then((fetch) => {
-    webutils.fetch = fetch;
+    scwcutils.fetch = fetch;
   });
 });
 
-export default webutils;
+export default scwcutils;

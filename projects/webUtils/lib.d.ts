@@ -1,7 +1,7 @@
-type TWebUtils = import('./lib/index.ts').TWebUtils;
+type TSCWCUtils = import('./lib/index.ts').TSCWCUtils;
 
 declare global {
   interface Window {
-    webutils: TWebUtils;
+    scwcutils: TSCWCUtils;
   }
 }

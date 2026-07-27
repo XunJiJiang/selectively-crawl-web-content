@@ -17,14 +17,14 @@ export default defineConfig(({ mode }) => {
     build: {
       lib: {
         entry: resolve(import.meta.dirname, 'lib/index.ts'),
-        name: 'webutils',
+        name: 'scwcutils',
         format: ['iife'],
         // 将添加适当的扩展名后缀
-        fileName: () => `web-utils.iife.${new Date().getTime().toString(36)}.js`,
+        fileName: () => `scwcutils.iife.${new Date().getTime().toString(36)}.js`,
       },
       rolldownOptions: {
         output: {
-          name: 'webutils',
+          name: 'scwcutils',
         },
       },
       outDir: join(__dirname, '..', 'server', 'public', 'lib'),

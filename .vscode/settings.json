@@ -14,7 +14,9 @@
     "Rjcode",
     "Rjcodes",
     "scwc",
+    "scwcutils",
     "sricode",
+    "TSCWC",
     "webutils"
   ],
   "sqltools.connections": [
