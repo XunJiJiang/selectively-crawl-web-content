@@ -18,7 +18,7 @@ export const parseRefreshRule = cache((rule: string) => {
   return result;
 });
 
-const defaultValue: TConfig = {
+export const defaultValue: Readonly<TConfig> = {
   api: {
     host: import.meta.env.HOST ?? 'http://localhost',
     port: import.meta.env.PORT ?? '3200',
