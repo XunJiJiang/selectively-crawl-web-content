@@ -16,7 +16,7 @@ const LIB_DIR = path.join(PUBLIC_DIR, 'lib');
 /** 查找最新库文件 */
 function findLatestLibFile(): string | null {
   const files = fs.readdirSync(LIB_DIR);
-  const webUtilsFiles = files.filter((file) => /^web-utils\.iife\.[a-zA-Z0-9]+\.js$/.test(file));
+  const webUtilsFiles = files.filter((file) => /^scwcutils\.iife\.[a-zA-Z0-9]+\.js$/.test(file));
   if (webUtilsFiles.length === 0) {
     return null;
   }
@@ -30,8 +30,8 @@ function findLatestLibFile(): string | null {
 }
 
 // 挂载 web utils 库静态资源
-libRouter.get(/^\/web-utils\.iife\.[a-zA-Z0-9]+\.js$/, (_req, res) => {
-  // 查找最新的 web-utils.iife.*.js 文件, * 是 36 进制的时间戳, 取最新的文件
+libRouter.get(/^\/scwcutils\.iife\.[a-zA-Z0-9]+\.js$/, (_req, res) => {
+  // 查找最新的 scwcutils.iife.*.js 文件, * 是 36 进制的时间戳, 取最新的文件
   const latestFile = findLatestLibFile();
   if (!latestFile) {
     res.status(404).send('not found');
@@ -42,7 +42,7 @@ libRouter.get(/^\/web-utils\.iife\.[a-zA-Z0-9]+\.js$/, (_req, res) => {
 });
 
 // /web/page/plugins/:pluginDir 访问插件的 UI 页面
-// TODO: 插件页面在构建时需要设置基础路径为 /web/page/plugins/:pluginDir/
+// TODO: 要求插件页面在构建时需要设置基础路径为 /web/page/plugins/:pluginDir/
 router.get('/plugin/:pluginDir', (req: Request<{ pluginDir: string }>, res: Response) => {
   const pluginDir = req.params.pluginDir;
   const plugin = plugins.find(
