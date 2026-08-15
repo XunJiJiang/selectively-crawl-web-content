@@ -16,6 +16,9 @@ lerna-debug.log*
 cache/
 dump.rdb
 
+tmp/
+temp/
+
 # Diagnostic reports (https://nodejs.org/api/report.html)
 
 report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
