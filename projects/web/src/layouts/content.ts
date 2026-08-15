@@ -41,7 +41,7 @@ class AppContent extends LitElement {
           )}
         </div>
         <div class="root-main">
-          <!-- 当配置更新时, 要重新向插件页面发送配置 -->
+          <!-- TODO: 当配置更新时, 要重新向插件页面发送配置 -->
           <iframe
             id=${iframeId}
             class="plugin-iframe"
