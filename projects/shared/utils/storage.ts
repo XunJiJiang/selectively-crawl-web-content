@@ -84,6 +84,7 @@ export function completeProperties<T extends JSONValue, U extends JSONValueWithF
   a: T,
   b: U /* , keepExtra = false */,
   notRunFun: boolean,
+  // TODO: 支持 whichOnSameType 传入函数用于更复杂的逻辑判断, 例如根据 key 来决定使用 a 还是 b
   whichOnSameType: 'a' | 'b',
 ): ResolvedJSONValue<U> {
   if (typeof a === 'string' || typeof a === 'number' || typeof a === 'boolean' || a === null) {
@@ -154,6 +155,13 @@ export function saveToStorage<T extends JSONValue>(key: string, items: T) {
   return items;
 }
 
+/**
+ * 加载配置文件
+ * @param key
+ * @param defaultValue 默认值, 如果本地存储中没有该配置文件, 则使用默认值
+ * @param whichOnSameType 默认值和本地存储中配置文件的类型相同时, 选择使用哪个值, 'a'表示使用本地存储中的值, 'b'表示使用默认值
+ * @returns
+ */
 export function loadFromStorage<T extends JSONValueWithFunction>(
   key: string,
   defaultValue: T,

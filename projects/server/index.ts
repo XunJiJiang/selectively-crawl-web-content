@@ -71,7 +71,6 @@ const exitHandler = async (type: 'exit' | 'restart') => {
   const RESTART = type === 'restart';
 
   for (const plugin of plugins) {
-    // TODO: 当实现重启后, 调用时需要告知插件本次关闭为重启
     if (plugin.handler && typeof plugin.handler.onUnload === 'function') {
       const logger = createLogger(
         `plugin:${plugin.name}`,
