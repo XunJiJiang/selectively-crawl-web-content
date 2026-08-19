@@ -41,8 +41,8 @@ libRouter.get(/^\/scwcutils\.iife\.[a-zA-Z0-9]+\.js$/, (_req, res) => {
   res.sendFile(filePath);
 });
 
-// /web/page/plugins/:pluginDir 访问插件的 UI 页面
-// TODO: 要求插件页面在构建时需要设置基础路径为 /web/page/plugins/:pluginDir/
+// /web/page/plugin/:pluginDir 访问插件的 UI 页面
+// TODO: 要求插件页面在构建时需要设置基础路径为 /web/page/plugin/:pluginDir/
 router.get('/plugin/:pluginDir', (req: Request<{ pluginDir: string }>, res: Response) => {
   const pluginDir = req.params.pluginDir;
   const plugin = plugins.find(
