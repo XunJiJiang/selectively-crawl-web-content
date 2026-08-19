@@ -8,12 +8,15 @@ import { createFetch, type TFetch } from './utils/fetch.ts';
 // TODO: 当处于子页面时, 从父页面获取配置, 此时允许隐藏子页面 SCWC 窗口
 // TODO: 单独打开子页面时从 localStorage 获取配置, 此时不允许隐藏子页面 SCWC 窗口
 
-export type TSCWCUtils = {
+type TPrivateSCWCUtils = {
   hasInitialized: boolean;
+} & TSCWCUtils;
+
+export type TSCWCUtils = {
   fetch: TFetch;
 };
 
-const scwcutils: TSCWCUtils = {
+const scwcutils: TPrivateSCWCUtils = {
   hasInitialized: false,
   fetch: (() => {
     console.warn('scwcutils.fetch 未初始化, 请在页面加载完成后再使用 scwcutils.fetch');
