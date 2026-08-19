@@ -147,15 +147,15 @@ projects/server/plugins/
 
 #### package.json
 
-package.json 中至少需要包含 `main` 字段指定主模块路径, 建议添加 `name` 字段与插件目录名一致. 还需添加 `link-with` 字段指定插件关联的网站 URL (支持字符串或正则表达式)
+package.json 中至少需要包含 `main` 字段指定主模块路径, 建议添加 `name` 字段与插件目录名一致. 还需添加 `link-with` 字段指定插件生效的网站 URL (支持字符串或正则表达式)
 
 ```json
 {
   "name": "<package name>?", // 此项可选, 默认使用目录名
   "main": "index.ts",
-  "link-with": ["<web path>"],
+  "link-with": ["<web path>"], // 例如 ["https://example.com/"]
   "enabled": true, // 此项可选, 默认为 true
-  "commandName": "<command name>?" // 此项可选, 用于占用一级命令
+  "commandName": "<command name>?" // 此项可选, 用于占用一级命令, 可以在控制台触发插件提供的 `pluginConfig.command` 中的命令
 }
 ```
 
@@ -173,7 +173,7 @@ package.json 中至少需要包含 `main` 字段指定主模块路径, 建议添
 
 #### 主模块导出方式
 
-参见仓库中的示例插件 [`projects/plugins/template/index.ts`](projects/server/plugins/template/index.ts). 插件应导出一个对象, 字段包括: `name`、`onLoad`、`onRequest`、`onUnload` 和 `pluginConfig`
+参见仓库中的示例插件 [`projects/plugins/template/index.ts`](projects/server/plugins/template/index.ts). 插件应导出一个对象, 字段包括: `name`、`onLoad`、`onRequest`、`onUnload`、`pluginConfig` 和 `ui`
 
 注意: 以上示例插件严格参照类型声明 [`projects/server/plugins/plugin-env.d.ts`](projects/server/plugins/plugin-env.d.ts), 不要依赖其他未明示的字段或行为
 
@@ -193,7 +193,7 @@ package.json 中至少需要包含 `main` 字段指定主模块路径, 建议添
 
 `onUnload` 中提供的 `context` 包含 `isRestart` 字段, 表示当前卸载是否由服务重启引起. 插件可以根据这个信息决定是否需要清理某些资源或状态
 
-#### onRequest (核心)
+#### onRequest (抓取核心)
 
 `onRequest` 是插件处理抓取数据时必须实现的函数. 其签名为:
 
