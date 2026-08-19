@@ -1,14 +1,22 @@
+let loadContext = {};
+
 export default {
   // 插件名称, 目前可选. 建议和 package.json 中的 name 字段保持一致
   name: 'template',
   // 启动服务时调用, 可选, 支持异步
-  onLoad: async (logger, { createRetryGet, LimitPromise }) => {},
+  // 传入的参数 context: { createRetryGet, LimitPromise } 允许持久化保存
+  onLoad: async (logger, { createRetryGet, LimitPromise }) => {
+    loadContext = { createRetryGet, LimitPromise };
+  },
   // 每次接收到抓取请求时调用, 必选, 支持异步
   onRequest: async (
     { utils: { writeData, writeDataURL, strValidation, convertToCN, fetchImage }, data, site },
     logger,
   ) => {
+    // 在后端打印日志
     logger.info('Template plugin called');
+    // 向前端发送消息
+    logger.toWeb('Send message to web', 'info');
   },
   // 卸载插件时调用, 例如服务停止或重启时, 可选, 支持异步
   onUnload: async (logger, { isRestart }) => {},
@@ -44,7 +52,7 @@ export default {
       // 命令示例用法, 可选. 例如 "template sub-cmd --option1=value1"
       exampleUsage: 'template sub-cmd --option1=value1',
     },
-    // 用于动态加载到浏览器脚本中的控制脚本, 可选.
+    // 用于动态加载到浏览器脚本悬浮窗中的控制脚本, 可选.
     // 这些脚本会在浏览器脚本打开插件界面时加载, 可以在其中定义一些交互逻辑, 例如按钮点击事件等.
     scripts: {
       title: '示例脚本', // 脚本标题. 在浏览器脚本的插件界面显示
@@ -202,5 +210,20 @@ export default {
         },
       ],
     },
+  },
+  // 由插件提供的浏览器界面, 可选. 如果插件不需要提供浏览器界面, 可以不配置这个字段
+  ui: {
+    // 浏览器界面的入口文件
+    entry: './web/index.html',
+    // 浏览器界面的 API 接口, 可选. 可以在这里定义一些插件相关的 API 接口, 供浏览器界面通过 scwcutils.fetch 调用
+    api: [
+      {
+        method: 'GET',
+        path: '/api/test',
+        handler: async () => {
+          return 'Hello from local-watch-list plugin!';
+        },
+      },
+    ],
   },
 } as SCWC.IPluginHandler;

@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Template</title>
+  </head>
+  <body>
+    <h1>Template</h1>
+    <p>This is a template plugin for selectively crawl web content.</p>
+    <button onclick="fetchTest()">test</button>
+    <script>
+      function fetchTest() {
+        window.scwcutils
+          .fetch('/api/test')
+          .then((data) => {
+            console.log(data);
+          })
+          .catch((error) => {
+            console.error('Error fetching test API:', error);
+          });
+      }
+    </script>
+  </body>
+</html>
