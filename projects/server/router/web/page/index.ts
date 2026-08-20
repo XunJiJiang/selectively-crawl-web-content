@@ -9,6 +9,9 @@ const router = Router();
 /** /web/page/lib */
 const libRouter = Router();
 router.use('/lib', libRouter);
+/** /web/page/resources */
+const resourcesRouter = Router();
+router.use('/resources', resourcesRouter);
 
 const PUBLIC_DIR = path.join(SERVER_ROOT, 'public');
 const LIB_DIR = path.join(PUBLIC_DIR, 'lib');
@@ -169,6 +172,22 @@ router.get('/worry/:id', (req: Request<{ id: string }>, res: Response) => {
     .replace('{{status}}', errorInfo.status)
     .replace('{{message}}', errorInfo.message);
   res.status(parseInt(worryId)).send(renderedPage);
+});
+
+// 处理 /web/page/resources/* 的请求
+// 返回对应的资源文件
+resourcesRouter.get('{*path}', (req: Request<{ path: string[] }>, res: Response) => {
+  const paths = req.params.path;
+  if (paths.some((p) => p.includes('..'))) {
+    res.status(400).send('invalid path');
+    return;
+  }
+  const resourceFullPath = path.join(PUBLIC_DIR, 'resources', ...paths);
+  if (!fs.existsSync(resourceFullPath)) {
+    res.status(404).send('not found');
+    return;
+  }
+  res.sendFile(resourceFullPath);
 });
 
 export default router;
