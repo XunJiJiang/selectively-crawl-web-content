@@ -8,7 +8,7 @@ import { createRetryGet, LimitPromise } from '../utils/axios.ts';
 import { v4 as uuid } from 'uuid';
 import type { AxiosRequestConfig } from 'axios';
 import type { TCreateRetryGet } from '../types/axios.d.ts';
-import { registerPluginApi } from '../router/web/api/load.ts';
+import { registerPluginApi, registerPluginResources } from '../router/web/api/load.ts';
 
 const __dirname = process.cwd();
 
@@ -262,5 +262,6 @@ export async function loadPlugins() {
 
     // 注册插件的 api
     registerPluginApi(plugin);
+    registerPluginResources(plugin);
   }
 }

@@ -105,10 +105,20 @@ namespace SCWC {
         }>;
   }
 
+  export type TPluginRequestContext = {
+    req: import('express').Request;
+    res: import('express').Response;
+  };
+
   export type TPluginApi = {
     method: 'GET' | 'POST' | 'PUT' | 'DELETE';
     path: string;
-    handler: (data: unknown) => unknown | Promise<unknown>;
+    handler: (data: unknown, context?: TPluginRequestContext) => unknown | Promise<unknown>;
+  };
+  export type TPluginResource = {
+    method?: 'GET';
+    path: string;
+    handler: (data: unknown, context: TPluginRequestContext) => unknown | Promise<unknown>;
   };
   export type TPluginAddApi = (...apis: TPluginApi[]) => void;
   // export type TPluginRemoveApi = (path: string) => void;
@@ -208,6 +218,7 @@ namespace SCWC {
     ui?: {
       entry: string; // 入口 html, 绝对路径或相对于当前插件目录的路径
       api?: TPluginApi[] | TPluginApiFn;
+      resources?: TPluginResource[];
     };
   }
 

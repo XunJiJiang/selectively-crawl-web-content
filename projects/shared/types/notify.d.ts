@@ -11,7 +11,7 @@ export interface INotifyOptions {
 export type TNotify = Required<INotifyOptions> & {
   id: string;
   idx: number;
-  timeoutId: number | undefined;
+  timeoutId: ReturnType<typeof setTimeout> | undefined;
   offset: number;
   height: number;
   // beforePreparation: 刚添加到列表中, 尚未渲染到页面上, 需要隐式渲染计算高度

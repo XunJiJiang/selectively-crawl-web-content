@@ -2,7 +2,7 @@ import { defaultValue, type TConfig } from '../../shared/store/config.ts';
 import type { JSONValueWithFunction } from '../../shared/types/utils';
 import { CONFIG_KEY } from '../../shared/utils/common.ts';
 import { loadFromStorage } from '../../shared/utils/storage.ts';
-import { createFetch, type TFetch } from './utils/fetch.ts';
+import { createFetch, type TFetch, type TResource } from './utils/fetch.ts';
 
 // TODO: 动态更新配置
 // TODO: 当处于子页面时, 从父页面获取配置, 此时允许隐藏子页面 SCWC 窗口
@@ -14,6 +14,7 @@ type TPrivateSCWCUtils = {
 
 export type TSCWCUtils = {
   fetch: TFetch;
+  resource: TResource;
 };
 
 const scwcutils: TPrivateSCWCUtils = {
@@ -21,6 +22,7 @@ const scwcutils: TPrivateSCWCUtils = {
   fetch: (() => {
     console.warn('scwcutils.fetch 未初始化, 请在页面加载完成后再使用 scwcutils.fetch');
   }) as unknown as TFetch,
+  resource: () => '',
 };
 
 window.addEventListener('message', (event) => {
@@ -35,6 +37,7 @@ window.addEventListener('message', (event) => {
   // 即使 scwcutils 已经初始化过了, 也要重新初始化
   createFetch(message.config).then((fetch) => {
     scwcutils.fetch = fetch;
+    scwcutils.resource = fetch.resource;
     scwcutils.hasInitialized = true;
   });
 });
@@ -52,6 +55,7 @@ window.addEventListener('load', () => {
     );
     createFetch(config).then((fetch) => {
       scwcutils.fetch = fetch;
+      scwcutils.resource = fetch.resource;
       scwcutils.hasInitialized = true;
     });
   }

@@ -4,6 +4,7 @@ import apiRouter from './api/index.ts';
 import pageRouter from './page/index.ts';
 import { isDev, isProd } from '../../common/setupParam.ts';
 import { SERVER_ROOT } from '../../common/env.ts';
+import { pluginResourceRouter } from './api/load.ts';
 
 /** /web */
 const router = Router();
@@ -52,6 +53,7 @@ if (isDev) {
 }
 
 router.use('/api', apiRouter);
+router.use('/resource/plugin', pluginResourceRouter);
 router.use('/page', pageRouter);
 
 export default router;
