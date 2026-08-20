@@ -113,6 +113,23 @@ router.get(
     const entryDir = path.dirname(entryPath);
     const assetFullPath = path.join(entryDir, ...paths);
     if (!fs.existsSync(assetFullPath)) {
+      const lastPath = paths.at(-1) ?? '';
+      // Let plugin SPAs open deep links directly while preserving 404s for missing assets.
+      if (!lastPath.includes('.')) {
+        const htmlContent = fs.readFileSync(entryPath, 'utf-8');
+        const latestFile = findLatestLibFile();
+        if (!latestFile) {
+          res.send(htmlContent);
+          return;
+        }
+        res.send(
+          htmlContent.replace(
+            '</body>',
+            `<script src="/web/page/lib/${latestFile}"></script></body>`,
+          ),
+        );
+        return;
+      }
       res.status(404).send('not found');
       return;
     }
