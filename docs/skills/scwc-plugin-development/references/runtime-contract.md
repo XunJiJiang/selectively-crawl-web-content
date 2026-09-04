@@ -25,7 +25,9 @@
 - `/web/page/plugin/:pluginDir/*path` 从 entry 所在目录拼接并发送静态资源；插件页面资源应因此使用相对引用。
 - `registerPluginApi` 为每个 API 增加 `/<safeId>` 前缀，最终由 `/web/api/plugin/<safeId>/...` 暴露。API handler 的返回值被包装为 `{ success: true, message: '请求成功', data }`；抛错返回 HTTP 500、`{ success: false, message }`。
 - `projects/webutils/lib/utils/fetch.ts` 从页面 pathname 的第 5 段取得插件目录，先请求 `/web/api/safeId/:pluginDir`，再把调用路径转为 `/web/api/plugin/:safeId/<path>?site=<current URL>`。配置由父页面 `postMessage` 传入；没有父页面时从共享 localStorage 配置初始化。
-- 插件页面与插件后端的默认通信契约是 `window.scwcutils.fetch` → `ui.api`。除非开发者主动要求其他方案，不使用原生 `fetch`/`XMLHttpRequest` 绕过转发，也不为插件创建独立 HTTP 服务或监听额外端口。
+- `TPluginResource` 的 `method` 当前只能是可选的 `'GET'`；`registerPluginResources` 将其注册到 `/web/resource/plugin/<safeId>/<path>`。handler 收到 `req.query` 与 `{ req, res }`，路由等待 handler 完成但不处理其返回值，因此 handler 必须自行写入 `res`，可发送 Buffer、字符串或将 Node `Readable` 流管道到响应。
+- `TResource` 是 `(url: string) => string`。`window.scwcutils.fetch.resource(url)` 只生成资源 URL，不发起请求；URL 附带 `site` 查询参数且不自动添加 Bearer header，适合赋给媒体/样式等资源元素。资源接口不得把 `site` 参数当作身份认证；敏感资源应使用 handler 自行校验的短期票据或其他授权设计。
+- 插件页面与插件后端的默认通信契约是结构化请求 `window.scwcutils.fetch` → `ui.api`，资源加载 `window.scwcutils.fetch.resource` → `ui.resources`。除非开发者主动要求其他方案，不使用原生 `fetch`/`XMLHttpRequest` 绕过转发，也不为插件创建独立 HTTP 服务或监听额外端口。
 - 主页面 `projects/web/src/layouts/content.ts` 使用 iframe 挂载插件页面，并在 iframe load 后发送 `scwc-plugin-config` 和 `scwc-plugin-hinder` 消息。插件页面不要假设能直接访问主页面 DOM；只依赖声明的 `window.scwcutils` 和标准 Web API。
 
 ## 保存数据与路径

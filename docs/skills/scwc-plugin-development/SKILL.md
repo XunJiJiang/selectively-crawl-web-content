@@ -84,15 +84,19 @@ projects/server/plugins/my-plugin/
 
 ## 独立 Web 页面
 
-在插件对象中配置 `ui: { entry: './web/index.html', api: [...] }`；`entry` 可为绝对路径，也可相对插件目录，推荐放在 `projects/server/plugins/<plugin>/web/`。主页面通过 `/web/api/pages` 获取有 `ui.entry` 的插件，并把页面放入 iframe。页面 HTML 会被服务端原样读取，并在 `</body>` 前注入最新的 `scwcutils` IIFE；静态资源按 entry 所在目录提供。
+在插件对象中配置 `ui: { entry: './web/index.html', api: [...], resources: [...] }`；`entry` 可为绝对路径，也可相对插件目录，推荐放在 `projects/server/plugins/<plugin>/web/`。主页面通过 `/web/api/pages` 获取有 `ui.entry` 的插件，并把页面放入 iframe。页面 HTML 会被服务端原样读取，并在 `</body>` 前注入最新的 `scwcutils` IIFE；静态资源按 entry 所在目录提供。
 
 插件 Web 页面建议使用 Vite 构建，并将 Vite `base` 设置为 `/web/page/plugin/<pluginDir>/`，其中 `<pluginDir>` 必须替换为插件所在目录的实际文件夹名称，不能使用 `package.json.name` 或任意显示名称。这样构建产物中的脚本、样式和其他资源会指向插件页面的挂载路径。页面资源不要依赖开发服务器的绝对根路径；构建后检查 HTML 中的资源 URL 与服务端静态资源路由一致。
 
-插件页面与插件后端通信时，前端必须使用 `window.scwcutils.fetch`，后端必须通过 `ui.api` 提供对应接口。除非开发者主动要求采用其他通信方式，否则插件前端不要使用原生 `window.fetch`、`XMLHttpRequest` 或自行实现的 HTTP 客户端来绕过该通道；插件后端也不要创建独立 Express/Koa/Fastify 应用、调用 `listen()`、占用额外端口或启动独立 HTTP 服务器。插件页面应复用核心服务提供的认证、路由和转发能力。
+插件页面与插件后端通信时，结构化请求默认使用 `window.scwcutils.fetch` ↔ `ui.api`。需要给媒体或其他资源元素提供可直接加载的响应时，使用 `ui.resources` ↔ `window.scwcutils.fetch.resource(url)`；不要把资源响应塞进普通 JSON API。除非开发者主动要求采用其他通信方式，否则插件前端不要使用原生 `window.fetch`、`XMLHttpRequest` 或自行实现的 HTTP 客户端来绕过这些通道；插件后端也不要创建独立 Express/Koa/Fastify 应用、调用 `listen()`、占用额外端口或启动独立 HTTP 服务器。插件页面应复用核心服务提供的认证、路由和转发能力。
 
 `window.scwcutils` 的类型来自 `projects/webutils/lib.d.ts`，且该声明只在 `projects/server/plugins/*/web` 生效。建议页面使用 TypeScript，并把构建/类型检查纳入插件自己的配置；`tsconfig.plugin-web.json` 只负责仓库级类型检查，当前包含 `webutils/lib.d.ts` 和所有插件 `web/**/*`。
 
 `scwcutils.fetch(url, options?)` 会把请求转发给当前插件的后端 API。`url` 可写 `/api/status` 或 `api/status`；请求最终带有插件 `safeId`、当前页面的 `site` 查询参数，以及主页面配置中的 Bearer token。返回值是服务端包装对象 `{ success, message, data }`，不是 handler 的裸返回值。页面应处理 HTTP 错误、`success: false` 和业务数据错误，不要把 token 硬编码到页面。
+
+`window.scwcutils.resource(url)` 返回一个字符串 URL，而不是发起请求；将它用于 `<img src>`、`<video src>`、`<audio src>`、`<source src>`、`<link href>` 或其他需要浏览器直接加载资源的属性。该 URL 指向 `/web/resource/plugin/<safeId>/...`，并附带当前页面的 `site` 查询参数。资源 URL 不会像 `fetch` 请求那样自动携带 Bearer header，因此不要在资源接口中暴露仅凭 URL 即可访问的敏感数据；需要鉴权或一次性授权时，在资源 URL 的查询参数中设计短期、可验证的票据并在 handler 中校验。
+
+在 `ui.resources` 中，每项至少提供 `path` 和 `handler(data, context)`；`data` 是 `req.query`，`context` 必含 Express `req` 与 `res`。资源 handler 必须自行完成响应，例如设置 `Content-Type`、`Content-Length`、缓存策略和状态码，然后调用 `res.send(...)`、`res.end(...)` 或将 Node `Readable` 流 `pipe(res)`。资源路由只等待 handler 完成，不会自动序列化 handler 的返回值；如果 handler 只 `return` 字符串/Buffer 而没有写入 `res`，请求不会得到预期资源响应。流式响应应处理上游错误、客户端断开和背压，不要一次性把大文件读入内存。
 
 `ui.api` 可以是 API 数组，也可以是接收 `{ add }` 的注册函数。API 路径按 HTTP 方法注册，handler 的参数是 `req.body`，即使是 GET 也不要依赖浏览器一定会发送 body；异常会返回 HTTP 500 和 `{ success: false, message }`。API 只用于本插件页面所需的窄接口，必须校验输入、限制返回体积，并避免暴露任意文件读写或执行能力。需要页面与后端新增交互时，优先增加一个窄范围的 `ui.api` handler，并从页面通过 `window.scwcutils.fetch` 调用，而不是新增服务器或直连核心 API 路由。
 
@@ -102,7 +106,7 @@ projects/server/plugins/my-plugin/
 2. 用 `SCWC` 类型约束对象；优先 `satisfies SCWC.IPluginHandler`，不要通过 `as any` 绕过类型错误。
 3. 为 URL 匹配、数据转换、控制器相关值和 API handler 编写小而明确的测试或最小手工验证；特别验证 `link-with` 的否定规则、空数组、重复 channel 和页面 API 的错误响应。
 4. 运行与改动相称的检查：至少执行 `npx tsc -b tsconfig.json --pretty false` 或项目现有等价检查；若页面有独立构建，再运行其构建命令。修复插件自身的错误，不要为了通过检查放宽核心 tsconfig。
-5. 启动服务后建议开发者使用 `plugin ps`/`plugin ls` 检查插件是否激活；打开匹配网址，确认控制器配置、抓取通知、控制器触发、插件页面 iframe、静态资源和 `window.scwcutils.fetch` → `ui.api` 通信都可用，并确认插件没有监听额外端口。
+5. 启动服务后建议开发者使用 `plugin ps`/`plugin ls` 检查插件是否激活；打开匹配网址，确认控制器配置、抓取通知、控制器触发、插件页面 iframe、静态资源、`window.scwcutils.fetch` → `ui.api` 通信，以及 `window.scwcutils.resource` → `ui.resources` 的普通和流式响应都可用，并确认插件没有监听额外端口。
 6. 变更完成后复查 git diff，确认只改动开发者要求的插件文件和仓库内 skill 文件，没有生成全局安装或直接修改核心实现。
 
 当 README、模板、声明与源码仍有冲突时，以当前源码的可观察行为为准，并在实现或交付说明中指出该冲突；不要把推测写成插件契约。

@@ -118,7 +118,7 @@ namespace SCWC {
   export type TPluginResource = {
     method?: 'GET';
     path: string;
-    handler: (data: unknown, context: TPluginRequestContext) => unknown | Promise<unknown>;
+    handler: (data: unknown, context: TPluginRequestContext) => void | Promise<void>;
   };
   export type TPluginAddApi = (...apis: TPluginApi[]) => void;
   // export type TPluginRemoveApi = (path: string) => void;
