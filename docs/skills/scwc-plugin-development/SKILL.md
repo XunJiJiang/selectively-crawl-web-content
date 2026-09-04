@@ -86,7 +86,7 @@ projects/server/plugins/my-plugin/
 
 在插件对象中配置 `ui: { entry: './web/index.html', api: [...], resources: [...] }`；`entry` 可为绝对路径，也可相对插件目录，推荐放在 `projects/server/plugins/<plugin>/web/`。主页面通过 `/web/api/pages` 获取有 `ui.entry` 的插件，并把页面放入 iframe。页面 HTML 会被服务端原样读取，并在 `</body>` 前注入最新的 `scwcutils` IIFE；静态资源按 entry 所在目录提供。
 
-插件 Web 页面建议使用 Vite 构建，并将 Vite `base` 设置为 `/web/page/plugin/<pluginDir>/`，其中 `<pluginDir>` 必须替换为插件所在目录的实际文件夹名称，不能使用 `package.json.name` 或任意显示名称。这样构建产物中的脚本、样式和其他资源会指向插件页面的挂载路径。页面资源不要依赖开发服务器的绝对根路径；构建后检查 HTML 中的资源 URL 与服务端静态资源路由一致。
+创建新的插件 Web 页面建议使用 Vite 构建，使用 Lit 开发，将 Vite `base` 设置为 `/web/page/plugin/<pluginDir>/`，其中 `<pluginDir>` 必须替换为插件所在目录的实际文件夹名称，不能使用 `package.json.name` 或任意显示名称。这样构建产物中的脚本、样式和其他资源会指向插件页面的挂载路径。页面资源不要依赖开发服务器的绝对根路径；构建后检查 HTML 中的资源 URL 与服务端静态资源路由一致。
 
 插件页面与插件后端通信时，结构化请求默认使用 `window.scwcutils.fetch` ↔ `ui.api`。需要给媒体或其他资源元素提供可直接加载的响应时，使用 `ui.resources` ↔ `window.scwcutils.fetch.resource(url)`；不要把资源响应塞进普通 JSON API。除非开发者主动要求采用其他通信方式，否则插件前端不要使用原生 `window.fetch`、`XMLHttpRequest` 或自行实现的 HTTP 客户端来绕过这些通道；插件后端也不要创建独立 Express/Koa/Fastify 应用、调用 `listen()`、占用额外端口或启动独立 HTTP 服务器。插件页面应复用核心服务提供的认证、路由和转发能力。
 
@@ -108,5 +108,6 @@ projects/server/plugins/my-plugin/
 4. 运行与改动相称的检查：至少执行 `npx tsc -b tsconfig.json --pretty false` 或项目现有等价检查；若页面有独立构建，再运行其构建命令。修复插件自身的错误，不要为了通过检查放宽核心 tsconfig。
 5. 启动服务后建议开发者使用 `plugin ps`/`plugin ls` 检查插件是否激活；打开匹配网址，确认控制器配置、抓取通知、控制器触发、插件页面 iframe、静态资源、`window.scwcutils.fetch` → `ui.api` 通信，以及 `window.scwcutils.resource` → `ui.resources` 的普通和流式响应都可用，并确认插件没有监听额外端口。
 6. 变更完成后复查 git diff，确认只改动开发者要求的插件文件和仓库内 skill 文件，没有生成全局安装或直接修改核心实现。
+7. 有任何需要安装的依赖，先检查根目录是否已有相同依赖；若需要安装，请告知开发者，由开发者判断安装在根目录还是插件目录，如果有版本和兼容性要求或必须安装在插件目录，请在告知时说明原因。不要在插件目录安装与根目录相同的依赖，除非有明确理由。
 
 当 README、模板、声明与源码仍有冲突时，以当前源码的可观察行为为准，并在实现或交付说明中指出该冲突；不要把推测写成插件契约。

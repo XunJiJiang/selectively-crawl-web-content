@@ -217,6 +217,7 @@ namespace SCWC {
     // ui 相关的配置项
     ui?: {
       entry: string; // 入口 html, 绝对路径或相对于当前插件目录的路径
+      html?: () => string; // 返回完整 html 页面字符串的函数, 此时将忽略 entry 所在的文件
       api?: TPluginApi[] | TPluginApiFn;
       resources?: TPluginResource[];
     };

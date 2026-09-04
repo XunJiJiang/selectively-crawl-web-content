@@ -47,61 +47,17 @@ libRouter.get(/^\/scwcutils\.iife\.[a-zA-Z0-9]+\.js$/, (_req, res) => {
 // /web/page/plugin/:pluginDir 访问插件的 UI 页面
 // TODO: 要求插件页面在构建时需要设置基础路径为 /web/page/plugin/:pluginDir/
 router.get('/plugin/:pluginDir', (req: Request<{ pluginDir: string }>, res: Response) => {
-  const pluginDir = req.params.pluginDir;
-  const plugin = plugins.find(
-    (p) => path.basename(p.pluginDir).trim() === pluginDir.toString().trim(),
-  );
-  if (!plugin) {
-    res.redirect('/web/page/worry/404');
-    return;
-  }
-  if (!plugin.handler?.ui?.entry) {
-    res.redirect('/web/page/worry/404');
-    return;
-  }
-  const entryPath = (() => {
-    // 判断 entry 是否是绝对路径，如果是，则直接使用；如果不是，则拼接为相对于插件目录的路径
-    if (path.isAbsolute(plugin.handler.ui.entry)) {
-      return plugin.handler.ui.entry;
-    } else {
-      const pluginDir = path.dirname(plugin.entryFile);
-      return path.join(pluginDir, plugin.handler.ui.entry);
-    }
-  })();
-  if (!fs.existsSync(entryPath)) {
-    res.redirect('/web/page/worry/404');
-    return;
-  }
-  const htmlContent = fs.readFileSync(entryPath, 'utf-8');
-  const latestFile = findLatestLibFile();
-  if (!latestFile) {
-    // 不存在 web-utils 库文件, 直接返回 htmlContent
-    res.send(htmlContent);
-    return;
-  }
-  // 在 htmlContent 中  </body> 前插入 <script src="/web/page/lib/${latestFile}"></script>
-  const modifiedHtmlContent = htmlContent.replace(
-    '</body>',
-    `<script src="/web/page/lib/${latestFile}"></script></body>`,
-  );
-  res.send(modifiedHtmlContent);
-});
-
-// 挂载 entryPath 目录的所有资源
-router.get(
-  '/plugin/:pluginDir/{*path}',
-  (req: Request<{ pluginDir: string; path: string[] }>, res: Response) => {
+  try {
     const pluginDir = req.params.pluginDir;
-    const paths = req.params.path;
     const plugin = plugins.find(
       (p) => path.basename(p.pluginDir).trim() === pluginDir.toString().trim(),
     );
     if (!plugin) {
-      res.status(404).send('not found');
+      res.redirect('/web/page/worry/404');
       return;
     }
     if (!plugin.handler?.ui?.entry) {
-      res.status(404).send('not found');
+      res.redirect('/web/page/worry/404');
       return;
     }
     const entryPath = (() => {
@@ -113,30 +69,84 @@ router.get(
         return path.join(pluginDir, plugin.handler.ui.entry);
       }
     })();
-    const entryDir = path.dirname(entryPath);
-    const assetFullPath = path.join(entryDir, ...paths);
-    if (!fs.existsSync(assetFullPath)) {
-      const lastPath = paths.at(-1) ?? '';
-      // Let plugin SPAs open deep links directly while preserving 404s for missing assets.
-      if (!lastPath.includes('.')) {
-        const htmlContent = fs.readFileSync(entryPath, 'utf-8');
-        const latestFile = findLatestLibFile();
-        if (!latestFile) {
-          res.send(htmlContent);
-          return;
-        }
-        res.send(
-          htmlContent.replace(
-            '</body>',
-            `<script src="/web/page/lib/${latestFile}"></script></body>`,
-          ),
-        );
-        return;
-      }
-      res.status(404).send('not found');
+    if (!fs.existsSync(entryPath)) {
+      res.redirect('/web/page/worry/404');
       return;
     }
-    res.sendFile(assetFullPath);
+    const htmlContent = plugin.handler.ui.html?.() ?? fs.readFileSync(entryPath, 'utf-8');
+    const latestFile = findLatestLibFile();
+    if (!latestFile) {
+      // 不存在 web-utils 库文件, 直接返回 htmlContent
+      res.send(htmlContent);
+      return;
+    }
+    // 在 htmlContent 中  </body> 前插入 <script src="/web/page/lib/${latestFile}"></script>
+    const modifiedHtmlContent = htmlContent.replace(
+      '</body>',
+      `<script src="/web/page/lib/${latestFile}"></script></body>`,
+    );
+    res.send(modifiedHtmlContent);
+  } catch (error) {
+    console.error('访问插件页面出错:', error);
+    res.redirect('/web/page/worry/500');
+  }
+});
+
+// 挂载 entryPath 目录的所有资源
+router.get(
+  '/plugin/:pluginDir/{*path}',
+  (req: Request<{ pluginDir: string; path: string[] }>, res: Response) => {
+    try {
+      const pluginDir = req.params.pluginDir;
+      const paths = req.params.path;
+      const plugin = plugins.find(
+        (p) => path.basename(p.pluginDir).trim() === pluginDir.toString().trim(),
+      );
+      if (!plugin) {
+        res.status(404).send('not found');
+        return;
+      }
+      if (!plugin.handler?.ui?.entry) {
+        res.status(404).send('not found');
+        return;
+      }
+      const entryPath = (() => {
+        // 判断 entry 是否是绝对路径，如果是，则直接使用；如果不是，则拼接为相对于插件目录的路径
+        if (path.isAbsolute(plugin.handler.ui.entry)) {
+          return plugin.handler.ui.entry;
+        } else {
+          const pluginDir = path.dirname(plugin.entryFile);
+          return path.join(pluginDir, plugin.handler.ui.entry);
+        }
+      })();
+      const entryDir = path.dirname(entryPath);
+      const assetFullPath = path.join(entryDir, ...paths);
+      if (!fs.existsSync(assetFullPath)) {
+        const lastPath = paths.at(-1) ?? '';
+        // Let plugin SPAs open deep links directly while preserving 404s for missing assets.
+        if (!lastPath.includes('.')) {
+          const htmlContent = plugin.handler.ui.html?.() ?? fs.readFileSync(entryPath, 'utf-8');
+          const latestFile = findLatestLibFile();
+          if (!latestFile) {
+            res.send(htmlContent);
+            return;
+          }
+          res.send(
+            htmlContent.replace(
+              '</body>',
+              `<script src="/web/page/lib/${latestFile}"></script></body>`,
+            ),
+          );
+          return;
+        }
+        res.status(404).send('not found');
+        return;
+      }
+      res.sendFile(assetFullPath);
+    } catch (error) {
+      console.error('访问插件资源出错:', error);
+      res.redirect('/web/page/worry/500');
+    }
   },
 );
 

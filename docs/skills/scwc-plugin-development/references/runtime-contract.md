@@ -20,7 +20,7 @@
 
 ## 页面与 API
 
-- `/web/page/plugin/:pluginDir` 按插件目录 basename 查找页面；`ui.entry` 相对路径是相对于插件入口文件所在目录（通常是插件目录）。找不到插件、entry 或文件时重定向到 404 页面。
+- `/web/page/plugin/:pluginDir` 按插件目录 basename 查找页面；`ui.entry` 相对路径是相对于插件入口html文件所在目录（通常是插件目录），`ui.html` 是返回完整 html 页面字符串的函数，当`ui.html`存在时优先使用。找不到插件、entry 或文件时重定向到 404 页面。
 - 页面响应会在第一个 `</body>` 前插入 `/web/page/lib/scwcutils.iife.<timestamp>.js`。若尚未构建该库，则不注入。
 - `/web/page/plugin/:pluginDir/*path` 从 entry 所在目录拼接并发送静态资源；插件页面资源应因此使用相对引用。
 - `registerPluginApi` 为每个 API 增加 `/<safeId>` 前缀，最终由 `/web/api/plugin/<safeId>/...` 暴露。API handler 的返回值被包装为 `{ success: true, message: '请求成功', data }`；抛错返回 HTTP 500、`{ success: false, message }`。
