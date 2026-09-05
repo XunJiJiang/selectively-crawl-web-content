@@ -3,7 +3,7 @@ import path from 'node:path';
 import { createLogger } from '../utils/log.ts';
 import { CommandError, registerCommand } from '../utils/command.ts';
 import { createRequire } from 'node:module';
-import { addErrorHandler } from '../utils/cache.ts';
+import { addErrorHandler, createNamespacedCache } from '../utils/cache.ts';
 import { createRetryGet, LimitPromise } from '../utils/axios.ts';
 import { v4 as uuid } from 'uuid';
 import type { AxiosRequestConfig } from 'axios';
@@ -249,14 +249,15 @@ export async function loadPlugins() {
 
     // 调用插件的 onLoad 方法
     if (typeof plugin.handler.onLoad === 'function') {
+      const namespace = `plugin:${plugin.name}`;
       await plugin.handler.onLoad(logger, {
         createRetryGet: <RES, A extends AxiosRequestConfig = AxiosRequestConfig>(
           ...args: Parameters<TCreateRetryGet<RES, A>>
         ) => {
-          const namespace = `plugin:${plugin.name}`;
           return createRetryGet<RES, A>(namespace, logger, ...args);
         },
         LimitPromise,
+        cache: createNamespacedCache(namespace, logger),
       });
     }
 

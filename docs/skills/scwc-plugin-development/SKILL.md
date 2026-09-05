@@ -64,7 +64,7 @@ projects/server/plugins/my-plugin/
 
 ## 后端实现边界
 
-- `onLoad(logger, context)` 可选且可异步。可保存 `context.createRetryGet(...)` 和 `context.LimitPromise`，但不要假设请求上下文会长期保存。
+- `onLoad(logger, context)` 可选且可异步。可保存 `context.createRetryGet(...)` 、 `context.LimitPromise` 和 `context.cache` 等工具到模块作用域，供其他外部模块使用。
 - `onRequest(context, logger)` 必须实现且可异步。`context.data` 是 `SCWC.TDataItem[]`；`context.site` 至少有 `url`、`rootUrl`、`origin`、`pathname`。抓取请求的 logger 额外有 `toWeb(message, type?)`，用于把通知返回给浏览器；控制器/API 触发的 logger 没有 `toWeb`，必须返回类型为 `notification` 的结果。
 - 可以使用注入的 `utils.writeData` 保存抓取结果，使用 `writeDataURL` 单独保存 data URL/图片链接，使用 `fetchImage` 获取图片，使用 `strValidation` 清理文件名，使用 `convertToCN` 做汉字转换。文件路径由插件负责规划，先保证目录存在语义和可恢复性，不要把用户输入未经校验地拼接成任意路径。
 - `onUnload(logger, { isRestart })` 可选。释放定时器、连接和临时资源；根据 `isRestart` 区分重启与真正退出。

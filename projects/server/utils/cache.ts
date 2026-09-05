@@ -8,6 +8,7 @@ import { createCache } from 'cache-manager';
 import stream, { Readable } from 'node:stream';
 import z from 'zod';
 import type { TLogger } from '../types/log.d.ts';
+import type { IPluginCache } from '../types/cache.d.ts';
 
 /**
  * 保存未处理的错误实例
@@ -499,6 +500,25 @@ export async function mDeleteCache(
 ): Promise<boolean> {
   const cacheKeys = keys.map((key) => (namespace ? `${namespace}:${key}` : key));
   return await cache.mdel(cacheKeys);
+}
+
+/**
+ * 创建一个已绑定命名空间和日志实例的缓存控制器。
+ *
+ * 主要提供给插件加载上下文使用。调用方不会接触 namespace 参数，避免插件越过自己的
+ * 命名空间读写其他插件或主服务的缓存。这里也不会暴露 clearAll，因为当前底层缓存无法
+ * 安全枚举并只清理单个命名空间。
+ */
+export function createNamespacedCache(namespace: string, logger: TLogger): IPluginCache {
+  return Object.freeze({
+    set: <T extends TCacheableData>(key: string, data: T) =>
+      setCache<T>(key, data, namespace, false, logger),
+    setRedirect: (key: string, targetKey: string) =>
+      setCache<string>(key, targetKey, namespace, true, logger),
+    get: <T extends TCacheableData>(key: string) => getCache<T>(key, namespace),
+    del: (key: string) => deleteCache(key, namespace),
+    mdel: (keys: string[]) => mDeleteCache(keys, namespace),
+  });
 }
 
 const cacheController = {

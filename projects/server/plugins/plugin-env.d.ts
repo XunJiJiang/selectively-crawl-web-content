@@ -6,6 +6,12 @@ namespace SCWC {
     A extends AxiosRequestConfig = AxiosRequestConfig,
   > = import('../types/axios.d.ts').TCreateRetryGet<RES, A>;
 
+  /** 插件缓存支持的数据类型。 */
+  export type TPluginCacheableData = import('../types/cache.d.ts').TPluginCacheableData;
+
+  /** 已由主服务绑定插件命名空间的缓存控制器。 */
+  export type IPluginCache = import('../types/cache.d.ts').IPluginCache;
+
   /**
    * 插件加载时的上下文对象
    * 提供一些工具函数供插件使用
@@ -15,6 +21,11 @@ namespace SCWC {
     createRetryGet<RES, A extends AxiosRequestConfig = AxiosRequestConfig>(
       ...args: Parameters<TCreateRetryGet<RES, A>>
     ): ReturnType<TCreateRetryGet<RES, A>>;
+    /**
+     * 插件独享命名空间的缓存控制器。
+     * 命名空间由主服务管理，插件传入的键无法访问其他插件或主服务的缓存。
+     */
+    cache: IPluginCache;
     LimitPromise: import('../types/axios.d.ts').TLimitPromise;
   }
 

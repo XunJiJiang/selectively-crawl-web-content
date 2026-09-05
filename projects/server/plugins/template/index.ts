@@ -5,8 +5,8 @@ export default {
   name: 'template',
   // 启动服务时调用, 可选, 支持异步
   // 传入的参数 context: { createRetryGet, LimitPromise } 允许持久化保存
-  onLoad: async (logger, { createRetryGet, LimitPromise }) => {
-    loadContext = { createRetryGet, LimitPromise };
+  onLoad: async (logger, { createRetryGet, LimitPromise, cache }) => {
+    loadContext = { createRetryGet, LimitPromise, cache };
   },
   // 每次接收到抓取请求时调用, 必选, 支持异步
   onRequest: async (
