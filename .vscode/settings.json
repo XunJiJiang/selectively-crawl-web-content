@@ -29,6 +29,12 @@
       "driver": "SQLite",
       "name": "asmr-one",
       "database": "/Users/xunji/Documents/Entertainment/ASMR-ONE/data/claw-data.sqlite"
+    },
+    {
+      "previewLimit": 50,
+      "driver": "SQLite",
+      "name": "sticker-management",
+      "database": "${workspaceFolder:selectively-crawl-web-content}/data/sticker-management/db/sticker-management.sqlite"
     }
   ],
   "search.useIgnoreFiles": false,
