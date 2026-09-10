@@ -68,7 +68,7 @@ const rules: DummyRuleMap = {
   'use-isnan': 'error',
   'valid-typeof': 'error',
   'no-var': 'error',
-  'prefer-const': 'error',
+  'prefer-const': 'off',
   'prefer-rest-params': 'error',
   'prefer-spread': 'error',
   'no-array-constructor': 'error',
