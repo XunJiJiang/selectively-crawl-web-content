@@ -138,7 +138,7 @@ export default defineConfig({
   env: {
     builtin: true,
   },
-  ignorePatterns: ['projects/server/plugins/template/**'],
+  ignorePatterns: ['projects/server/plugins/template/**', '**/*/test/**'],
   rules: {},
   overrides: [
     {

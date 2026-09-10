@@ -124,7 +124,7 @@ namespace SCWC {
   export type TPluginApi = {
     method: 'GET' | 'POST' | 'PUT' | 'DELETE';
     path: string;
-    handler: (data: unknown, context?: TPluginRequestContext) => unknown | Promise<unknown>;
+    handler: (data: unknown, context: TPluginRequestContext) => unknown | Promise<unknown>;
   };
   export type TPluginResource = {
     method?: 'GET';
