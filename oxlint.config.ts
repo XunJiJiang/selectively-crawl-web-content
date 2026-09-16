@@ -18,7 +18,7 @@ const rules: DummyRuleMap = {
   'no-const-assign': 'off',
   'no-constant-binary-expression': 'error',
   'no-constant-condition': 'error',
-  'no-control-regex': 'error',
+  'no-control-regex': 'off',
   'no-debugger': 'error',
   'no-delete-var': 'error',
   'no-dupe-class-members': 'off',
