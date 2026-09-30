@@ -13,6 +13,8 @@ import { getRootUrl, matchLink } from './utils/index.ts';
 import { TOKEN } from '../common/env.ts';
 import { serverLogger } from '../common/logger.ts';
 import { isSameDomain } from '../utils/url.ts';
+import { pluginWebSocketRegistry } from './web/websocket.ts';
+import { createServer } from 'node:http';
 
 export const app = express();
 
@@ -241,5 +243,8 @@ app.use('/api', apiRouter);
 app.use('/web', webRouter);
 
 export function listen(port: number, callback?: () => void) {
-  app.listen(port, callback);
+  const server = createServer(app);
+  pluginWebSocketRegistry.attach(server);
+  server.listen(port, callback);
+  return server;
 }

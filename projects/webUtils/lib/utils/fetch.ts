@@ -1,6 +1,7 @@
 import type { TConfig } from '../../../shared/types/config.ts';
 
 export type TResource = (url: string) => string;
+export type TWebSocket = (url: string, protocols?: string | string[]) => WebSocket;
 export type TFetchResponse<T> = {
   success: boolean;
   message?: string;
@@ -12,6 +13,7 @@ export type TFetch = (<T = unknown>(
   options?: RequestInit,
 ) => Promise<TFetchResponse<T>>) & {
   resource: TResource;
+  websocket: TWebSocket;
 };
 
 export type TCreateFetch = (config: TConfig) => Promise<TFetch>;
@@ -58,6 +60,12 @@ export const createFetch: TCreateFetch = async (config: TConfig) => {
             hasParam ? '&' : '?'
           }site=${encodeURIComponent(window.location.href)}`;
         },
+        websocket: (url: string, protocols?: string | string[]) => {
+          const hasParam = url.includes('?');
+          const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+          const fullUrl = `/web/websocket/plugin/${safeId}${url.startsWith('/') ? '' : '/'}${url}${hasParam ? '&' : '?'}site=${encodeURIComponent(window.location.href)}&token=${encodeURIComponent(config.api.token)}`;
+          return new WebSocket(`${protocol}//${window.location.host}${fullUrl}`, protocols);
+        },
       },
     ) satisfies TFetch;
     return pluginFetch;
@@ -71,7 +79,12 @@ export const createFetch: TCreateFetch = async (config: TConfig) => {
         data: undefined as never,
       };
     },
-    { resource: () => '' },
+    {
+      resource: () => '',
+      websocket: () => {
+        throw new Error('获取插件 safeId 失败, 无法使用 WebSocket');
+      },
+    },
   ) satisfies TFetch;
   return unavailable;
 };

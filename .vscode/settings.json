@@ -48,5 +48,11 @@
   "editor.codeActionsOnSave": {
     "source.organizeImports": "never"
   },
-  "js/ts.experimental.useTsgo": true
+  "js/ts.experimental.useTsgo": true,
+  "[typescript]": {
+    "editor.defaultFormatter": "TypeScriptTeam.native-preview"
+  },
+  "[jsonc]": {
+    "editor.defaultFormatter": "vscode.json-language-features"
+  }
 }

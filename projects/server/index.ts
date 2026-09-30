@@ -15,7 +15,7 @@ initCacheErrorHandler(serverLogger);
 registerDefaultCommands(serverLogger);
 
 // 启动时加载插件
-loadPlugins();
+await loadPlugins();
 
 // 启动服务器
 listen(PORT, () => {

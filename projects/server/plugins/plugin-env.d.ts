@@ -131,6 +131,27 @@ namespace SCWC {
     path: string;
     handler: (data: unknown, context: TPluginRequestContext) => void | Promise<void>;
   };
+  export type TPluginWebSocketContext = {
+    req: import('node:http').IncomingMessage;
+    socket: import('ws').WebSocket;
+    channel: string;
+    query: URLSearchParams;
+    clients: ReadonlySet<import('ws').WebSocket>;
+    send: (data: unknown) => void;
+    broadcast: (data: unknown, excludeSelf?: boolean) => void;
+    close: (code?: number, reason?: string) => void;
+  };
+  export type TPluginWebSocket = {
+    /** 通道名将挂载在 /web/websocket/plugin/<safeId>/<path>。 */
+    path: string;
+    onConnect?: (
+      context: TPluginWebSocketContext,
+    ) => void | (() => void) | Promise<void | (() => void)>;
+    onMessage?: (data: string | Buffer, context: TPluginWebSocketContext) => void | Promise<void>;
+    onClose?: (context: TPluginWebSocketContext) => void | Promise<void>;
+  };
+  export type TPluginWebSocketAdd = (...channels: TPluginWebSocket[]) => void;
+  export type TPluginWebSocketFn = (tools: { add: TPluginWebSocketAdd }) => void;
   export type TPluginAddApi = (...apis: TPluginApi[]) => void;
   // export type TPluginRemoveApi = (path: string) => void;
   export type TPluginApiFn = (tools: { add: TPluginAddApi /* remove: TPluginRemoveApi */ }) => void;
@@ -231,6 +252,7 @@ namespace SCWC {
       html?: () => string; // 返回完整 html 页面字符串的函数, 此时将忽略 entry 所在的文件
       api?: TPluginApi[] | TPluginApiFn;
       resources?: TPluginResource[];
+      websocket?: TPluginWebSocket[] | TPluginWebSocketFn;
     };
   }
 

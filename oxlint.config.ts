@@ -86,7 +86,7 @@ const rules: DummyRuleMap = {
   'typescript/no-explicit-any': 'error',
   'typescript/no-extra-non-null-assertion': 'error',
   'typescript/no-extraneous-class': 'error',
-  'typescript/no-invalid-void-type': 'error',
+  'typescript/no-invalid-void-type': 'off',
   'typescript/no-misused-new': 'error',
   'typescript/no-namespace': 'error',
   'typescript/no-non-null-asserted-nullish-coalescing': 'error',
