@@ -20,7 +20,9 @@
     "scwc",
     "scwcutils",
     "sricode",
+    "stickersearch",
     "TSCWC",
+    "venv",
     "webutils"
   ],
   "sqltools.connections": [
