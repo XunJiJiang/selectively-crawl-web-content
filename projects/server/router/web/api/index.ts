@@ -32,7 +32,7 @@ router.get('/pages', (req, res) => {
   const pluginsWithUI = plugins.filter(
     (plugin) => plugin.handler?.ui && plugin.handler.ui.entry,
   ) as (SCWC.IPluginMeta & {
-    handler: SCWC.IPluginHandler & { ui: { entry: string } };
+    handler: SCWC.IHostedPluginHandler & { ui: { entry: string } };
   })[];
   const pluginInfoList = pluginsWithUI.map((plugin) => {
     // 取最后一段作为 name

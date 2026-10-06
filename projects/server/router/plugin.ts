@@ -85,54 +85,58 @@ router.get('/config', query('site').isURL(), async (req, res) => {
       continue;
     }
 
-    const urlObj = new URL(decodedSite);
+    try {
+      const urlObj = new URL(decodedSite);
 
-    const controls =
-      typeof plugin.handler?.pluginConfig?.scripts?.controls === 'function'
-        ? await plugin.handler.pluginConfig.scripts.controls(plugin.logger, {
-            site: {
-              url: decodedSite,
-              rootUrl: root,
-              origin: urlObj.origin,
-              pathname: urlObj.pathname,
-              host: urlObj.host,
-              hostname: urlObj.hostname,
-            },
-          })
-        : (plugin.handler?.pluginConfig?.scripts?.controls ?? []);
+      const controls =
+        typeof plugin.handler?.pluginConfig?.scripts?.controls === 'function'
+          ? await plugin.handler.pluginConfig.scripts.controls(plugin.logger, {
+              site: {
+                url: decodedSite,
+                rootUrl: root,
+                origin: urlObj.origin,
+                pathname: urlObj.pathname,
+                host: urlObj.host,
+                hostname: urlObj.hostname,
+              },
+            })
+          : (plugin.handler?.pluginConfig?.scripts?.controls ?? []);
 
-    if (
-      plugin.handler &&
-      plugin.handler.pluginConfig &&
-      plugin.handler.pluginConfig.scripts &&
-      plugin.handler.pluginConfig.scripts.title &&
-      controls.length > 0
-    ) {
-      pluginConfigs.push({
-        id: plugin.pluginId,
-        title: plugin.handler.pluginConfig.scripts.title,
-        description:
-          plugin.handler.pluginConfig.scripts.description ??
-          plugin.handler.pluginConfig.scripts.title,
-        // 用于浏览器脚本判断是否为脚本设置, 存在该项的 config 将被认为是脚本设置
-        // 插件项不能传递这个值
-        'script-config-symbol': void 0,
-        controls:
-          controls.map((item) => ({
-            ...item,
-            options: {
-              ...item.options,
-              relatedChannel:
-                item.options?.relatedChannel?.map((channel) =>
-                  getPluginChannel(plugin.name, plugin.pluginId, channel),
-                ) ?? [],
-            },
-            channel: getPluginChannel(plugin.name, plugin.pluginId, item.channel),
-            trigger: void 0,
-            // 插件项不能传递这个值
-            'script-config-symbol': void 0,
-          })) ?? [],
-      });
+      if (
+        plugin.handler &&
+        plugin.handler.pluginConfig &&
+        plugin.handler.pluginConfig.scripts &&
+        plugin.handler.pluginConfig.scripts.title &&
+        controls.length > 0
+      ) {
+        pluginConfigs.push({
+          id: plugin.pluginId,
+          title: plugin.handler.pluginConfig.scripts.title,
+          description:
+            plugin.handler.pluginConfig.scripts.description ??
+            plugin.handler.pluginConfig.scripts.title,
+          // 用于浏览器脚本判断是否为脚本设置, 存在该项的 config 将被认为是脚本设置
+          // 插件项不能传递这个值
+          'script-config-symbol': void 0,
+          controls:
+            controls.map((item) => ({
+              ...item,
+              options: {
+                ...item.options,
+                relatedChannel:
+                  item.options?.relatedChannel?.map((channel) =>
+                    getPluginChannel(plugin.name, plugin.pluginId, channel),
+                  ) ?? [],
+              },
+              channel: getPluginChannel(plugin.name, plugin.pluginId, item.channel),
+              trigger: void 0,
+              // 插件项不能传递这个值
+              'script-config-symbol': void 0,
+            })) ?? [],
+        });
+      }
+    } catch (error) {
+      plugin.logger.warn('读取插件控件失败，继续加载其他插件', error);
     }
   }
   res.json({

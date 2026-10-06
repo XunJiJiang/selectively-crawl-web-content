@@ -226,12 +226,12 @@ export default {
       },
     ],
     resources: [
-      // 资源接口, 可选. 支持流式传输. 可以在这里定义一些插件相关的资源接口, 供浏览器界面通过 scwcutils.resource 调用. 例如可以提供一些静态文件, 图片, 视频等
+      // 资源接口, 可选. 支持流式传输. 可以在这里定义一些插件相关的资源接口, 供浏览器界面通过 scwcutils.resource 调用. 例如返回 { kind: 'file', path: absolutePath } 提供静态文件, 图片, 视频等
       {
         method: 'GET',
         path: '/static/css/main.css',
-        handler: async (data, context) => {},
+        handler: async () => ({ kind: 'response', status: 404, body: 'Resource not configured' }),
       },
     ],
   },
-} as SCWC.IPluginHandler;
+} satisfies SCWC.IPluginHandler;

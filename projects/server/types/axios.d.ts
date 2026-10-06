@@ -1,4 +1,5 @@
 import { type AxiosRequestConfig } from 'axios';
+import type { Readable } from 'node:stream';
 import type { TLogger } from '../types/log.d.ts';
 
 export interface IRetryRequest<RAW, CUSTOM_RES> {

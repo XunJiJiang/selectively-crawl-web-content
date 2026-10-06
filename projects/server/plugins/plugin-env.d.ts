@@ -1,6 +1,25 @@
 type AxiosRequestConfig = import('axios').AxiosRequestConfig;
 
 namespace SCWC {
+  export type IPluginHandler = import('../types/plugin-process.d.ts').ProcessPluginHandler;
+  export type IProcessPluginHandler = import('../types/plugin-process.d.ts').ProcessPluginHandler;
+  export type TProcessRequestContext = import('../types/plugin-process.d.ts').ProcessRequestContext;
+  export type TProcessApi = import('../types/plugin-process.d.ts').ProcessApi;
+  export type TProcessResource = import('../types/plugin-process.d.ts').ProcessResource;
+  export type TResourceResponse = import('../types/plugin-process.d.ts').ResourceResponse;
+  export type TProcessWebSocketContext =
+    import('../types/plugin-process.d.ts').ProcessSocketContext;
+  export type TProcessAddApi = (...apis: TProcessApi[]) => void;
+  /** Public plugin types default to the serializable v2 contract. */
+  export type TPluginRequestContext = TProcessRequestContext;
+  export type TPluginApi = TProcessApi;
+  export type TPluginResource = TProcessResource;
+  export type TPluginAddApi = TProcessAddApi;
+  export type TPluginApiFn = (tools: { add: TPluginAddApi }) => void;
+  export type TPluginWebSocketContext = TProcessWebSocketContext;
+  export type TPluginWebSocket = import('../types/plugin-process.d.ts').ProcessSocket;
+  export type TPluginWebSocketAdd = (...channels: TPluginWebSocket[]) => void;
+  export type TPluginWebSocketFn = (tools: { add: TPluginWebSocketAdd }) => void;
   export type TCreateRetryGet<
     RES,
     A extends AxiosRequestConfig = AxiosRequestConfig,
@@ -116,22 +135,22 @@ namespace SCWC {
         }>;
   }
 
-  export type TPluginRequestContext = {
+  export type THostedPluginRequestContext = {
     req: import('express').Request;
     res: import('express').Response;
   };
 
-  export type TPluginApi = {
+  export type THostedPluginApi = {
     method: 'GET' | 'POST' | 'PUT' | 'DELETE';
     path: string;
-    handler: (data: unknown, context: TPluginRequestContext) => unknown | Promise<unknown>;
+    handler: (data: unknown, context: THostedPluginRequestContext) => unknown | Promise<unknown>;
   };
-  export type TPluginResource = {
+  export type THostedPluginResource = {
     method?: 'GET';
     path: string;
-    handler: (data: unknown, context: TPluginRequestContext) => void | Promise<void>;
+    handler: (data: unknown, context: THostedPluginRequestContext) => void | Promise<void>;
   };
-  export type TPluginWebSocketContext = {
+  export type THostedPluginWebSocketContext = {
     req: import('node:http').IncomingMessage;
     socket: import('ws').WebSocket;
     channel: string;
@@ -141,20 +160,25 @@ namespace SCWC {
     broadcast: (data: unknown, excludeSelf?: boolean) => void;
     close: (code?: number, reason?: string) => void;
   };
-  export type TPluginWebSocket = {
+  export type THostedPluginWebSocket = {
     /** 通道名将挂载在 /web/websocket/plugin/<safeId>/<path>。 */
     path: string;
     onConnect?: (
-      context: TPluginWebSocketContext,
+      context: THostedPluginWebSocketContext,
     ) => void | (() => void) | Promise<void | (() => void)>;
-    onMessage?: (data: string | Buffer, context: TPluginWebSocketContext) => void | Promise<void>;
-    onClose?: (context: TPluginWebSocketContext) => void | Promise<void>;
+    onMessage?: (
+      data: string | Buffer,
+      context: THostedPluginWebSocketContext,
+    ) => void | Promise<void>;
+    onClose?: (context: THostedPluginWebSocketContext) => void | Promise<void>;
   };
-  export type TPluginWebSocketAdd = (...channels: TPluginWebSocket[]) => void;
-  export type TPluginWebSocketFn = (tools: { add: TPluginWebSocketAdd }) => void;
-  export type TPluginAddApi = (...apis: TPluginApi[]) => void;
+  export type THostedPluginWebSocketAdd = (...channels: THostedPluginWebSocket[]) => void;
+  export type THostedPluginWebSocketFn = (tools: { add: THostedPluginWebSocketAdd }) => void;
+  export type THostedPluginAddApi = (...apis: THostedPluginApi[]) => void;
   // export type TPluginRemoveApi = (path: string) => void;
-  export type TPluginApiFn = (tools: { add: TPluginAddApi /* remove: TPluginRemoveApi */ }) => void;
+  export type THostedPluginApiFn = (tools: {
+    add: THostedPluginAddApi /* remove: TPluginRemoveApi */;
+  }) => void;
 
   export type TCreatePluginItem = (
     logger: TLogger,
@@ -172,7 +196,8 @@ namespace SCWC {
 
   export type TLogger = import('../types/log.d.ts').TLogger;
 
-  export interface IPluginHandler {
+  /** Core-generated adapter. Plugins implement IPluginHandler instead. */
+  export interface IHostedPluginHandler {
     name?: string;
     onLoad?: (logger: TLogger, context: ILoadContext) => Promise<void> | void;
     // TODO: 修改名称
@@ -249,10 +274,10 @@ namespace SCWC {
     // ui 相关的配置项
     ui?: {
       entry: string; // 入口 html, 绝对路径或相对于当前插件目录的路径
-      html?: () => string; // 返回完整 html 页面字符串的函数, 此时将忽略 entry 所在的文件
-      api?: TPluginApi[] | TPluginApiFn;
-      resources?: TPluginResource[];
-      websocket?: TPluginWebSocket[] | TPluginWebSocketFn;
+      html?: () => string | Promise<string>; // 独立进程的 HTML 通过异步代理读取
+      api?: THostedPluginApi[] | THostedPluginApiFn;
+      resources?: THostedPluginResource[];
+      websocket?: THostedPluginWebSocket[] | THostedPluginWebSocketFn;
     };
   }
 
@@ -260,7 +285,8 @@ namespace SCWC {
     name: string;
     entry: string;
     linkWith: string[];
-    handler?: IPluginHandler;
+    handler?: IHostedPluginHandler;
+    runtime?: import('../types/plugin-process.d.ts').ProcessInfo;
     // 不包含任何实际信息的唯一 ID
     safeId: string;
     // 插件 id 实际上是插件相对路径, 根目录为插件目录

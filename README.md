@@ -132,6 +132,8 @@ const data = [
 
 插件用于在服务端自定义针对不同网站的数据处理逻辑. 将插件放到 `projects/server/plugins/` 目录下 (支持 TypeScript/JavaScript) , 服务在启动时会自动扫描并加载. 插件必须默认导出一个符合 `SCWC.IPluginHandler` 类型的对象 (参考 `projects/server/plugins/plugin-env.d.ts` 与 `projects/server/plugins/template/index.ts` 示例)
 
+当前所有启用插件默认在独立 Node 子进程中加载，插件入口的 `apiVersion` 默认为 2，无需显式接入。`SCWC.IPluginHandler` 是第二版契约：页面 API 使用 `context.request`，资源返回文件或小响应描述，核心负责 HTTP、鉴权、Range 和 WebSocket 连接。`package.json.runtime` 可省略，或仅设置启动/请求/卸载超时。旧 Express req/res 回调需迁移，不支持回退到核心进程；`enabled: false` 仍保持禁用。详见 [插件宿主说明](projects/server/plugin/process/README.md)。
+
 #### 插件目录结构
 
 每个插件为一个独立目录, 需包含 `package.json` 与主模块 (通常为 `index.ts` 或 `index.js`)
@@ -264,7 +266,7 @@ onRequest: async ({ utils: { writeData, writeDataURL }, data, site }, logger) =>
 - [ ] 脚本插件控件触发后等待返回结果后才能再次触发
 - [ ] log 文件日志
 - [ ] 插件配置请求缓存, 允许插件控制缓存的时效和清理
-- [ ] 将插件移动到独立进程执行
+- [x] 将插件移动到独立进程执行（默认第二版契约）
 - [ ] 浏览器脚本在出现非请求信息时也显示弹窗提示
 - [ ] 当捕获的元素在另一个页面不存在时, 允许用户重新捕获对应元素并使用对比算法与之前的捕获进行比较计算出更可能的元素路径
 - [ ] 优化控制台输入, 包括命令提示、输入提示、历史输入推测、输出时不覆盖当前输入

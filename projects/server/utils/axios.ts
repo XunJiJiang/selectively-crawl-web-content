@@ -1,6 +1,6 @@
 import originAxios, { type AxiosRequestConfig, type CancelTokenSource } from 'axios';
 import { ProxyAgent } from 'proxy-agent';
-import cacheController from './cache.ts';
+import type { IPluginCache, TPluginCacheableData } from '../types/cache.d.ts';
 import tryCatch from './tryCatch.ts';
 // import type { Readable } from 'node:stream';
 import type { TLogger } from '../types/log.d.ts';
@@ -49,6 +49,7 @@ class RetryRequest<RAW, CUSTOM_RES> implements IRetryRequest<RAW, CUSTOM_RES> {
   private namespace: string | undefined = '';
 
   private logger: TLogger;
+  private readonly pluginCache?: IPluginCache;
 
   private url: string;
   /** 当前重试次数 */
@@ -74,11 +75,13 @@ class RetryRequest<RAW, CUSTOM_RES> implements IRetryRequest<RAW, CUSTOM_RES> {
     config: AxiosRequestConfig,
     namespace: string | undefined,
     logger: TLogger,
+    pluginCache?: IPluginCache,
   ) {
     this.url = url;
     this.config = config;
     this.namespace = namespace;
     this.logger = logger;
+    this.pluginCache = pluginCache;
 
     // 当连接来源为 hvdb 时, 禁用代理
     if (this.url.indexOf('hvdb') !== -1) {
@@ -91,11 +94,31 @@ class RetryRequest<RAW, CUSTOM_RES> implements IRetryRequest<RAW, CUSTOM_RES> {
 
   /** 读取缓存 */
   private async getCache(): Promise<RAW | undefined> {
+    // Stream objects stay in the plugin process and cannot enter the IPC cache.
+    if (this.pluginCache && this.config.responseType === 'stream') {
+      return undefined;
+    }
+    if (this.pluginCache) {
+      return (await this.pluginCache.get(this.url)) as RAW | undefined;
+    }
+    const { default: cacheController } = await import('./cache.ts');
     return cacheController.get<RAW>(this.url, this.namespace);
   }
 
   /** 写入缓存以及重定向链 */
   private async setCache(data: RAW): Promise<RAW> {
+    if (this.pluginCache && this.config.responseType === 'stream') {
+      return data;
+    }
+    if (this.pluginCache) {
+      const urls = Array.from(this.redirectedUrls).reverse();
+      await this.pluginCache.set(urls[0] ?? this.url, data as TPluginCacheableData);
+      for (let i = 1; i < urls.length; i++) {
+        await this.pluginCache.setRedirect(urls[i], urls[i - 1]);
+      }
+      return data;
+    }
+    const { default: cacheController } = await import('./cache.ts');
     if (this.redirectedUrls.size <= 1) {
       return await cacheController.set<RAW>(this.url, data, this.namespace, false, this.logger);
     } else {
@@ -119,6 +142,13 @@ class RetryRequest<RAW, CUSTOM_RES> implements IRetryRequest<RAW, CUSTOM_RES> {
 
   /** 删除缓存 */
   public async delCache() {
+    if (this.pluginCache && this.config.responseType === 'stream') {
+      return true;
+    }
+    if (this.pluginCache) {
+      return this.pluginCache.mdel(Array.from(this.redirectedUrls));
+    }
+    const { default: cacheController } = await import('./cache.ts');
     return await cacheController.mdel(Array.from(this.redirectedUrls), this.namespace);
   }
 
@@ -144,59 +174,33 @@ class RetryRequest<RAW, CUSTOM_RES> implements IRetryRequest<RAW, CUSTOM_RES> {
    * 发起静态页面请求
    */
   private async get(): Promise<RAW> {
-    return new Promise<RAW>((resolve, reject) => {
-      const [err] = tryCatch(() => this.initConfig(this.url));
-
-      if (err) {
-        this.logger.error(
-          `初始化请求时发生错误, 这可能是自定义初始化内容中存在未捕获的错误导致的. 这不会对请求产生影响, 但可能导致自定义数据出错: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`,
+    const [err] = tryCatch(() => this.initConfig(this.url));
+    if (err) {
+      this.logger.error('初始化请求时发生错误', err instanceof Error ? err.message : String(err));
+    }
+    try {
+      const [cacheError, cachedData] = await tryCatch(async () => this.getCache());
+      if (!cacheError && cachedData !== undefined) {
+        this.logger.info(`从缓存中读取数据: ${this.url}`);
+        return cachedData;
+      }
+      this.logger.info(`尝试请求: ${this.url}`);
+      const response = await axios.get<RAW>(this.url, this.config);
+      return await this.setCache(response.data);
+    } catch (error) {
+      if (originAxios.isCancel(error)) {
+        throw new originAxios.AxiosError(
+          `Request cancelled: ${error.message}`,
+          error.code,
+          error.config,
+          error.request,
+          error.response,
         );
       }
-
-      tryCatch(async () => await this.getCache())
-        .then(([cacheErr, cachedData]) => {
-          // 先读取缓存
-          if (!cacheErr && cachedData) {
-            clearTimeout(this.timeoutHandle ?? void 0);
-            this.logger.info(`从缓存中读取数据: ${this.url}`);
-            resolve(cachedData);
-            return;
-          }
-        })
-        .then(() => {
-          // 发起请求
-          this.logger.info(`尝试请求: ${this.url}`);
-          return axios.get(this.url, this.config);
-        })
-        .then((response) => {
-          // 请求成功, 写入缓存
-          clearTimeout(this.timeoutHandle ?? void 0);
-          const data: RAW = response.data;
-          return this.setCache(data);
-        })
-        .then((data) => {
-          // 请求成功, 返回数据
-          resolve(data);
-        })
-        .catch((error) => {
-          if (originAxios.isCancel(error)) {
-            reject(
-              new originAxios.AxiosError(
-                `Request cancelled: ${error.message}`,
-                error.code,
-                error.config,
-                error.request,
-                error.response,
-              ),
-            );
-            return;
-          } else {
-            clearTimeout(this.timeoutHandle ?? void 0);
-            reject(error);
-            return;
-          }
-        });
-    });
+      throw error;
+    } finally {
+      clearTimeout(this.timeoutHandle ?? undefined);
+    }
   }
 
   /** 发起重试请求 */
@@ -259,16 +263,27 @@ export function createRetryGet<RES, A extends AxiosRequestConfig = AxiosRequestC
       : ResponseTypeMap['text'],
     RES
   >,
+  pluginCache?: IPluginCache,
 ): TRetryGet<RES, A> {
+  class BoundRetryRequest<RAW, CUSTOM_RES> extends RetryRequest<RAW, CUSTOM_RES> {
+    constructor(
+      url: string,
+      config: AxiosRequestConfig,
+      namespace: string | undefined,
+      logger: TLogger,
+    ) {
+      super(url, config, namespace, logger, pluginCache);
+    }
+  }
   const RequestClass = createRetryRequestClass
-    ? createRetryRequestClass(RetryRequest)
-    : RetryRequest;
+    ? createRetryRequestClass(BoundRetryRequest)
+    : BoundRetryRequest;
   return async function retryGet<A extends AxiosRequestConfig>(
     url: string,
     config: A,
   ): Promise<TRetryGetReturn<RES, A>> {
     const request = new RequestClass(url, config, namespace, logger);
-    const raw = (await request.retryGet()) as A extends {
+    const raw = (await request.retryGet()) as unknown as A extends {
       responseType: infer R;
     }
       ? R extends keyof ResponseTypeMap

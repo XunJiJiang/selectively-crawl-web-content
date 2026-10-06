@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { PluginProcessError } from '../../../plugin/process/protocol.ts';
 
 /** /web/api/plugin */
 const router = Router();
@@ -8,7 +9,7 @@ export function registerPluginApi(plugin: SCWC.IPluginMeta) {
   if (!pluginApi) {
     return;
   }
-  const addApi: SCWC.TPluginAddApi = (...apis) => {
+  const addApi: SCWC.THostedPluginAddApi = (...apis) => {
     apis.forEach((api) => {
       // api.path 是否以 / 开头
       const slash = api.path.startsWith('/') ? '' : '/';
@@ -24,7 +25,7 @@ export function registerPluginApi(plugin: SCWC.IPluginMeta) {
               data: result,
             });
           } catch (error) {
-            res.status(500).json({
+            res.status(error instanceof PluginProcessError ? error.status : 500).json({
               success: false,
               message: `请求失败: ${error}`,
             });
@@ -63,8 +64,17 @@ export function registerPluginResources(plugin: SCWC.IPluginMeta) {
       try {
         await resource.handler(req.query, { req, res });
       } catch (error) {
-        if (!res.headersSent) {
-          res.status(500).json({ success: false, message: `资源请求失败: ${error}` });
+        if (!res.headersSent && !res.destroyed) {
+          const status =
+            error instanceof PluginProcessError
+              ? error.status
+              : error &&
+                  typeof error === 'object' &&
+                  'status' in error &&
+                  typeof error.status === 'number'
+                ? error.status
+                : 500;
+          res.status(status).json({ success: false, message: `资源请求失败: ${error}` });
         }
       }
     });

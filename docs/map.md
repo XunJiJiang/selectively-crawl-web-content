@@ -95,7 +95,7 @@ flowchart LR
 1. `setup.ts` 使用 [scripts/parseArgs.ts](../projects/server/scripts/parseArgs.ts) 注册并解析启动参数。生产模式缺少 `public/web/index.html` 时，由 [scripts/build.ts](../projects/server/scripts/build.ts) 自动构建 Web；`--build` 可强制构建。这里只构建 Web，不构建油猴脚本和 webutils。
 2. 父进程检查 Node 主版本是否至少为 24；不满足时尝试 `npx tsx`，也可传 `--use-tsx`。根 `engines.node` 声明的是 `^24`。
 3. 父进程启动 `server/index.ts --mode=...`，转发终端输入，处理 `restart` / `exit`，并在子进程意外退出时尝试重新启动。
-4. `index.ts` 初始化缓存错误处理 → 注册系统命令 → `await loadPlugins()` → 启动 HTTP 服务并挂载 WebSocket → 监听 stdin。
+4. `index.ts` 初始化缓存错误处理 → 注册系统命令 → 启动 HTTP 服务并挂载 WebSocket → 监听 stdin → 后台加载插件。插件加载期间 HTTP 仍可处理请求；页面列表逐步包含成功激活项。
 
 [common/env.ts](../projects/server/common/env.ts) 从仓库根 `.env` 加载环境配置；[common/setupParam.ts](../projects/server/common/setupParam.ts) 单独解析传给 `index.ts` 的 `--key=value`，决定 `isDev` / `isProd`。它与启动父进程的参数解析器是两个模块。
 
@@ -105,15 +105,17 @@ flowchart LR
 
 [plugin/load.ts](../projects/server/plugin/load.ts) 暴露两个进程内数组：`plugins`（已加载）和 `inactivePlugins`（未激活及原因）。所有抓取路由、控件路由、页面列表和终端命令读取这些数组。
 
-加载器从 `process.cwd()/projects/server/plugins` 扫描子目录，读取元数据，检查启用状态和 `.ts` / `.js` 入口，通过 `createRequire()` 加载默认导出，并要求存在 `onRequest`。`pluginId` 是目录名；`safeId` 是本次加载生成的 UUID，用于页面 API、资源和 WebSocket 路由。
+加载器从 `process.cwd()/projects/server/plugins` 扫描子目录，读取元数据，检查启用状态和 `.ts` / `.js` 入口。`pluginId` 是目录名；`safeId` 是本次加载生成的 UUID，用于页面 API、资源和 WebSocket 路由。
 
-扫描完成后逐个注册扩展命令、调用 `onLoad`、注册页面 API、资源和 WebSocket。`onLoad` 获得绑定命名空间/日志的 `createRetryGet`、`LimitPromise` 和缓存对象。扩展与核心在同一服务进程执行，核心没有为各扩展创建独立进程。
+所有启用插件默认由独立 Node 子进程加载，package.json.runtime 与入口 apiVersion 均可省略，默认分别为 process 和 2。入口使用公开 `SCWC.IPluginHandler` 第二版契约；IProcessPluginHandler / TProcess* 保留为同契约别名。核心不导入插件入口，不再支持进程内加载分支。显式填写不支持的模式/版本时记录到 inactivePlugins；enabled: false 保持禁用。runtime 可仅包含超时覆盖。加载器最多同时激活两个插件，成功项立即注册。
 
-入口校验失败会记录日志，部分失败原因进入 `inactivePlugins`；第二阶段的 `onLoad` 或页面通道注册失败没有逐扩展兜底，可能使启动失败。当前没有单扩展热重载/注销流程。
+核心的 handler 是本地调用代理，函数和实际业务状态留在插件进程。第二版 API 接收可序列化 request；资源返回文件或小响应描述，由核心执行 Range/流式下载；WebSocket 真实连接仍由核心承载。动态 HTML 支持异步调用与最近成功快照。缓存由核心按插件目录名绑定命名空间。createRetryGet 的流式响应在宿主本地消费，不进入 IPC 缓存；普通响应支持缓存及自定义请求类。
+
+运行实现与完整限制见 [独立插件宿主](../projects/server/plugin/process/README.md)。重要入口是 client.ts（进程及代理）、host.ts（插件回调）、rpc.ts（有界通信）、resource.ts（核心资源发送）和 types/plugin-process.d.ts（第二版类型）。当前十个插件入口（含模板和禁用插件）均完成迁移；禁用状态不变。没有单插件热重载或写请求自动重放。
 
 ### 3.3 退出与重启
 
-`index.ts` 的退出处理依次等待已加载扩展的 `onUnload(logger, { isRestart })`。普通退出再调用核心缓存的 `clearAll`，重启保留缓存，最后 `process.exit(0)`。
+`index.ts` 的退出处理先等待加载流程结束，再逐项等待已加载扩展的 `onUnload(logger, { isRestart })`。普通退出再调用核心缓存的 `clearAll`，重启保留缓存，最后 `process.exit(0)`。单项卸载失败不会跳过其他插件的卸载；独立宿主卸载有截止时间并清理后代进程。
 
 `command/index.ts` 的 `exit` / `restart` 通过进程内部 message 事件触发此处理；重启后的重新拉起由 `setup.ts` 父进程完成。直接运行 `server/index.ts` 时，`restart` 只会结束当前进程。`SIGINT` 也会进入退出处理。
 
@@ -379,3 +381,11 @@ bunx vitest run --config projects/server/vitest.config.ts projects/shared/utils/
 | 构建产物、开发端口、环境注入 | 根 `package.json`、三个 Vite 配置、`server/scripts/build.ts` | 服务端静态路由、tsconfig 范围、生成目录 |
 
 开发前先读对应行涉及的调用端与处理端，再确认当前工作区变更。修改公共接口时同时更新运行时校验、类型和调用方；不要把生成目录、旧脚本、未接通的 TODO 或其他插件的内部实现当作核心依据。
+
+### 2026-10-06 插件进程隔离第一阶段
+
+已建立独立 Node 宿主和第二版可序列化契约，现以第二版为默认并完成全部插件入口迁移。隔离测试在临时目录启动真实贴纸插件；验证同步阻塞时核心及另一个插件可响应、媒体 Range/下载及 WebSocket 可用，以及启动失败、超时、崩溃、卸载和后代清理。类型检查与原生 Node 导入验证通过。贴纸内部读写分离和统一重任务预算属于后续阶段。
+
+### 2026-10-06 默认第二版契约与全插件迁移
+
+所有启用插件默认采用独立进程；省略 runtime/apiVersion 或只设置超时都不会进入核心执行。公开 IPluginHandler、TPluginApi、TPluginResource、TPluginRequestContext 和 WebSocket 类型统一为可序列化契约；内部 Express/socket 类型使用 Hosted 名称。ASMR 媒体资源迁移到文件描述，图片插件等待下载与保存完成；注入 retryGet 的 Readable 留在子进程消费。测试逐个激活和卸载十个插件并覆盖默认配置、禁用状态、ASMR 登录/票据、缓存与流式请求，数据均使用临时目录。

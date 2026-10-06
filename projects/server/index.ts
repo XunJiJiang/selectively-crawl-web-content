@@ -14,9 +14,6 @@ initCacheErrorHandler(serverLogger);
 // 需要在加载插件之前注册系统命令, 以确保系统命令不会被插件覆盖
 registerDefaultCommands(serverLogger);
 
-// 启动时加载插件
-await loadPlugins();
-
 // 启动服务器
 listen(PORT, () => {
   const log = createLogger('server', `${HOST}:${PORT}`);
@@ -25,6 +22,10 @@ listen(PORT, () => {
 
 // 监听命令行输入
 listenProcessStdin(serverLogger);
+
+// The HTTP service remains available while isolated plugins activate.
+const pluginLoading = loadPlugins();
+void pluginLoading.catch((error) => serverLogger.error('插件加载失败', error));
 
 /*
  * 当使用 npm run start 或 bun run start 启动时, 存在问题:
@@ -67,7 +68,15 @@ listenProcessStdin(serverLogger);
  *```
  */
 
+let exiting = false;
 const exitHandler = async (type: 'exit' | 'restart') => {
+  if (exiting) {
+    return;
+  }
+  exiting = true;
+  await pluginLoading.catch(() => {
+    /* The loading error has already been reported. */
+  });
   const RESTART = type === 'restart';
 
   for (const plugin of plugins) {
@@ -76,9 +85,11 @@ const exitHandler = async (type: 'exit' | 'restart') => {
         `plugin:${plugin.name}`,
         path.relative(process.cwd(), plugin.entry),
       );
-      await plugin.handler.onUnload(logger, {
-        isRestart: RESTART,
-      });
+      try {
+        await plugin.handler.onUnload(logger, { isRestart: RESTART });
+      } catch (error) {
+        logger.error('插件卸载失败', error);
+      }
     }
   }
 

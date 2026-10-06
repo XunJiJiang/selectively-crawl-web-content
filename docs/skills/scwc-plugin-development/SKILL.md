@@ -50,6 +50,16 @@ projects/server/plugins/my-plugin/
 
 `link-with` 不是正则表达式：当前实现支持普通前缀匹配、`*` 通配符和以 `!` 开头的否定模式；空数组表示匹配所有网址。需要复杂匹配时先阅读 `projects/server/router/utils/path.ts`（或其导出实现），并用少量明确规则验证正例和排除例。
 
+## 默认独立进程与第二版契约
+
+所有启用插件默认在独立 Node 子进程中执行。package.json 的 runtime 与入口的 apiVersion 都可以省略，默认分别为 process 和 2；runtime 也可仅设置 startupTimeoutMs/requestTimeoutMs/shutdownTimeoutMs（100–600000 毫秒的整数）。显式不支持的模式或版本会激活失败，不回退到核心进程。enabled: false 仍跳过加载。
+
+默认使用 `satisfies SCWC.IPluginHandler`、TPluginApi、TPluginAddApi、TPluginRequestContext、TPluginResource；它们都表示可序列化第二版契约。IProcessPluginHandler 与 TProcess* 为兼容别名；Hosted 类型只供核心生成代理，不用于插件。
+
+普通 API 接收 context.request（method/url/params/query/headers），不能使用 Express req/res。资源 handler 校验票据后返回文件或小响应描述；WebSocket 使用 connectionId/request/query 和本地 send/broadcast/close，没有真实 socket/clients。前端 scwcutils 和 URL 不变。
+
+生命周期、命令、控件和抓取签名保持兼容。注入缓存由核心按插件目录名隔离，只传可序列化值/Buffer/bigint，不传 Readable 或函数。createRetryGet 自定义类在宿主本地创建；其流式响应留在宿主消费，不走 IPC 缓存。完整限制见 projects/server/plugin/process/README.md。后端修改应运行 `npx vitest run projects/server/plugin/process`；HTTP/WebSocket 验证需要本机临时端口，数据使用临时媒体库。
+
 ## 命令行配置
 
 `pluginConfig.command` 用于向服务端命令行注册插件命令；只有同时设置 `package.json.commandName`，该配置才会占用一级命令。一个插件只能注册一个一级命令；多个插件使用同名命令时，运行时会为冲突命令加上插件 ID 前缀。配置字段如下：
@@ -96,9 +106,9 @@ projects/server/plugins/my-plugin/
 
 `window.scwcutils.resource(url)` 返回一个字符串 URL，而不是发起请求；将它用于 `<img src>`、`<video src>`、`<audio src>`、`<source src>`、`<link href>` 或其他需要浏览器直接加载资源的属性。该 URL 指向 `/web/resource/plugin/<safeId>/...`，并附带当前页面的 `site` 查询参数。资源 URL 不会像 `fetch` 请求那样自动携带 Bearer header，因此不要在资源接口中暴露仅凭 URL 即可访问的敏感数据；需要鉴权或一次性授权时，在资源 URL 的查询参数中设计短期、可验证的票据并在 handler 中校验。
 
-在 `ui.resources` 中，每项至少提供 `path` 和 `handler(data, context)`；`data` 是 `req.query`，`context` 必含 Express `req` 与 `res`。资源 handler 必须自行完成响应，例如设置 `Content-Type`、`Content-Length`、缓存策略和状态码，然后调用 `res.send(...)`、`res.end(...)` 或将 Node `Readable` 流 `pipe(res)`。资源路由只等待 handler 完成，不会自动序列化 handler 的返回值；如果 handler 只 `return` 字符串/Buffer 而没有写入 `res`，请求不会得到预期资源响应。流式响应应处理上游错误、客户端断开和背压，不要一次性把大文件读入内存。
+在 ui.resources 中，每项提供 path 和 handler(data, context)。data 是查询参数，context.request 是可序列化请求数据。handler 必须返回 `{ kind: 'file', path: absolutePath, contentType?, downloadName?, headers? }` 或 `{ kind: 'response', status, body?, headers? }`；核心完成实际 HTTP 响应、Range、背压和断开清理。媒体票据仍先在插件内校验，不直接接受浏览器指定的任意文件路径，也不把大型媒体内容装入普通 API 或 IPC。
 
-`ui.api` 可以是 API 数组，也可以是接收 `{ add }` 的注册函数。API 路径按 HTTP 方法注册，handler 的参数是 `req.body`，即使是 GET 也不要依赖浏览器一定会发送 body；异常会返回 HTTP 500 和 `{ success: false, message }`。API 只用于本插件页面所需的窄接口，必须校验输入、限制返回体积，并避免暴露任意文件读写或执行能力。需要页面与后端新增交互时，优先增加一个窄范围的 `ui.api` handler，并从页面通过 `window.scwcutils.fetch` 调用，而不是新增服务器或直连核心 API 路由。
+ui.api 可以是数组或接收 add 的注册函数。handler 接收请求体和 context.request，GET 接口从 request.query 取参数；异常仍使用 success/message 外层包装，并通过进程代理保留 status。进程不可用/超时/过载/消息过大分别返回 503/504/429/413。通信消息限制 16 MiB；超时不代表写操作已取消或回滚，不自动重试写请求。增加页面交互时使用窄范围 ui.api 和 scwcutils，不另建服务器。
 
 ## 实现与验证习惯
 

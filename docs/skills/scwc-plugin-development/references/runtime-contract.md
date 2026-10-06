@@ -5,9 +5,9 @@
 ## 加载与匹配
 
 - `projects/server/plugin/load.ts` 启动时扫描 `projects/server/plugins` 的直接子目录，只处理有 `package.json` 的目录。
-- 入口由 `package.json.main` 解析；存在且扩展名为 `.js`/`.ts` 才尝试加载。加载器使用 CommonJS `require`，只有模块带 `__esModule` 且有 `.default` 时才取默认导出。
+- 入口由 `package.json.main` 解析；存在且扩展名为 `.js`/`.ts` 才尝试加载。所有启用插件在 Node 宿主内动态 import，runtime 和 apiVersion 可省略，默认 process 与 2，不回退到核心进程。
 - 默认导出必须有函数 `onRequest`，否则进入 `inactivePlugins`。`enabled: false` 也直接进入未激活列表。
-- 成功加载后，服务端按顺序尝试注册命令、调用 `onLoad`、注册 `ui.api`。
+- 加载器最多同时激活两个插件；先完成 onLoad，再注册命令、API、资源和 WebSocket。失败逐项记录到 inactivePlugins；HTTP 在激活前启动。
 - `projects/server/router/utils/path.ts` 的 `matchLink`：普通模式按前缀匹配；含 `*` 的模式转换成从字符串开头匹配的正则；`!` 是否定；一个否定通配符命中时返回不匹配；`link-with: []` 在调用方被当作匹配全部。
 - `pluginConfig.command` 只有在 `package.json.commandName` 存在时才会注册；每个插件只能注册一个一级命令。`execute` 收到 logger、已解析选项数组、未使用参数和原始参数；选项解析支持 `--name=value`、别名和默认值。命令名冲突时会自动添加插件 ID 前缀。
 
@@ -23,9 +23,9 @@
 - `/web/page/plugin/:pluginDir` 按插件目录 basename 查找页面；`ui.entry` 相对路径是相对于插件入口html文件所在目录（通常是插件目录），`ui.html` 是返回完整 html 页面字符串的函数，当`ui.html`存在时优先使用。找不到插件、entry 或文件时重定向到 404 页面。
 - 页面响应会在第一个 `</body>` 前插入 `/web/page/lib/scwcutils.iife.<timestamp>.js`。若尚未构建该库，则不注入。
 - `/web/page/plugin/:pluginDir/*path` 从 entry 所在目录拼接并发送静态资源；插件页面资源应因此使用相对引用。
-- `registerPluginApi` 为每个 API 增加 `/<safeId>` 前缀，最终由 `/web/api/plugin/<safeId>/...` 暴露。API handler 的返回值被包装为 `{ success: true, message: '请求成功', data }`；抛错返回 HTTP 500、`{ success: false, message }`。
+- `registerPluginApi` 为每个 API 增加 `/<safeId>` 前缀，最终由 `/web/api/plugin/<safeId>/...` 暴露。API handler 的返回值被包装为 `{ success: true, message: '请求成功', data }`；抛错通过代理保留 status（未指定时 500）、`{ success: false, message }`。
 - `projects/webutils/lib/utils/fetch.ts` 从页面 pathname 的第 5 段取得插件目录，先请求 `/web/api/safeId/:pluginDir`，再把调用路径转为 `/web/api/plugin/:safeId/<path>?site=<current URL>`。配置由父页面 `postMessage` 传入；没有父页面时从共享 localStorage 配置初始化。
-- `TPluginResource` 的 `method` 当前只能是可选的 `'GET'`；`registerPluginResources` 将其注册到 `/web/resource/plugin/<safeId>/<path>`。handler 收到 `req.query` 与 `{ req, res }`，路由等待 handler 完成但不处理其返回值，因此 handler 必须自行写入 `res`，可发送 Buffer、字符串或将 Node `Readable` 流管道到响应。
+- `TPluginResource` 的 `method` 当前只能是可选的 `'GET'`；`registerPluginResources` 将其注册到 `/web/resource/plugin/<safeId>/<path>`。handler 收到查询参数和 context.request，并返回 file/response 描述；核心负责发送文件、Range、背压与断开。
 - `TResource` 是 `(url: string) => string`。`window.scwcutils.fetch.resource(url)` 只生成资源 URL，不发起请求；URL 附带 `site` 查询参数且不自动添加 Bearer header，适合赋给媒体/样式等资源元素。资源接口不得把 `site` 参数当作身份认证；敏感资源应使用 handler 自行校验的短期票据或其他授权设计。
 - 插件页面与插件后端的默认通信契约是结构化请求 `window.scwcutils.fetch` → `ui.api`，资源加载 `window.scwcutils.fetch.resource` → `ui.resources`。除非开发者主动要求其他方案，不使用原生 `fetch`/`XMLHttpRequest` 绕过转发，也不为插件创建独立 HTTP 服务或监听额外端口。
 - 主页面 `projects/web/src/layouts/content.ts` 使用 iframe 挂载插件页面，并在 iframe load 后发送 `scwc-plugin-config` 和 `scwc-plugin-hinder` 消息。插件页面不要假设能直接访问主页面 DOM；只依赖声明的 `window.scwcutils` 和标准 Web API。
@@ -38,3 +38,7 @@
 - 当 data 是带 `images` 字段的 DataItem 数组时，会把每个 data URL/图片 URL 写入 `images/`，并在 JSON 中保存生成的文件路径。
 - `writeDataURL` 支持 `data:image/<ext>;base64,...` 和 `http(s)` 图片 URL；字符串参数作为目录，函数参数可按 `{ fullname, filename, ext, datePrefix }` 生成最终路径。返回最终保存的相对路径或 `false`。
 - 实现使用同步文件系统调用和插件进程权限。插件应使用稳定、明确的目录，清理文件名并避免让外部输入决定任意绝对路径。
+
+## 默认第二版进程契约（2026-10-06）
+
+所有启用插件采用默认第二版，入口使用 SCWC.IPluginHandler；runtime/apiVersion 可以省略，部分超时设置也不改变默认模式。API 使用 context.request，资源返回文件/小响应描述，WebSocket 使用 connectionId 与本地事件函数。THosted* 和 IHostedPluginHandler 是核心内部 Express/socket 代理类型。普通响应与 scwcutils 路径不变；通信限额/过载/不可用/超时为 413/429/503/504。注入缓存按插件目录名绑定，支持可序列化值，不支持 Readable；retryGet 流式响应留在宿主本地，不进入 IPC 缓存。动态 HTML 可异步读取并使用最近快照。详细协议、限制和测试见 projects/server/plugin/process/README.md。

@@ -2,18 +2,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createLogger } from '../utils/log.ts';
 import { CommandError, registerCommand } from '../utils/command.ts';
-import { createRequire } from 'node:module';
 import { addErrorHandler, createNamespacedCache } from '../utils/cache.ts';
-import { createRetryGet, LimitPromise } from '../utils/axios.ts';
 import { v4 as uuid } from 'uuid';
-import type { AxiosRequestConfig } from 'axios';
-import type { TCreateRetryGet } from '../types/axios.d.ts';
 import { registerPluginApi, registerPluginResources } from '../router/web/api/load.ts';
 import { pluginWebSocketRegistry } from '../router/web/websocket.ts';
+import { PluginProcessClient } from './process/client.ts';
+import { resolveProcessOptions } from './process/options.ts';
 
 const __dirname = process.cwd();
-
-const require = createRequire(import.meta.url);
 
 // 插件加载逻辑
 const PLUGIN_DIR = path.join(__dirname, 'projects', 'server', 'plugins');
@@ -44,22 +40,22 @@ export function initCacheErrorHandler(logger: SCWC.TLogger) {
   });
 }
 
-export async function loadPlugins() {
-  if (!fs.existsSync(PLUGIN_DIR)) {
+export async function loadPlugins(directory = PLUGIN_DIR) {
+  if (!fs.existsSync(directory)) {
     return;
   }
   const dirs = fs
-    .readdirSync(PLUGIN_DIR, { withFileTypes: true })
+    .readdirSync(directory, { withFileTypes: true })
     .filter((d) => d.isDirectory())
     .map((d) => d.name);
-  for (const dir of dirs) {
-    const pkgPath = path.join(PLUGIN_DIR, dir, 'package.json');
+  const loadOne = async (dir: string): Promise<void> => {
+    const pkgPath = path.join(directory, dir, 'package.json');
     if (!fs.existsSync(pkgPath)) {
-      continue;
+      return;
     }
     const logger = createLogger(
       `plugin:${dir}`,
-      path.relative(process.cwd(), path.join(PLUGIN_DIR, dir)),
+      path.relative(process.cwd(), path.join(directory, dir)),
     );
     let pkg: {
       name?: string;
@@ -67,47 +63,48 @@ export async function loadPlugins() {
       enabled?: boolean;
       'link-with'?: string[];
       commandName?: string;
+      runtime?: unknown;
     } = {};
     let name = '';
     try {
       pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
     } catch (e) {
       logger.warn(`解析 ${dir}/package.json 失败:`, e);
-      continue;
+      return;
     }
 
     if (pkg.enabled === false) {
       logger.info(`插件已禁用`);
       inactivePlugins.push({
-        name: pkg.name ?? path.join(PLUGIN_DIR, dir),
+        name: pkg.name ?? path.join(directory, dir),
         entry: '',
         linkWith: [],
         safeId: uuid(),
         pluginId: dir,
         reason: '插件已禁用',
         logger,
-        entryFile: path.join(PLUGIN_DIR, dir, pkg.main ?? ''),
-        pluginDir: path.join(PLUGIN_DIR, dir),
+        entryFile: path.join(directory, dir, pkg.main ?? ''),
+        pluginDir: path.join(directory, dir),
       });
-      continue;
+      return;
     }
 
     try {
-      name = pkg.name ?? path.join(PLUGIN_DIR, dir);
+      name = pkg.name ?? path.join(directory, dir);
     } catch (e) {
       logger.warn(`解析 ${dir}/package.json 失败:`, e);
       inactivePlugins.push({
-        name: path.join(PLUGIN_DIR, dir),
+        name: path.join(directory, dir),
         entry: '',
         linkWith: [],
         safeId: uuid(),
         pluginId: dir,
         reason: 'package.json 中缺少 name 字段',
         logger,
-        entryFile: path.join(PLUGIN_DIR, dir, pkg.main ?? ''),
-        pluginDir: path.join(PLUGIN_DIR, dir),
+        entryFile: path.join(directory, dir, pkg.main ?? ''),
+        pluginDir: path.join(directory, dir),
       });
-      continue;
+      return;
     }
     const entryRel = pkg.main;
     if (!entryRel || typeof entryRel !== 'string') {
@@ -120,13 +117,13 @@ export async function loadPlugins() {
         pluginId: dir,
         reason: 'package.json 中缺少 main 字段',
         logger,
-        entryFile: path.join(PLUGIN_DIR, dir, pkg.main ?? ''),
-        pluginDir: path.join(PLUGIN_DIR, dir),
+        entryFile: path.join(directory, dir, pkg.main ?? ''),
+        pluginDir: path.join(directory, dir),
       });
-      continue;
+      return;
     }
     /** 插件入口文件绝对路径 */
-    const entryAbs = path.join(PLUGIN_DIR, dir, entryRel);
+    const entryAbs = path.join(directory, dir, entryRel);
     if (!fs.existsSync(entryAbs) || !/\.(js|ts)$/.test(entryAbs)) {
       logger.warn(`${dir} 的入口文件不存在或不是 js/ts 文件: ${entryRel}`);
       inactivePlugins.push({
@@ -137,33 +134,41 @@ export async function loadPlugins() {
         pluginId: dir,
         reason: '入口文件不存在或不是 js/ts 文件',
         logger,
-        entryFile: path.join(PLUGIN_DIR, dir, pkg.main ?? ''),
-        pluginDir: path.join(PLUGIN_DIR, dir),
+        entryFile: path.join(directory, dir, pkg.main ?? ''),
+        pluginDir: path.join(directory, dir),
       });
-      continue;
+      return;
     }
-    let mod: SCWC.IPluginHandler = {} as SCWC.IPluginHandler;
+    let mod: SCWC.IHostedPluginHandler;
+    let processClient: PluginProcessClient | undefined;
     try {
-      const _mod = require(entryAbs);
-      if (_mod.__esModule && _mod.default) {
-        mod = _mod.default;
-      }
-    } catch (e) {
-      logger.warn(`动态导入 ${dir} 失败:`, e);
+      const runtime = resolveProcessOptions(pkg.runtime);
+      // Every plugin entry stays outside the HTTP process, including when settings are omitted.
+      processClient = new PluginProcessClient({
+        entry: entryAbs,
+        name,
+        logger,
+        runtime,
+        cache: () => createNamespacedCache(`plugin:${dir}`, logger),
+      });
+      mod = await processClient.start();
+    } catch (error) {
+      logger.warn(`加载 ${dir} 失败:`, error);
       inactivePlugins.push({
         name,
         entry: '',
         linkWith: [],
         safeId: uuid(),
         pluginId: dir,
-        reason: '动态导入插件失败',
+        reason: error instanceof Error ? error.message : String(error),
         logger,
-        entryFile: path.join(PLUGIN_DIR, dir, pkg.main ?? ''),
-        pluginDir: path.join(PLUGIN_DIR, dir),
+        entryFile: entryAbs,
+        pluginDir: path.join(directory, dir),
+        runtime: processClient?.info,
       });
-      continue;
+      return;
     }
-    if (!('onRequest' in mod) || typeof mod.onRequest !== 'function') {
+    if (!mod || typeof mod.onRequest !== 'function') {
       logger.warn(`${dir} 的默认导出不是合法插件`);
       inactivePlugins.push({
         name,
@@ -173,10 +178,10 @@ export async function loadPlugins() {
         pluginId: dir,
         reason: '插件缺少 onRequest 方法',
         logger,
-        entryFile: path.join(PLUGIN_DIR, dir, pkg.main ?? ''),
-        pluginDir: path.join(PLUGIN_DIR, dir),
+        entryFile: path.join(directory, dir, pkg.main ?? ''),
+        pluginDir: path.join(directory, dir),
       });
-      continue;
+      return;
     }
     const linkWith: string[] = Array.isArray(pkg['link-with'])
       ? pkg['link-with'].map((item) => {
@@ -188,33 +193,45 @@ export async function loadPlugins() {
           }
         })
       : [];
-    plugins.push({
+    const plugin: SCWC.IPluginMeta = {
       name: mod.name ?? name,
       entry: entryAbs,
       linkWith,
       handler: mod,
+      runtime: processClient?.info,
       safeId: uuid(),
       pluginId: dir,
       commandName: pkg['commandName'] ?? void 0,
       logger,
-      entryFile: path.join(PLUGIN_DIR, dir, pkg.main ?? ''),
-      pluginDir: path.join(PLUGIN_DIR, dir),
-    });
-    createLogger(`plugin:${name}`, path.relative(process.cwd(), path.join(PLUGIN_DIR, dir))).info(
+      entryFile: path.join(directory, dir, pkg.main ?? ''),
+      pluginDir: path.join(directory, dir),
+    };
+    if (!(await activatePlugin(plugin))) {
+      return;
+    }
+    plugins.push(plugin);
+    createLogger(`plugin:${name}`, path.relative(process.cwd(), path.join(directory, dir))).info(
       `加载完成`,
     );
+  };
+  let cursor = 0;
+  const worker = async () => {
+    while (cursor < dirs.length) {
+      await loadOne(dirs[cursor++]);
+    }
+  };
+  await Promise.all([worker(), worker()]);
+}
+
+async function activatePlugin(plugin: SCWC.IPluginMeta): Promise<boolean> {
+  if (!plugin.handler) {
+    return false;
   }
 
-  for (const plugin of plugins) {
-    if (!plugin.handler) {
-      continue;
-    }
+  const logger = createLogger(`plugin:${plugin.name}`, path.relative(process.cwd(), plugin.entry));
 
-    const logger = createLogger(
-      `plugin:${plugin.name}`,
-      path.relative(process.cwd(), plugin.entry),
-    );
-
+  try {
+    // The child has already completed onLoad before publishing its manifest.
     // 注册插件命令
     const commandConfig = plugin.handler.pluginConfig?.command;
     if (commandConfig) {
@@ -248,23 +265,22 @@ export async function loadPlugins() {
       }
     }
 
-    // 调用插件的 onLoad 方法
-    if (typeof plugin.handler.onLoad === 'function') {
-      const namespace = `plugin:${plugin.name}`;
-      await plugin.handler.onLoad(logger, {
-        createRetryGet: <RES, A extends AxiosRequestConfig = AxiosRequestConfig>(
-          ...args: Parameters<TCreateRetryGet<RES, A>>
-        ) => {
-          return createRetryGet<RES, A>(namespace, logger, ...args);
-        },
-        LimitPromise,
-        cache: createNamespacedCache(namespace, logger),
-      });
-    }
-
     // 注册插件的 api
     registerPluginApi(plugin);
     registerPluginResources(plugin);
     pluginWebSocketRegistry.register(plugin);
+    return true;
+  } catch (error) {
+    logger.error('插件激活失败', error);
+    try {
+      await plugin.handler.onUnload?.(logger, { isRestart: false });
+    } catch (unloadError) {
+      logger.warn('清理失败的插件时发生错误', unloadError);
+    }
+    inactivePlugins.push({
+      ...plugin,
+      reason: error instanceof Error ? error.message : String(error),
+    });
+    return false;
   }
 }

@@ -96,12 +96,12 @@ export function registerDefaultCommands(serverLogger: SCWC.TLogger) {
           pluginLogger.info('所有插件列表:');
           for (const plugin of plugins) {
             pluginLogger.info(
-              `- ${plugin.name}[enabled] (跟踪网址: ${plugin.linkWith.join(', ') ?? '无'})`,
+              `- ${plugin.name}[${plugin.runtime?.status ?? 'enabled'}] (跟踪网址: ${plugin.linkWith.join(', ') ?? '无'})${plugin.runtime ? ` (process pid=${plugin.runtime.pid ?? '-'}${plugin.runtime.reason ? `: ${plugin.runtime.reason}` : ''})` : ''}`,
             );
           }
           for (const plugin of inactivePlugins) {
             pluginLogger.info(
-              `- ${plugin.name}[disabled] (原因: ${plugin.reason}) (跟踪网址: ${plugin.linkWith.join(', ') ?? '无'})`,
+              `- ${plugin.name}[disabled] (原因: ${plugin.reason}) (跟踪网址: ${plugin.linkWith.join(', ') ?? '无'})${plugin.runtime ? ` (process pid=${plugin.runtime.pid ?? '-'}${plugin.runtime.reason ? `: ${plugin.runtime.reason}` : ''})` : ''}`,
             );
           }
         },
@@ -117,7 +117,7 @@ export function registerDefaultCommands(serverLogger: SCWC.TLogger) {
           }
           for (const plugin of plugins) {
             pluginLogger.info(
-              `- ${plugin.name}[enabled] (跟踪网址: ${plugin.linkWith.join(', ') ?? '无'})`,
+              `- ${plugin.name}[${plugin.runtime?.status ?? 'enabled'}] (跟踪网址: ${plugin.linkWith.join(', ') ?? '无'})${plugin.runtime ? ` (process pid=${plugin.runtime.pid ?? '-'}${plugin.runtime.reason ? `: ${plugin.runtime.reason}` : ''})` : ''}`,
             );
           }
           if (inactivePlugins.length === 0) {
@@ -127,7 +127,7 @@ export function registerDefaultCommands(serverLogger: SCWC.TLogger) {
           }
           for (const plugin of inactivePlugins) {
             pluginLogger.info(
-              `- ${plugin.name}[disabled] (原因: ${plugin.reason}) (跟踪网址: ${plugin.linkWith.join(', ') ?? '无'})`,
+              `- ${plugin.name}[disabled] (原因: ${plugin.reason}) (跟踪网址: ${plugin.linkWith.join(', ') ?? '无'})${plugin.runtime ? ` (process pid=${plugin.runtime.pid ?? '-'}${plugin.runtime.reason ? `: ${plugin.runtime.reason}` : ''})` : ''}`,
             );
           }
         },

@@ -7,7 +7,7 @@ import { isSameDomain } from '../../utils/url.ts';
 type RegisteredChannel = {
   plugin: SCWC.IPluginMeta;
   path: string;
-  config: SCWC.TPluginWebSocket;
+  config: SCWC.THostedPluginWebSocket;
   clients: Set<WebSocket>;
 };
 
@@ -48,7 +48,7 @@ export class PluginWebSocketRegistry {
     if (!websocket) {
       return;
     }
-    const add = (...configs: SCWC.TPluginWebSocket[]): void => {
+    const add = (...configs: SCWC.THostedPluginWebSocket[]): void => {
       for (const config of configs) {
         const path = safePath(config.path);
         const key = `${plugin.safeId}/${path}`;
@@ -109,7 +109,7 @@ export class PluginWebSocketRegistry {
       'connection',
       (socket: WebSocket, request: IncomingMessage, channel: RegisteredChannel) => {
         channel.clients.add(socket);
-        const context: SCWC.TPluginWebSocketContext = {
+        const context: SCWC.THostedPluginWebSocketContext = {
           req: request,
           socket,
           channel: channel.path,

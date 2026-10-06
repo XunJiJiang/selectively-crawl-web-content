@@ -46,7 +46,7 @@ libRouter.get(/^\/scwcutils\.iife\.[a-zA-Z0-9]+\.js$/, (_req, res) => {
 
 // /web/page/plugin/:pluginDir 访问插件的 UI 页面
 // TODO: 要求插件页面在构建时需要设置基础路径为 /web/page/plugin/:pluginDir/
-router.get('/plugin/:pluginDir', (req: Request<{ pluginDir: string }>, res: Response) => {
+router.get('/plugin/:pluginDir', async (req: Request<{ pluginDir: string }>, res: Response) => {
   try {
     const pluginDir = req.params.pluginDir;
     const plugin = plugins.find(
@@ -73,7 +73,8 @@ router.get('/plugin/:pluginDir', (req: Request<{ pluginDir: string }>, res: Resp
       res.redirect('/web/page/worry/404');
       return;
     }
-    const htmlContent = plugin.handler.ui.html?.() ?? fs.readFileSync(entryPath, 'utf-8');
+    const htmlContent =
+      (await plugin.handler.ui.html?.()) ?? (await fs.promises.readFile(entryPath, 'utf-8'));
     const latestFile = findLatestLibFile();
     if (!latestFile) {
       // 不存在 web-utils 库文件, 直接返回 htmlContent
@@ -95,7 +96,7 @@ router.get('/plugin/:pluginDir', (req: Request<{ pluginDir: string }>, res: Resp
 // 挂载 entryPath 目录的所有资源
 router.get(
   '/plugin/:pluginDir/{*path}',
-  (req: Request<{ pluginDir: string; path: string[] }>, res: Response) => {
+  async (req: Request<{ pluginDir: string; path: string[] }>, res: Response) => {
     try {
       const pluginDir = req.params.pluginDir;
       const paths = req.params.path;
@@ -125,7 +126,8 @@ router.get(
         const lastPath = paths.at(-1) ?? '';
         // Let plugin SPAs open deep links directly while preserving 404s for missing assets.
         if (!lastPath.includes('.')) {
-          const htmlContent = plugin.handler.ui.html?.() ?? fs.readFileSync(entryPath, 'utf-8');
+          const htmlContent =
+            (await plugin.handler.ui.html?.()) ?? (await fs.promises.readFile(entryPath, 'utf-8'));
           const latestFile = findLatestLibFile();
           if (!latestFile) {
             res.send(htmlContent);
