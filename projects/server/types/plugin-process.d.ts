@@ -9,6 +9,9 @@ export interface PluginRequest {
 
 export interface ProcessRequestContext {
   request: PluginRequest;
+  tasks?: import('./task.d.ts').TaskReporter;
+  signal?: AbortSignal;
+  logger?: import('./task.d.ts').PluginLogger;
 }
 
 export interface ProcessApi {

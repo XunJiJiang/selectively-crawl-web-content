@@ -4,6 +4,10 @@ import { Readable } from 'node:stream';
 import { RpcPeer } from './rpc.ts';
 import { PluginProcessError, type Manifest } from './protocol.ts';
 import { requestData, sendResource } from './resource.ts';
+import { isPackaged, PLUGIN_HOST } from '../../common/paths.ts';
+import { currentIdentity, taskRegistry } from '../../common/tasks.ts';
+import { publishLog, type LogLevel } from '../../utils/log.ts';
+import type { InvocationIdentity, TaskSnapshot } from '../../types/task.d.ts';
 import type {
   ProcessInfo,
   ProcessOptions,
@@ -11,6 +15,7 @@ import type {
 } from '../../types/plugin-process.d.ts';
 
 export interface ClientOptions {
+  pluginId?: string;
   entry: string;
   name: string;
   logger: SCWC.TLogger;
@@ -20,6 +25,7 @@ export interface ClientOptions {
   env?: NodeJS.ProcessEnv;
   execArgv?: string[];
 }
+export const pluginClients = new Map<string, PluginProcessClient>();
 
 function childArguments(): string[] {
   const result: string[] = [];
@@ -38,6 +44,8 @@ function childArguments(): string[] {
 }
 
 export class PluginProcessClient {
+  readonly owner = `plugin:${randomUUID()}`;
+  private readonly identities = new Map<string, InvocationIdentity>();
   readonly info: ProcessInfo = { mode: 'process', apiVersion: 2, status: 'starting' };
   private readonly options: ClientOptions;
   private readonly child: ChildProcess;
@@ -58,7 +66,8 @@ export class PluginProcessClient {
 
   constructor(options: ClientOptions) {
     this.options = options;
-    this.child = fork(new URL('./host.ts', import.meta.url), [], {
+    pluginClients.set(this.owner, this);
+    this.child = fork(PLUGIN_HOST, isPackaged ? ['--scwc-plugin-host'] : [], {
       cwd: options.cwd ?? process.cwd(),
       env: options.env ?? process.env,
       execArgv: options.execArgv ?? childArguments(),
@@ -119,6 +128,8 @@ export class PluginProcessClient {
   }
 
   private cleanup(): void {
+    taskRegistry.removeOwner(this.owner);
+    pluginClients.delete(this.owner);
     if (this.heartbeat) {
       clearInterval(this.heartbeat);
     }
@@ -205,12 +216,33 @@ export class PluginProcessClient {
       return;
     }
     if (event === 'log') {
-      const data = value as { level: keyof SCWC.TLogger; text: string };
+      const data = value as { level: LogLevel; text: string; executionId?: string };
       if (
         ['info', 'pathInfo', 'warn', 'error'].includes(data.level) &&
         typeof data.text === 'string'
       ) {
-        this.options.logger[data.level](data.text.slice(0, 8000));
+        const identity = data.executionId ? this.identities.get(data.executionId) : undefined;
+        publishLog(
+          identity,
+          this.options.pluginId ?? this.options.name,
+          data.level,
+          [data.text.slice(0, 8000)],
+          () => this.options.logger[data.level](data.text.slice(0, 8000)),
+        );
+      }
+    } else if (event === 'task') {
+      const snapshot = value as TaskSnapshot;
+      if (
+        typeof snapshot.id === 'string' &&
+        typeof snapshot.revision === 'number' &&
+        typeof snapshot.busy === 'boolean'
+      ) {
+        const identity = snapshot.identity
+          ? this.identities.get(snapshot.identity.executionId)
+          : undefined;
+        if (!snapshot.identity || identity) {
+          taskRegistry.update(this.owner, { ...snapshot, identity });
+        }
       }
     } else if (event === 'notification') {
       const data = value as {
@@ -253,14 +285,58 @@ export class PluginProcessClient {
     if (this.stopping || this.info.status === 'failed' || this.info.status === 'stopped') {
       return Promise.reject(new PluginProcessError(this.info.reason ?? '插件进程不可用'));
     }
-    return this.peer.call<T>(method, args, timeoutMs, id);
+    if (['initialize', 'ping'].includes(method)) {
+      return this.peer.call<T>(method, args, timeoutMs, id);
+    }
+    const current = currentIdentity();
+    const identity =
+      method === 'command'
+        ? current
+        : { ...current, executionId: randomUUID(), parentExecutionId: current.executionId };
+    this.identities.set(identity.executionId, identity);
+    if (this.identities.size > 4096) {
+      for (const key of this.identities.keys()) {
+        if (!taskRegistry.busy(key)) {
+          this.identities.delete(key);
+          break;
+        }
+      }
+    }
+    taskRegistry.update(this.owner, {
+      id: identity.executionId,
+      owner: this.owner,
+      identity,
+      automatic: 1,
+      manual: false,
+      reported: 0,
+      returned: false,
+      revision: 0,
+      busy: true,
+    });
+    return this.peer.call<T>(method, { payload: args, identity }, timeoutMs, id);
+  }
+  cancel(executionId?: string) {
+    this.peer.event('cancel', { executionId });
+  }
+  async terminate() {
+    this.stopping = true;
+    this.info.status = 'stopping';
+    this.killTree('SIGKILL');
+    await this.exited;
   }
 
   async start(): Promise<SCWC.IHostedPluginHandler> {
     try {
       this.manifest = await this.call<Manifest>(
         'initialize',
-        { entry: this.options.entry, name: this.options.name, options: this.options.runtime },
+        {
+          entry: this.options.entry,
+          name: this.options.name,
+          options: this.options.runtime,
+          pluginId: this.options.pluginId ?? this.options.name,
+          outputWindowId: currentIdentity().windowId,
+          sessionId: currentIdentity().sessionId,
+        },
         this.options.runtime.startupTimeoutMs ?? 30_000,
       );
       this.html = this.manifest.ui?.html;
@@ -363,13 +439,13 @@ export class PluginProcessClient {
         command: command
           ? {
               ...command,
-              execute: async (_logger, ...args) => {
-                await this.call('command', { index: -1, args });
+              execute: async (_logger, options, unusedArgs, originArgs) => {
+                await this.call('command', { index: -1, args: [options, unusedArgs, originArgs] });
               },
               subCommands: command.subCommands?.map((item, index) => ({
                 ...item,
-                execute: async (_logger, ...args) => {
-                  await this.call('command', { index, args });
+                execute: async (_logger, options, unusedArgs, originArgs) => {
+                  await this.call('command', { index, args: [options, unusedArgs, originArgs] });
                 },
               })),
             }

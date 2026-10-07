@@ -37,6 +37,8 @@ namespace SCWC {
    * 允许插件长期持有该对象并在需要时调用其中的函数
    */
   export interface ILoadContext {
+    tasks?: import('../types/task.d.ts').TaskReporter;
+    signal?: AbortSignal;
     createRetryGet<RES, A extends AxiosRequestConfig = AxiosRequestConfig>(
       ...args: Parameters<TCreateRetryGet<RES, A>>
     ): ReturnType<TCreateRetryGet<RES, A>>;
@@ -103,6 +105,8 @@ namespace SCWC {
     trigger: (
       logger: SCWC.TLogger,
       context: {
+        tasks?: import('../types/task.d.ts').TaskReporter;
+        signal?: AbortSignal;
         /** 捕获的数据 */
         data: TDataItem[];
         /** 当前控制器的值. button 类型的控制器值只能为 null */
@@ -183,6 +187,8 @@ namespace SCWC {
   export type TCreatePluginItem = (
     logger: TLogger,
     context: {
+      tasks?: import('../types/task.d.ts').TaskReporter;
+      signal?: AbortSignal;
       site: {
         url: string;
         rootUrl: string;
@@ -195,6 +201,9 @@ namespace SCWC {
   ) => TPluginItem[] | Promise<TPluginItem[]>;
 
   export type TLogger = import('../types/log.d.ts').TLogger;
+  export type TaskReporter = import('../types/task.d.ts').TaskReporter;
+  export type PluginLogger = import('../types/task.d.ts').PluginLogger;
+  export type InvocationContext = import('../types/task.d.ts').InvocationContext;
 
   /** Core-generated adapter. Plugins implement IPluginHandler instead. */
   export interface IHostedPluginHandler {
@@ -203,6 +212,8 @@ namespace SCWC {
     // TODO: 修改名称
     onRequest: (
       context: {
+        tasks?: import('../types/task.d.ts').TaskReporter;
+        signal?: AbortSignal;
         utils: {
           strValidation: (str: string) => string;
           convertToCN: (str: string) => string;

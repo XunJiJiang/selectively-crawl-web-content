@@ -1,21 +1,17 @@
-import dotenv from 'dotenv';
-import path from 'node:path';
+import './environment.ts';
 import { serverLogger } from './logger.ts';
 import { v4 } from 'uuid';
+import { portSettings } from './config.ts';
+import { parsedArgs } from './setupParam.ts';
+export { ROOT, SERVER_ROOT } from './paths.ts';
 
-const __dirname = import.meta.dirname;
-
-/** 所有项目的根目录 */
-export const ROOT = path.join(__dirname, '..', '..', '..');
-
-/** 当前程序启动文件所在目录 */
-export const SERVER_ROOT = path.join(__dirname, '..');
-
-dotenv.config({
-  path: path.join(ROOT, '.env'),
-});
-
-export const PORT = process.env.PORT ? Number(process.env.PORT) : 3200;
+const ports = portSettings(process.env, parsedArgs);
+export const PORT = ports.port;
+export const PORT_SEARCH_RANGE = ports.range;
+export let ACTIVE_PORT = PORT;
+export function setListeningPort(port: number) {
+  ACTIVE_PORT = port;
+}
 export const HOST = process.env.HOST ?? 'http://localhost';
 export const TOKEN = process.env.TOKEN
   ? process.env.TOKEN === 'null'

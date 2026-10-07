@@ -3,6 +3,9 @@ import { inspect } from 'node:util';
 import { spawn } from 'node:child_process';
 import { createRetryGet, LimitPromise } from '../../utils/axios.ts';
 import { RpcPeer } from './rpc.ts';
+import { TaskRegistry, invocationStorage } from '../../common/tasks.ts';
+import type { InvocationIdentity } from '../../types/task.d.ts';
+import type { LogLevel } from '../../utils/log.ts';
 import type { Initialize, Invocation, Manifest } from './protocol.ts';
 import type {
   ProcessApi,
@@ -19,6 +22,23 @@ const peer = new RpcPeer((message, callback) => {
   }
   process.send(message, callback);
 });
+const tasks = new TaskRegistry();
+const processTasks = tasks.create('host', undefined, true);
+tasks.on('snapshot', (snapshot) => {
+  const send = () => {
+    void peer.eventAsync('task', snapshot).catch(() => {
+      if (process.connected) {
+        setTimeout(send, 20);
+      }
+    });
+  };
+  send();
+});
+peer.onEvent = (event, data) => {
+  if (event === 'cancel') {
+    tasks.cancel((data as { executionId?: string })?.executionId);
+  }
+};
 process.on('message', (message) => peer.receive(message));
 // SIGKILL of the core skips its exit hook. The host must then clean its own tree.
 process.once('disconnect', () => {
@@ -55,7 +75,7 @@ const connections = new Map<
 >();
 let logWindow = Date.now();
 let logCount = 0;
-function log(level: keyof SCWC.TLogger): SCWC.TLogger['info'] {
+function log(level: LogLevel, identity?: InvocationIdentity, dynamic = true): SCWC.TLogger['info'] {
   return (...args: unknown[]) => {
     if (Date.now() - logWindow >= 1000) {
       logWindow = Date.now();
@@ -70,15 +90,40 @@ function log(level: keyof SCWC.TLogger): SCWC.TLogger['info'] {
       )
       .join(' ')
       .slice(0, 8000);
-    peer.event('log', { level, text });
+    const origin = identity ?? (dynamic ? invocationStorage.getStore() : undefined);
+    peer.event('log', {
+      level,
+      text,
+      executionId: origin?.executionId,
+      windowId: origin?.windowId,
+      sessionId: origin?.sessionId,
+    });
   };
 }
-const logger: SCWC.TLogger = {
-  info: log('info'),
-  pathInfo: log('pathInfo'),
-  warn: log('warn'),
-  error: log('error'),
-};
+let pluginId = 'plugin';
+let logger: SCWC.PluginLogger = Object.freeze({
+  pluginId,
+  windowId: null,
+  info: log('info', undefined, false),
+  pathInfo: log('pathInfo', undefined, false),
+  warn: log('warn', undefined, false),
+  error: log('error', undefined, false),
+});
+function scopedLogger(identity: InvocationIdentity): SCWC.PluginLogger {
+  return Object.freeze({
+    ...identity,
+    pluginId,
+    info: log('info', identity),
+    pathInfo: log('pathInfo', identity),
+    warn: log('warn', identity),
+    error: log('error', identity),
+  });
+}
+// Raw console output can be routed through the current asynchronous invocation.
+console.log = log('info');
+console.info = log('info');
+console.warn = log('warn');
+console.error = log('error');
 
 const cache: SCWC.IPluginCache = {
   set: async <T extends TPluginCacheableData>(key: string, data: T) => {
@@ -102,7 +147,15 @@ async function controls(
   context: Parameters<SCWC.TCreatePluginItem>[1],
 ): Promise<SCWC.TPluginItem[]> {
   const config = getPlugin().pluginConfig?.scripts?.controls;
-  const result = typeof config === 'function' ? await config(logger, context) : (config ?? []);
+  const current = invocationStorage.getStore();
+  const result =
+    typeof config === 'function'
+      ? await config(current ? scopedLogger(current) : logger, {
+          ...context,
+          tasks: current?.tasks,
+          signal: current?.signal,
+        })
+      : (config ?? []);
   const names = result.map((item) => item.channel);
   if (new Set(names).size !== names.length) {
     throw new Error('插件控件 channel 重复');
@@ -115,6 +168,13 @@ async function initialize(args: Initialize): Promise<Manifest> {
     throw new Error('插件不能重复初始化');
   }
   const loaded: unknown = (await import(pathToFileURL(args.entry).href)).default;
+  pluginId = args.pluginId ?? args.name;
+  logger = Object.freeze({
+    ...logger,
+    pluginId,
+    windowId: args.outputWindowId ?? null,
+    sessionId: args.sessionId,
+  });
   if (
     !loaded ||
     typeof loaded !== 'object' ||
@@ -126,9 +186,17 @@ async function initialize(args: Initialize): Promise<Manifest> {
   }
   plugin = loaded as ProcessPluginHandler;
   await plugin.onLoad?.(logger, {
+    tasks: processTasks.reporter,
+    signal: processTasks.controller.signal,
     cache,
     LimitPromise,
-    createRetryGet: (factory) => createRetryGet(`plugin:${args.name}`, logger, factory, cache),
+    createRetryGet: (factory) =>
+      createRetryGet(
+        `plugin:${args.name}`,
+        { info: log('info'), pathInfo: log('pathInfo'), warn: log('warn'), error: log('error') },
+        factory,
+        cache,
+      ),
   });
   const ui = plugin.ui;
   apis = [];
@@ -193,7 +261,11 @@ async function closeConnection(connectionId: string): Promise<void> {
   connection.closed = true;
   connections.delete(connectionId);
   connection.cleanup?.();
-  await connection.config.onClose?.(connection.context);
+  await connection.config.onClose?.({
+    ...connection.context,
+    tasks: invocationStorage.getStore()?.tasks,
+    signal: invocationStorage.getStore()?.signal,
+  });
 }
 
 async function dispatch(method: string, args: unknown, id: string): Promise<unknown> {
@@ -220,6 +292,8 @@ async function dispatch(method: string, args: unknown, id: string): Promise<unkn
     throw new Error('插件正在停止');
   }
   activeCalls++;
+  const context = invocationStorage.getStore();
+  const invocationLogger = context ? scopedLogger(context) : logger;
   try {
     switch (method) {
       case 'html':
@@ -230,7 +304,12 @@ async function dispatch(method: string, args: unknown, id: string): Promise<unkn
         if (!api) {
           throw new Error('插件 API 不存在');
         }
-        return await api.handler(invocation.data, { request: invocation.request });
+        return await api.handler(invocation.data, {
+          request: invocation.request,
+          tasks: context?.tasks,
+          signal: context?.signal,
+          logger: context ? scopedLogger(context) : undefined,
+        });
       }
       case 'resource': {
         const invocation = args as Invocation;
@@ -238,7 +317,12 @@ async function dispatch(method: string, args: unknown, id: string): Promise<unkn
         if (!resource) {
           throw new Error('插件资源不存在');
         }
-        return await resource.handler(invocation.data, { request: invocation.request });
+        return await resource.handler(invocation.data, {
+          request: invocation.request,
+          tasks: context?.tasks,
+          signal: context?.signal,
+          logger: context ? scopedLogger(context) : undefined,
+        });
       }
       case 'controls': {
         return (await controls(args as Parameters<SCWC.TCreatePluginItem>[1])).map(
@@ -256,17 +340,25 @@ async function dispatch(method: string, args: unknown, id: string): Promise<unkn
         if (!item) {
           throw new Error('插件控件不存在');
         }
-        return await item.trigger(logger, data.context);
+        return await item.trigger(invocationLogger, {
+          ...data.context,
+          tasks: context?.tasks,
+          signal: context?.signal,
+        });
       }
       case 'command': {
         const data = args as {
           index: number;
-          args: Parameters<SCWC.TCommandExecute> extends [unknown, ...infer P] ? P : never;
+          args: [Parameters<SCWC.TCommandExecute>[1], string[], string[]];
         };
         const command = plugin.pluginConfig?.command;
         const execute =
           data.index < 0 ? command?.execute : command?.subCommands?.[data.index]?.execute;
-        await execute?.(logger, ...data.args);
+        await execute?.(
+          context ? scopedLogger(context) : (logger as SCWC.PluginLogger),
+          ...data.args,
+          context,
+        );
         return;
       }
       case 'request': {
@@ -281,6 +373,8 @@ async function dispatch(method: string, args: unknown, id: string): Promise<unkn
         await plugin.onRequest(
           {
             ...data,
+            tasks: context?.tasks,
+            signal: context?.signal,
             utils: {
               writeData,
               writeDataURL,
@@ -290,7 +384,7 @@ async function dispatch(method: string, args: unknown, id: string): Promise<unkn
             },
           },
           {
-            ...logger,
+            ...invocationLogger,
             toWeb: (info, type) => peer.event('notification', { id, info, type }),
           },
         );
@@ -308,6 +402,8 @@ async function dispatch(method: string, args: unknown, id: string): Promise<unkn
           throw new Error('插件 WebSocket 通道不存在');
         }
         const context: ProcessSocketContext = {
+          tasks: invocationStorage.getStore()?.tasks,
+          signal: invocationStorage.getStore()?.signal,
           connectionId: data.connectionId,
           request: data.request,
           channel: config.path,
@@ -353,7 +449,12 @@ async function dispatch(method: string, args: unknown, id: string): Promise<unkn
         const data = args as { connectionId: string; data: string | Buffer };
         const connection = connections.get(data.connectionId);
         if (connection && !connection.closed) {
-          await connection.config.onMessage?.(data.data, connection.context);
+          await connection.config.onMessage?.(data.data, {
+            ...connection.context,
+            tasks: context?.tasks,
+            signal: context?.signal,
+            logger: context ? scopedLogger(context) : undefined,
+          });
         }
         return;
       }
@@ -367,4 +468,15 @@ async function dispatch(method: string, args: unknown, id: string): Promise<unkn
   }
 }
 
-peer.onCall = dispatch;
+peer.onCall = async (method, envelope, id) => {
+  if (['initialize', 'ping', 'unload'].includes(method)) {
+    return dispatch(method, envelope, id);
+  }
+  const { payload, identity } = envelope as { payload: unknown; identity: InvocationIdentity };
+  const scope = tasks.create('host', identity);
+  try {
+    return await invocationStorage.run(scope.context, () => dispatch(method, payload, id));
+  } finally {
+    scope.finish();
+  }
+};

@@ -1,6 +1,6 @@
 # SCWC 核心项目地图
 
-> 面向后续参与开发的 AI。核对日期：2026-10-06。
+> 面向后续参与开发的 AI。核对日期：2026-10-07。
 > 本文依据当前源码、类型、脚本和配置整理；README 仅作背景参考。源码变化后，应同步更新相关条目。
 > 范围不包含 `projects/server/plugins/` 下各插件的实现、模板和私有页面，只说明核心如何加载、调用和承载扩展。`projects/server/plugin/`（单数）属于核心。
 
@@ -48,8 +48,8 @@ flowchart LR
     ├── server/
     │   ├── index.ts             服务进程入口与退出生命周期
     │   ├── common/              环境变量、运行模式、系统日志
-    │   ├── scripts/             启动父进程、参数解析、Web 构建
-    │   ├── command/             默认命令注册与 stdin 监听
+    │   ├── scripts/             启动终端、Web / SEA 构建
+    │   ├── command/             默认命令、stdin / IPC 调用
     │   ├── plugin/              核心扩展加载器和日志（单数）
     │   ├── router/              抓取、油猴控件、Web 页面/API/资源/WebSocket
     │   ├── utils/               缓存、请求、命令解析、写数据、字符串工具
@@ -58,6 +58,13 @@ flowchart LR
     │       ├── web/             Web 构建产物
     │       ├── lib/             scwcutils 构建产物
     │       └── resources/       公共静态资源，如字体和图标
+    ├── terminal/
+    │   ├── index.ts             终端入口与 TTY 恢复
+    │   ├── controller.ts        全局命令、确认、取消与重启
+    │   ├── model.ts、render.ts  窗口/输入状态与全屏渲染
+    │   ├── core.ts、peer.ts     核心子进程及版本化 IPC
+    │   ├── storage.ts           原子状态文件、备份、锁
+    │   └── plugins/             独立终端命令宿主与禁用模板
     ├── user-script/
     │   ├── vite.config.ts       油猴打包配置
     │   └── src/
@@ -90,22 +97,22 @@ flowchart LR
 
 ### 3.1 实际启动链
 
-根命令 `dev:server` / `prod:server` → [scripts/setup.ts](../projects/server/scripts/setup.ts) → 子进程 [server/index.ts](../projects/server/index.ts)。
+根命令 dev:server / prod:server → [scripts/setup.ts](../projects/server/scripts/setup.ts) → [terminal/index.ts](../projects/terminal/index.ts) → IPC 子进程 [server/index.ts](../projects/server/index.ts)。
 
-1. `setup.ts` 使用 [scripts/parseArgs.ts](../projects/server/scripts/parseArgs.ts) 注册并解析启动参数。生产模式缺少 `public/web/index.html` 时，由 [scripts/build.ts](../projects/server/scripts/build.ts) 自动构建 Web；`--build` 可强制构建。这里只构建 Web，不构建油猴脚本和 webutils。
-2. 父进程检查 Node 主版本是否至少为 24；不满足时尝试 `npx tsx`，也可传 `--use-tsx`。根 `engines.node` 声明的是 `^24`。
-3. 父进程启动 `server/index.ts --mode=...`，转发终端输入，处理 `restart` / `exit`，并在子进程意外退出时尝试重新启动。
-4. `index.ts` 初始化缓存错误处理 → 注册系统命令 → 启动 HTTP 服务并挂载 WebSocket → 监听 stdin → 后台加载插件。插件加载期间 HTTP 仍可处理请求；页面列表逐步包含成功激活项。
+1. setup.ts 使用公共参数解析器，保留 mode/build/use-tsx 的原缩写。生产缺少 Web 构建时先构建；只负责构建准备并调用终端，不代理 stdin 或控制重启。
+2. 终端持有用户 stdin/stdout，恢复窗口状态后以 --interaction=ipc 启动核心；--use-tsx 可为源码核心使用工作区 tsx。源码运行需要 Node 24+。
+3. 核心等待握手，确认插件目录覆盖后注册命令、绑定 HTTP / WebSocket 并后台加载插件。终端接收 ready、命令目录与状态更新。插件加载期间 HTTP 仍可处理请求。
+4. 直接启动核心时不启用终端 IPC，使用 readline 按行执行命令。多窗口终端的重启保留自身与窗口，只替换核心及业务插件。详见 [终端使用说明](../projects/terminal/README.md)。
 
-[common/env.ts](../projects/server/common/env.ts) 从仓库根 `.env` 加载环境配置；[common/setupParam.ts](../projects/server/common/setupParam.ts) 单独解析传给 `index.ts` 的 `--key=value`，决定 `isDev` / `isProd`。它与启动父进程的参数解析器是两个模块。
+[common/environment.ts](../projects/server/common/environment.ts) 在消费 Redis 和服务配置前初始化环境。源码模式读取仓库根 `.env`，SEA 模式读取可执行文件同目录 `.env`；文件中的键优先，缺省键沿用进程环境。[common/setupParam.ts](../projects/server/common/setupParam.ts) 使用公共解析器处理 `--key=value` 和 `--key value`，决定 `isDev` / `isProd`。setup.ts 与核心共用该解析器；旧 scripts/parseArgs.ts 已不在启动链。
 
-`listen()` 在 `router/index.ts` 内用 `createServer(app)` 建立 HTTP 服务，再挂载 WebSocket upgrade 处理。当前只传入端口进行监听，`HOST` 用于 URL/日志等配置，没有作为监听地址传给 `server.listen()`。
+`listen()` 在 `router/index.ts` 内用 `createServer(app)` 建立 HTTP 服务，再挂载 WebSocket upgrade 处理。它返回 Promise，使用 [utils/listen.ts](../projects/server/utils/listen.ts) 直接依次绑定候选端口，只在 EADDRINUSE 时递增，默认最大偏移 20。`PORT_SEARCH_RANGE` / `--port-range` 可调整范围，`--port` 覆盖起始端口。日志和 `server info` 使用最终端口。当前只传入端口进行监听，`HOST` 用于 URL/日志等配置，没有作为监听地址传给 `server.listen()`。
 
 ### 3.2 扩展加载器属于核心
 
 [plugin/load.ts](../projects/server/plugin/load.ts) 暴露两个进程内数组：`plugins`（已加载）和 `inactivePlugins`（未激活及原因）。所有抓取路由、控件路由、页面列表和终端命令读取这些数组。
 
-加载器从 `process.cwd()/projects/server/plugins` 扫描子目录，读取元数据，检查启用状态和 `.ts` / `.js` 入口。`pluginId` 是目录名；`safeId` 是本次加载生成的 UUID，用于页面 API、资源和 WebSocket 路由。
+加载器通过 `configuredPluginDirectory()` 选择目录：开发默认仓库 `projects/server/plugins`，生产默认程序同目录 `plugins`，SCWC_PLUGIN_DIR 可覆盖默认值，--plugin-dir 可覆盖环境配置；两者同时提供时先警告并确认：直接核心输入 y，终端输入 :y 加 Enter；其他输入保留环境目录。确认在 HTTP 服务启动前进行。`loadPlugins(directory)` 仍支持显式目录参数。加载器扫描子目录，读取元数据，检查启用状态和 `.ts` / `.js` 入口。`pluginId` 是目录名；`safeId` 是本次加载生成的 UUID，用于页面 API、资源和 WebSocket 路由。
 
 所有启用插件默认由独立 Node 子进程加载，package.json.runtime 与入口 apiVersion 均可省略，默认分别为 process 和 2。入口使用公开 `SCWC.IPluginHandler` 第二版契约；IProcessPluginHandler / TProcess* 保留为同契约别名。核心不导入插件入口，不再支持进程内加载分支。显式填写不支持的模式/版本时记录到 inactivePlugins；enabled: false 保持禁用。runtime 可仅包含超时覆盖。加载器最多同时激活两个插件，成功项立即注册。
 
@@ -117,7 +124,7 @@ flowchart LR
 
 `index.ts` 的退出处理先等待加载流程结束，再逐项等待已加载扩展的 `onUnload(logger, { isRestart })`。普通退出再调用核心缓存的 `clearAll`，重启保留缓存，最后 `process.exit(0)`。单项卸载失败不会跳过其他插件的卸载；独立宿主卸载有截止时间并清理后代进程。
 
-`command/index.ts` 的 `exit` / `restart` 通过进程内部 message 事件触发此处理；重启后的重新拉起由 `setup.ts` 父进程完成。直接运行 `server/index.ts` 时，`restart` 只会结束当前进程。`SIGINT` 也会进入退出处理。
+直接核心的 exit / restart 通过进程内部 message 触发退出；直接 restart 只结束当前进程。终端通过 command/ipc.ts 发出生命周期请求，聚合任务并确认后停止，再由 terminal/controller.ts 重新拉起核心。SIGINT / SIGTERM 也进入卸载处理。
 
 `scripts/dev.ts` 和 `router/utils/path.ts` 当前为空。`scripts/proxy.ts` 没有接入启动链；`scripts/restart.ts` 是未接入当前流程的旧脚本，不应作为现行重启入口。
 
@@ -280,36 +287,38 @@ HTTP 通用中间件位于 [server/router/index.ts](../projects/server/router/in
 
 | 工具 | 当前职责和关键约束 |
 | --- | --- |
-| [utils/cache.ts](../projects/server/utils/cache.ts) | 内存 + Redis 存储，缓存普通值、重定向和文件引用。流和超过 5 MiB 的值写到 `process.cwd()/cache/files`。缓存管理器配置 TTL 1 小时；内存适配器另有 60 秒 TTL / 5000 项 LRU 配置 |
+| [utils/cache.ts](../projects/server/utils/cache.ts) | 内存 + Redis 存储，缓存普通值、重定向和文件引用。流和超过 5 MiB 的值写到源码仓库根或可执行文件同目录的 `cache/files`。Redis 支持密码、ACL、IPv6 和 REDIS_KEY_PREFIX，清理限定到当前前缀；缓存管理器配置 TTL 1 小时；内存适配器另有 60 秒 TTL / 5000 项 LRU 配置 |
 | `createNamespacedCache(namespace, logger)` | 返回冻结的 `set/setRedirect/get/del/mdel` 对象，命名空间由核心绑定；不暴露全局清理。底层 `clearAll` 属于核心操作，传入 namespace 也会回退为全局清理，不能用于隔离清理单扩展 |
 | [utils/axios.ts](../projects/server/utils/axios.ts) | `createRetryGet()` 提供请求、缓存、重定向链和自定义请求类；默认 10 秒超时、最多 5 次尝试、重试间隔 2 秒，针对无响应或 5xx 的 Axios 错误重试；返回 `{ raw, data, delCache }`。`LimitPromise` 提供任务队列与并发限制 |
 | [utils/writeData.ts](../projects/server/utils/writeData.ts) | `writeData(dir, data)` 创建目录，将数据追加到 `data.json` 根数组；抓取数组的图片写进 `images/` 并替换为文件路径。`writeDataURL` 支持 dataURL 或 HTTP 图片地址，返回路径或 `false`；单独调用时需保证目标目录存在 |
 | [utils/fetchImage.ts](../projects/server/utils/fetchImage.ts) | 原生 fetch 图片并返回 Buffer 或 `null`，与 Axios 重试工具是不同路径 |
 | `utils/strValidation.ts`、`convertToCN.ts` | 替换文件名常见非法字符；通过 OpenCC 做中文/日文汉字转换 |
-| [utils/log.ts](../projects/server/utils/log.ts)、`common/logger.ts`、`plugin/log.ts` | 带标签/路径的彩色控制台日志；当前没有文件日志存储 |
+| [utils/log.ts](../projects/server/utils/log.ts)、`common/logger.ts`、`plugin/log.ts` | 直接核心使用彩色控制台日志；IPC 模式按固定窗口/执行 ID 发送结构化输出，终端在状态文件中保存输出历史 |
 | [utils/tryCatch.ts](../projects/server/utils/tryCatch.ts) | 同步/异步函数包装为 `[error, result]`，另提供指定错误类的包装 |
 
 修改缓存、重试和并发工具时，需检查实际异常及异步链路，不能只按函数注释推断所有边界已被处理；`types/` 下声明对应公共工具接口。
 
-[command/index.ts](../projects/server/command/index.ts) 注册 `help`、`exit`、`restart`、`server info`、`plugin ls`、`plugin ps`，并监听 stdin。[utils/command.ts](../projects/server/utils/command.ts) 负责命令注册、引号分词、选项解析、主/子命令执行和帮助。系统命令先占用名称；扩展命令重名时使用目录 ID 前缀。它处理的是服务终端输入，不是 Web 命令接口。
+[command/index.ts](../projects/server/command/index.ts) 注册 `help`、`exit`、`restart`、`server info`、`plugin ls`、`plugin ps`，；直接模式监听 stdin，终端模式由 command/ipc.ts 调用。[utils/command.ts](../projects/server/utils/command.ts) 负责命令注册、引号分词、选项解析、主/子命令执行和帮助。系统命令先占用名称；扩展命令重名时使用目录 ID 前缀。它处理的是服务终端输入，不是 Web 命令接口。
 
 ## 9. 开发、构建与检查
 
-以下命令均从仓库根目录执行。依赖统一放在根 `package.json`，工作区是 `projects/*`；推荐 Bun 管理依赖，Node 运行服务。加载路径和缓存路径使用 cwd，因此服务应从仓库根启动。
+以下命令均从仓库根目录执行。依赖统一放在根 `package.json`，工作区是 `projects/*`；推荐 Bun 管理依赖，Node 运行服务。核心默认插件、配置和缓存路径通过 common/paths.ts 定位，不依赖启动 cwd；CLI 相对目录仍以启动 cwd 为基准。
 
 | 命令 | 用途 |
 | --- | --- |
 | `bun install` | 安装工作区依赖 |
-| `bun run dev:server` | 启动开发模式服务父进程 |
+| `bun run dev:server` | 构建准备后启动开发模式多窗口终端 |
 | `bun run dev:web` | 单独启动 Web 的 Vite 开发服务，配置端口 3201 |
 | `bun run dev:us` | 启动油猴脚本的 Vite/monkey 开发服务 |
 | `bun run build` | `tsc -b` 类型检查，然后依次构建 user-script、web、webutils |
-| `bun run prod:server` | 启动生产模式服务父进程，必要时自动构建 Web |
+| `bun run build:core` | Node >= 25.5 构建本机 SEA 可执行文件至 dist/core；包含核心、终端、两类宿主和静态资源 |
+| `bun run test:core-executable` | 构建后验证独立部署，需本机 redis-server；使用独立临时数据、密码与端口 |
+| `bun run prod:server` | 构建准备后启动生产模式多窗口终端 |
 | `bun run test --run` | 根配置注册的测试项目，运行一次而非 watch |
 | `bun run lint` | Oxlint 检查 |
 | `bun run fmt` | Oxfmt 格式化；它会修改文件，不是只读检查 |
 
-开发服务器不会代替你启动两个 Vite 服务。`setup.ts` 虽注册 `--web-host` / `--web-port`，当前没有使用它们转发请求；实际开发 Web 重定向地址在 `router/web/index.ts` 写死为 `http://localhost:3201`。
+开发服务器不会代替你启动两个 Vite 服务。`setup.ts` 虽接受 `--web-host` / `--web-port`，当前没有使用它们转发请求；实际开发 Web 重定向地址在 `router/web/index.ts` 写死为 `http://localhost:3201`。
 
 ### 9.1 构建产物与环境配置
 
@@ -319,24 +328,25 @@ HTTP 通用中间件位于 [server/router/index.ts](../projects/server/router/in
 | `web/vite.config.ts` | `projects/server/public/web/`，生产 base 为 `/web/` | 服务端 Web 路由 |
 | `webutils/vite.config.ts` | `projects/server/public/lib/scwcutils.iife.<36进制时间戳>.js` | 核心页面路由注入 |
 
-以上配置均设置 `emptyOutDir: true`。服务端直接执行 TypeScript；根 build 没有打包服务端，也没有构建各插件的私有页面。
+以上配置均设置 `emptyOutDir: true`。服务端源码直接执行 TypeScript；根 build 没有打包服务端，也没有构建各插件的私有页面。新增独立 build:core 通过 esbuild / Node SEA 打包核心和宿主，并构建、内置 Web / webutils / 公共资源 / 错误模板，不包含业务插件。
 
-服务端根 `.env` 变量：`PORT`（默认 3200）、`HOST`（默认 `http://localhost`）、`TOKEN`，以及缓存模块读取的 `REDIS_HOST`、`REDIS_PORT`、`REDIS_USER`、`REDIS_PASSWORD`、`REDIS_TIMEOUT`。
+服务端 `.env` 变量：`PORT`（默认 3200）、`PORT_SEARCH_RANGE`（默认最大偏移 20）、`HOST`（默认 `http://localhost`）、`TOKEN`、`SCWC_PLUGIN_DIR`，以及 `REDIS_HOST`、`REDIS_PORT`、`REDIS_USER`、`REDIS_PASSWORD`、`REDIS_TIMEOUT`、`REDIS_KEY_PREFIX`。完整配置及目录规则见 [核心部署](核心部署.md) 与 [模板](core.env.example)。
 
 未提供非空 `TOKEN` 时，服务端会生成随机 UUID 并打印；只有字面字符串 `TOKEN=null` 会将 token 设为空。不要通过留空误以为关闭了鉴权。浏览器默认 token 是空，需要通过脚本设置配置。
 
 三个 Vite 配置都调用 `loadEnv(mode, process.cwd())` 再尝试注入 `env.HOST` / `env.PORT`，但没有改变 Vite 默认的 `VITE_` 前缀过滤。因此不能认为根 `.env` 中的普通 HOST/PORT 已自动进入浏览器构建；浏览器最终地址还受默认值和 localStorage 配置控制。修改此处时同时检查工作目录、变量前缀与产物。
 
-缓存模块直接读取 `process.env.REDIS_*`，不自行调用 dotenv；调整启动依赖或环境初始化时注意 `.env` 加载与模块求值顺序。
+缓存模块先导入 common/environment.ts，再用公共校验器读取 Redis 配置；密码通过 RedisClientOptions 传递，Keyv 禁用重复前缀。改变缓存初始化时保持这个环境加载顺序。
 
 ### 9.2 TypeScript 检查边界
 
-根 [tsconfig.json](../tsconfig.json) 引用四份配置：
+根 [tsconfig.json](../tsconfig.json) 引用五份配置：
 
 | 配置 | 主要覆盖范围 |
 | --- | --- |
 | `tsconfig.app.json` | 油猴 src、Web src、shared、Vite 声明，以及 SCWC 全局类型声明 |
 | `tsconfig.serve.json` | 服务端 TS，排除扩展私有 Web 目录 |
+| `tsconfig.terminal.json` | 多窗口终端、终端插件及公共调用类型 |
 | `tsconfig.node.json` | 根目录的 `*.config.ts` |
 | `tsconfig.plugin-web.json` | 浏览器库全局声明与扩展私有 Web 类型检查 |
 
@@ -350,9 +360,13 @@ HTTP 通用中间件位于 [server/router/index.ts](../projects/server/router/in
 | --- | --- |
 | [server/utils/cache.test.ts](../projects/server/utils/cache.test.ts) | 绑定命名空间后的同名键隔离、重定向/删除边界、对象不暴露全局操作；底层缓存被 mock，不验证真实 Redis |
 | [server/router/web/websocket.test.ts](../projects/server/router/web/websocket.test.ts) | 不同 safeId 下相同通道隔离及消息分发；缺少 site 的握手被拒绝，未单独覆盖带有效 site 的错误 token 情形 |
+| [server/common/config.test.ts](../projects/server/common/config.test.ts) | 端口范围和 CLI 解析、Redis 密码/ACL/IPv6/前缀、插件目录优先级与确认分支 |
+| [server/common/environment.test.ts](../projects/server/common/environment.test.ts) | `.env` 优先、未配置键与缺失文件回退 |
+| [server/utils/listen.test.ts](../projects/server/utils/listen.test.ts) | 真实端口占用后的绑定、范围耗尽、权限错误不重试 |
+| `server/plugin/process/*.test.ts` | 默认独立宿主、RPC 边界、插件激活/超时/崩溃/卸载、请求与资源及进程树清理；installed-plugins 测试涉及本机安装的插件 |
 | [shared/utils/refreshRuleParser.test.ts](../projects/shared/utils/refreshRuleParser.test.ts) | pathname、search、hash 和组合规则解析 |
 
-根 Vitest 只注册 server、user-script、web；当前根测试发现会收集上述两个服务端测试，没有收集 shared 的规则测试。已用 `vitest list --filesOnly` 核对收集范围。针对核心的命令：
+根 Vitest 注册 server、user-script、web、terminal；会收集服务端公共工具、配置和进程宿主测试，没有收集 shared 的规则测试。installed-plugins 等测试依赖本机安装插件，针对核心可显式指定文件。端口与 WebSocket 测试需要允许本机监听端口。针对核心的命令：
 
 ```bash
 # 只运行这两个核心服务端测试，避免带入范围外的扩展测试
@@ -389,3 +403,18 @@ bunx vitest run --config projects/server/vitest.config.ts projects/shared/utils/
 ### 2026-10-06 默认第二版契约与全插件迁移
 
 所有启用插件默认采用独立进程；省略 runtime/apiVersion 或只设置超时都不会进入核心执行。公开 IPluginHandler、TPluginApi、TPluginResource、TPluginRequestContext 和 WebSocket 类型统一为可序列化契约；内部 Express/socket 类型使用 Hosted 名称。ASMR 媒体资源迁移到文件描述，图片插件等待下载与保存完成；注入 retryGet 的 Readable 留在子进程消费。测试逐个激活和卸载十个插件并覆盖默认配置、禁用状态、ASMR 登录/票据、缓存与流式请求，数据均使用临时目录。
+
+### 2026-10-07 核心配置、端口与独立部署
+
+新增 common/paths.ts、environment.ts、config.ts、pluginDirectory.ts，统一源码/SEA 目录及环境优先级、端口/Redis 校验和插件目录确认。scripts/build-executable.ts 构建本机可执行文件，sea-bootstrap.ts 将内置资源释放到私有临时目录，再加载核心或插件宿主。客户端 fork 在 SEA 中通过 --scwc-plugin-host 分支复用同一可执行文件，保持高级 IPC 序列化及外部插件动态导入。
+
+新增 config/environment/listen 测试及独立部署 smoke 脚本。已按确认的 [设计方案](终端设计方案.md) 实现多窗口终端、固定 UUID / logger 归属、主动/自动任务状态、全屏输入/鼠标、确认/取消/重启、原子持久化及独立终端插件。setup.ts 只做构建准备和终端启动。入口与配置见 terminal/README.md；目前本机验证为 macOS，Windows/Linux 需要对应终端人工验收。
+
+
+### 2026-10-07 多窗口终端与调用任务
+
+核心 common/tasks.ts 提供 TaskRegistry / TaskScope、AsyncLocalStorage 和调用上下文。主/子命令第五参数注入 tasks / signal；onLoad 注入进程级 reporter，宿主每次业务调用另建作用域。函数返回不清除主动 busy 或 begin 句柄，窗口使用 command.returned / command.finished 区分后台阶段。插件宿主停止会中断相关调用，旧 reporter 消息不影响新宿主。
+
+terminal/peer.ts 的版本 1 负责终端↔核心；现有插件 RPC 仍为版本 2，传递身份数据并在宿主生成函数。命令日志绑定固定 windowId / executionId；非命令 HTTP 请求也统计自动任务，取消时关闭活动响应。终端命令插件的 invokeCore 保持父任务忙状态直到子执行整体结束。
+
+终端状态用版本 1 JSON 保存，默认 data/terminal/state.json，支持 SCWC_TERMINAL_STATE_FILE / SCWC_TERMINAL_PERSIST / SCWC_CMD_PLUGIN_DIR。每秒原子保存脏快照并保留备份；强杀只恢复最近快照，不重放任务。默认双窗、最多 128 窗、每窗 10,000 行或 10 MiB。独立 SEA 支持 --terminal，并内置 terminal.cjs / terminal-host.cjs。

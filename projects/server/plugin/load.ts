@@ -8,11 +8,26 @@ import { registerPluginApi, registerPluginResources } from '../router/web/api/lo
 import { pluginWebSocketRegistry } from '../router/web/websocket.ts';
 import { PluginProcessClient } from './process/client.ts';
 import { resolveProcessOptions } from './process/options.ts';
+import '../common/environment.ts';
+import { APP_DIR, ENV_DIR, ROOT } from '../common/paths.ts';
+import { parsedArgs, isDev } from '../common/setupParam.ts';
+import { pluginDirectorySettings } from '../common/config.ts';
+import { resolvePluginDirectory } from '../common/pluginDirectory.ts';
 
-const __dirname = process.cwd();
-
-// 插件加载逻辑
-const PLUGIN_DIR = path.join(__dirname, 'projects', 'server', 'plugins');
+export function configuredPluginDirectory(confirm?: () => Promise<boolean>) {
+  return resolvePluginDirectory(
+    pluginDirectorySettings({
+      env: process.env,
+      args: parsedArgs,
+      appDir: APP_DIR,
+      root: ROOT,
+      envDir: ENV_DIR,
+      cwd: process.cwd(),
+      isDev,
+    }),
+    confirm,
+  );
+}
 
 /** 加载的插件列表 */
 export const plugins: SCWC.IPluginMeta[] = [];
@@ -40,7 +55,8 @@ export function initCacheErrorHandler(logger: SCWC.TLogger) {
   });
 }
 
-export async function loadPlugins(directory = PLUGIN_DIR) {
+export async function loadPlugins(directory?: string) {
+  directory = path.resolve(directory ?? (await configuredPluginDirectory()));
   if (!fs.existsSync(directory)) {
     return;
   }
@@ -145,6 +161,7 @@ export async function loadPlugins(directory = PLUGIN_DIR) {
       const runtime = resolveProcessOptions(pkg.runtime);
       // Every plugin entry stays outside the HTTP process, including when settings are omitted.
       processClient = new PluginProcessClient({
+        pluginId: dir,
         entry: entryAbs,
         name,
         logger,
@@ -251,6 +268,7 @@ async function activatePlugin(plugin: SCWC.IPluginMeta): Promise<boolean> {
             commandConfig.subCommands,
             commandConfig.options,
             commandConfig.exampleUsage,
+            () => !plugin.runtime || ['ready', 'unresponsive'].includes(plugin.runtime.status),
           );
         } catch (e) {
           if (e instanceof CommandError) {

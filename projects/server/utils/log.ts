@@ -1,4 +1,63 @@
 import chalk from 'chalk';
+import { inspect } from 'node:util';
+import { invocationStorage, outputWindowId } from '../common/tasks.ts';
+import type { InvocationIdentity, PluginLogger } from '../types/task.d.ts';
+import type { TLogger } from '../types/log.d.ts';
+
+export type LogLevel = 'info' | 'pathInfo' | 'warn' | 'error';
+type LogSink = (event: {
+  windowId: string | null;
+  executionId?: string;
+  sessionId?: string;
+  pluginId?: string;
+  text: string;
+}) => void;
+let sink: LogSink | undefined;
+export function setLogSink(value?: LogSink) {
+  sink = value;
+}
+export function publishLog(
+  identity: InvocationIdentity | undefined,
+  pluginId: string,
+  level: LogLevel,
+  args: unknown[],
+  fallback: () => void,
+) {
+  if (!sink) {
+    fallback();
+    return;
+  }
+  const text = args
+    .map((value) =>
+      typeof value === 'string' ? value : inspect(value, { depth: 4, maxArrayLength: 30 }),
+    )
+    .join(' ');
+  sink({
+    windowId: identity?.windowId ?? outputWindowId,
+    executionId: identity?.executionId,
+    sessionId: identity?.sessionId,
+    pluginId,
+    text: `[${pluginId}]${level === 'warn' || level === 'error' ? ` [${level}]` : ''} ${text}`,
+  });
+}
+export function bindLogger(
+  base: TLogger,
+  identity: InvocationIdentity,
+  pluginId: string,
+): PluginLogger {
+  const method =
+    (level: LogLevel) =>
+    (...args: unknown[]) =>
+      publishLog(identity, pluginId, level, args, () => base[level](...args));
+  return Object.freeze({
+    pluginId,
+    ...identity,
+    info: method('info'),
+    pathInfo: method('pathInfo'),
+    warn: method('warn'),
+    error: method('error'),
+  });
+}
 
 // TODO: 记录日志到文件
 
@@ -17,16 +76,24 @@ const log = {
 export function createLogger(tag: string, relativePath: string) {
   return {
     info: (...message: Parameters<Console['log']>) => {
-      console.log(chalk.blue(`[${tag}]`), ...message);
+      publishLog(invocationStorage.getStore(), tag, 'info', message, () =>
+        console.log(chalk.blue(`[${tag}]`), ...message),
+      );
     },
     pathInfo: (...message: Parameters<Console['log']>) => {
-      console.log(chalk.blue(`[${tag}]`), ...message, chalk.blue(relativePath));
+      publishLog(invocationStorage.getStore(), tag, 'pathInfo', [...message, relativePath], () =>
+        console.log(chalk.blue(`[${tag}]`), ...message, chalk.blue(relativePath)),
+      );
     },
     warn: (...message: Parameters<Console['warn']>) => {
-      console.warn(chalk.yellow(`[${tag}]`), ...message, chalk.blue(relativePath));
+      publishLog(invocationStorage.getStore(), tag, 'warn', [...message, relativePath], () =>
+        console.warn(chalk.yellow(`[${tag}]`), ...message, chalk.blue(relativePath)),
+      );
     },
     error: (...message: Parameters<Console['error']>) => {
-      console.error(chalk.red(`[${tag}]`), ...message, chalk.blue(relativePath));
+      publishLog(invocationStorage.getStore(), tag, 'error', [...message, relativePath], () =>
+        console.error(chalk.red(`[${tag}]`), ...message, chalk.blue(relativePath)),
+      );
     },
   };
 }

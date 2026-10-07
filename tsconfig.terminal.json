@@ -1,0 +1,6 @@
+{
+  "extends": "./tsconfig.serve.json",
+  "compilerOptions": { "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.terminal.tsbuildinfo" },
+  "include": ["projects/terminal/**/*.ts", "projects/server/plugins/plugin-env.d.ts"],
+  "exclude": []
+}

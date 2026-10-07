@@ -6,7 +6,9 @@ import KeyvRedis from '@keyv/redis';
 import { CacheableMemory } from 'cacheable';
 import { createCache } from 'cache-manager';
 import stream, { Readable } from 'node:stream';
-import z from 'zod';
+import '../common/environment.ts';
+import { redisSettings } from '../common/config.ts';
+import { ROOT } from '../common/paths.ts';
 import type { TLogger } from '../types/log.d.ts';
 import type { IPluginCache } from '../types/cache.d.ts';
 
@@ -28,57 +30,7 @@ const errorHandlers = new Map<
   Set<(errorInfo: { channel: string; error: Error }) => void>
 >();
 
-/** redis user */
-const REDIS_USER = process.env.REDIS_USER ?? '';
-/** redis password */
-const REDIS_PASSWORD = process.env.REDIS_PASSWORD ?? '';
-/** redis host */
-let REDIS_HOST = process.env.REDIS_HOST ?? '127.0.0.1';
-/** redis port */
-let REDIS_PORT = process.env.REDIS_PORT ?? '6379';
-/** redis timeout */
-let REDIS_TIMEOUT = process.env.REDIS_TIMEOUT ?? '5000';
-
-/** 验证 host */
-const simpleHostSchema = z.string().regex(/^[\w.-]+$/, 'Invalid host format');
-try {
-  REDIS_HOST = simpleHostSchema.parse(REDIS_HOST);
-} catch {
-  keyvErrorInfo.add({
-    channel: 'env',
-    error: new Error(`无效的 REDIS_HOST 格式: ${REDIS_HOST}, 将使用默认值`),
-  });
-  handleKeyvError('env');
-  REDIS_HOST = '127.0.0.1';
-}
-
-try {
-  REDIS_PORT = z.string().regex(/^\d+$/, 'Invalid port format').parse(REDIS_PORT);
-} catch {
-  keyvErrorInfo.add({
-    channel: 'env',
-    error: new Error(`无效的 REDIS_PORT 格式: ${REDIS_PORT}, 将使用默认值`),
-  });
-  handleKeyvError('env');
-  REDIS_PORT = '6379';
-}
-
-try {
-  REDIS_TIMEOUT = z.string().regex(/^\d+$/, 'Invalid timeout format').parse(REDIS_TIMEOUT);
-} catch {
-  keyvErrorInfo.add({
-    channel: 'env',
-    error: new Error(`无效的 REDIS_TIMEOUT 格式: ${REDIS_TIMEOUT}, 将使用默认值`),
-  });
-  handleKeyvError('env');
-  REDIS_TIMEOUT = '5000';
-}
-
-/** redis 连接字符串 */
-const REDIS_CONNECTION_STRING =
-  REDIS_USER && REDIS_PASSWORD
-    ? `redis://${REDIS_USER}:${REDIS_PASSWORD}@${REDIS_HOST}:${REDIS_PORT}`
-    : `redis://${REDIS_HOST}:${REDIS_PORT}`;
+const redis = redisSettings(process.env);
 
 const keyvInstances = [
   //  High performance in-memory cache with LRU and TTL
@@ -93,12 +45,14 @@ const keyvInstances = [
   [
     'redis',
     new Keyv(
-      new KeyvRedis(REDIS_CONNECTION_STRING, {
+      new KeyvRedis(redis.connection, {
         useUnlink: true,
-        connectionTimeout: parseInt(REDIS_TIMEOUT),
+        connectionTimeout: redis.timeout,
+        namespace: redis.namespace,
       }),
       {
-        namespace: 'cache-redis',
+        namespace: redis.namespace,
+        useKeyPrefix: false,
       },
     ),
   ],
@@ -183,7 +137,7 @@ export type TOtherCacheType = 'string' | 'number' | 'bigint' | 'boolean' | 'obje
 export const MAX_MEMORY_CACHE_SIZE = 5 * 1024 * 1024; // 5 MB
 
 /** 文件缓存目录 */
-export const FILE_CACHE_DIR = path.join(process.cwd(), 'cache', 'files');
+export const FILE_CACHE_DIR = path.join(ROOT, 'cache', 'files');
 
 /**
  * 检查数据是否是支持的类型

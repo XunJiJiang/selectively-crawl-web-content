@@ -30,6 +30,9 @@ export interface Initialize {
   entry: string;
   name: string;
   options: ProcessOptions;
+  pluginId?: string;
+  outputWindowId?: string | null;
+  sessionId?: string;
 }
 
 export interface Invocation {

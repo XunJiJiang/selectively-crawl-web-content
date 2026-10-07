@@ -1,5 +1,6 @@
 import path from 'node:path';
 import express, { type Request } from 'express';
+import { listenAvailable } from '../utils/listen.ts';
 import z from 'zod';
 import { strValidation } from '../utils/strValidation.ts';
 import { convertToCN } from '../utils/convertToCN.ts';
@@ -15,8 +16,25 @@ import { serverLogger } from '../common/logger.ts';
 import { isSameDomain } from '../utils/url.ts';
 import { pluginWebSocketRegistry } from './web/websocket.ts';
 import { createServer } from 'node:http';
+import { taskRegistry, currentIdentity, invocationStorage } from '../common/tasks.ts';
 
 export const app = express();
+app.use((_req, res, next) => {
+  const scope = taskRegistry.create('core:http', currentIdentity());
+  let finished = false;
+  const abort = () => res.destroy();
+  const finish = () => {
+    if (!finished) {
+      finished = true;
+      scope.controller.signal.removeEventListener('abort', abort);
+      scope.finish();
+    }
+  };
+  scope.controller.signal.addEventListener('abort', abort, { once: true });
+  res.once('finish', finish);
+  res.once('close', finish);
+  invocationStorage.run(scope.context, next);
+});
 
 // 修改为支持大体积json
 app.use(express.json({ limit: '100mb' }));
@@ -242,9 +260,10 @@ apiRouter.use('/plugin', pluginRouter);
 app.use('/api', apiRouter);
 app.use('/web', webRouter);
 
-export function listen(port: number, callback?: () => void) {
+export async function listen(port: number, callback?: (port: number) => void, range = 0) {
   const server = createServer(app);
   pluginWebSocketRegistry.attach(server);
-  server.listen(port, callback);
+  const actualPort = await listenAvailable(server, port, range);
+  callback?.(actualPort);
   return server;
 }

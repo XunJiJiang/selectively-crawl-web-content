@@ -2,7 +2,10 @@
  * 命令行指令处理模块
  */
 
-import { isPromiseLike } from './tryCatch.ts';
+import { EventEmitter } from 'node:events';
+import { bindLogger } from './log.ts';
+import { currentIdentity, invocationStorage, taskRegistry } from '../common/tasks.ts';
+import type { InvocationContext } from '../types/task.d.ts';
 import type { TLogger } from '../types/log.d.ts';
 import type { TCommandExecute, TCommandOption, TSubCommand } from '../types/command.d.ts';
 
@@ -11,6 +14,8 @@ import type { TCommandExecute, TCommandOption, TSubCommand } from '../types/comm
  * [pluginId:]commandName -> Command Definition
  * 只有冲突时才会添加 pluginId 前缀
  */
+export const commandEvents = new EventEmitter();
+
 const commandRegistry = new Map<
   string,
   {
@@ -21,6 +26,7 @@ const commandRegistry = new Map<
     options: TCommandOption[];
     exampleUsage?: string;
     pluginId: string;
+    available?: () => boolean;
   }
 >();
 
@@ -91,6 +97,7 @@ export function registerCommand(
   subCommands?: TSubCommand[],
   options?: TCommandOption[],
   exampleUsage?: string,
+  available?: () => boolean,
 ) {
   if (reservedCommands.has(commandName) && pluginId !== SYSTEM_SYMBOL) {
     throw new CommandError(`命令名称 ${commandName} 为系统预留命令`, false);
@@ -156,8 +163,10 @@ export function registerCommand(
     subCommands: subCommands ?? [],
     options: options ?? [],
     exampleUsage,
+    available,
     pluginId: pluginId.toString(),
   });
+  commandEvents.emit('change', getCommands());
 }
 
 /**
@@ -168,33 +177,39 @@ export function registerCommand(
  */
 export function splitCommand(rawCommand: string): string[] {
   const parts: string[] = [];
-  let currentPart = ''; // 当前部分
-  let inQuotes = false; // 是否在引号内
-  let quoteChar = ''; // 引号字符
-
+  let token = '';
+  let quote = '';
+  let started = false;
   for (let i = 0; i < rawCommand.length; i++) {
-    const char = rawCommand[i];
-
-    if (char === ' ' && !inQuotes) {
-      if (currentPart !== '') {
-        parts.push(currentPart);
-        currentPart = '';
+    const character = rawCommand[i];
+    if (quote) {
+      if (character === quote) {
+        quote = '';
+      } else if (character === '\\' && rawCommand[i + 1] === quote) {
+        token += rawCommand[++i];
+      } else {
+        token += character;
       }
-    } else if ((char === '"' || char === "'") && !inQuotes) {
-      inQuotes = true;
-      quoteChar = char;
-    } else if (char === quoteChar && inQuotes) {
-      inQuotes = false;
-      quoteChar = '';
+    } else if (character === '"' || character === "'") {
+      quote = character;
+      started = true;
+    } else if (/\s/.test(character)) {
+      if (started) {
+        parts.push(token);
+        token = '';
+        started = false;
+      }
     } else {
-      currentPart += char;
+      token += character;
+      started = true;
     }
   }
-
-  if (currentPart !== '') {
-    parts.push(currentPart);
+  if (quote) {
+    throw new CommandError('命令引号未闭合', false);
   }
-
+  if (started) {
+    parts.push(token);
+  }
   return parts;
 }
 
@@ -203,181 +218,108 @@ export function splitCommand(rawCommand: string): string[] {
  * 只执行一个回调, 优先级: 子命令 > 主命令
  * @param originCommand 原始命令字符串
  */
-export async function parseAndRunCommands(originCommand: string) {
-  const parts = splitCommand(originCommand);
-  if (parts.length === 0) {
+export function getCommands() {
+  return [...commandRegistry].map(([name, value]) => ({
+    name,
+    description: value.description,
+    subCommands: value.subCommands.map((item) => item.name),
+  }));
+}
+
+function prepareCommand(raw: string) {
+  const parts = splitCommand(raw);
+  if (!parts.length) {
     throw new CommandError('未提供命令', false);
   }
-  const commandName = parts[0];
-  /** 删除一级命令名称的参数数组 */
-  const args = [...parts].slice(1);
-  /**
-   * 未使用的参数
-   * 包括除去主命令和子命令名称和所有注册参数之外的参数
-   */
-  const unusedArgs: string[] = parts.filter((arg) => !arg.startsWith('-')).slice(2);
-  // 备份原始参数数组
-  const originArgs = parts.slice(0);
-  const commandDef = commandRegistry.get(commandName);
-  if (!commandDef) {
-    throw new CommandError(`未知命令: ${commandName}`, false);
+  const definition = commandRegistry.get(parts[0]);
+  if (!definition) {
+    throw new CommandError(`未知命令: ${parts[0]}`, false);
   }
-  const log = commandDef.log;
-  // 解析选项
-  const options: Record<string, string | boolean | number> = {};
-  // 输入的选项部分
-  const optionParts = args.filter((arg) => arg.startsWith('-'));
-
-  for (let i = 0; i < optionParts.length; i++) {
-    const part = optionParts[i];
-    let optionName: string;
-    let optionValue: string | boolean | number | undefined = void 0;
-    // 有没有输入值(=)
-    const equalIndex = part.indexOf('=');
-    // 有值
-    if (equalIndex !== -1) {
-      optionName = part.slice(0, equalIndex);
-      optionValue = part.slice(equalIndex + 1);
-
-      // 尝试转换为数字或布尔值
-      if (!isNaN(Number(optionValue))) {
-        optionValue = Number(optionValue);
-      } else if (optionValue.toLowerCase() === 'true') {
-        optionValue = true;
-      } else if (optionValue.toLowerCase() === 'false') {
-        optionValue = false;
-      }
-    } else {
-      optionName = part;
-    }
-    // 去除前缀
-    if (optionName.startsWith('--')) {
-      // 长选项
-      optionName = optionName.slice(2);
-    } else {
-      // 短选项
-      optionName = optionName.slice(1);
-      // 查找对应的长选项名称
-      const optionDef = commandDef.options.find((opt) => opt.alias === optionName);
-      if (optionDef) {
-        optionName = optionDef.name;
-      } else {
-        unusedArgs.push(part);
-      }
-    }
-    const optionDef = commandDef.options.find((opt) => opt.name === optionName);
-    if (!optionDef) {
-      log.warn(`未知选项: ${part}，已忽略`);
+  if (definition.available && !definition.available()) {
+    throw new CommandError('命令所属插件已停止，请使用 :r 重启核心后重新提交', false);
+  }
+  const options = new Map(
+    definition.options.map((option) => [
+      option.name,
+      { ...option, value: option.defaultValue ?? false },
+    ]),
+  );
+  const provided = new Set<string>();
+  const positional: string[] = [];
+  const warnings: string[] = [];
+  let literal = false;
+  for (const part of parts.slice(1)) {
+    if (part === '--') {
+      literal = true;
       continue;
     }
-    if (optionDef.required) {
-      if (optionValue === void 0) {
-        log.error(`选项 ${part} 需要一个值`);
-        return;
-      }
-    } else {
-      // 不需要值，视为布尔值 true
-      optionValue = optionValue === void 0 ? true : optionValue;
+    if (literal || !part.startsWith('-')) {
+      positional.push(part);
+      continue;
     }
-    options[optionName] = optionValue;
+    const split = part.indexOf('=');
+    const key = part.slice(0, split < 0 ? undefined : split).replace(/^-+/, '');
+    const option = definition.options.find((item) => item.name === key || item.alias === key);
+    if (!option) {
+      warnings.push(`未知选项: ${part}，已忽略`);
+      continue;
+    }
+    if (option.required && split < 0) {
+      throw new CommandError(`选项 ${part} 需要一个值`, false);
+    }
+    const text = split < 0 ? undefined : part.slice(split + 1);
+    const value =
+      text === undefined
+        ? true
+        : text === 'true'
+          ? true
+          : text === 'false'
+            ? false
+            : text.trim() && Number.isFinite(Number(text))
+              ? Number(text)
+              : text;
+    options.set(option.name, { ...option, value });
+    provided.add(option.name);
   }
-
-  // 检查必填选项
-  for (const opt of commandDef.options) {
-    if (opt.required && !(opt.name in options)) {
-      log.error(`缺少必填选项: --${opt.name}`);
-      return;
-    } else {
-      // 如果没有提供值，设置为默认值或 false
-      if (!(opt.name in options)) {
-        if (opt.defaultValue !== void 0) {
-          options[opt.name] = opt.defaultValue;
-        } else {
-          options[opt.name] = false;
-        }
-      }
-    }
-  }
-
-  // 填充默认值
-  commandDef.options.forEach((opt) => {
-    if (!(opt.name in options)) {
-      if (opt.defaultValue !== void 0) {
-        options[opt.name] = opt.defaultValue;
-      } else {
-        options[opt.name] = false;
-      }
-    }
-  });
-
-  // 是否执行了子命令
-  let executedSubCommand = false;
-  // 检查是否有子命令
-  // 获取第一个非选项参数
-  const nonOptionArgs = args.filter((arg) => !arg.startsWith('-'));
-
-  if (nonOptionArgs.length > 0) {
-    const subCommandName = nonOptionArgs[0];
-    const subCommand = commandDef.subCommands.find((sub) => sub.name === subCommandName);
-    if (subCommand) {
-      try {
-        // 执行子命令回调
-        const prom = await subCommand.execute(
-          commandDef.log,
-          commandDef.options.map((opt) => ({
-            ...opt,
-            value: options[opt.name],
-          })),
-          unusedArgs,
-          originArgs,
-        );
-        executedSubCommand = true;
-        if (isPromiseLike(prom)) {
-          prom.catch((error) => {
-            log.error(`执行子命令时出错: ${(error as Error).message}`);
-            if (error instanceof CommandError && error.needPrintOriginal) {
-              log.error(error);
-            }
-          });
-        }
-      } catch (error) {
-        log.error(`执行子命令时出错: ${(error as Error).message}`);
-        if (error instanceof CommandError && error.needPrintOriginal) {
-          log.error(error);
-        }
-      }
+  for (const option of definition.options) {
+    if (option.required && !provided.has(option.name)) {
+      throw new CommandError(`缺少必填选项: --${option.name}`, false);
     }
   }
-  if (!executedSubCommand) {
-    // 第二个命令不是注册的子命令时，将这个命令参数加入未使用参数列表的第一项
-    if (nonOptionArgs.length > 0) {
-      unusedArgs.unshift(nonOptionArgs[0]);
-    }
+  const sub = definition.subCommands.find((item) => item.name === positional[0]);
+  return {
+    definition,
+    parts,
+    execute: sub?.execute ?? definition.execute,
+    options: [...options.values()],
+    unused: sub ? positional.slice(1) : positional,
+    warnings,
+  };
+}
+export function validateCommand(command: string) {
+  const prepared = prepareCommand(command);
+  return { name: prepared.parts[0], pluginId: prepared.definition.pluginId };
+}
 
-    // 执行命令回调
-    try {
-      const prom = await commandDef.execute(
-        commandDef.log,
-        commandDef.options.map((opt) => ({ ...opt, value: options[opt.name] })),
-        unusedArgs,
-        originArgs,
-      );
-      if (isPromiseLike(prom)) {
-        prom.catch((error) => {
-          log.error(`执行命令时出错: ${(error as Error).message}`);
-          if (error instanceof CommandError && error.needPrintOriginal) {
-            log.error(error);
-          }
-        });
-      }
-    } catch (error) {
-      log.error(`执行命令时出错: ${(error as Error).message}`);
-      if (error instanceof CommandError && error.needPrintOriginal) {
-        log.error(error);
-      }
-    }
+export async function parseAndRunCommands(command: string, supplied?: InvocationContext) {
+  const prepared = prepareCommand(command);
+  const scope = supplied ? undefined : taskRegistry.create('core', currentIdentity());
+  const context = supplied ?? scope?.context;
+  if (!context) {
+    throw new CommandError('调用上下文缺失');
   }
-  commandDef.log.info('=======================================================');
+  const logger = bindLogger(prepared.definition.log, context, prepared.definition.pluginId);
+  try {
+    await invocationStorage.run(context, async () => {
+      for (const warning of prepared.warnings) {
+        logger.warn(warning);
+      }
+      await prepared.execute(logger, prepared.options, prepared.unused, prepared.parts, context);
+      logger.info('=======================================================');
+    });
+  } finally {
+    scope?.finish();
+  }
 }
 
 /** 打印 help */

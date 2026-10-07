@@ -166,10 +166,11 @@ const errorDefinitions = {
   },
 };
 
-const __dirname = path.dirname(new URL(import.meta.url).pathname);
-
 /** 错误页面模版 */
-const errorPageTemplate = fs.readFileSync(path.join(__dirname, 'worry.html'), 'utf-8');
+const errorPageTemplate = fs.readFileSync(
+  path.join(SERVER_ROOT, 'router/web/page/worry.html'),
+  'utf-8',
+);
 
 router.get('/worry/:id', (req: Request<{ id: string }>, res: Response) => {
   const worryId = req.params.id;

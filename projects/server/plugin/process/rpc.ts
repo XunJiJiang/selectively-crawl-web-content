@@ -34,7 +34,10 @@ export class RpcPeer {
       return Promise.reject(new PluginProcessError('插件通信已关闭'));
     }
     try {
-      if (this.sending >= 128) {
+      if (
+        this.sending >= 128 ||
+        (this.sending >= 96 && message.kind === 'event' && message.event === 'log')
+      ) {
         throw new PluginProcessError('插件 IPC 发送队列已满', 429, 'PLUGIN_BUSY');
       }
       if (serialize(message).byteLength > MAX_MESSAGE_BYTES) {
@@ -91,6 +94,9 @@ export class RpcPeer {
     void this.send({ version: 2, kind: 'event', event, data }).catch(() => {
       /* The peer may already be disconnected. */
     });
+  }
+  async eventAsync(event: string, data: unknown): Promise<void> {
+    await this.send({ version: 2, kind: 'event', event, data });
   }
 
   receive(message: unknown): void {

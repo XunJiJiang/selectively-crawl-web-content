@@ -7,12 +7,13 @@ export interface TCommandOption {
 }
 
 export type TCommandExecute = (
-  log: TLogger,
+  log: TLogger & Partial<PluginLogger>,
   options: (TCommandOption & { value: string | boolean | number })[], // 包含值的选项数组
   // 未使用的参数部分的数组
   unusedArgs: string[],
   // 原始命令参数数组
   originArgs: string[],
+  context?: InvocationContext,
 ) => Promise<void> | void;
 
 export interface TSubCommand {
@@ -21,3 +22,5 @@ export interface TSubCommand {
   exampleUsage?: string;
   execute: TCommandExecute;
 }
+import type { InvocationContext, PluginLogger } from './task.d.ts';
+import type { TLogger } from './log.d.ts';

@@ -1,6 +1,4 @@
-// import { spawn } from 'node:child_process';
-// import path from 'node:path';
-// import fs from 'node:fs';
+import readline from 'node:readline';
 import { inactivePlugins, plugins } from '../plugin/load.ts';
 import { pluginLogger } from '../plugin/log.ts';
 import {
@@ -11,7 +9,7 @@ import {
   parseAndRunCommands,
   CommandError,
 } from '../utils/command.ts';
-import { TOKEN } from '../common/env.ts';
+import { TOKEN, ACTIVE_PORT, HOST } from '../common/env.ts';
 
 /** 重启脚本位置 */
 // const RESTART_SCRIPT_PATH = path.join(process.cwd(), 'server', 'scripts', 'restart.ts');
@@ -75,6 +73,7 @@ export function registerDefaultCommands(serverLogger: SCWC.TLogger) {
         description: '显示服务器信息',
         execute: () => {
           serverLogger.info('服务器信息:');
+          serverLogger.info(`- URL: ${HOST}:${ACTIVE_PORT}`);
           serverLogger.info(`- TOKEN: ${TOKEN ?? '未设置'}`);
         },
       },
@@ -137,20 +136,14 @@ export function registerDefaultCommands(serverLogger: SCWC.TLogger) {
 }
 
 export function listenProcessStdin(serverLogger: SCWC.TLogger) {
-  process.stdin.setEncoding('utf-8');
-  process.stdin.on('data', async (input) => {
-    const inputStr = input.toString().trim();
-    if (inputStr === '') {
+  const reader = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });
+  reader.on('line', (line) => {
+    if (!line.trim()) {
       return;
     }
-    try {
-      await parseAndRunCommands(inputStr);
-    } catch (e) {
-      if (e instanceof CommandError) {
-        serverLogger.error(`命令执行失败: ${e.message}`);
-      } else {
-        serverLogger.error(`命令执行时出现未知错误: ${e}`);
-      }
-    }
+    void parseAndRunCommands(line).catch((error) =>
+      serverLogger.error(error instanceof CommandError ? `命令执行失败: ${error.message}` : error),
+    );
   });
+  process.stdin.resume();
 }
