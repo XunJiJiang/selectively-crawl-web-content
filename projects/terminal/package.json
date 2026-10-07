@@ -1,0 +1,9 @@
+{
+  "name": "scwc-terminal",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node index.ts",
+    "test": "vitest"
+  }
+}
