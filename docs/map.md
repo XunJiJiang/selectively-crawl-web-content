@@ -11,6 +11,7 @@ SCWC 是一个由本地 Node 服务、网页中的油猴脚本和 Web 宿主页�
 | 模块 | 运行环境 | 职责 | 首读入口 |
 | --- | --- | --- | --- |
 | `projects/server` | Node.js / Express | HTTP、WebSocket、扩展生命周期、终端命令、缓存与数据工具 | [index.ts](../projects/server/index.ts)、[router/index.ts](../projects/server/router/index.ts) |
+| `projects/terminal` | Node.js / TTY 或逐行 stdin | 多窗口命令、输出、交互输入、任务状态、核心重启与终端插件 | [index.ts](../projects/terminal/index.ts)、[controller.ts](../projects/terminal/controller.ts) |
 | `projects/user-script` | 目标网页，油猴脚本 / Lit | 悬浮窗、元素选择、抓取列表、扩展控件、脚本设置 | [src/main.ts](../projects/user-script/src/main.ts) |
 | `projects/web` | 浏览器 / Lit | 列出可用扩展页面，通过 iframe 打开页面并传入配置 | [src/main.ts](../projects/web/src/main.ts)、[layouts/content.ts](../projects/web/src/layouts/content.ts) |
 | `projects/shared` | 浏览器 | 三个浏览器模块复用的控件、配置、存储、类型和工具 | [store/config.ts](../projects/shared/store/config.ts)、[utils/common.ts](../projects/shared/utils/common.ts) |
@@ -104,7 +105,7 @@ flowchart LR
 3. 核心等待握手，确认插件目录覆盖后注册命令、绑定 HTTP / WebSocket 并后台加载插件。终端接收 ready、命令目录与状态更新。插件加载期间 HTTP 仍可处理请求。
 4. 直接启动核心时不启用终端 IPC，使用 readline 按行执行命令。多窗口终端的重启保留自身与窗口，只替换核心及业务插件。详见 [终端使用说明](../projects/terminal/README.md)。
 
-[common/environment.ts](../projects/server/common/environment.ts) 在消费 Redis 和服务配置前初始化环境。源码模式读取仓库根 `.env`，SEA 模式读取可执行文件同目录 `.env`；文件中的键优先，缺省键沿用进程环境。[common/setupParam.ts](../projects/server/common/setupParam.ts) 使用公共解析器处理 `--key=value` 和 `--key value`，决定 `isDev` / `isProd`。setup.ts 与核心共用该解析器；旧 scripts/parseArgs.ts 已不在启动链。
+[common/paths.ts](../projects/server/common/paths.ts) 区分源码根目录、可执行文件部署目录与 SEA 临时资源目录，核心默认路径不依赖启动 cwd。[common/environment.ts](../projects/server/common/environment.ts) 在消费 Redis 和服务配置前初始化环境。源码模式读取仓库根 `.env`，SEA 模式读取可执行文件同目录 `.env`；文件中的键优先，缺省键沿用进程环境。[common/config.ts](../projects/server/common/config.ts) 提供启动参数、端口和 Redis 配置校验，[common/pluginDirectory.ts](../projects/server/common/pluginDirectory.ts) 处理插件目录优先级与覆盖确认。[common/setupParam.ts](../projects/server/common/setupParam.ts) 使用公共解析器处理 `--key=value` 和 `--key value`，决定 `isDev` / `isProd`。setup.ts 与核心共用该解析器；旧 scripts/parseArgs.ts 已不在启动链。
 
 `listen()` 在 `router/index.ts` 内用 `createServer(app)` 建立 HTTP 服务，再挂载 WebSocket upgrade 处理。它返回 Promise，使用 [utils/listen.ts](../projects/server/utils/listen.ts) 直接依次绑定候选端口，只在 EADDRINUSE 时递增，默认最大偏移 20。`PORT_SEARCH_RANGE` / `--port-range` 可调整范围，`--port` 覆盖起始端口。日志和 `server info` 使用最终端口。当前只传入端口进行监听，`HOST` 用于 URL/日志等配置，没有作为监听地址传给 `server.listen()`。
 
@@ -116,15 +117,15 @@ flowchart LR
 
 所有启用插件默认由独立 Node 子进程加载，package.json.runtime 与入口 apiVersion 均可省略，默认分别为 process 和 2。入口使用公开 `SCWC.IPluginHandler` 第二版契约；IProcessPluginHandler / TProcess* 保留为同契约别名。核心不导入插件入口，不再支持进程内加载分支。显式填写不支持的模式/版本时记录到 inactivePlugins；enabled: false 保持禁用。runtime 可仅包含超时覆盖。加载器最多同时激活两个插件，成功项立即注册。
 
-核心的 handler 是本地调用代理，函数和实际业务状态留在插件进程。第二版 API 接收可序列化 request；资源返回文件或小响应描述，由核心执行 Range/流式下载；WebSocket 真实连接仍由核心承载。动态 HTML 支持异步调用与最近成功快照。缓存由核心按插件目录名绑定命名空间。createRetryGet 的流式响应在宿主本地消费，不进入 IPC 缓存；普通响应支持缓存及自定义请求类。
+核心的 handler 是本地调用代理，函数和实际业务状态留在插件进程。公开 `IPluginHandler`、`TPluginApi`、`TPluginResource`、`TPluginRequestContext` 和 WebSocket 类型统一使用第二版可序列化契约；内部 Express/socket 类型使用 `Hosted` 名称。第二版 API 接收可序列化 request；资源返回文件或小响应描述，由核心执行 Range/流式下载；WebSocket 真实连接仍由核心承载。动态 HTML 支持异步调用与最近成功快照。缓存由核心按插件目录名绑定命名空间。createRetryGet 的流式响应在宿主本地消费，不进入 IPC 缓存；普通响应支持缓存及自定义请求类。
 
-运行实现与完整限制见 [独立插件宿主](../projects/server/plugin/process/README.md)。重要入口是 client.ts（进程及代理）、host.ts（插件回调）、rpc.ts（有界通信）、resource.ts（核心资源发送）和 types/plugin-process.d.ts（第二版类型）。当前十个插件入口（含模板和禁用插件）均完成迁移；禁用状态不变。没有单插件热重载或写请求自动重放。
+运行实现与完整限制见 [独立插件宿主](../projects/server/plugin/process/README.md)。重要入口是 client.ts（进程及代理）、host.ts（插件回调）、rpc.ts（有界通信）、resource.ts（核心资源发送）和 types/plugin-process.d.ts（第二版类型）。当前插件入口（含模板和禁用插件）均使用第二版契约；禁用状态不变。ASMR 媒体资源使用文件描述，图片插件等待下载与保存完成后结束回调。没有单插件热重载或写请求自动重放；贴纸内部读写分离和统一重任务预算仍属于后续工作。
 
 ### 3.3 退出与重启
 
 `index.ts` 的退出处理先等待加载流程结束，再逐项等待已加载扩展的 `onUnload(logger, { isRestart })`。普通退出再调用核心缓存的 `clearAll`，重启保留缓存，最后 `process.exit(0)`。单项卸载失败不会跳过其他插件的卸载；独立宿主卸载有截止时间并清理后代进程。
 
-直接核心的 exit / restart 通过进程内部 message 触发退出；直接 restart 只结束当前进程。终端通过 command/ipc.ts 发出生命周期请求，聚合任务并确认后停止，再由 terminal/controller.ts 重新拉起核心。SIGINT / SIGTERM 也进入卸载处理。
+直接核心的 exit / restart 通过进程内部 message 触发退出；直接 restart 只结束当前进程。终端通过 command/ipc.ts 发出生命周期请求，聚合任务并确认后停止，再由 terminal/controller.ts 重新拉起核心。直接核心等待 `next` 输入时，SIGINT 只取消当前输入并返回错误元组；其他 SIGINT / SIGTERM 进入卸载处理。调用任务、取消和交互输入的具体规则见第 8 节。
 
 `scripts/dev.ts` 和 `router/utils/path.ts` 当前为空。`scripts/proxy.ts` 没有接入启动链；`scripts/restart.ts` 是未接入当前流程的旧脚本，不应作为现行重启入口。
 
@@ -283,7 +284,9 @@ HTTP 通用中间件位于 [server/router/index.ts](../projects/server/router/in
 
 [router/utils/index.ts](../projects/server/router/utils/index.ts) 的 `matchLink()` 是抓取和油猴配置的共用匹配器：普通项做前缀匹配，支持 `*` 与 `!`，空数组会匹配全部；它不是一个直接接受 RegExp 的接口。通配项按代码顺序返回匹配结果，修改否定项优先级时应验证混合规则。
 
-## 8. 服务端公共工具与终端命令
+## 8. 服务端公共工具、终端与调用上下文
+
+### 8.1 公共工具
 
 | 工具 | 当前职责和关键约束 |
 | --- | --- |
@@ -298,7 +301,41 @@ HTTP 通用中间件位于 [server/router/index.ts](../projects/server/router/in
 
 修改缓存、重试和并发工具时，需检查实际异常及异步链路，不能只按函数注释推断所有边界已被处理；`types/` 下声明对应公共工具接口。
 
-[command/index.ts](../projects/server/command/index.ts) 注册 `help`、`exit`、`restart`、`server info`、`plugin ls`、`plugin ps`，；直接模式监听 stdin，终端模式由 command/ipc.ts 调用。[utils/command.ts](../projects/server/utils/command.ts) 负责命令注册、引号分词、选项解析、主/子命令执行和帮助。系统命令先占用名称；扩展命令重名时使用目录 ID 前缀。它处理的是服务终端输入，不是 Web 命令接口。
+### 8.2 命令注册与执行
+
+[command/index.ts](../projects/server/command/index.ts) 注册 `help`、`exit`、`restart`、`server info`、`plugin ls`、`plugin ps`；直接模式监听 stdin，终端模式由 [command/ipc.ts](../projects/server/command/ipc.ts) 调用。[utils/command.ts](../projects/server/utils/command.ts) 负责命令注册、引号分词、选项解析、主/子命令执行和帮助。系统命令先占用名称；扩展命令重名时使用目录 ID 前缀。它处理的是服务终端输入，不是 Web 命令接口。
+
+### 8.3 多窗口终端与终端插件
+
+[terminal/index.ts](../projects/terminal/index.ts) 持有 stdin/stdout 并负责 TTY 恢复；[controller.ts](../projects/terminal/controller.ts) 管理全局命令、确认、取消和核心重启；[model.ts](../projects/terminal/model.ts)、[render.ts](../projects/terminal/render.ts)、[input.ts](../projects/terminal/input.ts) 管理窗口、草稿、全屏渲染、按键和鼠标。非 TTY / TERM=dumb 使用逐行交互。实现依据 [终端设计方案](终端设计方案.md)，操作和配置见 [终端使用说明](../projects/terminal/README.md)。
+
+窗口使用固定 UUID，默认包含输出窗口和一个命令窗口；每窗只运行一个顶层命令，不同窗口可并行。终端自身保留窗口、日志与历史，核心重启只替换核心及业务插件。任务存在时，替换、关闭、退出或重启需要先确认并取消相关任务；协作取消失败时可确认强停宿主。
+
+[terminal/peer.ts](../projects/terminal/peer.ts) 使用版本 1 协议连接终端与核心；业务插件的 [plugin/process/rpc.ts](../projects/server/plugin/process/rpc.ts) 保持版本 2。IPC 只传递身份与可序列化数据，调用函数在所属宿主生成。终端插件由 [terminal/plugins/load.ts](../projects/terminal/plugins/load.ts) 加载至独立宿主，通过 `registerCommand` 注册命令；其 `invokeCore` 子执行共用父窗口，并保持父任务忙状态直到子执行整体结束。
+
+### 8.4 调用上下文与任务统计
+
+[common/tasks.ts](../projects/server/common/tasks.ts) 提供 `TaskRegistry` / `TaskScope`、`AsyncLocalStorage` 和调用上下文。主/子命令第五参数为 `InvocationContext`，注入 `tasks`、`signal` 和 `next`；`onLoad` 获得进程级 reporter，宿主每次业务调用另建调用作用域。
+
+busy 由自动调用、主动 `setBusy(true)` 或未结束的 `begin` 句柄共同决定。函数返回不会清除主动 busy 或 begin 句柄；窗口使用 `command.returned` / `command.finished` 区分函数返回后的后台阶段与整体完成。非命令 HTTP 请求也统计自动任务，取消时关闭活动响应。插件宿主停止会中断相关调用，旧 reporter 消息不会影响新宿主。
+
+### 8.5 日志输出与颜色
+
+命令日志绑定固定 `windowId` / `executionId`，帮助信息也归发起命令的窗口。`onLoad` 保存的 logger 在调用异步链中采用当前执行身份。终端和插件 IPC 按序排队，帮助与突发日志不再因发送并发或每秒限流缺失；插件日志不再按 8000 字符截断。极端过载队列和窗口历史有明确上限及截断提示。成功状态只恢复窗口，不追加 `[succeeded] 命令` 行。
+
+[common/color.ts](../projects/server/common/color.ts) 检测真实 stdout 的颜色能力，再向核心和两类插件宿主传递 `FORCE_COLOR`，避免子进程的管道输出被识别为无色。结构化输出携带 `level`，终端在保存/显示前给信息标签、警告和错误着色，并保留插件 ANSI 与对象格式化颜色。`NO_COLOR` / `FORCE_COLOR=0` 关闭颜色；重定向和 `TERM=dumb` 默认无色，`FORCE_COLOR=1/2/3` 可强制启用。
+
+### 8.6 执行中等待输入
+
+[common/interaction.ts](../projects/server/common/interaction.ts) 负责 `next` 输入格式、错误元组和宿主通信。`TaskScope.context` 注入 `next(message, String/Number/Boolean/BigInt/Date)`，返回 `[InvocationInputError, undefined] | [undefined, T]`，输入错误通过返回值交给命令处理。
+
+`command/ipc.ts` 与直接 stdin 均支持执行中等待；终端将提示和输入草稿绑定到发起调用的窗口。终端插件及 `invokeCore` 子执行共用该链路。格式无效时提示重输；Ctrl+C 只取消当前 `next`，返回 `cancelled` 错误元组；取消任务、EOF、重启或断连也会结束等待。插件等待输入期间暂停命令 RPC 超时，回复后恢复剩余时限。
+
+### 8.7 终端状态保存与恢复
+
+[terminal/storage.ts](../projects/terminal/storage.ts) 使用版本 1 JSON 保存状态，默认路径为 `data/terminal/state.json`，支持 `SCWC_TERMINAL_STATE_FILE` / `SCWC_TERMINAL_PERSIST`；`SCWC_CMD_PLUGIN_DIR` 配置独立终端插件目录。状态文件每秒原子保存脏快照并保留备份，强杀只恢复最近成功保存的快照。默认双窗、最多 128 窗，每窗最多 10,000 行或 10 MiB。
+
+快照保留窗口 UUID、顺序、输出、历史与草稿；运行任务恢复为中断状态，不重放命令或主动忙状态。输入请求不持久化，也不会在恢复时重建等待。
 
 ## 9. 开发、构建与检查
 
@@ -329,6 +366,8 @@ HTTP 通用中间件位于 [server/router/index.ts](../projects/server/router/in
 | `webutils/vite.config.ts` | `projects/server/public/lib/scwcutils.iife.<36进制时间戳>.js` | 核心页面路由注入 |
 
 以上配置均设置 `emptyOutDir: true`。服务端源码直接执行 TypeScript；根 build 没有打包服务端，也没有构建各插件的私有页面。独立 build:core 通过 esbuild 将核心、终端及两类宿主编译、合并依赖、tree shaking 和压缩为 JS（保留函数/类名），再经 Node SEA 打包，并构建、内置 Web / webutils / 公共资源 / 错误模板，不包含业务插件。
+
+[scripts/build-executable.ts](../projects/server/scripts/build-executable.ts) 构建本机可执行文件，[sea-bootstrap.ts](../projects/server/scripts/sea-bootstrap.ts) 将内置资源释放到私有临时目录，再加载核心、终端或插件宿主。SEA 中的客户端 fork 通过 `--scwc-plugin-host` / `--scwc-terminal-plugin-host` 分支复用同一可执行文件，保持高级 IPC 序列化及外部插件动态导入。使用 `./scwc --terminal` 启动多窗口终端；产物内置 `terminal.cjs` / `terminal-host.cjs`。
 
 服务端 `.env` 变量：`PORT`（默认 3200）、`PORT_SEARCH_RANGE`（默认最大偏移 20）、`HOST`（默认 `http://localhost`）、`TOKEN`、`SCWC_PLUGIN_DIR`，以及 `REDIS_HOST`、`REDIS_PORT`、`REDIS_USER`、`REDIS_PASSWORD`、`REDIS_TIMEOUT`、`REDIS_KEY_PREFIX`。完整配置及目录规则见 [核心部署](核心部署.md) 与 [模板](core.env.example)。
 
@@ -362,8 +401,13 @@ HTTP 通用中间件位于 [server/router/index.ts](../projects/server/router/in
 | [server/router/web/websocket.test.ts](../projects/server/router/web/websocket.test.ts) | 不同 safeId 下相同通道隔离及消息分发；缺少 site 的握手被拒绝，未单独覆盖带有效 site 的错误 token 情形 |
 | [server/common/config.test.ts](../projects/server/common/config.test.ts) | 端口范围和 CLI 解析、Redis 密码/ACL/IPv6/前缀、插件目录优先级与确认分支 |
 | [server/common/environment.test.ts](../projects/server/common/environment.test.ts) | `.env` 优先、未配置键与缺失文件回退 |
+| [server/common/tasks.test.ts](../projects/server/common/tasks.test.ts) | 调用作用域、主动/自动任务、父子任务取消、宿主停止、旧快照拒绝和固定 logger 身份 |
+| [server/common/interaction.test.ts](../projects/server/common/interaction.test.ts) | 基础类型格式化、错误输入重试、等待期间 busy、多窗口隔离与取消错误元组 |
+| [server/common/color.test.ts](../projects/server/common/color.test.ts) | 真实终端颜色能力、环境配置、日志级别颜色和自定义 ANSI 保留 |
 | [server/utils/listen.test.ts](../projects/server/utils/listen.test.ts) | 真实端口占用后的绑定、范围耗尽、权限错误不重试 |
-| `server/plugin/process/*.test.ts` | 默认独立宿主、RPC 边界、插件激活/超时/崩溃/卸载、请求与资源及进程树清理；installed-plugins 测试涉及本机安装的插件 |
+| `server/plugin/process/*.test.ts` | 原生 Node 宿主、默认/省略配置、RPC 边界、突发与长日志、交互输入及超时暂停、插件激活/超时/崩溃/卸载和后代清理；在临时目录启动真实贴纸插件，验证同步阻塞时核心和另一个插件仍可响应，以及媒体 Range/下载与 WebSocket；installed-plugins 测试逐个激活和卸载十个插件，覆盖禁用状态、ASMR 登录/票据、缓存和流式请求 |
+| `terminal/*.test.ts` | 窗口身份、输入和确认、输出顺序、颜色折行、Ctrl+C 输入取消、状态文件/备份/锁与恢复 |
+| [server/scripts/smoke-executable.ts](../projects/server/scripts/smoke-executable.ts)、[terminal/smoke.ts](../projects/terminal/smoke.ts) | 独立部署、同目录 `.env`、端口递增/耗尽、静态资源、Redis 密码/前缀隔离、插件目录确认、多窗口任务、交互输入、管道/EOF、颜色、取消/强停、重启和真实 PTY |
 | [shared/utils/refreshRuleParser.test.ts](../projects/shared/utils/refreshRuleParser.test.ts) | pathname、search、hash 和组合规则解析 |
 
 根 Vitest 注册 server、user-script、web、terminal；会收集服务端公共工具、配置和进程宿主测试，没有收集 shared 的规则测试。installed-plugins 等测试依赖本机安装插件，针对核心可显式指定文件。端口与 WebSocket 测试需要允许本机监听端口。针对核心的命令：
@@ -375,6 +419,8 @@ bun run test --run projects/server/utils/cache.test.ts projects/server/router/we
 # 使用独立配置从仓库根收集 shared 测试
 bunx vitest run --config projects/server/vitest.config.ts projects/shared/utils/refreshRuleParser.test.ts
 ```
+
+独立宿主已有类型检查与原生 Node 导入验证记录。进程宿主及已安装插件测试的数据均放在临时目录。独立部署 smoke 使用临时部署、独立 Redis 密码与端口，需要本机 `redis-server`；真实 PTY 验证另需 Python 3。目前独立可执行文件和终端的本机验证为 macOS，Windows/Linux 仍需在对应平台构建和人工验收。
 
 选择/抓取 UI、普通 HTTP 鉴权、页面 API 和 iframe 配置流程目前没有专门的核心自动化测试文件。修改相应功能时结合目标场景验证；文档核对和测试发现不代表这些运行流程已通过测试。
 
@@ -388,41 +434,11 @@ bunx vitest run --config projects/server/vitest.config.ts projects/shared/utils/
 | API 数据格式或上传行为 | `server/router/index.ts`、油猴 `api/crawl.ts` | Zod schema、响应类型、消息展示、公共契约 |
 | 服务地址、token、来源验证 | `server/common/env.ts`、`router/index.ts`、`utils/url.ts` | `shared/store/config.ts`、各请求封装、WebSocket 独立验证 |
 | 生命周期、启动/重启、命令 | `server/index.ts`、`scripts/setup.ts`、`plugin/load.ts`、`command/index.ts` | 父子进程职责、onUnload、缓存清理、`utils/command.ts` |
+| 多窗口终端、任务状态、日志与交互输入 | `terminal/controller.ts`、`model.ts`、`render.ts`、`peer.ts`、`storage.ts` | `server/command/ipc.ts`、`common/tasks.ts`、`interaction.ts`、`color.ts`、两类插件宿主 |
 | Web 页面列表、iframe、配置传递 | `web/src/layouts/content.ts`、`api/plugins.ts` | 服务端页面路由、webutils 初始化、油猴消息接收 |
 | 页面 API、资源、WebSocket | `server/router/web/api/load.ts`、`web/websocket.ts` | `plugin/load.ts` 的注册、webutils 封装与类型、通道鉴权 |
 | 缓存、重试、并发、数据保存 | `server/utils/cache.ts`、`axios.ts`、`writeData.ts` | 对应工具类型、onLoad 注入、命名空间及异常路径 |
 | 共享控件、通知、配置或存储格式 | `shared/components/`、`store/config.ts`、`utils/storage.ts` | 所有浏览器使用方、迁移和事件载荷 |
-| 构建产物、开发端口、环境注入 | 根 `package.json`、三个 Vite 配置、`server/scripts/build.ts` | 服务端静态路由、tsconfig 范围、生成目录 |
+| 构建产物、开发端口、环境注入 | 根 `package.json`、三个 Vite 配置、`server/scripts/build.ts`、`build-executable.ts`、`sea-bootstrap.ts` | 服务端静态路由、源码/SEA 路径、两类插件宿主、tsconfig 范围、生成目录 |
 
 开发前先读对应行涉及的调用端与处理端，再确认当前工作区变更。修改公共接口时同时更新运行时校验、类型和调用方；不要把生成目录、旧脚本、未接通的 TODO 或其他插件的内部实现当作核心依据。
-
-### 2026-10-06 插件进程隔离第一阶段
-
-已建立独立 Node 宿主和第二版可序列化契约，现以第二版为默认并完成全部插件入口迁移。隔离测试在临时目录启动真实贴纸插件；验证同步阻塞时核心及另一个插件可响应、媒体 Range/下载及 WebSocket 可用，以及启动失败、超时、崩溃、卸载和后代清理。类型检查与原生 Node 导入验证通过。贴纸内部读写分离和统一重任务预算属于后续阶段。
-
-### 2026-10-06 默认第二版契约与全插件迁移
-
-所有启用插件默认采用独立进程；省略 runtime/apiVersion 或只设置超时都不会进入核心执行。公开 IPluginHandler、TPluginApi、TPluginResource、TPluginRequestContext 和 WebSocket 类型统一为可序列化契约；内部 Express/socket 类型使用 Hosted 名称。ASMR 媒体资源迁移到文件描述，图片插件等待下载与保存完成；注入 retryGet 的 Readable 留在子进程消费。测试逐个激活和卸载十个插件并覆盖默认配置、禁用状态、ASMR 登录/票据、缓存与流式请求，数据均使用临时目录。
-
-### 2026-10-07 核心配置、端口与独立部署
-
-新增 common/paths.ts、environment.ts、config.ts、pluginDirectory.ts，统一源码/SEA 目录及环境优先级、端口/Redis 校验和插件目录确认。scripts/build-executable.ts 构建本机可执行文件，sea-bootstrap.ts 将内置资源释放到私有临时目录，再加载核心或插件宿主。客户端 fork 在 SEA 中通过 --scwc-plugin-host 分支复用同一可执行文件，保持高级 IPC 序列化及外部插件动态导入。
-
-新增 config/environment/listen 测试及独立部署 smoke 脚本。已按确认的 [设计方案](终端设计方案.md) 实现多窗口终端、固定 UUID / logger 归属、主动/自动任务状态、全屏输入/鼠标、确认/取消/重启、原子持久化及独立终端插件。setup.ts 只做构建准备和终端启动。入口与配置见 terminal/README.md；目前本机验证为 macOS，Windows/Linux 需要对应终端人工验收。
-
-
-### 2026-10-07 多窗口终端与调用任务
-
-核心 common/tasks.ts 提供 TaskRegistry / TaskScope、AsyncLocalStorage 和调用上下文。主/子命令第五参数注入 tasks / signal；onLoad 注入进程级 reporter，宿主每次业务调用另建作用域。函数返回不清除主动 busy 或 begin 句柄，窗口使用 command.returned / command.finished 区分后台阶段。插件宿主停止会中断相关调用，旧 reporter 消息不影响新宿主。
-
-terminal/peer.ts 的版本 1 负责终端↔核心；现有插件 RPC 仍为版本 2，传递身份数据并在宿主生成函数。命令日志绑定固定 windowId / executionId；非命令 HTTP 请求也统计自动任务，取消时关闭活动响应。终端命令插件的 invokeCore 保持父任务忙状态直到子执行整体结束。
-
-终端状态用版本 1 JSON 保存，默认 data/terminal/state.json，支持 SCWC_TERMINAL_STATE_FILE / SCWC_TERMINAL_PERSIST / SCWC_CMD_PLUGIN_DIR。每秒原子保存脏快照并保留备份；强杀只恢复最近快照，不重放任务。默认双窗、最多 128 窗、每窗 10,000 行或 10 MiB。独立 SEA 支持 --terminal，并内置 terminal.cjs / terminal-host.cjs。
-
-### 2026-10-08 命令输出与交互输入
-
-终端颜色通过 common/color.ts 检测真实 stdout 的能力，再向核心和两类插件宿主传递 FORCE_COLOR，避免子进程的管道输出被识别为无色。结构化输出携带 level，终端在保存/显示前给信息标签、警告和错误着色，并保留插件 ANSI 与对象格式化颜色。NO_COLOR / FORCE_COLOR=0 关闭颜色；重定向和 TERM=dumb 默认无色，FORCE_COLOR=1/2/3 可强制启用。
-
-终端和插件 IPC 改为按序排队，帮助与突发日志不再因发送并发或每秒限流缺失；移除插件日志 8000 字符截断，onLoad 保存的 logger 在调用异步链中采用当前执行身份。成功状态仅恢复窗口，不追加 succeeded 行。极端过载队列与窗口历史仍有明确上限及截断提示。
-
-common/interaction.ts 负责 next 输入格式、错误元组和宿主通信；TaskScope.context 注入 next(message, String/Number/Boolean/BigInt/Date)，返回 `[InvocationInputError, undefined] | [undefined, T]`。command/ipc.ts 与直接 stdin 均支持执行中等待；terminal/controller/model/render 将提示、草稿与固定窗口绑定，终端插件及 invokeCore 子执行共用该链路。格式无效重试；Ctrl+C 只取消当前 next，返回 cancelled 元组；取消任务、EOF、重启或断连也会结束等待。插件等待输入期间暂停命令 RPC 超时，回复后恢复剩余时限。输入请求不持久化，恢复不重放。
