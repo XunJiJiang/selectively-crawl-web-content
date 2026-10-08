@@ -6,6 +6,7 @@ import { RpcPeer } from './rpc.ts';
 import { TaskRegistry, invocationStorage } from '../../common/tasks.ts';
 import { setInputHandler, remoteInput } from '../../common/interaction.ts';
 import { outputColorLevel } from '../../common/color.ts';
+import { registerPluginSdk } from '../sdk/register.ts';
 import type { InvocationIdentity } from '../../types/task.d.ts';
 import type { LogLevel } from '../../utils/log.ts';
 import type { Initialize, Invocation, Manifest } from './protocol.ts';
@@ -156,6 +157,7 @@ async function initialize(args: Initialize): Promise<Manifest> {
   if (plugin) {
     throw new Error('插件不能重复初始化');
   }
+  registerPluginSdk();
   const loaded: unknown = (await import(pathToFileURL(args.entry).href)).default;
   pluginId = args.pluginId ?? args.name;
   logger = Object.freeze({

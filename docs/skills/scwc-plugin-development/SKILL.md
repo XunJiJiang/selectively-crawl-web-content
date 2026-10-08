@@ -19,7 +19,7 @@ description: 为 Selectively Crawl Web Content 开发或维护 projects/server/p
 
 ## 插件目录与入口
 
-每个插件是一个独立目录，至少包含 `package.json` 和 `main` 指向的 `.ts`/`.js` 入口。推荐 TypeScript、ES module 和严格类型检查；模板的 `tsconfig.json` 可作为起点，并确保 `files` 包含 `../plugin-env.d.ts`。
+每个插件是一个独立目录，至少包含 `package.json` 和 `main` 指向的 `.ts`/`.js` 入口。推荐 TypeScript、ES module 和严格类型检查；模板的 `tsconfig.json` 可作为起点，并确保 `files` 包含 `../plugin-env.d.ts` 和 `../../plugin/sdk/modules.d.ts`。独立目录开发可显式引用核心工作区中的这两份文件；核心工作区需安装其类型依赖，无需发布 SDK npm 包。
 
 ```text
 projects/server/plugins/my-plugin/
@@ -78,7 +78,9 @@ projects/server/plugins/my-plugin/
 - `onRequest(context, logger)` 必须实现且可异步。`context.data` 是 `SCWC.TDataItem[]`；`context.site` 至少有 `url`、`rootUrl`、`origin`、`pathname`。抓取请求的 logger 额外有 `toWeb(message, type?)`，用于把通知返回给浏览器；控制器/API 触发的 logger 没有 `toWeb`，必须返回类型为 `notification` 的结果。
 - 可以使用注入的 `utils.writeData` 保存抓取结果，使用 `writeDataURL` 单独保存 data URL/图片链接，使用 `fetchImage` 获取图片，使用 `strValidation` 清理文件名，使用 `convertToCN` 做汉字转换。文件路径由插件负责规划，先保证目录存在语义和可恢复性，不要把用户输入未经校验地拼接成任意路径。
 - `onUnload(logger, { isRestart })` 可选。释放定时器、连接和临时资源；根据 `isRestart` 区分重启与真正退出。
-- 依赖选择应优先复用根目录/核心项目已经安装的包；插件需要使用已有依赖时直接引用，不要重复在插件目录安装同一依赖。只有需要不同版本、插件必须独立发布，或核心项目没有该依赖时，才在插件目录单独安装，并记录原因。涉及 Node 原生模块或运行时兼容性时，以根目录要求的 Node 24+ 和当前启动方式为准。
+- 依赖选择应优先使用核心 [共享 SDK](../../../projects/server/plugin/sdk/README.md)：通过 `scwc:deps` 导入明确开放的 Axios/Chalk/Zod/SQLite/Trash/File Type，可在任意插件目录及 SEA 中使用，不重复安装。普通包名仍由 Node 解析，根 dependencies 不等于共享白名单；其他根依赖只有在路径允许时才可直接复用。需要不同版本或未共享的依赖时由插件提供，并记录原因；安装位置仍遵循下方确认规则。
+- 插件 Worker 使用 `scwc:runtime` 的 createPluginWorker，确保钩子在 Worker 内注册；RpcPeer、PluginProcessError 和 PluginRequest 也从此入口获取，不通过相对路径导入核心源码。直接运行插件或创建普通 Node Worker 需要自行注册 SDK。共享依赖按进程/Worker 独立实例，不经 IPC 传递函数。
+- `scwc:deps` 是 Node 虚拟模块，浏览器不能直接加载。前后端共享 Zod 模型时，Vite alias 指向核心 plugin/sdk/browser.ts（只导出 z）；Node 依赖不能进入页面。开发声明与运行时版本须一致，详见共享 SDK README。
 
 ## 浏览器脚本控制器
 

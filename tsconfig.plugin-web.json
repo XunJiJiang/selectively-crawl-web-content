@@ -22,5 +22,11 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true
   },
-  "include": ["projects/webutils/lib.d.ts", "projects/server/plugins/*/web/**/*", "vite-env.d.ts"]
+  "include": [
+    "projects/webutils/lib.d.ts",
+    "projects/server/plugins/*/web/**/*",
+    "projects/server/plugin/sdk/modules.d.ts",
+    "projects/server/plugins/plugin-env.d.ts",
+    "vite-env.d.ts"
+  ]
 }

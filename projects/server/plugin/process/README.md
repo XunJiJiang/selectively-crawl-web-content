@@ -18,6 +18,8 @@
 
 所有启用插件默认使用独立 Node 子进程和 apiVersion 2。package.json 可以完全省略 runtime；入口可以省略 apiVersion，按第二版签名实现并用 `satisfies SCWC.IPluginHandler` 约束即可。`SCWC.IProcessPluginHandler` 和 TProcess* 类型保留为别名。THosted* / IHostedPluginHandler 只描述核心生成的 Express/socket 代理，插件不要使用这些内部类型。
 
+宿主动态导入插件前注册 [共享 SDK](../sdk/README.md)。`scwc:deps` 提供明确共享的依赖，`scwc:runtime` 提供 Worker/RPC 工具；源码与 SEA 均支持外部插件目录。开发类型来自 sdk/modules.d.ts，不需要 npm 发布。原始包名不自动回退至 SDK，插件私有依赖仍需自行提供；Worker 应使用 createPluginWorker 初始化自己的钩子。
+
 上面的 mode/apiVersion 都可省略，runtime 也可只配置超时。显式填写其他模式或版本会进入 inactivePlugins，不允许进程内回退。enabled: false 仍跳过加载。超时设置必须为 100–600000 的整数；未设置时为启动 30 秒、普通请求 30 秒、卸载 5 秒。贴纸、ASMR、本地关注、图片与 Twitter 保留 5 分钟普通请求额度，以兼容批量抓取和下载。
 
 HTTP 在插件激活前启动。加载器最多同时激活两个插件，成功项立即注册并加入 plugins；单个加载/激活失败会被记录。启动期间页面列表可能只包含已激活项。`plugin ps/ls` 展示进程状态、PID 和最近失败原因；心跳检测到无响应只标记状态，不结束正在执行的写操作。

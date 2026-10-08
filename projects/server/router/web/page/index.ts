@@ -19,12 +19,12 @@ const LIB_DIR = path.join(PUBLIC_DIR, 'lib');
 /** 查找最新库文件 */
 function findLatestLibFile(): string | null {
   const files = fs.readdirSync(LIB_DIR);
-  const webUtilsFiles = files.filter((file) => /^scwcutils\.iife\.[a-zA-Z0-9]+\.js$/.test(file));
-  if (webUtilsFiles.length === 0) {
+  const webutilsFiles = files.filter((file) => /^scwcutils\.iife\.[a-zA-Z0-9]+\.js$/.test(file));
+  if (webutilsFiles.length === 0) {
     return null;
   }
   // 按照时间戳排序, 取最新的文件
-  const latestFile = webUtilsFiles.sort((a, b) => {
+  const latestFile = webutilsFiles.sort((a, b) => {
     const aTimestamp = parseInt(a.split('.')[2], 36);
     const bTimestamp = parseInt(b.split('.')[2], 36);
     return bTimestamp - aTimestamp;

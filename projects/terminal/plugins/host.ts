@@ -5,6 +5,7 @@ import { Peer } from '../peer.ts';
 import { TaskRegistry, invocationStorage } from '../../server/common/tasks.ts';
 import { setInputHandler, remoteInput } from '../../server/common/interaction.ts';
 import { outputColorLevel } from '../../server/common/color.ts';
+import { registerPluginSdk } from '../../server/plugin/sdk/register.ts';
 import type { InvocationIdentity, PluginLogger } from '../../server/types/task.d.ts';
 import type { TerminalPlugin, TerminalCommand } from './types.ts';
 
@@ -64,6 +65,7 @@ peer.onCall = async (method, value) => {
   if (method === 'hello') {
     pluginId = args.pluginId;
     outputId = args.outputId;
+    registerPluginSdk();
     plugin = (await import(pathToFileURL(args.entry).href)).default as TerminalPlugin;
     if (
       !plugin ||

@@ -1,12 +1,10 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PluginProcessClient } from './client.ts';
 import { resolveProcessOptions } from './options.ts';
-import { serveMediaResource } from '../../plugins/asmr/src/web/media-resource.ts';
-import { PlayerDatabase } from '../../plugins/asmr/src/utils/database/player-data.ts';
 
 const pluginRoot = fileURLToPath(new URL('../../plugins/', import.meta.url));
 const pluginNames = fs
@@ -14,6 +12,7 @@ const pluginNames = fs
   .filter((name) => fs.existsSync(path.join(pluginRoot, name, 'package.json')));
 const clients: PluginProcessClient[] = [];
 const roots: string[] = [];
+let resetAsmrDatabase: (() => void) | undefined;
 
 function setup(name: string) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), `scwc-${name}-migration-`));
@@ -70,7 +69,7 @@ function setup(name: string) {
 afterEach(async () => {
   // ASMR keeps its own optional Redis cache. A restart does not clear that store.
   await Promise.all(clients.splice(0).map((client) => client.stop(true)));
-  PlayerDatabase.reset();
+  resetAsmrDatabase?.();
   for (const root of roots.splice(0)) {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -134,29 +133,42 @@ describe('installed plugin migration to default v2', () => {
     );
   });
 
-  it('returns an authorized ASMR file descriptor and rejects invalid tickets', () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'scwc-asmr-resource-'));
-    roots.push(root);
-    const logger: SCWC.TLogger = {
-      info: vi.fn(),
-      pathInfo: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-    };
-    const player = PlayerDatabase.getInstance(path.join(root, 'player.sqlite'), logger);
-    const media = path.join(root, 'audio.mp3');
-    fs.writeFileSync(media, 'media-test');
-    const ticket = player.issueResourceTicket('test-user', media);
-    const request = { method: 'GET', url: '/', params: {}, query: { ticket }, headers: {} };
-    expect(serveMediaResource(player, request)).toMatchObject({
-      kind: 'file',
-      path: media,
-      contentType: 'audio/mpeg',
-      headers: { 'Content-Disposition': 'inline' },
-    });
-    expect(serveMediaResource(player, { ...request, query: { ticket: 'invalid' } })).toMatchObject({
-      kind: 'response',
-      status: 404,
-    });
-  });
+  it.skipIf(!pluginNames.includes('asmr'))(
+    'returns an authorized ASMR file descriptor and rejects invalid tickets',
+    async () => {
+      // Installed plugins are optional; absent plugins must not break collection/types.
+      const { serveMediaResource } = await import(
+        pathToFileURL(path.join(pluginRoot, 'asmr/src/web/media-resource.ts')).href
+      );
+      const { PlayerDatabase } = await import(
+        pathToFileURL(path.join(pluginRoot, 'asmr/src/utils/database/player-data.ts')).href
+      );
+      resetAsmrDatabase = () => PlayerDatabase.reset();
+      const root = fs.mkdtempSync(path.join(os.tmpdir(), 'scwc-asmr-resource-'));
+      roots.push(root);
+      const logger: SCWC.TLogger = {
+        info: vi.fn(),
+        pathInfo: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+      };
+      const player = PlayerDatabase.getInstance(path.join(root, 'player.sqlite'), logger);
+      const media = path.join(root, 'audio.mp3');
+      fs.writeFileSync(media, 'media-test');
+      const ticket = player.issueResourceTicket('test-user', media);
+      const request = { method: 'GET', url: '/', params: {}, query: { ticket }, headers: {} };
+      expect(serveMediaResource(player, request)).toMatchObject({
+        kind: 'file',
+        path: media,
+        contentType: 'audio/mpeg',
+        headers: { 'Content-Disposition': 'inline' },
+      });
+      expect(
+        serveMediaResource(player, { ...request, query: { ticket: 'invalid' } }),
+      ).toMatchObject({
+        kind: 'response',
+        status: 404,
+      });
+    },
+  );
 });

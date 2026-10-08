@@ -51,7 +51,7 @@ flowchart LR
     │   ├── common/              环境变量、运行模式、系统日志
     │   ├── scripts/             启动终端、Web / SEA 构建
     │   ├── command/             默认命令、stdin / IPC 调用
-    │   ├── plugin/              核心扩展加载器和日志（单数）
+    │   ├── plugin/              核心扩展加载器、日志与共享 SDK（单数）
     │   ├── router/              抓取、油猴控件、Web 页面/API/资源/WebSocket
     │   ├── utils/               缓存、请求、命令解析、写数据、字符串工具
     │   ├── types/               服务端工具的类型声明
@@ -118,6 +118,8 @@ flowchart LR
 所有启用插件默认由独立 Node 子进程加载，package.json.runtime 与入口 apiVersion 均可省略，默认分别为 process 和 2。入口使用公开 `SCWC.IPluginHandler` 第二版契约；IProcessPluginHandler / TProcess* 保留为同契约别名。核心不导入插件入口，不再支持进程内加载分支。显式填写不支持的模式/版本时记录到 inactivePlugins；enabled: false 保持禁用。runtime 可仅包含超时覆盖。加载器最多同时激活两个插件，成功项立即注册。
 
 核心的 handler 是本地调用代理，函数和实际业务状态留在插件进程。公开 `IPluginHandler`、`TPluginApi`、`TPluginResource`、`TPluginRequestContext` 和 WebSocket 类型统一使用第二版可序列化契约；内部 Express/socket 类型使用 `Hosted` 名称。第二版 API 接收可序列化 request；资源返回文件或小响应描述，由核心执行 Range/流式下载；WebSocket 真实连接仍由核心承载。动态 HTML 支持异步调用与最近成功快照。缓存由核心按插件目录名绑定命名空间。createRetryGet 的流式响应在宿主本地消费，不进入 IPC 缓存；普通响应支持缓存及自定义请求类。
+
+[共享 SDK](../projects/server/plugin/sdk/README.md) 在业务与终端插件宿主动态导入前注册同步模块钩子，提供 `scwc:deps`（Axios、Chalk、Zod、SQLite、Trash、File Type）与 `scwc:runtime`（RpcPeer、PluginProcessError、createPluginWorker）。插件可位于任意目录，不需在插件目录安装这些共享包；普通包名不会自动映射，根 dependencies 也不是共享白名单。modules.d.ts 提供原包类型，模板 tsconfig 显式包含它。Worker 钩子不自动继承，使用 createPluginWorker 先注册 SDK 再导入入口；每个进程/Worker 独立实例。browser.ts 只适配 Zod，页面构建需显式配置 alias。
 
 运行实现与完整限制见 [独立插件宿主](../projects/server/plugin/process/README.md)。重要入口是 client.ts（进程及代理）、host.ts（插件回调）、rpc.ts（有界通信）、resource.ts（核心资源发送）和 types/plugin-process.d.ts（第二版类型）。当前插件入口（含模板和禁用插件）均使用第二版契约；禁用状态不变。ASMR 媒体资源使用文件描述，图片插件等待下载与保存完成后结束回调。没有单插件热重载或写请求自动重放；贴纸内部读写分离和统一重任务预算仍属于后续工作。
 
@@ -365,7 +367,7 @@ busy 由自动调用、主动 `setBusy(true)` 或未结束的 `begin` 句柄共�
 | `web/vite.config.ts` | `projects/server/public/web/`，生产 base 为 `/web/` | 服务端 Web 路由 |
 | `webutils/vite.config.ts` | `projects/server/public/lib/scwcutils.iife.<36进制时间戳>.js` | 核心页面路由注入 |
 
-以上配置均设置 `emptyOutDir: true`。服务端源码直接执行 TypeScript；根 build 没有打包服务端，也没有构建各插件的私有页面。独立 build:core 通过 esbuild 将核心、终端及两类宿主编译、合并依赖、tree shaking 和压缩为 JS（保留函数/类名），再经 Node SEA 打包，并构建、内置 Web / webutils / 公共资源 / 错误模板，不包含业务插件。
+以上配置均设置 `emptyOutDir: true`。服务端源码直接执行 TypeScript；根 build 没有打包服务端，也没有构建各插件的私有页面。独立 build:core 通过 esbuild 将核心、终端、两类宿主及 plugin-worker.cjs 编译、合并依赖、tree shaking 和压缩为 JS（保留函数/类名），再经 Node SEA 打包，并构建、内置 Web / webutils / 公共资源 / 错误模板，不包含业务插件。共享 SQLite、Trash 及传递依赖由 scripts/shared-package-assets.ts 收集原始运行文件作为 assets，启动时在私有临时目录恢复目录与 Unix 权限；其他共享 JS 依赖进入宿主 bundle。
 
 [scripts/build-executable.ts](../projects/server/scripts/build-executable.ts) 构建本机可执行文件，[sea-bootstrap.ts](../projects/server/scripts/sea-bootstrap.ts) 将内置资源释放到私有临时目录，再加载核心、终端或插件宿主。SEA 中的客户端 fork 通过 `--scwc-plugin-host` / `--scwc-terminal-plugin-host` 分支复用同一可执行文件，保持高级 IPC 序列化及外部插件动态导入。使用 `./scwc --terminal` 启动多窗口终端；产物内置 `terminal.cjs` / `terminal-host.cjs`。
 
@@ -405,7 +407,8 @@ busy 由自动调用、主动 `setBusy(true)` 或未结束的 `begin` 句柄共�
 | [server/common/interaction.test.ts](../projects/server/common/interaction.test.ts) | 基础类型格式化、错误输入重试、等待期间 busy、多窗口隔离与取消错误元组 |
 | [server/common/color.test.ts](../projects/server/common/color.test.ts) | 真实终端颜色能力、环境配置、日志级别颜色和自定义 ANSI 保留 |
 | [server/utils/listen.test.ts](../projects/server/utils/listen.test.ts) | 真实端口占用后的绑定、范围耗尽、权限错误不重试 |
-| `server/plugin/process/*.test.ts` | 原生 Node 宿主、默认/省略配置、RPC 边界、突发与长日志、交互输入及超时暂停、插件激活/超时/崩溃/卸载和后代清理；在临时目录启动真实贴纸插件，验证同步阻塞时核心和另一个插件仍可响应，以及媒体 Range/下载与 WebSocket；installed-plugins 测试逐个激活和卸载十个插件，覆盖禁用状态、ASMR 登录/票据、缓存和流式请求 |
+| `server/plugin/process/*.test.ts` | 原生 Node 宿主、默认/省略配置、RPC 边界、突发与长日志、交互输入及超时暂停、插件激活/超时/崩溃/卸载和后代清理；在临时目录启动真实贴纸插件，验证同步阻塞时核心和另一个插件仍可响应，以及媒体 Range/下载与 WebSocket；installed-plugins 测试逐个激活和卸载本机已安装插件，覆盖禁用状态、ASMR 登录/票据、缓存和流式请求 |
+| `server/plugin/sdk/*.test.ts` | 外部目录无共享依赖时的 ESM/CJS、SQLite、Worker、相对导入和类型检查；真实贴纸仅携带私有依赖迁至外部目录，验证源码/SEA 的读写 Worker、bootstrap 与文件夹 API。真实可执行文件项需先 build:core；未安装业务插件时跳过相应集成项 |
 | `terminal/*.test.ts` | 窗口身份、输入和确认、输出顺序、颜色折行、Ctrl+C 输入取消、状态文件/备份/锁与恢复 |
 | [server/scripts/smoke-executable.ts](../projects/server/scripts/smoke-executable.ts)、[terminal/smoke.ts](../projects/terminal/smoke.ts) | 独立部署、同目录 `.env`、端口递增/耗尽、静态资源、Redis 密码/前缀隔离、插件目录确认、多窗口任务、交互输入、管道/EOF、颜色、取消/强停、重启和真实 PTY |
 | [shared/utils/refreshRuleParser.test.ts](../projects/shared/utils/refreshRuleParser.test.ts) | pathname、search、hash 和组合规则解析 |
@@ -420,7 +423,7 @@ bun run test --run projects/server/utils/cache.test.ts projects/server/router/we
 bunx vitest run --config projects/server/vitest.config.ts projects/shared/utils/refreshRuleParser.test.ts
 ```
 
-独立宿主已有类型检查与原生 Node 导入验证记录。进程宿主及已安装插件测试的数据均放在临时目录。独立部署 smoke 使用临时部署、独立 Redis 密码与端口，需要本机 `redis-server`；真实 PTY 验证另需 Python 3。目前独立可执行文件和终端的本机验证为 macOS，Windows/Linux 仍需在对应平台构建和人工验收。
+独立宿主已有类型检查与原生 Node 导入验证记录。进程宿主及已安装插件测试的数据均放在临时目录。独立部署 smoke 使用临时部署、独立 Redis 密码与端口，需要本机 `redis-server`；真实 PTY 验证另需 Python 3。既有完整独立部署/终端验证记录为 macOS；2026-10-08 新增 Windows 本机构建与共享 SDK/外部贴纸的 SEA 回归。该范围不等于完整 Windows 终端/Redis smoke 已通过；Linux 仍需对应平台验证。
 
 选择/抓取 UI、普通 HTTP 鉴权、页面 API 和 iframe 配置流程目前没有专门的核心自动化测试文件。修改相应功能时结合目标场景验证；文档核对和测试发现不代表这些运行流程已通过测试。
 

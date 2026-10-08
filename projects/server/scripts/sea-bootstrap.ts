@@ -19,11 +19,17 @@ function main(): void {
     runtime = fs.mkdtempSync(path.join(os.tmpdir(), 'scwc-runtime-'));
     const directory = runtime;
     process.once('exit', () => fs.rmSync(directory, { recursive: true, force: true }));
-    const keys = JSON.parse(getAsset('manifest.json', 'utf8')) as string[];
-    for (const key of keys) {
-      const filename = path.join(runtime, key);
+    const assets = JSON.parse(getAsset('manifest.json', 'utf8')) as {
+      path: string;
+      mode: number;
+    }[];
+    for (const asset of assets) {
+      const filename = path.join(runtime, asset.path);
       fs.mkdirSync(path.dirname(filename), { recursive: true });
-      fs.writeFileSync(filename, Buffer.from(getAsset(key)));
+      fs.writeFileSync(filename, Buffer.from(getAsset(asset.path)));
+      if (process.platform !== 'win32') {
+        fs.chmodSync(filename, asset.mode);
+      }
     }
     process.env.SCWC_RUNTIME_ROOT = runtime;
   }

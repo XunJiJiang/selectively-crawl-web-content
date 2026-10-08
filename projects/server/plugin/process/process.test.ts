@@ -235,7 +235,7 @@ describe('isolated plugin host', () => {
     setInputHandler(async (request) => {
       messages.push(request.message);
       await new Promise((resolve) => setTimeout(resolve, 250));
-      return answers.shift()!;
+      return must(answers.shift());
     });
     const handler = await c.client.start();
     const scope = taskRegistry.create('test', {
@@ -638,7 +638,7 @@ describe('isolated plugin host', () => {
 
   it('activates the actual sticker plugin in a temporary data root using its v2 contract', async () => {
     const entry = fileURLToPath(
-      new URL('../../plugins/sticker-management/index.ts', import.meta.url),
+      new URL('../../plugins/scwc-plugin-sticker-management/index.ts', import.meta.url),
     );
     const c = setup({ entry });
     const handler = await c.client.start();
@@ -666,7 +666,9 @@ describe('isolated plugin host', () => {
     expect(c.client.info.status).toBe('stopped');
   });
 
-  it('waits for the image plugin to finish saving the downloaded raw bytes', async () => {
+  it.skipIf(
+    !fs.existsSync(fileURLToPath(new URL('../../plugins/image/index.ts', import.meta.url))),
+  )('waits for the image plugin to finish saving the downloaded raw bytes', async () => {
     const image = Buffer.from('temporary-image-bytes');
     const app = express();
     app.get('/image', (_req, res) => {
