@@ -194,3 +194,7 @@ resource/
 # 暂时忽略 web 项目中的 favicon.ico 文件
 # 因为这个我随便找的, 来源于一个使用 GNU GENERAL PUBLIC LICENSE 的项目
 projects/web/public/favicon.ico
+
+# AOCI agent host integration (machine-bound; do not commit)
+.codex/config.toml
+.codex/config.toml.backup.*
