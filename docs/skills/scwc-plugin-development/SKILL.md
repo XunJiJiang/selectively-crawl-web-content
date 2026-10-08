@@ -16,6 +16,7 @@ description: 为 Selectively Crawl Web Content 开发或维护 projects/server/p
 - 服务端接口或加载问题：`projects/server/plugin/load.ts`、`projects/server/router/plugin.ts`、`projects/server/router/web/api/load.ts`、`projects/server/router/web/page/index.ts`、`projects/server/router/index.ts`。
 - 控制器交互问题：`projects/user-script/src/layouts/hooks/plugins.ts`、`projects/user-script/src/api/plugins.ts`、`projects/user-script/src/layouts/content-plugin.ts`。
 - 插件页面通信问题：`projects/webutils/lib/index.ts`、`projects/webutils/lib/utils/fetch.ts`、`projects/web/src/layouts/content.ts`。
+- 共享依赖、类型、Worker、前端构建或独立目录/SEA 部署：阅读 [references/dependencies-and-deployment.md](references/dependencies-and-deployment.md)，核对当前 SDK 与页面构建白名单，不假定根目录所有依赖都能直接导入。
 
 ## 插件目录与入口
 
@@ -48,7 +49,7 @@ projects/server/plugins/my-plugin/
 
 其中 `name` 缺省时运行时使用目录路径；`main` 缺失、入口不存在/不是 `.js` 或 `.ts`、默认导出不含函数 `onRequest`，插件会进入未激活列表。`enabled: false` 会跳过加载。`commandName` 可选，每个插件最多注册一个一级命令；命令名只使用字母、数字、`-`、`_`，并避免系统命令名。
 
-`link-with` 不是正则表达式：当前实现支持普通前缀匹配、`*` 通配符和以 `!` 开头的否定模式；空数组表示匹配所有网址。需要复杂匹配时先阅读 `projects/server/router/utils/path.ts`（或其导出实现），并用少量明确规则验证正例和排除例。
+`link-with` 不是正则表达式：当前实现支持普通前缀匹配、`*` 通配符和以 `!` 开头的否定模式；空数组表示匹配所有网址。需要复杂匹配时先阅读 `projects/server/router/utils/index.ts` 的 `matchLink()`，并用少量明确规则验证正例和排除例。
 
 ## 默认独立进程与第二版契约
 
@@ -78,9 +79,9 @@ projects/server/plugins/my-plugin/
 - `onRequest(context, logger)` 必须实现且可异步。`context.data` 是 `SCWC.TDataItem[]`；`context.site` 至少有 `url`、`rootUrl`、`origin`、`pathname`。抓取请求的 logger 额外有 `toWeb(message, type?)`，用于把通知返回给浏览器；控制器/API 触发的 logger 没有 `toWeb`，必须返回类型为 `notification` 的结果。
 - 可以使用注入的 `utils.writeData` 保存抓取结果，使用 `writeDataURL` 单独保存 data URL/图片链接，使用 `fetchImage` 获取图片，使用 `strValidation` 清理文件名，使用 `convertToCN` 做汉字转换。文件路径由插件负责规划，先保证目录存在语义和可恢复性，不要把用户输入未经校验地拼接成任意路径。
 - `onUnload(logger, { isRestart })` 可选。释放定时器、连接和临时资源；根据 `isRestart` 区分重启与真正退出。
-- 依赖选择应优先使用核心 [共享 SDK](../../../projects/server/plugin/sdk/README.md)：通过 `scwc:deps` 导入明确开放的 Axios/Chalk/Zod/SQLite/Trash/File Type，可在任意插件目录及 SEA 中使用，不重复安装。普通包名仍由 Node 解析，根 dependencies 不等于共享白名单；其他根依赖只有在路径允许时才可直接复用。需要不同版本或未共享的依赖时由插件提供，并记录原因；安装位置仍遵循下方确认规则。
-- 插件 Worker 使用 `scwc:runtime` 的 createPluginWorker，确保钩子在 Worker 内注册；RpcPeer、PluginProcessError 和 PluginRequest 也从此入口获取，不通过相对路径导入核心源码。直接运行插件或创建普通 Node Worker 需要自行注册 SDK。共享依赖按进程/Worker 独立实例，不经 IPC 传递函数。
-- `scwc:deps` 是 Node 虚拟模块，浏览器不能直接加载。前后端共享 Zod 模型时，Vite alias 指向核心 plugin/sdk/browser.ts（只导出 z）；Node 依赖不能进入页面。开发声明与运行时版本须一致，详见共享 SDK README。
+- 后端共享包通过 `scwc:deps` 导入，Worker/RPC 通过 `scwc:runtime` 获取；不重复安装共享包，不依赖插件位于核心目录内。运行时模块与开发声明是两套机制，独立目录测试须同时核对；详见 [依赖与部署注意事项](references/dependencies-and-deployment.md)。
+- 使用核心注入缓存时，不要求 Redis 必须启动。核心 `REDIS_ENABLED=false` 时不创建 Redis 客户端，内存缓存元数据不跨重启保留；业务持久化应使用插件自己的数据存储。插件自行连接 Redis 时明确配置与必需性，不假定核心会替它启停连接。
+- 后端及其共享运行时模块使用 Node 24+ 可直接擦除的 TS 语法，不使用运行时 enum、构造函数参数属性或需要转译的装饰器；类字段单独声明、构造函数赋值，类型导入用 `import type`。原生 Node 加载验证不能由 Vitest 转译或类型检查代替。
 
 ## 浏览器脚本控制器
 
@@ -96,9 +97,11 @@ projects/server/plugins/my-plugin/
 
 ## 独立 Web 页面
 
-在插件对象中配置 `ui: { entry: './web/index.html', api: [...], resources: [...] }`；`entry` 可为绝对路径，也可相对插件目录，推荐放在 `projects/server/plugins/<plugin>/web/`。主页面通过 `/web/api/pages` 获取有 `ui.entry` 的插件，并把页面放入 iframe。页面 HTML 会被服务端原样读取，并在 `</body>` 前注入最新的 `scwcutils` IIFE；静态资源按 entry 所在目录提供。
+在插件对象中配置 `ui: { entry: './web/index.html', api: [...], resources: [...] }`；`entry` 可为绝对路径，相对路径以 package.json.main 指向的插件入口文件所在目录为基准（入口在插件根目录时才等于插件目录）。主页面通过 `/web/api/pages` 获取有 `ui.entry` 的插件，并把页面放入 iframe。页面 HTML 会被服务端原样读取，并在 `</body>` 前注入最新的 `scwcutils` IIFE；静态资源按 HTML 所在目录提供。
 
 创建新的插件 Web 页面建议使用 Vite 构建，使用 Lit 开发，将 Vite `base` 设置为 `/web/page/plugin/<pluginDir>/`，其中 `<pluginDir>` 必须替换为插件所在目录的实际文件夹名称，不能使用 `package.json.name` 或任意显示名称。这样构建产物中的脚本、样式和其他资源会指向插件页面的挂载路径。页面资源不要依赖开发服务器的绝对根路径；构建后检查 HTML 中的资源 URL 与服务端静态资源路由一致。
+
+页面交付二选一：提供完整产物并让 ui.entry 指向 HTML；或提供 Vite 源码/配置，package.json 保留 `scripts.build:web: "vite build --config vite.config.ts"`。HTML 缺失时核心在 onLoad 前构建，顶层入口代码不能提前读取未生成的页面。已有 HTML 不会因源码或依赖升级自动重建；使用 `plugin build-web <目录名>` 后刷新页面，不重载后端，未激活插件修复后重启核心。完整参数、类型与交付清单见 [依赖与部署注意事项](references/dependencies-and-deployment.md)。
 
 插件页面与插件后端通信时，结构化请求默认使用 `window.scwcutils.fetch` ↔ `ui.api`。需要给媒体或其他资源元素提供可直接加载的响应时，使用 `ui.resources` ↔ `window.scwcutils.fetch.resource(url)`；不要把资源响应塞进普通 JSON API。除非开发者主动要求采用其他通信方式，否则插件前端不要使用原生 `window.fetch`、`XMLHttpRequest` 或自行实现的 HTTP 客户端来绕过这些通道；插件后端也不要创建独立 Express/Koa/Fastify 应用、调用 `listen()`、占用额外端口或启动独立 HTTP 服务器。插件页面应复用核心服务提供的认证、路由和转发能力。
 
@@ -120,8 +123,9 @@ ui.api 可以是数组或接收 add 的注册函数。handler 接收请求体和
 4. 运行与改动相称的检查：至少执行 `npx tsc -b tsconfig.json --pretty false` 或项目现有等价检查；若页面有独立构建，再运行其构建命令。修复插件自身的错误，不要为了通过检查放宽核心 tsconfig。
 5. 启动服务后建议开发者使用 `plugin ps`/`plugin ls` 检查插件是否激活；打开匹配网址，确认控制器配置、抓取通知、控制器触发、插件页面 iframe、静态资源、`window.scwcutils.fetch` → `ui.api` 通信，以及 `window.scwcutils.resource` → `ui.resources` 的普通和流式响应都可用，并确认插件没有监听额外端口。
 6. 变更完成后复查 git diff，确认只改动开发者要求的插件文件和仓库内 skill 文件，没有生成全局安装或直接修改核心实现。
-7. 有任何需要安装的依赖，先检查根目录是否已有相同依赖；若需要安装，请告知开发者，由开发者判断安装在根目录还是插件目录，如果有版本和兼容性要求或必须安装在插件目录，请在告知时说明原因。不要在插件目录安装与根目录相同的依赖，除非有明确理由。
+7. 安装依赖前检查根目录、SDK/构建白名单及已有授权；共享能力已满足时不重复安装。需要不同版本或私有依赖时说明原因和安装位置；已有明确授权则继续，安装位置或版本存在尚未决定的实质选择时再与开发者确认。
 8. 开发前先阅读当前插件或核心项目目录下的 docs/map.md，确认插件的功能和约束，并在实现中遵守约束；如果约束不够明确，先与开发者沟通再实现。
 9. 开发完成后需要根据本次的实现和交付情况更新 docs/map.md，补充插件的新增功能，约束和注意事项；如果项目的功能或约束与 docs/map.md 冲突，先与开发者沟通再更新。
+10. 涉及共享依赖、页面或 Worker 时，按参考文档检查外部插件目录、源码/SEA、无 Redis、无预构建页面及完整静态资源交付。测试使用临时目录，选择与改动有关的检查，不以根目录运行成功推定独立部署成功。
 
 当 README、模板、声明与源码仍有冲突时，以当前源码的可观察行为为准，并在实现或交付说明中指出该冲突；不要把推测写成插件契约。

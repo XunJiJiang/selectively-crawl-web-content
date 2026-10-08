@@ -22,6 +22,7 @@
     "dev:web": "cd projects/web && bun run dev",
     "build": "tsc -b && cd projects/user-script && bun run build && cd ../web && bun run build && cd ../webutils && bun run build",
     "build:core": "node projects/server/scripts/build-executable.ts",
+    "build:plugin-web": "node projects/server/plugin/web/cli.ts",
     "test:core-executable": "node projects/server/scripts/smoke-executable.ts",
     "test": "vitest",
     "lint": "oxlint",

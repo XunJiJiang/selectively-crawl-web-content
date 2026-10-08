@@ -13,6 +13,7 @@ import { APP_DIR, ENV_DIR, ROOT } from '../common/paths.ts';
 import { parsedArgs, isDev } from '../common/setupParam.ts';
 import { pluginDirectorySettings } from '../common/config.ts';
 import { resolvePluginDirectory } from '../common/pluginDirectory.ts';
+import { ensurePluginWeb } from './web/build.ts';
 
 export function configuredPluginDirectory(confirm?: () => Promise<boolean>) {
   return resolvePluginDirectory(
@@ -163,13 +164,16 @@ export async function loadPlugins(directory?: string) {
       processClient = new PluginProcessClient({
         pluginId: dir,
         entry: entryAbs,
+        pluginDir: path.join(directory, dir),
         name,
         logger,
         runtime,
         cache: () => createNamespacedCache(`plugin:${dir}`, logger),
       });
       mod = await processClient.start();
+      await ensurePluginWeb(path.join(directory, dir), entryAbs, mod, logger);
     } catch (error) {
+      await processClient?.stop(true);
       logger.warn(`加载 ${dir} 失败:`, error);
       inactivePlugins.push({
         name,

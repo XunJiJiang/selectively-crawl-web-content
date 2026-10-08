@@ -148,7 +148,10 @@ async function main() {
   async function run(expected: string, prefix: string, confirmation?: 'y' | 'n') {
     const core = child(
       executable,
-      confirmation ? ['--plugin-dir', path.join(deployment, 'command plugins')] : [],
+      [
+        '--no-terminal',
+        ...(confirmation ? ['--plugin-dir', path.join(deployment, 'command plugins')] : []),
+      ],
       launch,
       environment,
     );
@@ -223,7 +226,7 @@ async function main() {
   environment.REDIS_PORT = '1';
   await run('environment-plugin', 'scwc-smoke-adjacent', 'n');
   await run('command-plugin', 'scwc-smoke-adjacent', 'y');
-  const exhausted = child(executable, ['--port-range=0'], launch, environment);
+  const exhausted = child(executable, ['--no-terminal', '--port-range=0'], launch, environment);
   assert.equal(await exhausted.completion, 1);
   assert(exhausted.output().includes('超过最大查询范围 0'));
   await smokeTerminal(executable, deployment, launch, environment);

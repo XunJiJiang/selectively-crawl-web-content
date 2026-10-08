@@ -119,7 +119,9 @@ flowchart LR
 
 核心的 handler 是本地调用代理，函数和实际业务状态留在插件进程。公开 `IPluginHandler`、`TPluginApi`、`TPluginResource`、`TPluginRequestContext` 和 WebSocket 类型统一使用第二版可序列化契约；内部 Express/socket 类型使用 `Hosted` 名称。第二版 API 接收可序列化 request；资源返回文件或小响应描述，由核心执行 Range/流式下载；WebSocket 真实连接仍由核心承载。动态 HTML 支持异步调用与最近成功快照。缓存由核心按插件目录名绑定命名空间。createRetryGet 的流式响应在宿主本地消费，不进入 IPC 缓存；普通响应支持缓存及自定义请求类。
 
-[共享 SDK](../projects/server/plugin/sdk/README.md) 在业务与终端插件宿主动态导入前注册同步模块钩子，提供 `scwc:deps`（Axios、Chalk、Zod、SQLite、Trash、File Type）与 `scwc:runtime`（RpcPeer、PluginProcessError、createPluginWorker）。插件可位于任意目录，不需在插件目录安装这些共享包；普通包名不会自动映射，根 dependencies 也不是共享白名单。modules.d.ts 提供原包类型，模板 tsconfig 显式包含它。Worker 钩子不自动继承，使用 createPluginWorker 先注册 SDK 再导入入口；每个进程/Worker 独立实例。browser.ts 只适配 Zod，页面构建需显式配置 alias。
+[共享 SDK](../projects/server/plugin/sdk/README.md) 在业务与终端插件宿主动态导入前注册同步模块钩子，提供 `scwc:deps`（Axios、Chalk、Zod、SQLite、Trash、File Type）与 `scwc:runtime`（RpcPeer、PluginProcessError、createPluginWorker）。插件可位于任意目录，不需在插件目录安装这些共享包；后端普通包名不会自动映射，根 dependencies 也不是共享白名单。modules.d.ts 提供原包类型，模板 tsconfig 显式包含它。Worker 钩子不自动继承，使用 createPluginWorker 先注册 SDK 再导入入口；每个进程/Worker 独立实例。browser.ts 只定义 scwc:deps 的 Zod 浏览器适配；核心页面构建器另有 Lit/@lit 等正常包名的共享回退，无需修改现有前端包名导入。
+
+[页面构建器](../projects/server/plugin/web/README.md) 支持提供完整页面产物，或提供 Vite 源码并保留 package.json scripts.build:web。插件入口导入后、onLoad 前经 web.prepare 准备缺失 HTML，成功才完成激活；构建期间暂停插件启动超时，构建独立限时五分钟。失败清理宿主并进入 inactivePlugins，HTTP/其他插件可继续服务。配置原生加载，普通前端包和配置中的构建工具优先插件私有包、缺失时回退核心白名单。scwc:deps 别名及前端 Worker 解析自动注入，base 按插件目录名生成。产物暂存后替换，普通失败保留旧页面；同插件合并请求、全局串行构建。无需先实现单插件动态加载/卸载；重建不改变后端状态，未激活插件需重启核心后再激活。
 
 运行实现与完整限制见 [独立插件宿主](../projects/server/plugin/process/README.md)。重要入口是 client.ts（进程及代理）、host.ts（插件回调）、rpc.ts（有界通信）、resource.ts（核心资源发送）和 types/plugin-process.d.ts（第二版类型）。当前插件入口（含模板和禁用插件）均使用第二版契约；禁用状态不变。ASMR 媒体资源使用文件描述，图片插件等待下载与保存完成后结束回调。没有单插件热重载或写请求自动重放；贴纸内部读写分离和统一重任务预算仍属于后续工作。
 
@@ -292,7 +294,7 @@ HTTP 通用中间件位于 [server/router/index.ts](../projects/server/router/in
 
 | 工具 | 当前职责和关键约束 |
 | --- | --- |
-| [utils/cache.ts](../projects/server/utils/cache.ts) | 内存 + Redis 存储，缓存普通值、重定向和文件引用。流和超过 5 MiB 的值写到源码仓库根或可执行文件同目录的 `cache/files`。Redis 支持密码、ACL、IPv6 和 REDIS_KEY_PREFIX，清理限定到当前前缀；缓存管理器配置 TTL 1 小时；内存适配器另有 60 秒 TTL / 5000 项 LRU 配置 |
+| [utils/cache.ts](../projects/server/utils/cache.ts) | 内存 + 可选 Redis，缓存普通值、重定向和文件引用。REDIS_ENABLED 默认 true；false/0 不创建 Redis 客户端，也不校验其连接参数，仅保留内存和文件缓存。内存元数据重启后丢失，插件自行创建的 Redis 不由此开关控制。流和超过 5 MiB 的值写到 `cache/files`。Redis 支持密码、ACL、IPv6 和 REDIS_KEY_PREFIX，清理限定当前前缀；缓存管理器 TTL 1 小时；内存适配器 60 秒 TTL / 5000 项 LRU |
 | `createNamespacedCache(namespace, logger)` | 返回冻结的 `set/setRedirect/get/del/mdel` 对象，命名空间由核心绑定；不暴露全局清理。底层 `clearAll` 属于核心操作，传入 namespace 也会回退为全局清理，不能用于隔离清理单扩展 |
 | [utils/axios.ts](../projects/server/utils/axios.ts) | `createRetryGet()` 提供请求、缓存、重定向链和自定义请求类；默认 10 秒超时、最多 5 次尝试、重试间隔 2 秒，针对无响应或 5xx 的 Axios 错误重试；返回 `{ raw, data, delCache }`。`LimitPromise` 提供任务队列与并发限制 |
 | [utils/writeData.ts](../projects/server/utils/writeData.ts) | `writeData(dir, data)` 创建目录，将数据追加到 `data.json` 根数组；抓取数组的图片写进 `images/` 并替换为文件路径。`writeDataURL` 支持 dataURL 或 HTTP 图片地址，返回路径或 `false`；单独调用时需保证目标目录存在 |
@@ -305,7 +307,7 @@ HTTP 通用中间件位于 [server/router/index.ts](../projects/server/router/in
 
 ### 8.2 命令注册与执行
 
-[command/index.ts](../projects/server/command/index.ts) 注册 `help`、`exit`、`restart`、`server info`、`plugin ls`、`plugin ps`；直接模式监听 stdin，终端模式由 [command/ipc.ts](../projects/server/command/ipc.ts) 调用。[utils/command.ts](../projects/server/utils/command.ts) 负责命令注册、引号分词、选项解析、主/子命令执行和帮助。系统命令先占用名称；扩展命令重名时使用目录 ID 前缀。它处理的是服务终端输入，不是 Web 命令接口。
+[command/index.ts](../projects/server/command/index.ts) 注册 `help`、`exit`、`restart`、`server info`、`plugin ls`、`plugin ps`、`plugin build-web <目录名>`；页面构建命令在直接核心和多窗口终端均可用，支持任务取消。还可 `scwc --build-plugin-web <目录>` 或 `bun run build:plugin-web --directory <目录>` 独立构建，不启动 HTTP/Redis。直接模式监听 stdin，终端模式由 [command/ipc.ts](../projects/server/command/ipc.ts) 调用。[utils/command.ts](../projects/server/utils/command.ts) 负责命令注册、引号分词、选项解析、主/子命令执行和帮助。系统命令先占用名称；扩展命令重名时使用目录 ID 前缀。
 
 ### 8.3 多窗口终端与终端插件
 
@@ -343,6 +345,14 @@ busy 由自动调用、主动 `setBusy(true)` 或未结束的 `begin` 句柄共�
 
 以下命令均从仓库根目录执行。依赖统一放在根 `package.json`，工作区是 `projects/*`；推荐 Bun 管理依赖，Node 运行服务。核心默认插件、配置和缓存路径通过 common/paths.ts 定位，不依赖启动 cwd；CLI 相对目录仍以启动 cwd 为基准。
 
+### 依赖维护：添加、升级与移除
+
+- 只供核心使用的根依赖无需进入 SDK。要提供给后端插件时，同步 plugin/sdk/dependencies.ts 的运行时导出与 modules.d.ts 类型；原生/资源型包还需加入 scripts/shared-package-assets.ts 的 sharedExternalPackages。纯 JS 可随 bundle 合并，但根 package.json 声明本身不等于已对插件开放。
+- 浏览器普通包共享由 plugin/web/dependencies.ts 的 sharedBrowserPackages 决定（含 Lit/@lit、CodeMirror/Lezer 等）；构建工具由 sharedBuildPackages 决定（Vite、vite-plugin-monkey、esbuild）。新增共享包主动加入对应列表，原始包/传递依赖随 SEA 携带；配置与页面的解析回退保持浏览器导出条件，插件私有版本优先。
+- 版本统一在根 package.json/bun.lock 管理；兼容升级通常不用改 SDK 导出或声明版本数字，安装后声明引用的原包类型会更新，但必须重新检查类型、宿主/Worker/外部目录回归并 build:core。已有页面不会自动重新构建，使用 plugin build-web 或构建 CLI 更新其中嵌入的旧依赖。
+- 主版本、默认/命名导出、子路径或类型泛型变化时，同步 SDK 适配及受影响插件；还要核对浏览器导出条件、Vite 插件兼容性、原生 ABI/平台和资源路径。删除/重命名公共导出需保留兼容别名或约定契约升级；移除根依赖前检查 SDK、前端/工具白名单和外置资源列表，避免破坏其他插件。特殊版本由插件提供私有依赖。
+- 依赖变更后更新本地图、SDK/页面构建 README 和插件开发规范。源码与 SEA、外部插件目录、类型、Worker 都需验证；浏览器变更追加页面构建。源码模式需要根工作区构建依赖；SEA 用户不另装 Node/Vite，额外插件/预处理器及私有依赖不自动联网安装。
+
 | 命令 | 用途 |
 | --- | --- |
 | `bun install` | 安装工作区依赖 |
@@ -351,6 +361,7 @@ busy 由自动调用、主动 `setBusy(true)` 或未结束的 `begin` 句柄共�
 | `bun run dev:us` | 启动油猴脚本的 Vite/monkey 开发服务 |
 | `bun run build` | `tsc -b` 类型检查，然后依次构建 user-script、web、webutils |
 | `bun run build:core` | Node >= 25.5 构建本机 SEA 可执行文件至 dist/core；包含核心、终端、两类宿主和静态资源 |
+| `bun run build:plugin-web --directory <插件目录>` | 使用核心 Vite 工具链独立构建插件页面 |
 | `bun run test:core-executable` | 构建后验证独立部署，需本机 redis-server；使用独立临时数据、密码与端口 |
 | `bun run prod:server` | 构建准备后启动生产模式多窗口终端 |
 | `bun run test --run` | 根配置注册的测试项目，运行一次而非 watch |
@@ -367,11 +378,11 @@ busy 由自动调用、主动 `setBusy(true)` 或未结束的 `begin` 句柄共�
 | `web/vite.config.ts` | `projects/server/public/web/`，生产 base 为 `/web/` | 服务端 Web 路由 |
 | `webutils/vite.config.ts` | `projects/server/public/lib/scwcutils.iife.<36进制时间戳>.js` | 核心页面路由注入 |
 
-以上配置均设置 `emptyOutDir: true`。服务端源码直接执行 TypeScript；根 build 没有打包服务端，也没有构建各插件的私有页面。独立 build:core 通过 esbuild 将核心、终端、两类宿主及 plugin-worker.cjs 编译、合并依赖、tree shaking 和压缩为 JS（保留函数/类名），再经 Node SEA 打包，并构建、内置 Web / webutils / 公共资源 / 错误模板，不包含业务插件。共享 SQLite、Trash 及传递依赖由 scripts/shared-package-assets.ts 收集原始运行文件作为 assets，启动时在私有临时目录恢复目录与 Unix 权限；其他共享 JS 依赖进入宿主 bundle。
+以上配置均设置 `emptyOutDir: true`。根 build 不打包服务端或各插件页面。build:core 将核心、终端、两类宿主、plugin-worker.cjs、web-build-host.cjs 和 web-build-cli.cjs 合并压缩为 JS 后装入 SEA，并内置 Web/webutils/公共资源/错误模板，不包含业务插件。scripts/shared-package-assets.ts 保留 SQLite、Trash、Vite/插件/esbuild 及前端白名单原包和传递依赖作为 assets（包括本机原生绑定），在私有临时目录恢复目录与 Unix 权限；工具链/浏览器依赖仅在首次构建时释放，后续复用，不拖慢普通插件启动。纯 JS 后端共享依赖仍进入宿主 bundle；前端 Vite 构建使用原始模块及浏览器导出条件。
 
-[scripts/build-executable.ts](../projects/server/scripts/build-executable.ts) 构建本机可执行文件，[sea-bootstrap.ts](../projects/server/scripts/sea-bootstrap.ts) 将内置资源释放到私有临时目录，再加载核心、终端或插件宿主。SEA 中的客户端 fork 通过 `--scwc-plugin-host` / `--scwc-terminal-plugin-host` 分支复用同一可执行文件，保持高级 IPC 序列化及外部插件动态导入。使用 `./scwc --terminal` 启动多窗口终端；产物内置 `terminal.cjs` / `terminal-host.cjs`。
+[scripts/build-executable.ts](../projects/server/scripts/build-executable.ts) 构建本机可执行文件，[sea-bootstrap.ts](../projects/server/scripts/sea-bootstrap.ts) 将内置资源释放到私有临时目录，再加载核心、终端或插件宿主。直接运行 ./scwc / scwc.exe 默认启动多窗口终端；--no-terminal 显式运行普通核心，旧 --terminal 用法兼容。终端 fork 核心时传入 --no-terminal 与 --interaction=ipc，避免递归启动终端。插件/终端插件宿主和独立页面构建的专用分支优先，保持高级 IPC 序列化与外部插件动态导入；产物内置 terminal.cjs / terminal-host.cjs。
 
-服务端 `.env` 变量：`PORT`（默认 3200）、`PORT_SEARCH_RANGE`（默认最大偏移 20）、`HOST`（默认 `http://localhost`）、`TOKEN`、`SCWC_PLUGIN_DIR`，以及 `REDIS_HOST`、`REDIS_PORT`、`REDIS_USER`、`REDIS_PASSWORD`、`REDIS_TIMEOUT`、`REDIS_KEY_PREFIX`。完整配置及目录规则见 [核心部署](核心部署.md) 与 [模板](core.env.example)。
+服务端 `.env` 变量：`PORT`、`PORT_SEARCH_RANGE`、`HOST`、`TOKEN`、`SCWC_PLUGIN_DIR`，以及 `REDIS_ENABLED`（默认 true；false/0 禁用核心 Redis）、`REDIS_HOST`、`REDIS_PORT`、`REDIS_USER`、`REDIS_PASSWORD`、`REDIS_TIMEOUT`、`REDIS_KEY_PREFIX`。完整配置及目录规则见 [核心部署](核心部署.md) 与 [模板](core.env.example)。
 
 未提供非空 `TOKEN` 时，服务端会生成随机 UUID 并打印；只有字面字符串 `TOKEN=null` 会将 token 设为空。不要通过留空误以为关闭了鉴权。浏览器默认 token 是空，需要通过脚本设置配置。
 
@@ -400,6 +411,7 @@ busy 由自动调用、主动 `setBusy(true)` 或未结束的 `begin` 句柄共�
 | 测试文件 | 验证内容 |
 | --- | --- |
 | [server/utils/cache.test.ts](../projects/server/utils/cache.test.ts) | 绑定命名空间后的同名键隔离、重定向/删除边界、对象不暴露全局操作；底层缓存被 mock，不验证真实 Redis |
+| [server/utils/cache-disabled.test.ts](../projects/server/utils/cache-disabled.test.ts) | 禁用 Redis 时禁止创建客户端，验证真实内存缓存、命名空间和重定向；忽略无效 Redis 连接参数 |
 | [server/router/web/websocket.test.ts](../projects/server/router/web/websocket.test.ts) | 不同 safeId 下相同通道隔离及消息分发；缺少 site 的握手被拒绝，未单独覆盖带有效 site 的错误 token 情形 |
 | [server/common/config.test.ts](../projects/server/common/config.test.ts) | 端口范围和 CLI 解析、Redis 密码/ACL/IPv6/前缀、插件目录优先级与确认分支 |
 | [server/common/environment.test.ts](../projects/server/common/environment.test.ts) | `.env` 优先、未配置键与缺失文件回退 |
@@ -409,8 +421,10 @@ busy 由自动调用、主动 `setBusy(true)` 或未结束的 `begin` 句柄共�
 | [server/utils/listen.test.ts](../projects/server/utils/listen.test.ts) | 真实端口占用后的绑定、范围耗尽、权限错误不重试 |
 | `server/plugin/process/*.test.ts` | 原生 Node 宿主、默认/省略配置、RPC 边界、突发与长日志、交互输入及超时暂停、插件激活/超时/崩溃/卸载和后代清理；在临时目录启动真实贴纸插件，验证同步阻塞时核心和另一个插件仍可响应，以及媒体 Range/下载与 WebSocket；installed-plugins 测试逐个激活和卸载本机已安装插件，覆盖禁用状态、ASMR 登录/票据、缓存和流式请求 |
 | `server/plugin/sdk/*.test.ts` | 外部目录无共享依赖时的 ESM/CJS、SQLite、Worker、相对导入和类型检查；真实贴纸仅携带私有依赖迁至外部目录，验证源码/SEA 的读写 Worker、bootstrap 与文件夹 API。真实可执行文件项需先 build:core；未安装业务插件时跳过相应集成项 |
+| `server/plugin/web/*.test.ts` | 外部 Vite/Lit/子路径/CSS/前端 Worker、预构建页面、失败保留旧产物、并发合并和真实 SEA 独立构建；loader 测试另验证自动构建先于 onLoad、启动超时暂停和失败清理 |
 | `terminal/*.test.ts` | 窗口身份、输入和确认、输出顺序、颜色折行、Ctrl+C 输入取消、状态文件/备份/锁与恢复 |
 | [server/scripts/smoke-executable.ts](../projects/server/scripts/smoke-executable.ts)、[terminal/smoke.ts](../projects/terminal/smoke.ts) | 独立部署、同目录 `.env`、端口递增/耗尽、静态资源、Redis 密码/前缀隔离、插件目录确认、多窗口任务、交互输入、管道/EOF、颜色、取消/强停、重启和真实 PTY |
+| [server/scripts/executable-launch.test.ts](../projects/server/scripts/executable-launch.test.ts) | 真实可执行文件无参数启动终端、创建窗口并退出，以及 --no-terminal 直接启动核心；临时部署/配置、禁用 Redis，需先 build:core |
 | [shared/utils/refreshRuleParser.test.ts](../projects/shared/utils/refreshRuleParser.test.ts) | pathname、search、hash 和组合规则解析 |
 
 根 Vitest 注册 server、user-script、web、terminal；会收集服务端公共工具、配置和进程宿主测试，没有收集 shared 的规则测试。installed-plugins 等测试依赖本机安装插件，针对核心可显式指定文件。端口与 WebSocket 测试需要允许本机监听端口。针对核心的命令：

@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { RpcPeer } from '../process/rpc.ts';
 import { PluginProcessError } from '../process/protocol.ts';
 import { sharedPackageAssets } from '../../scripts/shared-package-assets.ts';
+import { preparePluginWeb } from '../web/build.ts';
 
 const root = fileURLToPath(new URL('../../../../', import.meta.url));
 const executable = path.join(root, 'dist/core', process.platform === 'win32' ? 'scwc.exe' : 'scwc');
@@ -81,6 +82,22 @@ describe('relocated sticker plugin with shared SDK', () => {
             callback(new Error('Plugin host disconnected'));
           }
         });
+        peer.onCall = async (method, args) => {
+          if (method !== 'web.prepare') {
+            throw new Error('Unexpected host request');
+          }
+          await preparePluginWeb(
+            plugin,
+            path.join(plugin, 'index.ts'),
+            (args as { entry: string }).entry,
+            {
+              info: () => undefined,
+              pathInfo: () => undefined,
+              warn: () => undefined,
+              error: () => undefined,
+            },
+          );
+        };
         child.on('message', (message) => peer.receive(message));
         child.on('error', (error) => peer.close(new PluginProcessError(error.message)));
         let stderr = '';

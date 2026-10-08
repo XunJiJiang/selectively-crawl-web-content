@@ -32,7 +32,7 @@ export class CoreConnection extends EventEmitter {
     const entry =
       this.options.entry ??
       (isPackaged ? path.join(SERVER_ROOT, 'core.cjs') : path.join(SERVER_ROOT, 'index.ts'));
-    const child = fork(entry, [...this.options.args, '--interaction=ipc'], {
+    const child = fork(entry, [...this.options.args, '--no-terminal', '--interaction=ipc'], {
       execPath: this.options.execPath ?? process.execPath,
       stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
       serialization: 'advanced',

@@ -11,6 +11,7 @@ import {
 } from './plugin/load.ts';
 import { createLogger } from './utils/log.ts';
 import cacheController from './utils/cache.ts';
+import { cancelPluginWebBuilds } from './plugin/web/build.ts';
 import { HOST, PORT, PORT_SEARCH_RANGE, ACTIVE_PORT, setListeningPort } from './common/env.ts';
 import { parsedArgs } from './common/setupParam.ts';
 import { serverLogger } from './common/logger.ts';
@@ -24,6 +25,7 @@ async function main() {
       return;
     }
     exiting = true;
+    cancelPluginWebBuilds();
     server?.close();
     await pluginLoading.catch(() => undefined);
     for (const plugin of plugins) {

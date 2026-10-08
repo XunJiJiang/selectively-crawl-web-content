@@ -1,5 +1,7 @@
 import readline from 'node:readline';
-import { inactivePlugins, plugins } from '../plugin/load.ts';
+import { configuredPluginDirectory, inactivePlugins, plugins } from '../plugin/load.ts';
+import path from 'node:path';
+import { buildPluginWeb } from '../plugin/web/build.ts';
 import { pluginLogger } from '../plugin/log.ts';
 import {
   registerCommand,
@@ -94,6 +96,20 @@ export function registerDefaultCommands(serverLogger: SCWC.TLogger) {
     SYSTEM_SYMBOL,
     '列出所有已加载的插件',
     [
+      {
+        name: 'build-web',
+        description: '使用内置 Vite 重建指定插件页面',
+        exampleUsage: 'plugin build-web <插件目录名>',
+        execute: async (logger, _options, _unused, origin, context) => {
+          const id = origin[2];
+          if (origin.length !== 3 || !id || id === '.' || id === '..' || /[/\\]/.test(id)) {
+            throw new CommandError('用法：plugin build-web <插件目录名>', false);
+          }
+          const plugin = [...plugins, ...inactivePlugins].find((item) => item.pluginId === id);
+          const directory = plugin?.pluginDir ?? path.join(await configuredPluginDirectory(), id);
+          await buildPluginWeb(directory, logger, { signal: context.signal });
+        },
+      },
       {
         name: 'ls',
         description: '列出所有插件',

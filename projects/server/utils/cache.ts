@@ -32,7 +32,7 @@ const errorHandlers = new Map<
 
 const redis = redisSettings(process.env);
 
-const keyvInstances = [
+const keyvInstances: [string, Keyv][] = [
   //  High performance in-memory cache with LRU and TTL
   [
     'memory',
@@ -41,8 +41,9 @@ const keyvInstances = [
       namespace: 'cache-memory',
     }),
   ],
-  //  Redis Store
-  [
+];
+if (redis.enabled) {
+  keyvInstances.push([
     'redis',
     new Keyv(
       new KeyvRedis(redis.connection, {
@@ -55,8 +56,8 @@ const keyvInstances = [
         useKeyPrefix: false,
       },
     ),
-  ],
-] as const;
+  ]);
+}
 
 /** 提供错误处理程序 */
 export function addErrorHandler(

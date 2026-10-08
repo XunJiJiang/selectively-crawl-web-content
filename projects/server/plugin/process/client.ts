@@ -9,6 +9,8 @@ import { currentIdentity, taskRegistry } from '../../common/tasks.ts';
 import { inputReply, readInput } from '../../common/interaction.ts';
 import { colorEnvironment } from '../../common/color.ts';
 import { publishLog, type LogLevel } from '../../utils/log.ts';
+import path from 'node:path';
+import { preparePluginWeb } from '../web/build.ts';
 import type { InputRequest, InvocationIdentity, TaskSnapshot } from '../../types/task.d.ts';
 import type {
   ProcessInfo,
@@ -19,6 +21,7 @@ import type {
 export interface ClientOptions {
   pluginId?: string;
   entry: string;
+  pluginDir?: string;
   name: string;
   logger: SCWC.TLogger;
   cache: () => SCWC.IPluginCache;
@@ -63,6 +66,8 @@ export class PluginProcessClient {
   private heartbeat?: NodeJS.Timeout;
   private pinging = false;
   private stopping = false;
+  private startupCallId?: string;
+  private readonly startupBuildAbort = new AbortController();
   private manifest?: Manifest;
   private html?: string;
   private htmlRefresh?: Promise<string | undefined>;
@@ -134,6 +139,7 @@ export class PluginProcessClient {
   }
 
   private cleanup(): void {
+    this.startupBuildAbort.abort(new Error('插件宿主已停止'));
     for (const input of this.inputs.values()) {
       input.abort(new Error('插件宿主已停止'));
     }
@@ -179,6 +185,30 @@ export class PluginProcessClient {
   }
 
   private async cacheCall(method: string, args: unknown): Promise<unknown> {
+    if (method === 'web.prepare') {
+      const entry = (args as { entry?: unknown })?.entry;
+      if (
+        !this.startupCallId ||
+        this.info.status !== 'starting' ||
+        typeof entry !== 'string' ||
+        !entry
+      ) {
+        throw new Error('页面构建准备只允许在插件初始化时调用');
+      }
+      const resume = this.peer.pauseTimeout(this.startupCallId);
+      try {
+        await preparePluginWeb(
+          this.options.pluginDir ?? path.dirname(this.options.entry),
+          this.options.entry,
+          entry,
+          this.options.logger,
+          this.startupBuildAbort.signal,
+        );
+      } finally {
+        resume();
+      }
+      return;
+    }
     if (method === 'input.next') {
       const request = args as InputRequest;
       const identity = this.identities.get(request.identity?.executionId);
@@ -372,6 +402,7 @@ export class PluginProcessClient {
   }
 
   async start(): Promise<SCWC.IHostedPluginHandler> {
+    this.startupCallId = randomUUID();
     try {
       this.manifest = await this.call<Manifest>(
         'initialize',
@@ -384,6 +415,7 @@ export class PluginProcessClient {
           sessionId: currentIdentity().sessionId,
         },
         this.options.runtime.startupTimeoutMs ?? 30_000,
+        this.startupCallId,
       );
       this.html = this.manifest.ui?.html;
       this.info.status = 'ready';
@@ -416,6 +448,8 @@ export class PluginProcessClient {
       this.info.status = 'failed';
       this.info.reason = error instanceof Error ? error.message : String(error);
       throw error;
+    } finally {
+      this.startupCallId = undefined;
     }
   }
 

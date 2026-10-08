@@ -22,7 +22,8 @@ vi.mock('../../utils/cache.ts', () => ({
 vi.mock('../../utils/log.ts', () => ({
   createLogger: () => ({ info: vi.fn(), pathInfo: vi.fn(), warn: vi.fn(), error: vi.fn() }),
 }));
-vi.mock('../../utils/command.ts', () => ({
+vi.mock('../../utils/command.ts', async (importOriginal) => ({
+  splitCommand: (await importOriginal<typeof import('../../utils/command.ts')>()).splitCommand,
   registerCommand: vi.fn(),
   CommandError: class extends Error {},
 }));
@@ -41,6 +42,63 @@ afterEach(async () => {
 });
 
 describe('default isolated v2 plugin loader', () => {
+  it('prepares missing Vite pages before onLoad, pauses startup timeout, and rejects unsupported build scripts', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'scwc-auto-web-'));
+    roots.push(root);
+    for (const id of ['built', 'invalid']) {
+      const directory = path.join(root, id);
+      fs.mkdirSync(path.join(directory, 'web'), { recursive: true });
+      fs.writeFileSync(
+        path.join(directory, 'package.json'),
+        JSON.stringify({
+          type: 'module',
+          main: 'index.ts',
+          scripts: {
+            'build:web': id === 'built' ? 'vite build --config vite.config.ts' : 'node build.js',
+          },
+          runtime: { startupTimeoutMs: 1500 },
+        }),
+      );
+      fs.writeFileSync(
+        path.join(directory, 'index.ts'),
+        `
+import fs from 'node:fs';
+export default {
+  onRequest() {},
+  onLoad() { fs.readFileSync(new URL('./web/dist/index.html', import.meta.url)); fs.writeFileSync(new URL('./started.txt', import.meta.url), 'started'); },
+  onUnload() { fs.writeFileSync(new URL('./stopped.txt', import.meta.url), 'stopped'); },
+  ui: {entry:'./web/dist/index.html'},
+};
+`,
+      );
+      fs.writeFileSync(
+        path.join(directory, 'vite.config.ts'),
+        `
+import {defineConfig} from 'vite';
+import path from 'node:path';
+await new Promise(resolve => setTimeout(resolve, 1800));
+export default defineConfig({root:path.join(import.meta.dirname,'web'),build:{outDir:'dist'}});
+`,
+      );
+      fs.writeFileSync(
+        path.join(directory, 'web/index.html'),
+        '<html><script type="module" src="./main.ts"></script></html>',
+      );
+      fs.writeFileSync(
+        path.join(directory, 'web/main.ts'),
+        "import {html} from 'lit'; document.body.innerHTML = String(html`ready`);",
+      );
+    }
+    await loadPlugins(root);
+    expect(plugins.map((plugin) => plugin.pluginId)).toEqual(['built']);
+    expect(fs.existsSync(path.join(root, 'built/web/dist/index.html'))).toBe(true);
+    expect(fs.existsSync(path.join(root, 'built/started.txt'))).toBe(true);
+    expect(fs.existsSync(path.join(root, 'invalid/started.txt'))).toBe(false);
+    expect(fs.existsSync(path.join(root, 'invalid/stopped.txt'))).toBe(true);
+    expect(inactivePlugins.find((plugin) => plugin.pluginId === 'invalid')?.reason).toContain(
+      'vite build',
+    );
+  }, 15_000);
   it('isolates plugins with omitted or partial settings while startup fails or hangs', async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'scwc-loader-'));
     roots.push(root);

@@ -4,11 +4,11 @@
 
 ## 加载与匹配
 
-- `projects/server/plugin/load.ts` 启动时扫描 `projects/server/plugins` 的直接子目录，只处理有 `package.json` 的目录。
+- `projects/server/plugin/load.ts` 扫描配置的插件目录直接子目录，只处理有 `package.json` 的目录。开发默认仓库 projects/server/plugins，生产默认程序同目录 plugins；SCWC_PLUGIN_DIR 和 --plugin-dir 可覆盖，不要求插件在核心源码目录内。
 - 入口由 `package.json.main` 解析；存在且扩展名为 `.js`/`.ts` 才尝试加载。所有启用插件在 Node 宿主内动态 import，runtime 和 apiVersion 可省略，默认 process 与 2，不回退到核心进程。
 - 默认导出必须有函数 `onRequest`，否则进入 `inactivePlugins`。`enabled: false` 也直接进入未激活列表。
-- 加载器最多同时激活两个插件；先完成 onLoad，再注册命令、API、资源和 WebSocket。失败逐项记录到 inactivePlugins；HTTP 在激活前启动。
-- `projects/server/router/utils/path.ts` 的 `matchLink`：普通模式按前缀匹配；含 `*` 的模式转换成从字符串开头匹配的正则；`!` 是否定；一个否定通配符命中时返回不匹配；`link-with: []` 在调用方被当作匹配全部。
+- 加载器最多同时激活两个插件；导入入口后、onLoad 前准备 ui.entry，缺少 HTML 时尝试 Vite 构建，构建期间暂停插件启动超时。完成 onLoad 后注册命令、API、资源和 WebSocket。失败逐项记录到 inactivePlugins；HTTP 在激活前启动。依赖、构建及部署细节见 [dependencies-and-deployment.md](dependencies-and-deployment.md)。
+- `projects/server/router/utils/index.ts` 的 `matchLink`：普通模式按前缀匹配；含 `*` 的模式转换成从字符串开头匹配的正则；`!` 是否定；一个否定通配符命中时返回不匹配；`link-with: []` 在调用方被当作匹配全部。
 - `pluginConfig.command` 只有在 `package.json.commandName` 存在时才会注册；每个插件只能注册一个一级命令。`execute` 收到 logger、已解析选项数组、未使用参数和原始参数；选项解析支持 `--name=value`、别名和默认值。命令名冲突时会自动添加插件 ID 前缀。
 
 ## 抓取与控制器
@@ -20,7 +20,7 @@
 
 ## 页面与 API
 
-- `/web/page/plugin/:pluginDir` 按插件目录 basename 查找页面；`ui.entry` 相对路径是相对于插件入口html文件所在目录（通常是插件目录），`ui.html` 是返回完整 html 页面字符串的函数，当`ui.html`存在时优先使用。找不到插件、entry 或文件时重定向到 404 页面。
+- `/web/page/plugin/:pluginDir` 按插件目录 basename 查找页面；ui.entry 相对路径以 package.json.main 指向的插件入口文件所在目录为基准。ui.html 返回完整 HTML，可异步，存在时优先使用；ui.entry 的文件仍必须存在。找不到插件、entry 或文件时重定向到 404 页面。
 - 页面响应会在第一个 `</body>` 前插入 `/web/page/lib/scwcutils.iife.<timestamp>.js`。若尚未构建该库，则不注入。
 - `/web/page/plugin/:pluginDir/*path` 从 entry 所在目录拼接并发送静态资源；插件页面资源应因此使用相对引用。
 - `registerPluginApi` 为每个 API 增加 `/<safeId>` 前缀，最终由 `/web/api/plugin/<safeId>/...` 暴露。API handler 的返回值被包装为 `{ success: true, message: '请求成功', data }`；抛错通过代理保留 status（未指定时 500）、`{ success: false, message }`。

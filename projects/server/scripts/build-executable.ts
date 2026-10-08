@@ -6,6 +6,7 @@ import { build } from 'esbuild';
 import { ROOT, SERVER_ROOT } from '../common/paths.ts';
 import { buildWeb } from './build.ts';
 import { sharedExternalPackages, sharedPackageAssets } from './shared-package-assets.ts';
+import { sharedBrowserPackages, sharedBuildPackages } from '../plugin/web/dependencies.ts';
 
 async function main(): Promise<void> {
   const [major, minor] = process.versions.node.split('.').map(Number);
@@ -30,6 +31,8 @@ async function main(): Promise<void> {
       ['../terminal/index.ts', 'terminal.cjs'],
       ['../terminal/plugins/host.ts', 'terminal-host.cjs'],
       ['plugin/sdk/worker-bootstrap.ts', 'plugin-worker.cjs'],
+      ['plugin/web/host.ts', 'web-build-host.cjs'],
+      ['plugin/web/cli.ts', 'web-build-cli.cjs'],
       ['scripts/sea-bootstrap.ts', 'bootstrap.cjs'],
     ]) {
       await build({
@@ -42,7 +45,7 @@ async function main(): Promise<void> {
         minify: true,
         keepNames: true,
         treeShaking: true,
-        external: sharedExternalPackages,
+        external: [...sharedExternalPackages, ...sharedBuildPackages],
         // 所有源码相对路径在 SEA 模式下由 common/paths.ts 显式处理。
         define: { 'import.meta.url': JSON.stringify('file:///scwc/bundle.cjs') },
       });
@@ -53,6 +56,8 @@ async function main(): Promise<void> {
       'terminal.cjs': path.join(temporary, 'terminal.cjs'),
       'terminal-host.cjs': path.join(temporary, 'terminal-host.cjs'),
       'plugin-worker.cjs': path.join(temporary, 'plugin-worker.cjs'),
+      'web-build-host.cjs': path.join(temporary, 'web-build-host.cjs'),
+      'web-build-cli.cjs': path.join(temporary, 'web-build-cli.cjs'),
       'router/web/page/worry.html': path.join(SERVER_ROOT, 'router/web/page/worry.html'),
     };
     const collect = async (directory: string): Promise<void> => {
@@ -66,16 +71,35 @@ async function main(): Promise<void> {
       }
     };
     await collect(path.join(SERVER_ROOT, 'public'));
-    Object.assign(assets, await sharedPackageAssets(ROOT));
+    const corePackages = await sharedPackageAssets(ROOT);
+    const coreAssets = new Set([...Object.keys(assets), ...Object.keys(corePackages)]);
+    coreAssets.delete('web-build-host.cjs');
+    coreAssets.delete('web-build-cli.cjs');
+    Object.assign(
+      assets,
+      await sharedPackageAssets(ROOT, [
+        ...sharedExternalPackages,
+        ...sharedBrowserPackages,
+        ...sharedBuildPackages,
+      ]),
+    );
+    const browser = path.join(temporary, 'browser.mjs');
+    await fs.writeFile(browser, "export { z } from 'zod';\n");
+    assets['plugin-sdk/browser.mjs'] = browser;
     const manifest = path.join(temporary, 'manifest.json');
     await fs.writeFile(
       manifest,
       JSON.stringify(
         await Promise.all(
-          Object.entries(assets).map(async ([key, filename]) => ({
-            path: key,
-            mode: (await fs.stat(filename)).mode & 0o777,
-          })),
+          Object.entries(assets).map(async ([key, filename]) => {
+            const stat = await fs.stat(filename);
+            return {
+              path: key,
+              mode: stat.mode & 0o777,
+              size: stat.size,
+              scope: coreAssets.has(key) ? 'core' : 'web-build',
+            };
+          }),
         ),
       ),
     );

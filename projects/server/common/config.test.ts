@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import path from 'node:path';
 import {
   parseStartupArgs,
   pluginDirectorySettings,
@@ -40,6 +41,20 @@ describe('startup configuration', () => {
 });
 
 describe('Redis configuration', () => {
+  it.each(['false', '0', ' FALSE '])(
+    'disables Redis with %s and ignores connection settings',
+    (value) => {
+      expect(
+        redisSettings({ REDIS_ENABLED: value, REDIS_HOST: 'invalid host', REDIS_PORT: 'invalid' }),
+      ).toEqual({ enabled: false });
+    },
+  );
+  it.each(['true', '1', undefined])('keeps Redis enabled with %s', (value) => {
+    expect(redisSettings({ REDIS_ENABLED: value }).enabled).toBe(true);
+  });
+  it('rejects an invalid Redis switch', () => {
+    expect(() => redisSettings({ REDIS_ENABLED: 'maybe' })).toThrow('REDIS_ENABLED');
+  });
   it('supports password-only authentication with literal special characters', () => {
     const settings = redisSettings({
       REDIS_HOST: '[::1]',
@@ -47,17 +62,20 @@ describe('Redis configuration', () => {
       REDIS_PASSWORD: 'p@ss:/?#%',
       REDIS_KEY_PREFIX: 'instance-a',
     });
-    expect(settings.connection).toEqual({
+    expect(settings).toHaveProperty('connection');
+    expect('connection' in settings ? settings.connection : undefined).toEqual({
       socket: { host: '::1', port: 6380, connectTimeout: 5000 },
       password: 'p@ss:/?#%',
     });
-    expect(settings.namespace).toBe('instance-a');
+    expect('namespace' in settings ? settings.namespace : undefined).toBe('instance-a');
   });
   it('supports ACL authentication and timeout', () => {
-    expect(
-      redisSettings({ REDIS_USER: 'alice', REDIS_PASSWORD: 'secret', REDIS_TIMEOUT: '1000' })
-        .connection,
-    ).toEqual({
+    const settings = redisSettings({
+      REDIS_USER: 'alice',
+      REDIS_PASSWORD: 'secret',
+      REDIS_TIMEOUT: '1000',
+    });
+    expect('connection' in settings ? settings.connection : undefined).toEqual({
       socket: { host: '127.0.0.1', port: 6379, connectTimeout: 1000 },
       username: 'alice',
       password: 'secret',
@@ -87,9 +105,11 @@ describe('plugin directory selection', () => {
     isDev: false,
   };
   it('resolves defaults by mode independently of cwd', async () => {
-    expect(await resolvePluginDirectory(pluginDirectorySettings(options))).toBe('/deploy/plugins');
+    expect(await resolvePluginDirectory(pluginDirectorySettings(options))).toBe(
+      path.join('/deploy', 'plugins'),
+    );
     expect(await resolvePluginDirectory(pluginDirectorySettings({ ...options, isDev: true }))).toBe(
-      '/repo/projects/server/plugins',
+      path.join('/repo', 'projects/server/plugins'),
     );
   });
   it('resolves environment paths beside the environment file', async () => {
@@ -97,7 +117,7 @@ describe('plugin directory selection', () => {
       await resolvePluginDirectory(
         pluginDirectorySettings({ ...options, env: { SCWC_PLUGIN_DIR: './custom' } }),
       ),
-    ).toBe('/config/custom');
+    ).toBe(path.resolve('/config', 'custom'));
   });
   it('accepts a CLI path without confirmation when the environment has no path', async () => {
     const confirm = vi.fn(async () => false);
@@ -106,7 +126,7 @@ describe('plugin directory selection', () => {
         pluginDirectorySettings({ ...options, args: { 'plugin-dir': './custom' } }),
         confirm,
       ),
-    ).toBe('/launch/custom');
+    ).toBe(path.resolve('/launch', 'custom'));
     expect(confirm).not.toHaveBeenCalled();
   });
   it('keeps the environment directory on cancellation and only overrides after confirmation', async () => {
@@ -117,8 +137,8 @@ describe('plugin directory selection', () => {
     });
     const decline = vi.fn(async () => false);
     const accept = vi.fn(async () => true);
-    expect(await resolvePluginDirectory(settings, decline)).toBe('/config/env');
-    expect(await resolvePluginDirectory(settings, accept)).toBe('/launch/cli');
+    expect(await resolvePluginDirectory(settings, decline)).toBe(path.resolve('/config', 'env'));
+    expect(await resolvePluginDirectory(settings, accept)).toBe(path.resolve('/launch', 'cli'));
     expect(decline).toHaveBeenCalledOnce();
     expect(accept).toHaveBeenCalledOnce();
   });

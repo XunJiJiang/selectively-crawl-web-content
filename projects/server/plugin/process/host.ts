@@ -176,6 +176,9 @@ async function initialize(args: Initialize): Promise<Manifest> {
     throw new Error('插件必须导出 onRequest，apiVersion 默认 2 且不支持其他版本');
   }
   plugin = loaded as ProcessPluginHandler;
+  if (plugin.ui?.entry) {
+    await peer.call('web.prepare', { entry: plugin.ui.entry }, 300_000);
+  }
   await plugin.onLoad?.(logger, {
     tasks: processTasks.reporter,
     signal: processTasks.controller.signal,

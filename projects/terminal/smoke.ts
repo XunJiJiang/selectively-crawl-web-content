@@ -210,7 +210,7 @@ export async function smokeTerminal(
     await store.release();
   }
 
-  const lineTerminal = spawn(executable, ['--terminal'], {
+  const lineTerminal = spawn(executable, [], {
     cwd,
     env: { ...env, TERM: 'dumb', SCWC_TERMINAL_PERSIST: 'false' },
     stdio: ['pipe', 'pipe', 'pipe'],
@@ -256,7 +256,7 @@ master,slave=pty.openpty()
 fcntl.ioctl(slave,termios.TIOCSWINSZ,struct.pack('HHHH',24,100,0,0))
 color_env={**os.environ,'TERM':'xterm-256color'}
 color_env.pop('FORCE_COLOR',None); color_env.pop('NO_COLOR',None)
-p=subprocess.Popen([exe,'--terminal'],stdin=slave,stdout=slave,stderr=slave,cwd=cwd,env=color_env)
+p=subprocess.Popen([exe],stdin=slave,stdout=slave,stderr=slave,cwd=cwd,env=color_env)
 os.close(slave)
 buffer=b''
 def until(text,timeout=15):

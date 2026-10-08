@@ -1,6 +1,24 @@
 import path from 'node:path';
 import { isIP } from 'node:net';
 
+export function booleanSetting(
+  name: string,
+  value: string | undefined,
+  fallback: boolean,
+): boolean {
+  if (value === undefined) {
+    return fallback;
+  }
+  const normalized = value.trim().toLowerCase();
+  if (normalized === 'true' || normalized === '1') {
+    return true;
+  }
+  if (normalized === 'false' || normalized === '0') {
+    return false;
+  }
+  throw new Error(`${name} 必须是 true/false 或 1/0`);
+}
+
 export function integerSetting(
   name: string,
   value: string | undefined,
@@ -90,6 +108,9 @@ export function pluginDirectorySettings(options: {
 }
 
 export function redisSettings(env: NodeJS.ProcessEnv) {
+  if (!booleanSetting('REDIS_ENABLED', env.REDIS_ENABLED, true)) {
+    return { enabled: false as const };
+  }
   const host = (env.REDIS_HOST ?? '127.0.0.1').replace(/^\[(.*)\]$/, '$1');
   if (!host || (!isIP(host) && !/^[\w.-]+$/.test(host))) {
     throw new Error('REDIS_HOST 格式无效');
@@ -102,6 +123,7 @@ export function redisSettings(env: NodeJS.ProcessEnv) {
     throw new Error('REDIS_KEY_PREFIX 不能为空或包含空白、Redis 通配符');
   }
   return {
+    enabled: true as const,
     connection: {
       socket: { host, port, connectTimeout: timeout },
       ...(env.REDIS_USER ? { username: env.REDIS_USER } : {}),
