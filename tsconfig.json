@@ -1,6 +1,7 @@
 {
   "files": [],
   "references": [
+    { "path": "./projects/vite-plugin/tsconfig.json" },
     { "path": "./tsconfig.terminal.json" },
     {
       "path": "./tsconfig.app.json"

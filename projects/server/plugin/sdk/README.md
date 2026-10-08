@@ -34,12 +34,12 @@ const worker = createPluginWorker(new URL('./worker.ts', import.meta.url), {
 
 ## 浏览器和测试
 
-`scwc:deps` 默认属于 Node 宿主；其 browser.ts 适配只导出 `z`。核心 [页面构建器](../web/README.md) 自动配置该别名，并另外支持 Lit/@lit 等正常包名的共享回退；因此 browser.ts 只含 Zod 不代表前端只可共享 Zod。现有 `import ... from 'lit'` 无需修改。直接运行本地 Vite 时需要自己的别名或适配模块，避免从外部插件目录引用核心的相对路径。
+`scwc:deps` 默认属于 Node 宿主；其 browser.ts 兼容入口转发 [公共 Vite 包](../../../vite-plugin/README.md) 的浏览器适配，只导出 `z`。核心 [页面构建器](../web/README.md) 自动注入该 Vite 插件，并另外支持 Lit/@lit 等正常包名的共享回退；因此适配只含 Zod 不代表前端只可共享 Zod。现有 `import ... from 'lit'` 无需修改。直接本地 Vite 构建建议导入 @scwc/vite-plugin 并为页面及 Worker 注册，无需自己的 SDK 别名/适配文件。
 
 ## 添加、更新和移除依赖
 
 - 只供核心自身使用的根依赖不必加入 SDK；需要向插件承诺共享时才加入。Node 依赖同时更新 dependencies.ts 的运行时导出和 modules.d.ts 的原包类型。涉及原生模块、文件或工具路径时，补充 scripts/shared-package-assets.ts 的 sharedExternalPackages，不能仅把代码合并进 bundle。
-- 普通浏览器共享包加入 plugin/web/dependencies.ts 的 sharedBrowserPackages；构建工具加入 sharedBuildPackages。两份白名单会随 build:core 收集原包及传递依赖。浏览器导出条件与 Node 不同，不使用 Node require.resolve 代替 Vite 的浏览器解析；不得把 Node 专用包加入浏览器列表。
+- 普通浏览器共享包加入 projects/vite-plugin/dependencies.js 的 sharedBrowserPackages；plugin/web/dependencies.ts 保留兼容导出，构建工具加入其 sharedBuildPackages（包括 @scwc/vite-plugin）。两份白名单会随 build:core 收集原包及传递依赖。浏览器导出条件与 Node 不同，不使用 Node require.resolve 代替 Vite 的浏览器解析；不得把 Node 专用包加入浏览器列表。
 - 版本统一由根 package.json 和 bun.lock 决定。兼容升级通常无需改导出名称或声明中的版本：安装更新后原包类型自动随之更新，再执行类型检查、核心/插件回归和 build:core。已有页面产物包含旧依赖，需 plugin build-web 或 CLI 重新构建。
 - 主版本或导出方式变化时，核对默认/命名导出、子路径、类型泛型、浏览器导出条件、Vite 插件兼容性、原生 ABI/平台和资源路径；必要时更新 SDK 适配与受影响插件。新增/删除导出要同步运行时和声明，保留兼容别名或明确升级契约，避免直接破坏已发布插件。
 - 移除依赖前检查 SDK 导出、前端/构建白名单、插件源码及打包外置列表；不要只从根 package.json 删除仍被插件使用的共享包。插件要求不同版本时提供自己的私有依赖。

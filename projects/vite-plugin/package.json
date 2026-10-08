@@ -1,0 +1,20 @@
+{
+  "name": "@scwc/vite-plugin",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SCWC plugin frontend dependency resolution and decorator transforms for Vite",
+  "keywords": [
+    "vite-plugin"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    }
+  },
+  "peerDependencies": {
+    "esbuild": "^0.28.1",
+    "vite": "^8.1.5"
+  }
+}

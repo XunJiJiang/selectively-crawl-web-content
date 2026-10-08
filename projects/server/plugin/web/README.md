@@ -24,11 +24,13 @@ bun run build:plugin-web --directory <插件目录>
 
 ## 构建工具与依赖
 
-SEA 内置 Vite、vite-plugin-monkey、esbuild，以及它们需要的原始模块和本机原生资源；无需部署机另装 Node/Vite。正常启动只释放核心资源，首次页面构建按需释放工具链/浏览器依赖，后续构建复用。源码模式需安装根工作区依赖（包含构建开发依赖）。额外 Vite 插件、预处理器或私有页面依赖由业务插件提供；核心不自动联网安装包。
+SEA 内置 @scwc/vite-plugin、Vite、vite-plugin-monkey、esbuild，以及它们需要的原始模块和本机原生资源；无需部署机另装 Node/Vite。正常启动只释放核心资源，首次页面构建按需释放工具链/浏览器依赖，后续构建复用。源码模式需安装根工作区依赖（包含构建开发依赖）。额外 Vite 插件、预处理器或私有页面依赖由业务插件提供；核心不自动联网安装包。
 
-`dependencies.ts` 是前端共享包与构建工具的明确白名单，包含 Lit、@lit/context、@lit-labs 系列、Zod、CodeMirror、Lezer 等。页面保留 `import ... from 'lit'` 以及包的正常子路径；构建先按插件位置解析，未找到白名单包时才使用核心目录。Node 配置加载也提供对应回退，解决外部目录没有 Vite 的情况。插件私有版本优先，core 固定版本只作为回退。
+前端共享白名单由 [公共 Vite 包](../../../vite-plugin/README.md) 的 dependencies.js 维护，包含 Lit、@lit/context、@lit-labs 系列、Zod、CodeMirror、Lezer 等。此目录 dependencies.ts 保留兼容导出并维护 sharedBuildPackages，包含公共 Vite 包。页面保留 `import ... from 'lit'` 以及包的正常子路径；构建先按插件位置解析，未找到白名单包时才使用核心目录。Node 配置加载也提供构建包回退，解决外部目录没有 Vite/@scwc/vite-plugin 的情况。插件私有版本优先，core 固定版本只作为回退。
 
-`scwc:deps` 的浏览器虚拟模块仍只导出 z；它与普通包名的共享机制不同。核心构建器自动配置其别名，且同时处理前端 Worker。直接使用本地 Vite 构建时仍需自己配置别名；贴纸提供了本地 shared/browser-dependencies.ts，因此其 Vite 配置不再依赖核心的相对目录。
+核心构建器对页面与 Worker 自动注入 scwcVite()，不再单独维护一套浏览器解析/转译实现；与用户显式配置同时存在时自动忽略重复实例。`scwc:deps` 的浏览器虚拟模块仍只导出 z。直接本地 Vite 构建建议导入 @scwc/vite-plugin，在 plugins 与 worker.plugins 中注册，无需手写 SDK 别名或适配文件。贴纸已经采用该配置。完整示例与外部开发 dependencyRoot 用法见公共包 README。
+
+Vite 8 的 Oxc 不会转换标准装饰器，仅设置 build.target / oxc.target 不能避免浏览器收到原始 `@decorator`。公共 Vite 插件对页面和 Worker 中的 JS/TS 装饰器先使用已内置的 esbuild 转换，读取源码附近的 tsconfig，保留标准或 experimentalDecorators 模式，再交给 Vite 构建；此处使用 Vite 的 transformWithEsbuild 兼容接口，升级 Vite 时需核对接口和 Oxc 支持情况。插件须随源码提供自己的前端 tsconfig，不依赖工作区外层配置。Lit 使用实验模式时显式设置 experimentalDecorators: true，并使用带 accessor 的响应属性；直接本地 Vite 构建同样读取这份配置。
 
 ## 配置边界
 
@@ -41,4 +43,4 @@ SEA 内置 Vite、vite-plugin-monkey、esbuild，以及它们需要的原始模�
 
 ## 验证
 
-web-build.test.ts 覆盖外部目录没有 Vite/Lit/Zod、子路径/CSS/Worker、预构建页面、重复请求与失败保留旧产物，以及实际 SEA 的独立构建。process/loader.test.ts 验证构建先于 onLoad、启动超时暂停、不支持的脚本不执行和失败清理。全部使用临时插件与临时数据。
+web-build.test.ts 覆盖公共插件的本地 Vite bundle/native 配置加载、外部目录没有 Vite/Lit/Zod、私有包优先、白名单外包不回退、子路径/CSS/Worker、标准/实验装饰器、预构建页面、重复注册/请求与失败保留旧产物，以及搬移实际 SEA 后的独立构建。对产物执行语法检查，并在 DOM 环境验证 Lit 组件注册、响应属性和渲染；构建成功不能代替浏览器执行验证。process/loader.test.ts 验证构建先于 onLoad、启动超时暂停、不支持的脚本不执行和失败清理。全部使用临时插件与临时数据。

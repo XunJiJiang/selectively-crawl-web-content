@@ -5,7 +5,6 @@ import { registerHooks } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import { ROOT } from '../../common/paths.ts';
 import { packageName, sharedBrowserPackages, sharedBuildPackages } from './dependencies.ts';
-import type { Plugin } from 'vite';
 import type { WebBuildRequest } from './options.ts';
 
 const dependencyRoot = process.env.SCWC_RUNTIME_ROOT ?? ROOT;
@@ -43,6 +42,7 @@ function inside(directory: string, filename: string): boolean {
 
 export async function runWebBuild(request: WebBuildRequest): Promise<void> {
   const { build, loadConfigFromFile } = await import('vite');
+  const { default: scwcVite } = await import('@scwc/vite-plugin');
   const environment = {
     command: 'build' as const,
     mode: request.options.mode,
@@ -70,33 +70,7 @@ export async function runWebBuild(request: WebBuildRequest): Promise<void> {
   await fs.mkdir(parent, { recursive: true });
   const staging = path.join(parent, `.scwc-web-build-${randomUUID()}`);
   const backup = path.join(parent, `.scwc-web-backup-${randomUUID()}`);
-  const adapter = process.env.SCWC_RUNTIME_ROOT
-    ? path.join(dependencyRoot, 'plugin-sdk/browser.mjs')
-    : path.join(dependencyRoot, 'projects/server/plugin/sdk/browser.ts');
-  const aliases = Array.isArray(config.resolve?.alias)
-    ? config.resolve.alias
-    : Object.entries(config.resolve?.alias ?? {}).map(([find, replacement]) => ({
-        find,
-        replacement,
-      }));
-  const fallback = (): Plugin => ({
-    name: 'scwc-shared-browser-dependencies',
-    enforce: 'pre',
-    async resolveId(source, importer, options) {
-      const name = packageName(source);
-      if (!name || !sharedBrowserPackages.some((pkg) => pkg === name)) {
-        return null;
-      }
-      const local = await this.resolve(source, importer, { ...options, skipSelf: true });
-      if (local) {
-        return local;
-      }
-      return this.resolve(source, path.join(dependencyRoot, 'scwc-browser-entry.js'), {
-        ...options,
-        skipSelf: true,
-      });
-    },
-  });
+  const sharedPlugin = () => scwcVite({ dependencyRoot });
   let saved = false;
   try {
     await build({
@@ -105,14 +79,10 @@ export async function runWebBuild(request: WebBuildRequest): Promise<void> {
       root,
       mode: request.options.mode,
       base: `/web/page/plugin/${encodeURIComponent(path.basename(request.directory))}/`,
-      resolve: {
-        ...config.resolve,
-        alias: [{ find: /^scwc:deps$/, replacement: adapter }, ...aliases],
-      },
-      plugins: [fallback(), ...(config.plugins ?? [])],
+      plugins: [sharedPlugin(), ...(config.plugins ?? [])],
       worker: {
         ...config.worker,
-        plugins: () => [fallback(), ...(config.worker?.plugins?.() ?? [])],
+        plugins: () => [sharedPlugin(), ...(config.worker?.plugins?.() ?? [])],
       },
       build: {
         ...config.build,

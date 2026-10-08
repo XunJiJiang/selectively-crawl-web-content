@@ -12,6 +12,7 @@ SCWC 是一个由本地 Node 服务、网页中的油猴脚本和 Web 宿主页�
 | --- | --- | --- | --- |
 | `projects/server` | Node.js / Express | HTTP、WebSocket、扩展生命周期、终端命令、缓存与数据工具 | [index.ts](../projects/server/index.ts)、[router/index.ts](../projects/server/router/index.ts) |
 | `projects/terminal` | Node.js / TTY 或逐行 stdin | 多窗口命令、输出、交互输入、任务状态、核心重启与终端插件 | [index.ts](../projects/terminal/index.ts)、[controller.ts](../projects/terminal/controller.ts) |
+| `projects/vite-plugin` | Node.js / Vite | 插件前端共享包回退、浏览器 SDK 适配与装饰器转换；本地/核心/SEA 共用 | [index.js](../projects/vite-plugin/index.js)、[README.md](../projects/vite-plugin/README.md) |
 | `projects/user-script` | 目标网页，油猴脚本 / Lit | 悬浮窗、元素选择、抓取列表、扩展控件、脚本设置 | [src/main.ts](../projects/user-script/src/main.ts) |
 | `projects/web` | 浏览器 / Lit | 列出可用扩展页面，通过 iframe 打开页面并传入配置 | [src/main.ts](../projects/web/src/main.ts)、[layouts/content.ts](../projects/web/src/layouts/content.ts) |
 | `projects/shared` | 浏览器 | 三个浏览器模块复用的控件、配置、存储、类型和工具 | [store/config.ts](../projects/shared/store/config.ts)、[utils/common.ts](../projects/shared/utils/common.ts) |
@@ -66,6 +67,10 @@ flowchart LR
     │   ├── core.ts、peer.ts     核心子进程及版本化 IPC
     │   ├── storage.ts           原子状态文件、备份、锁
     │   └── plugins/             独立终端命令宿主与禁用模板
+    ├── vite-plugin/             @scwc/vite-plugin 工作区包，JS 入口与 .d.ts 类型
+    │   ├── index.js             Vite 插件工厂；页面/Worker 使用新实例
+    │   ├── dependencies.js      前端共享白名单唯一来源
+    │   └── browser.js           scwc:deps 的浏览器适配（z）
     ├── user-script/
     │   ├── vite.config.ts       油猴打包配置
     │   └── src/
@@ -122,6 +127,10 @@ flowchart LR
 [共享 SDK](../projects/server/plugin/sdk/README.md) 在业务与终端插件宿主动态导入前注册同步模块钩子，提供 `scwc:deps`（Axios、Chalk、Zod、SQLite、Trash、File Type）与 `scwc:runtime`（RpcPeer、PluginProcessError、createPluginWorker）。插件可位于任意目录，不需在插件目录安装这些共享包；后端普通包名不会自动映射，根 dependencies 也不是共享白名单。modules.d.ts 提供原包类型，模板 tsconfig 显式包含它。Worker 钩子不自动继承，使用 createPluginWorker 先注册 SDK 再导入入口；每个进程/Worker 独立实例。browser.ts 只定义 scwc:deps 的 Zod 浏览器适配；核心页面构建器另有 Lit/@lit 等正常包名的共享回退，无需修改现有前端包名导入。
 
 [页面构建器](../projects/server/plugin/web/README.md) 支持提供完整页面产物，或提供 Vite 源码并保留 package.json scripts.build:web。插件入口导入后、onLoad 前经 web.prepare 准备缺失 HTML，成功才完成激活；构建期间暂停插件启动超时，构建独立限时五分钟。失败清理宿主并进入 inactivePlugins，HTTP/其他插件可继续服务。配置原生加载，普通前端包和配置中的构建工具优先插件私有包、缺失时回退核心白名单。scwc:deps 别名及前端 Worker 解析自动注入，base 按插件目录名生成。产物暂存后替换，普通失败保留旧页面；同插件合并请求、全局串行构建。无需先实现单插件动态加载/卸载；重建不改变后端状态，未激活插件需重启核心后再激活。
+
+[公共 Vite 包](../projects/vite-plugin/README.md) 放在 projects/vite-plugin，包名 @scwc/vite-plugin，根 bun install 以 workspace 链接；无需发布 npm。业务插件本地构建建议导入 scwcVite，在 plugins 注册；有前端 Worker 时在 worker.plugins 返回新实例。它统一处理普通浏览器白名单回退、scwc:deps 浏览器适配（仅 z）和装饰器，无需自己维护 SDK 别名/适配文件。核心页面构建器自动注入同一插件，与显式注册共存时忽略重复实例。原生 JS 入口与 .d.ts 声明允许 Node 原生配置加载；包已加入构建白名单，原始运行模块/声明随 SEA 工具链按需释放。外部独立开发引入本地包并按需指定 dependencyRoot，指向已安装共享依赖的核心工作区；部署 SEA 无需另装此包或 Node/Vite。
+
+Vite 8 的 Oxc 不转换标准装饰器，build.target / oxc.target 本身不能消除 `@decorator`。核心页面构建器对页面与 Worker 的 JS/TS 使用内置 esbuild 预先转换，并按源码附近 tsconfig 保持标准/实验装饰器语义；当前使用 Vite 的 transformWithEsbuild 兼容接口，升级时核对接口与 Oxc 能力。插件随源码携带自己的前端 tsconfig，不能依赖工作区外层配置。Lit 实验模式显式设置 experimentalDecorators: true，并使用 accessor 响应属性。外部目录和 SEA 验证需检查产物语法与组件响应；已有错误 HTML 不自动重建，修复配置或升级核心后执行 plugin build-web。
 
 运行实现与完整限制见 [独立插件宿主](../projects/server/plugin/process/README.md)。重要入口是 client.ts（进程及代理）、host.ts（插件回调）、rpc.ts（有界通信）、resource.ts（核心资源发送）和 types/plugin-process.d.ts（第二版类型）。当前插件入口（含模板和禁用插件）均使用第二版契约；禁用状态不变。ASMR 媒体资源使用文件描述，图片插件等待下载与保存完成后结束回调。没有单插件热重载或写请求自动重放；贴纸内部读写分离和统一重任务预算仍属于后续工作。
 
@@ -348,7 +357,7 @@ busy 由自动调用、主动 `setBusy(true)` 或未结束的 `begin` 句柄共�
 ### 依赖维护：添加、升级与移除
 
 - 只供核心使用的根依赖无需进入 SDK。要提供给后端插件时，同步 plugin/sdk/dependencies.ts 的运行时导出与 modules.d.ts 类型；原生/资源型包还需加入 scripts/shared-package-assets.ts 的 sharedExternalPackages。纯 JS 可随 bundle 合并，但根 package.json 声明本身不等于已对插件开放。
-- 浏览器普通包共享由 plugin/web/dependencies.ts 的 sharedBrowserPackages 决定（含 Lit/@lit、CodeMirror/Lezer 等）；构建工具由 sharedBuildPackages 决定（Vite、vite-plugin-monkey、esbuild）。新增共享包主动加入对应列表，原始包/传递依赖随 SEA 携带；配置与页面的解析回退保持浏览器导出条件，插件私有版本优先。
+- 浏览器普通包共享由 projects/vite-plugin/dependencies.js 的 sharedBrowserPackages 决定（含 Lit/@lit、CodeMirror/Lezer 等）；plugin/web/dependencies.ts 保留兼容导出并维护 sharedBuildPackages（Vite、vite-plugin-monkey、esbuild、@scwc/vite-plugin）。新增共享包主动加入对应列表，原始包/传递依赖随 SEA 携带；配置与页面的解析回退保持浏览器导出条件，插件私有版本优先。公共 Vite 包在本地与核心构建复用同一份白名单和实现。
 - 版本统一在根 package.json/bun.lock 管理；兼容升级通常不用改 SDK 导出或声明版本数字，安装后声明引用的原包类型会更新，但必须重新检查类型、宿主/Worker/外部目录回归并 build:core。已有页面不会自动重新构建，使用 plugin build-web 或构建 CLI 更新其中嵌入的旧依赖。
 - 主版本、默认/命名导出、子路径或类型泛型变化时，同步 SDK 适配及受影响插件；还要核对浏览器导出条件、Vite 插件兼容性、原生 ABI/平台和资源路径。删除/重命名公共导出需保留兼容别名或约定契约升级；移除根依赖前检查 SDK、前端/工具白名单和外置资源列表，避免破坏其他插件。特殊版本由插件提供私有依赖。
 - 依赖变更后更新本地图、SDK/页面构建 README 和插件开发规范。源码与 SEA、外部插件目录、类型、Worker 都需验证；浏览器变更追加页面构建。源码模式需要根工作区构建依赖；SEA 用户不另装 Node/Vite，额外插件/预处理器及私有依赖不自动联网安装。

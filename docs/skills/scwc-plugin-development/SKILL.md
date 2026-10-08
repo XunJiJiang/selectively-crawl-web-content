@@ -103,6 +103,10 @@ projects/server/plugins/my-plugin/
 
 页面交付二选一：提供完整产物并让 ui.entry 指向 HTML；或提供 Vite 源码/配置，package.json 保留 `scripts.build:web: "vite build --config vite.config.ts"`。HTML 缺失时核心在 onLoad 前构建，顶层入口代码不能提前读取未生成的页面。已有 HTML 不会因源码或依赖升级自动重建；使用 `plugin build-web <目录名>` 后刷新页面，不重载后端，未激活插件修复后重启核心。完整参数、类型与交付清单见 [依赖与部署注意事项](references/dependencies-and-deployment.md)。
 
+使用 Vite 构建插件前端时，建议在 vite.config.ts 导入 `scwcVite from '@scwc/vite-plugin'` 并配置 `plugins: [scwcVite()]`；有前端 Worker 时同时配置 `worker.plugins: () => [scwcVite()]`。它自动解析前端白名单、处理 scwc:deps 浏览器适配和装饰器，无需手写 SDK 别名。核心自动构建也注入同一插件，SEA 已携带此包；开发工作区 bun install 链接它，外部独立开发使用本地包并按需指定 dependencyRoot。示例和条件见 [依赖与部署注意事项](references/dependencies-and-deployment.md) 及 [公共 Vite 包](../../../projects/vite-plugin/README.md)。
+
+页面源码须自带前端 tsconfig，不依赖工作区外层配置。Vite 8 仅设置 target 不会转换标准装饰器；@scwc/vite-plugin 为页面和 Worker 提供转换。Lit 实验模式显式设置 experimentalDecorators: true，并采用 accessor 响应属性；标准模式不要求打开 experimentalDecorators。相关改动要验证外部目录产物语法和组件更新，不能只检查构建命令成功。
+
 插件页面与插件后端通信时，结构化请求默认使用 `window.scwcutils.fetch` ↔ `ui.api`。需要给媒体或其他资源元素提供可直接加载的响应时，使用 `ui.resources` ↔ `window.scwcutils.fetch.resource(url)`；不要把资源响应塞进普通 JSON API。除非开发者主动要求采用其他通信方式，否则插件前端不要使用原生 `window.fetch`、`XMLHttpRequest` 或自行实现的 HTTP 客户端来绕过这些通道；插件后端也不要创建独立 Express/Koa/Fastify 应用、调用 `listen()`、占用额外端口或启动独立 HTTP 服务器。插件页面应复用核心服务提供的认证、路由和转发能力。
 
 `window.scwcutils` 的类型来自 `projects/webutils/lib.d.ts`，且该声明只在 `projects/server/plugins/*/web` 生效。建议页面使用 TypeScript，并把构建/类型检查纳入插件自己的配置；`tsconfig.plugin-web.json` 只负责仓库级类型检查，当前包含 `webutils/lib.d.ts` 和所有插件 `web/**/*`。
