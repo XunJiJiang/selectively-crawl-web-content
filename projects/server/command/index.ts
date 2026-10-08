@@ -10,6 +10,12 @@ import {
   CommandError,
 } from '../utils/command.ts';
 import { TOKEN, ACTIVE_PORT, HOST } from '../common/env.ts';
+import { InvocationInputError, setInputHandler } from '../common/interaction.ts';
+
+let interruptInput: (() => boolean) | undefined;
+export function cancelStdinInput() {
+  return interruptInput?.() ?? false;
+}
 
 /** 重启脚本位置 */
 // const RESTART_SCRIPT_PATH = path.join(process.cwd(), 'server', 'scripts', 'restart.ts');
@@ -137,13 +143,81 @@ export function registerDefaultCommands(serverLogger: SCWC.TLogger) {
 
 export function listenProcessStdin(serverLogger: SCWC.TLogger) {
   const reader = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });
-  reader.on('line', (line) => {
-    if (!line.trim()) {
+  const inputs = new Map<string, (value?: string, error?: Error) => void>();
+  interruptInput = () => {
+    const complete = inputs.values().next().value;
+    if (!complete) {
+      return false;
+    }
+    complete(undefined, new InvocationInputError('cancelled', '用户取消输入'));
+    return true;
+  };
+  let closed = false;
+  let running = false;
+  const lines: string[] = [];
+  const drain = () => {
+    while (inputs.size && lines.length) {
+      inputs.values().next().value?.(lines.shift());
+    }
+    if (!lines.length && closed) {
+      for (const complete of [...inputs.values()]) {
+        complete(undefined, new InvocationInputError('closed', '输入流已关闭'));
+      }
+    }
+    if (running || !lines.length || inputs.size) {
       return;
     }
-    void parseAndRunCommands(line).catch((error) =>
-      serverLogger.error(error instanceof CommandError ? `命令执行失败: ${error.message}` : error),
-    );
+    const line = lines.shift();
+    if (line === undefined) {
+      return;
+    }
+    if (!line.trim()) {
+      drain();
+      return;
+    }
+    running = true;
+    void parseAndRunCommands(line)
+      .catch((error) =>
+        serverLogger.error(
+          error instanceof CommandError ? `命令执行失败: ${error.message}` : error,
+        ),
+      )
+      .finally(() => {
+        running = false;
+        drain();
+      });
+  };
+  setInputHandler(
+    (request, signal) =>
+      new Promise((resolve, reject) => {
+        if (closed && !lines.length) {
+          reject(new InvocationInputError('closed', '输入流已关闭'));
+          return;
+        }
+        const abort = () =>
+          complete(undefined, new InvocationInputError('cancelled', '输入已取消'));
+        const complete = (value?: string, error?: Error) => {
+          inputs.delete(request.id);
+          signal.removeEventListener('abort', abort);
+          if (error) {
+            reject(error);
+          } else {
+            resolve(value ?? '');
+          }
+        };
+        inputs.set(request.id, complete);
+        signal.addEventListener('abort', abort, { once: true });
+        process.stdout.write(request.message + '\n');
+        drain();
+      }),
+  );
+  reader.on('line', (line) => {
+    lines.push(line);
+    drain();
+  });
+  reader.on('close', () => {
+    closed = true;
+    drain();
   });
   process.stdin.resume();
 }

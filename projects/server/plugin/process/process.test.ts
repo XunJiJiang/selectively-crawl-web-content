@@ -8,6 +8,9 @@ import express from 'express';
 import { WebSocket } from 'ws';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PluginProcessClient } from './client.ts';
+import { taskRegistry, invocationStorage } from '../../common/tasks.ts';
+import { setInputHandler } from '../../common/interaction.ts';
+import { setLogSink } from '../../utils/log.ts';
 import apiRouter, {
   registerPluginApi,
   registerPluginResources,
@@ -167,9 +170,134 @@ afterEach(async () => {
     fs.rmSync(root, { recursive: true, force: true });
   }
   mocks.plugins.length = 0;
+  setInputHandler();
+  setLogSink();
 });
 
 describe('isolated plugin host', () => {
+  it('preserves burst and long output from both invocation and saved onLoad loggers', async () => {
+    const c = setup({
+      source: `
+      let saved;
+      export default { onLoad(logger) { saved = logger; }, onRequest() {}, pluginConfig: { command: {
+        execute(logger) {
+          for (let i = 0; i < 250; i++) saved.info('saved-%d', i);
+          logger.info('long:' + '猫'.repeat(9000));
+          console.log('console:%s:%d', 'value', 42);
+        }
+      } } };
+    `,
+    });
+    const events: { windowId: string | null; executionId?: string; text: string }[] = [];
+    setLogSink((event) => events.push(event));
+    const handler = await c.client.start();
+    const scope = taskRegistry.create('test', {
+      executionId: 'log-command',
+      windowId: 'log-window',
+    });
+    try {
+      await invocationStorage.run(scope.context, () =>
+        must(must(handler.pluginConfig).command?.execute)(
+          c.logger,
+          [],
+          [],
+          ['fixture'],
+          scope.context,
+        ),
+      );
+      const output = events.filter((event) => event.executionId === 'log-command');
+      expect(output).toHaveLength(252);
+      expect(output.every((event) => event.windowId === 'log-window')).toBe(true);
+      expect(output.slice(0, 250).map((event) => event.text)).toEqual(
+        Array.from({ length: 250 }, (_, i) => `[fixture] saved-${i}`),
+      );
+      expect(output[250].text).toBe('[fixture] long:' + '猫'.repeat(9000));
+      expect(output[251].text).toBe('[fixture] console:value:42');
+    } finally {
+      scope.finish();
+    }
+  });
+  it('waits for typed input across the process boundary without consuming the command timeout', async () => {
+    const c = setup({
+      timeout: 200,
+      source: `
+      export default { onRequest() {}, pluginConfig: { command: { async execute(logger, options, unused, original, context) {
+        const [nameError, name] = await context.next('name?', String);
+        const [countError, count] = await context.next('count?', Number);
+        const [confirmationError, confirmed] = await context.next('confirmed?', Boolean);
+        if (nameError || countError || confirmationError) throw new Error('unexpected input error');
+        logger.info(name + ':' + count + ':' + confirmed);
+      } } } };
+    `,
+    });
+    const answers = ['name', 'invalid', '42', 'false'];
+    const messages: string[] = [];
+    setInputHandler(async (request) => {
+      messages.push(request.message);
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      return answers.shift()!;
+    });
+    const handler = await c.client.start();
+    const scope = taskRegistry.create('test', {
+      executionId: 'input-command',
+      windowId: 'input-window',
+    });
+    try {
+      await invocationStorage.run(scope.context, () =>
+        must(must(handler.pluginConfig).command?.execute)(
+          c.logger,
+          [],
+          [],
+          ['fixture'],
+          scope.context,
+        ),
+      );
+      expect(messages).toEqual(['name?', 'count?', '请输入有效的 number\ncount?', 'confirmed?']);
+      expect(c.logger.info).toHaveBeenCalledWith('name:42:false');
+    } finally {
+      scope.finish();
+    }
+  });
+  it('cancels an input request when its command is cancelled', async () => {
+    const c = setup({
+      source: `export default { onRequest() {}, pluginConfig: { command: { async execute(logger, a, b, c, context) { const [error, value] = await context.next('waiting?', String); logger.info(error.name + ':' + error.code + ':' + value); } } } };`,
+    });
+    const waiting = Promise.withResolvers<void>();
+    setInputHandler(
+      (_request, signal) =>
+        new Promise((_resolve, reject) => {
+          waiting.resolve();
+          signal.addEventListener('abort', () => reject(new Error('input cancelled')), {
+            once: true,
+          });
+        }),
+    );
+    const handler = await c.client.start();
+    const scope = taskRegistry.create('test', {
+      executionId: 'cancel-input',
+      windowId: 'cancel-window',
+    });
+    try {
+      const run = invocationStorage.run(scope.context, () =>
+        must(must(handler.pluginConfig).command?.execute)(
+          c.logger,
+          [],
+          [],
+          ['fixture'],
+          scope.context,
+        ),
+      );
+      await waiting.promise;
+      c.client.cancel('cancel-input');
+      await run;
+      expect(c.logger.info).toHaveBeenCalledWith('InvocationInputError:cancelled:undefined');
+      await vi.waitFor(() =>
+        expect(taskRegistry.list().some((item) => item.owner === c.client.owner)).toBe(false),
+      );
+    } finally {
+      scope.finish();
+    }
+  });
   it('starts from a native Node parent without inheriting eval or input-type flags', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'scwc-native-parent-'));
     directories.push(root);
@@ -220,8 +348,16 @@ describe('isolated plugin host', () => {
       count: 2n,
     });
     const command = must(must(handler.pluginConfig).command);
-    await must(command.execute)(c.logger, [], [], ['fixture', 'hello']);
-    await must(command.subCommands)[0].execute(c.logger, [], [], []);
+    const scope = taskRegistry.create('test', {
+      executionId: 'fixture-command',
+      windowId: 'fixture-window',
+    });
+    try {
+      await must(command.execute)(c.logger, [], [], ['fixture', 'hello'], scope.context);
+      await must(command.subCommands)[0].execute(c.logger, [], [], [], scope.context);
+    } finally {
+      scope.finish();
+    }
     expect(await c.cache.get('command')).toEqual(['fixture', 'hello']);
     expect(await c.cache.get('sub')).toBe(true);
     const site = {
@@ -552,7 +688,9 @@ describe('isolated plugin host', () => {
     );
     const files = fs
       .readdirSync(path.join(c.root, 'images'))
-      .filter((name) => name !== 'data.json' && fs.statSync(path.join(c.root, 'images', name)).isFile());
+      .filter(
+        (name) => name !== 'data.json' && fs.statSync(path.join(c.root, 'images', name)).isFile(),
+      );
     expect(files).toHaveLength(1);
     expect(fs.readFileSync(path.join(c.root, 'images', files[0]))).toEqual(image);
     expect(fs.existsSync(path.join(c.root, 'images', 'data.json'))).toBe(true);

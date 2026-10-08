@@ -171,9 +171,11 @@ export class Renderer {
     }
     const prompts = model.confirmation
       ? this.wrap(model.confirmation.text + ' :y / :n')
-      : model.message
-        ? this.wrap(model.message)
-        : [];
+      : window.input
+        ? this.wrap(window.input.message + ` [${window.input.type}]`)
+        : model.message
+          ? this.wrap(model.message)
+          : [];
     const promptRows = prompts.slice(0, Math.max(0, this.height - 2));
     this.viewHeight = Math.max(0, this.height - 2 - promptRows.length);
     const maximum = Math.max(0, rows.length - this.viewHeight);
@@ -199,7 +201,9 @@ export class Renderer {
       model.mode === 'global' || model.mode === 'confirmation'
         ? ':'
         : model.mode === 'command'
-          ? '> '
+          ? window.input
+            ? '? '
+            : '> '
           : 'Enter/i 输入 · : 全局命令 · Tab 切换';
     const raw =
       model.mode === 'confirmation'
@@ -237,7 +241,10 @@ export class Renderer {
         : `\x1b[${this.height};${Math.min(this.width, stringWidth(prefix) + stringWidth(raw.slice(0, cursor)) - offset + 1)}H\x1b[?25h`;
     return screen + caret;
   }
-  private wrap(text: string) {
+  private wrap(text: string): string[] {
+    if (text.includes('\n')) {
+      return text.split('\n').flatMap((line) => this.wrap(line));
+    }
     const clean = sanitizeOutput(text);
     const result: string[] = [];
     for (let offset = 0; offset < Math.max(1, stringWidth(clean)); offset += this.width) {

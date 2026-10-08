@@ -37,6 +37,9 @@ async function main(): Promise<void> {
         platform: 'node',
         target: 'node24',
         format: 'cjs',
+        minify: true,
+        keepNames: true,
+        treeShaking: true,
         // 所有源码相对路径在 SEA 模式下由 common/paths.ts 显式处理。
         define: { 'import.meta.url': JSON.stringify('file:///scwc/bundle.cjs') },
       });

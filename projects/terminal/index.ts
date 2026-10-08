@@ -72,8 +72,16 @@ export async function startTerminal(args: string[] = process.argv.slice(2)) {
   const inputLines: string[] = [];
   let lineRunning = false;
   let interactiveReady = false;
+  let inputEnded = false;
   const drain = () => {
     if (lineRunning || !inputLines.length || (!interactiveReady && !model.confirmation)) {
+      return;
+    }
+    const window =
+      model.active.kind === 'command'
+        ? model.active
+        : model.windows.find((item) => item.kind === 'command');
+    if (window?.task && !window.input && !inputLines[0].startsWith(':')) {
       return;
     }
     lineRunning = true;
@@ -87,6 +95,9 @@ export async function startTerminal(args: string[] = process.argv.slice(2)) {
   controller.onChange = () => {
     originalChange?.();
     drain();
+    if (inputEnded && !inputLines.length && !lineRunning) {
+      void controller.endInput();
+    }
   };
   if (tty) {
     process.stdout.write('\x1b[?1049h\x1b[?25l\x1b[?1003h\x1b[?1006h\x1b[?2004h');
@@ -100,6 +111,12 @@ export async function startTerminal(args: string[] = process.argv.slice(2)) {
     reader.on('line', (line) => {
       inputLines.push(line);
       drain();
+    });
+    reader.on('close', () => {
+      inputEnded = true;
+      if (!inputLines.length && !lineRunning) {
+        void controller.endInput();
+      }
     });
     process.stdout.write('SCWC 终端：普通命令直接输入；:help 查看窗口及全局命令；:q 退出。\n');
   }
@@ -143,9 +160,12 @@ export async function startTerminal(args: string[] = process.argv.slice(2)) {
   };
   const interrupt = () => {
     if (!tty) {
-      void controller.lifecycle(false).catch((error) => {
-        model.message = String(error);
-      });
+      void controller
+        .cancelInput()
+        .then((cancelled) => (cancelled ? undefined : controller.lifecycle(false)))
+        .catch((error) => {
+          model.message = String(error);
+        });
     }
   };
   const fatal = (error: Error) => {

@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import { inspect } from 'node:util';
+import { formatWithOptions } from 'node:util';
 import { invocationStorage, outputWindowId } from '../common/tasks.ts';
 import type { InvocationIdentity, PluginLogger } from '../types/task.d.ts';
 import type { TLogger } from '../types/log.d.ts';
@@ -27,11 +27,7 @@ export function publishLog(
     fallback();
     return;
   }
-  const text = args
-    .map((value) =>
-      typeof value === 'string' ? value : inspect(value, { depth: 4, maxArrayLength: 30 }),
-    )
-    .join(' ');
+  const text = formatWithOptions({}, ...args);
   sink({
     windowId: identity?.windowId ?? outputWindowId,
     executionId: identity?.executionId,

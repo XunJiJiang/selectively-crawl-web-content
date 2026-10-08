@@ -6,7 +6,8 @@ import { EventEmitter } from 'node:events';
 import { Peer } from '../peer.ts';
 import { isPackaged, ROOT, SERVER_ROOT } from '../../server/common/paths.ts';
 import { TaskRegistry } from '../../server/common/tasks.ts';
-import type { InvocationIdentity, TaskSnapshot } from '../../server/types/task.d.ts';
+import { inputReply } from '../../server/common/interaction.ts';
+import type { InputRequest, InvocationIdentity, TaskSnapshot } from '../../server/types/task.d.ts';
 import type { OutputEvent, CommandInfo } from '../protocol.ts';
 
 interface Loaded {
@@ -23,6 +24,7 @@ export class TerminalPlugins extends EventEmitter {
   private commands = new Map<string, { plugin: Loaded; name: string }>();
   private outputId: string | null = null;
   invokeCore?: (command: string, identity: InvocationIdentity) => Promise<void>;
+  nextInput?: (request: InputRequest, signal: AbortSignal) => Promise<string>;
   async load(directory: string, outputId: string, coreCommands: CommandInfo[]) {
     this.outputId = outputId;
     let entries;
@@ -67,10 +69,14 @@ export class TerminalPlugins extends EventEmitter {
             callback(new Error('终端插件已停止'));
           }
         });
+        const inputs = new Map<string, AbortController>();
         processChild.on('message', (message) => peer.receive(message));
         const closed = new Promise((resolve) =>
           processChild.once('close', () => {
             peer.close();
+            for (const input of inputs.values()) {
+              input.abort();
+            }
             this.registry.removeOwner(owner);
             this.commands.forEach((item, key) => {
               if (item.plugin.owner === owner) {
@@ -84,21 +90,24 @@ export class TerminalPlugins extends EventEmitter {
         processChild.on('error', (error) =>
           this.emit('output', { windowId: outputId, text: error.message }),
         );
-        let outputBytes = 0;
-        let outputTime = Date.now();
         for (const stream of [processChild.stdout, processChild.stderr]) {
-          stream?.on('data', (chunk) => {
-            if (Date.now() - outputTime > 1000) {
-              outputBytes = 0;
-              outputTime = Date.now();
-            }
-            outputBytes += chunk.length;
-            if (outputBytes < 65536) {
-              this.emit('output', { windowId: outputId, text: chunk.toString().slice(0, 8000) });
-            }
+          stream?.setEncoding('utf8');
+          stream?.on('data', (chunk: string) => {
+            const active = this.registry
+              .list()
+              .filter((item) => item.owner === owner && item.identity);
+            const identity = active.length === 1 ? active[0].identity : undefined;
+            this.emit('output', {
+              windowId: identity?.windowId ?? outputId,
+              executionId: identity?.executionId,
+              text: chunk,
+            });
           });
         }
         peer.onEvent = (event, value) => {
+          if (event === 'input.cancel') {
+            inputs.get((value as { id: string }).id)?.abort();
+          }
           if (event === 'output') {
             this.emit('output', value as OutputEvent);
           }
@@ -108,6 +117,35 @@ export class TerminalPlugins extends EventEmitter {
           }
         };
         peer.onCall = async (method, value) => {
+          const nextInput = this.nextInput;
+          if (method === 'input.next' && nextInput) {
+            const request = value as InputRequest;
+            const identity = this.registry
+              .list()
+              .find(
+                (item) =>
+                  item.owner === owner &&
+                  item.identity?.executionId === request.identity?.executionId,
+              )?.identity;
+            if (
+              !identity ||
+              typeof request.id !== 'string' ||
+              typeof request.message !== 'string' ||
+              !['string', 'number', 'boolean', 'bigint', 'date'].includes(request.type)
+            ) {
+              throw new Error('输入请求没有活动命令');
+            }
+            const controller = new AbortController();
+            inputs.set(request.id, controller);
+            try {
+              return await inputReply(
+                () => nextInput({ ...request, identity }, controller.signal),
+                controller.signal,
+              );
+            } finally {
+              inputs.delete(request.id);
+            }
+          }
           if (method !== 'invokeCore' || !this.invokeCore) {
             throw new Error('核心子命令不可用');
           }

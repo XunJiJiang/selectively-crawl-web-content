@@ -1,6 +1,6 @@
 import path from 'node:path';
 import type { Server } from 'node:http';
-import { listenProcessStdin, registerDefaultCommands } from './command/index.ts';
+import { cancelStdinInput, listenProcessStdin, registerDefaultCommands } from './command/index.ts';
 import { createCoreBridge } from './command/ipc.ts';
 import { listen } from './router/index.ts';
 import {
@@ -43,6 +43,9 @@ async function main() {
     process.exit(0);
   };
   process.on('SIGINT', () => {
+    if (parsedArgs.interaction !== 'ipc' && cancelStdinInput()) {
+      return;
+    }
     void shutdown(false);
   });
   process.once('SIGTERM', () => {

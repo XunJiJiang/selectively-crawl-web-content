@@ -8,6 +8,7 @@ import {
 } from '../utils/command.ts';
 import { setLogSink } from '../utils/log.ts';
 import { configureTaskIdentity, taskRegistry } from '../common/tasks.ts';
+import { InvocationInputError, setInputHandler } from '../common/interaction.ts';
 import { pluginClients } from '../plugin/process/client.ts';
 import type { TaskScope } from '../common/tasks.ts';
 import type { ExecutionEvent } from '../../terminal/protocol.ts';
@@ -39,6 +40,32 @@ export function createCoreBridge(shutdown: (restart: boolean) => Promise<void>) 
     }
   >();
   const confirmations = new Map<string, (answer: boolean) => void>();
+  const inputs = new Map<string, (value?: string, error?: Error) => void>();
+  setInputHandler(
+    (request, signal) =>
+      new Promise((resolve, reject) => {
+        const execution = executions.get(request.identity.executionId);
+        if (!execution || execution.done) {
+          reject(new Error('输入请求没有活动命令'));
+          return;
+        }
+        const abort = () =>
+          complete(undefined, new InvocationInputError('cancelled', '输入已取消'));
+        const complete = (value?: string, error?: Error) => {
+          inputs.delete(request.id);
+          signal.removeEventListener('abort', abort);
+          peer.event('input.closed', { id: request.id, windowId: request.identity.windowId });
+          if (error) {
+            reject(error);
+          } else {
+            resolve(value ?? '');
+          }
+        };
+        inputs.set(request.id, complete);
+        signal.addEventListener('abort', abort, { once: true });
+        peer.event('input.request', request);
+      }),
+  );
   let stopping = false;
   const changed = () => {
     for (const execution of executions.values()) {
@@ -141,6 +168,24 @@ export function createCoreBridge(shutdown: (restart: boolean) => Promise<void>) 
       confirmations.get(String(data.id))?.(data.answer === true);
       return;
     }
+    if (method === 'input.answer') {
+      const complete = inputs.get(String(data.id));
+      if (!complete) {
+        throw new Error('输入请求已结束');
+      }
+      if (data.error === 'eof') {
+        complete(undefined, new InvocationInputError('closed', '输入流已关闭'));
+      } else if (data.error === 'cancelled') {
+        complete(undefined, new InvocationInputError('cancelled', '用户取消输入'));
+      } else if (data.error === 'busy') {
+        complete(undefined, new InvocationInputError('busy', '当前窗口正在等待其他输入'));
+      } else if (typeof data.value === 'string') {
+        complete(data.value);
+      } else {
+        throw new Error('无效输入内容');
+      }
+      return;
+    }
     if (method === 'tasks.snapshot') {
       return taskRegistry.list();
     }
@@ -239,6 +284,10 @@ export function createCoreBridge(shutdown: (restart: boolean) => Promise<void>) 
   };
   process.once('disconnect', () => {
     clearTimeout(timer);
+    for (const complete of [...inputs.values()]) {
+      complete(undefined, new Error('终端已断开'));
+    }
+    setInputHandler();
     void shutdown(false);
   });
   return {

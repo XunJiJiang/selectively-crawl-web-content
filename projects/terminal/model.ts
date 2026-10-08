@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { ExecutionEvent, OutputEvent } from './protocol.ts';
+import type { InputFailure, InputRequest } from '../server/types/task.d.ts';
 
 export type Mode = 'normal' | 'command' | 'global' | 'confirmation';
 export interface WindowState {
@@ -18,6 +19,12 @@ export interface WindowState {
   cursor: number;
   selection?: number;
   task?: ExecutionEvent;
+  input?: InputRequest & {
+    draft: string;
+    cursor: number;
+    selection?: number;
+    answer(value?: string, error?: InputFailure): Promise<void>;
+  };
 }
 export interface Confirmation {
   text: string;
@@ -213,12 +220,15 @@ export class TerminalModel {
     } else {
       if (window.task?.executionId === event.executionId) {
         window.task = undefined;
+        window.input = undefined;
       }
-      this.append({
-        windowId: event.windowId,
-        executionId: event.executionId,
-        text: `[${event.status}] ${event.command}${event.error ? `：${event.error}` : ''}`,
-      });
+      if (event.status !== 'succeeded') {
+        this.append({
+          windowId: event.windowId,
+          executionId: event.executionId,
+          text: `[${event.status}] ${event.command}${event.error ? `：${event.error}` : ''}`,
+        });
+      }
     }
   }
   record(window: WindowState, command: string) {
@@ -254,19 +264,31 @@ export class TerminalModel {
     );
   }
   get text() {
-    return this.mode === 'global' ? this.globalDraft : this.active.draft;
+    return this.mode === 'global'
+      ? this.globalDraft
+      : (this.active.input?.draft ?? this.active.draft);
   }
   get cursor() {
-    return this.mode === 'global' ? this.globalCursor : this.active.cursor;
+    return this.mode === 'global'
+      ? this.globalCursor
+      : (this.active.input?.cursor ?? this.active.cursor);
   }
   get selection() {
-    return this.mode === 'global' ? this.globalSelection : this.active.selection;
+    return this.mode === 'global'
+      ? this.globalSelection
+      : this.active.input
+        ? this.active.input.selection
+        : this.active.selection;
   }
   setInput(text: string, cursor: number, selection?: number) {
     if (this.mode === 'global') {
       this.globalDraft = text;
       this.globalCursor = cursor;
       this.globalSelection = selection;
+    } else if (this.active.input) {
+      this.active.input.draft = text;
+      this.active.input.cursor = cursor;
+      this.active.input.selection = selection;
     } else {
       this.active.draft = text;
       this.active.cursor = cursor;

@@ -22,7 +22,7 @@ setup.ts 负责构建准备并启动本工程；终端通过本地 IPC 启动核
 - Tab / Shift+Tab 切换窗口。第一次越界停留，600ms 内同向再次输入才循环。
 - 点击标签切换；标签栏箭头/浏览时左右键按一个标签滚动；标签栏滚轮按字符列滚动。
 - 输出区滚轮及浏览/全局输入中的上下键查看历史。查看历史时新增日志不会跳到末尾；滚到底部后自动跟随。
-- Shift+左右选择输入文本，需要终端提供可识别的按键编码。输入模式的 Ctrl+C 清除草稿，浏览模式的 Ctrl+C 请求取消当前任务或退出。
+- Shift+左右选择输入文本，需要终端提供可识别的按键编码。等待 `next` 输入时 Ctrl+C 取消当前等待并返回错误元组，命令自行决定继续或结束；其他输入模式的 Ctrl+C 清除草稿，浏览模式的 Ctrl+C 请求取消当前任务或退出。
 - 确认输入 :y 加 Enter 接受；:n 加 Enter、Esc 或其他无关按键取消。确认期间停用其他操作。
 
 | 全局命令                      | 用途                                   |
@@ -42,6 +42,8 @@ setup.ts 负责构建准备并启动本工程；终端通过本地 IPC 启动核
 
 非 TTY / TERM=dumb 使用逐行交互，全局命令仍可用；输入 :s N 选择窗口，普通命令进入对应命令窗口。
 
+执行中可以等待下一步输入。提示和输入草稿归发起调用的窗口，Tab 可以切到另一窗口执行命令；等待期间 Enter 提交内容，空行和冒号也是有效字符串。非 TTY 时当前窗口等待的下一行优先作为回复（包括冒号开头的内容），管道输入会依次等待命令及提示，不把回复误执行为命令。输入流关闭时 `next` 返回 `closed` 错误元组。成功完成只恢复窗口状态，不追加 `[succeeded] 命令`；失败、取消或中断仍显示状态。
+
 ## 配置与恢复
 
 | 配置                     | 默认值                                                        |
@@ -56,7 +58,7 @@ setup.ts 负责构建准备并启动本工程；终端通过本地 IPC 启动核
 
 ## 核心业务插件的 logger 与 TaskReporter
 
-主命令/子命令保持前四个参数，在第五个参数提供调用上下文。旧代码可以忽略它。为了兼容旧代码构造的上下文，公开类型中的新增属性为可选；当前核心在真实调用中始终注入。
+主命令/子命令保持前四个参数，在第五个参数提供调用上下文。旧回调可以忽略它，实际调用和公开签名均要求提供上下文。
 
 ```ts
 execute(logger, options, unusedArgs, originArgs, context) {
@@ -71,13 +73,32 @@ execute(logger, options, unusedArgs, originArgs, context) {
 
 logger 的只读 windowId/executionId 固定到本次调用。异步回调继续使用这个 logger 即可，不能复用上次命令的 logger。onLoad 的 logger 归输出窗口，onLoad 的 context.tasks 是进程级报告；业务调用中的 context.tasks 是调用级报告。API/资源 context 同时提供 tasks、signal、logger；抓取/控件/WebSocket 回调也获得 tasks 与 signal。
 
+onLoad 保存的 logger 在业务调用异步链中自动采用当前调用身份，帮助旧插件把命令日志送回原窗口；调用结束后的独立工作仍应使用命令参数中的固定 logger。日志按顺序排队，常规突发输出不再按每秒条数或 8000 字符静默丢弃。极端过载超过队列限制时会显示截断提示，窗口历史仍受配置上限约束。
+
+核心命令和插件命令均可使用 `context.next`：
+
+```ts
+async execute(logger, options, unusedArgs, originArgs, context) {
+  const [error, name] = await context.next('请输入名称', String);
+  if (error) {
+    logger.info(error.code, error.message);
+    return;
+  }
+  const [countError, count] = await context.next('请输入数量', Number);
+  if (countError) return;
+  logger.info(name, count);
+}
+```
+
+返回类型为 `[SCWC.InvocationInputError, undefined] | [undefined, T]`；省略类型默认 String。支持 String（保留空白）、Number（有限数值）、Boolean（true/false、yes/no、y/n、1/0）、BigInt（整数）、Date（可解析日期）。错误类名称为 `InvocationInputError`，code 为 cancelled、closed、unavailable、busy 或 invalid-type；`next` 返回错误元组，不抛出输入错误。格式无效会提示重输。同一调用只能有一个等待，不同窗口互不影响；等待计入任务忙状态，用户输入时间不占插件执行超时。`:cancel`、重启和宿主断开会结束等待；直接运行核心时 SIGINT 在等待输入期间只取消当前输入。
+
 busy 为“函数未结束 OR setBusy(true) 未解除 OR begin 任务未 end”。返回的 Promise 会自动等待；未返回/未 await 的后台工作必须在函数返回前登记。函数返回不会清除主动忙状态；setBusy(false) 只清除本作用域的布尔标记，不结束 begin 句柄，也不清除另一调用或进程级任务。整体结束后不能再 begin 或设为忙，重复 end 无影响。多个并行后台任务应各自使用 begin/end。
 
 ## 终端命令插件
 
 每个子目录包含 package.json（main、enabled、type: module）和导出 onLoad 的入口，使用独立宿主进程。复制 [template](plugins/template/index.ts) 并在 package.json 中将 enabled 改为 true。接口见 [types.ts](plugins/types.ts)。
 
-onLoad 接收 registerCommand、进程级 tasks、logger、signal；execute 接收 args、固定 windowId/executionId、调用级 tasks、signal、logger、write 和 invokeCore。write 使用当前调用的固定窗口，invokeCore 的子执行共用窗口并保持父任务忙状态直到子执行整体结束。子执行不能直接调用 exit/restart。
+onLoad 接收 registerCommand、进程级 tasks、logger、signal；execute 接收 args、固定 windowId/executionId、调用级 tasks、signal、next、logger、write 和 invokeCore。next 的类型和错误元组同核心命令。write 使用当前调用的固定窗口，invokeCore 的子执行共用窗口并保持父任务忙状态直到子执行整体结束，子命令也可等待输入。子执行不能直接调用 exit/restart。
 
 名称冲突时使用目录 ID 前缀。核心命令后注册产生冲突时也会重命名终端命令并提示。系统全局命令不能被覆盖。加载/卸载有截止时间；强制停止清理宿主进程树。目录插件变更后重启终端生效，不提供热重载。进程隔离用于稳定性，插件仍拥有 Node 的文件和网络能力。
 

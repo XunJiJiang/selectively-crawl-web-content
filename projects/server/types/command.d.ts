@@ -13,7 +13,7 @@ export type TCommandExecute = (
   unusedArgs: string[],
   // 原始命令参数数组
   originArgs: string[],
-  context?: InvocationContext,
+  context: InvocationContext,
 ) => Promise<void> | void;
 
 export interface TSubCommand {

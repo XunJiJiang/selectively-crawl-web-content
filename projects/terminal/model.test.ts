@@ -6,6 +6,22 @@ import { InputDecoder } from './input.ts';
 import { restoreState } from './storage.ts';
 
 describe('terminal windows and input', () => {
+  it('finishes successful tasks without appending a success marker', () => {
+    const model = new TerminalModel();
+    const window = model.windows[1];
+    const event = {
+      executionId: 'a',
+      windowId: window.id,
+      command: 'asmr clean:dot-underscore',
+      status: 'running' as const,
+    };
+    model.execution(event);
+    model.execution({ ...event, status: 'succeeded' });
+    expect(window.task).toBeUndefined();
+    expect(window.lines).toEqual([]);
+    model.execution({ ...event, status: 'failed', error: 'failed' });
+    expect(window.lines).toEqual(['[failed] asmr clean:dot-underscore：failed']);
+  });
   it('requires two boundary attempts and never reuses window identity', () => {
     const model = new TerminalModel();
     const original = model.windows[1];

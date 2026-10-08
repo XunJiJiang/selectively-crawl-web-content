@@ -79,7 +79,7 @@ export class StateStore {
       version: 1,
       activeId: model.activeId,
       globalDraft: model.globalDraft,
-      windows: model.windows,
+      windows: model.windows.map(({ input: _input, ...window }) => window),
     });
     this.writing = this.writing
       .catch(() => undefined)

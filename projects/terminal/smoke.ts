@@ -18,12 +18,25 @@ async function waitFor(test: () => boolean, label: string, timeout = 10000) {
   }
 }
 const fixture = `
+let savedLogger;
 export default {
-  onLoad(logger) { logger.info('TERMINAL_CORE_READY'); },
+  onLoad(logger) { savedLogger = logger; logger.info('TERMINAL_CORE_READY'); },
   onRequest() {},
-  pluginConfig: { command: { execute(logger, options, unused, original, context) {
+  pluginConfig: { command: {
+    subCommands: Array.from({ length: 80 }, (_, i) => ({ name: 'sub' + i, description: 'HELP_SUB_' + i, execute() {} })),
+    async execute(logger, options, unused, original, context) {
     const type = original[1] ?? 'quick';
     logger.info('OWNERSHIP:' + logger.windowId + ':' + logger.executionId);
+    if (type === 'burst') { for (let i = 0; i < 250; i++) savedLogger.info('BURST:' + i); logger.info('LONG:' + 'x'.repeat(9000) + ':END'); return; }
+    if (type === 'input') {
+      const [nameError, name] = await context.next('INPUT_NAME?' + (original[2] ?? ''), String);
+      if (nameError) { logger.info('INPUT_ERROR:' + nameError.name + ':' + nameError.code); return; }
+      const [countError, count] = await context.next('INPUT_COUNT?', Number);
+      if (countError) return;
+      const [confirmedError, confirmed] = await context.next('INPUT_CONFIRMED?', Boolean);
+      if (confirmedError) return;
+      logger.info('INPUT_RESULT:' + name + ':' + count + ':' + confirmed); return;
+    }
     if (type === 'hold') { context.tasks.setBusy(true); return; }
     if (type === 'background') {
       context.tasks.setBusy(true);
@@ -53,7 +66,11 @@ export async function smokeTerminal(
   );
   await fs.writeFile(
     path.join(cmdPlugin, 'index.ts'),
-    `export default { onLoad({ registerCommand }) { registerCommand({ name: 'relay', description: 'nested core command', async execute(context) { context.logger.info('TERMINAL_PLUGIN:' + context.windowId); await context.invokeCore('smoke background 150'); context.write('RELAY_DONE'); } }); } };`,
+    `export default { onLoad({ registerCommand }) {
+      registerCommand({ name: 'relay', description: 'nested core command', async execute(context) { context.logger.info('TERMINAL_PLUGIN:' + context.windowId); await context.invokeCore('smoke background 150'); context.write('RELAY_DONE'); } });
+      registerCommand({ name: 'ask', description: 'local input', async execute(context) { const [error, value] = await context.next('LOCAL_INPUT?', Number); context.write(error ? 'LOCAL_ERROR:' + error.code : 'LOCAL_RESULT:' + value); } });
+      registerCommand({ name: 'relay-ask', description: 'nested input', async execute(context) { await context.invokeCore('smoke input'); context.write('RELAY_INPUT_DONE'); } });
+    } };`,
   );
   const model = new TerminalModel();
   const original = model.windows[1];
@@ -70,6 +87,57 @@ export async function smokeTerminal(
       model.output.id,
       controller.commands,
     );
+    await controller.global('run 1 help smoke');
+    await waitFor(
+      () => !original.task && original.lines.some((line) => line.includes('HELP_SUB_79')),
+      '完整帮助输出',
+    );
+    assert.equal(original.lines.filter((line) => line.includes('HELP_SUB_')).length, 80);
+    await controller.global('run 1 smoke burst');
+    await waitFor(
+      () => !original.task && original.lines.some((line) => line.includes(':END')),
+      '完整高频及长日志',
+    );
+    assert.equal(original.lines.filter((line) => line.includes('BURST:')).length, 250);
+    assert(original.lines.some((line) => line.includes('LONG:' + 'x'.repeat(9000) + ':END')));
+    assert(!original.lines.some((line) => line.includes('[succeeded]')));
+    await controller.global('run 1 smoke input');
+    await controller.global('run 2 smoke input');
+    await waitFor(() => Boolean(original.input && second.input), '两个窗口同时等待输入');
+    model.switch(original.id);
+    await controller.line('first name');
+    await waitFor(() => original.input?.type === 'number', '数值输入');
+    await controller.line('bad number');
+    await waitFor(
+      () => original.input?.message.includes('请输入有效的 number') === true,
+      '错误格式重新输入',
+    );
+    await controller.line('7');
+    await waitFor(() => original.input?.type === 'boolean', '布尔输入');
+    await controller.line('false');
+    await waitFor(() => !original.task, '完整交互命令');
+    assert(original.lines.some((line) => line.includes('INPUT_RESULT:first name:7:false')));
+    model.switch(second.id);
+    await controller.key({ name: 'c', sequence: '\x03', ctrl: true });
+    await waitFor(() => !second.task, 'Ctrl+C 返回取消元组');
+    assert(
+      second.lines.some((line) => line.includes('INPUT_ERROR:InvocationInputError:cancelled')),
+    );
+    await controller.global('run 2 ask');
+    await waitFor(() => Boolean(second.input), '终端插件输入');
+    await controller.line('12');
+    await waitFor(() => !second.task, '终端插件输入完成');
+    assert(second.lines.some((line) => line.includes('LOCAL_RESULT:12')));
+    await controller.global('run 2 ask');
+    await waitFor(() => Boolean(second.input), '终端插件等待取消');
+    await controller.key({ name: 'c', sequence: '\x03', ctrl: true });
+    await waitFor(() => !second.task, '终端插件取消输入完成');
+    assert(second.lines.some((line) => line.includes('LOCAL_ERROR:cancelled')));
+    await controller.global('run 2 relay-ask');
+    await waitFor(() => Boolean(second.input), '嵌套核心输入');
+    await controller.key({ name: 'c', sequence: '\x03', ctrl: true });
+    await waitFor(() => !second.task, '嵌套核心取消输入完成');
+    assert(second.lines.some((line) => line.includes('RELAY_INPUT_DONE')));
     await controller.global('run 1 smoke background 3000');
     await waitFor(() => original.task?.status === 'background', '主动忙覆盖函数返回');
     await controller.global('run 2 smoke quick');
@@ -135,6 +203,40 @@ export async function smokeTerminal(
     await store.release();
   }
 
+  const lineTerminal = spawn(executable, ['--terminal'], {
+    cwd,
+    env: { ...env, TERM: 'dumb', SCWC_TERMINAL_PERSIST: 'false' },
+    stdio: ['pipe', 'pipe', 'pipe'],
+  });
+  const lineClosed = once(lineTerminal, 'close');
+  let lineOutput = '';
+  lineTerminal.stdout.on('data', (chunk) => {
+    lineOutput += chunk;
+  });
+  lineTerminal.stderr.on('data', (chunk) => {
+    lineOutput += chunk;
+  });
+  try {
+    await waitFor(() => lineOutput.includes('TERMINAL_CORE_READY'), '逐行终端启动');
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    lineTerminal.stdin.write('smoke input\npipe name\ninvalid\n11\nfalse\n');
+    await waitFor(
+      () => lineOutput.includes('INPUT_RESULT:pipe name:11:false'),
+      '预先输入的管道回复',
+    );
+    assert(!lineOutput.includes('未知命令: pipe'), '回复不能作为新命令执行');
+    lineTerminal.stdin.end('smoke input\n');
+    await waitFor(
+      () => lineOutput.includes('INPUT_ERROR:InvocationInputError:closed'),
+      '输入流关闭返回错误元组',
+    );
+    lineTerminal.kill('SIGTERM');
+    assert.equal((await lineClosed)[0], 0, lineOutput);
+  } finally {
+    if (lineTerminal.exitCode === null) lineTerminal.kill('SIGKILL');
+    await lineClosed;
+  }
+
   if (process.platform !== 'win32') {
     const driver = path.join(deployment, 'pty-smoke.py');
     await fs.writeFile(
@@ -150,14 +252,33 @@ def until(text,timeout=15):
  global buffer
  deadline=time.time()+timeout
  while text.encode() not in buffer:
-  if time.time()>deadline: raise Exception('PTY timeout: '+text)
+  if time.time()>deadline:
+   import re
+   raise Exception('PTY timeout: '+text+'\n'+re.sub(r'\x1b\[[0-?]*[ -/]*[@-~]', '', buffer.decode('utf8','replace'))[-1800:])
   if select.select([master],[],[],.1)[0]:
    try: buffer+=os.read(master,65536)
    except OSError: raise Exception('PTY closed before '+text)
 def send(data): os.write(master,data)
 try:
  until('TERMINAL_CORE_READY')
- send(b'\tismoke quick\r')
+ send(b'\tismoke input\r')
+ until('INPUT_NAME?')
+ send(b'pty name\r')
+ until('INPUT_COUNT?')
+ send(b'bad\r')
+ until('请输入有效的 number')
+ send(b'9\r')
+ until('INPUT_CONFIRMED?')
+ send(b'false\r')
+ until('INPUT_RESULT:pty name:9:false')
+ time.sleep(.15)
+ buffer=b''
+ send(b'smoke input cancel\r')
+ until('INPUT_NAME?cancel')
+ send(b'\x03')
+ until('INPUT_ERROR:InvocationInputError:cancelled')
+ time.sleep(.15)
+ send(b'smoke quick\r')
  until('QUICK_DONE')
  time.sleep(.1)
  send(b'\x1b[<0;3;1M:new\r')

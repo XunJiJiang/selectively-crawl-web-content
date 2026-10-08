@@ -1,6 +1,6 @@
 # SCWC 核心项目地图
 
-> 面向后续参与开发的 AI。核对日期：2026-10-07。
+> 面向后续参与开发的 AI。核对日期：2026-10-08。
 > 本文依据当前源码、类型、脚本和配置整理；README 仅作背景参考。源码变化后，应同步更新相关条目。
 > 范围不包含 `projects/server/plugins/` 下各插件的实现、模板和私有页面，只说明核心如何加载、调用和承载扩展。`projects/server/plugin/`（单数）属于核心。
 
@@ -328,7 +328,7 @@ HTTP 通用中间件位于 [server/router/index.ts](../projects/server/router/in
 | `web/vite.config.ts` | `projects/server/public/web/`，生产 base 为 `/web/` | 服务端 Web 路由 |
 | `webutils/vite.config.ts` | `projects/server/public/lib/scwcutils.iife.<36进制时间戳>.js` | 核心页面路由注入 |
 
-以上配置均设置 `emptyOutDir: true`。服务端源码直接执行 TypeScript；根 build 没有打包服务端，也没有构建各插件的私有页面。新增独立 build:core 通过 esbuild / Node SEA 打包核心和宿主，并构建、内置 Web / webutils / 公共资源 / 错误模板，不包含业务插件。
+以上配置均设置 `emptyOutDir: true`。服务端源码直接执行 TypeScript；根 build 没有打包服务端，也没有构建各插件的私有页面。独立 build:core 通过 esbuild 将核心、终端及两类宿主编译、合并依赖、tree shaking 和压缩为 JS（保留函数/类名），再经 Node SEA 打包，并构建、内置 Web / webutils / 公共资源 / 错误模板，不包含业务插件。
 
 服务端 `.env` 变量：`PORT`（默认 3200）、`PORT_SEARCH_RANGE`（默认最大偏移 20）、`HOST`（默认 `http://localhost`）、`TOKEN`、`SCWC_PLUGIN_DIR`，以及 `REDIS_HOST`、`REDIS_PORT`、`REDIS_USER`、`REDIS_PASSWORD`、`REDIS_TIMEOUT`、`REDIS_KEY_PREFIX`。完整配置及目录规则见 [核心部署](核心部署.md) 与 [模板](core.env.example)。
 
@@ -418,3 +418,9 @@ bunx vitest run --config projects/server/vitest.config.ts projects/shared/utils/
 terminal/peer.ts 的版本 1 负责终端↔核心；现有插件 RPC 仍为版本 2，传递身份数据并在宿主生成函数。命令日志绑定固定 windowId / executionId；非命令 HTTP 请求也统计自动任务，取消时关闭活动响应。终端命令插件的 invokeCore 保持父任务忙状态直到子执行整体结束。
 
 终端状态用版本 1 JSON 保存，默认 data/terminal/state.json，支持 SCWC_TERMINAL_STATE_FILE / SCWC_TERMINAL_PERSIST / SCWC_CMD_PLUGIN_DIR。每秒原子保存脏快照并保留备份；强杀只恢复最近快照，不重放任务。默认双窗、最多 128 窗、每窗 10,000 行或 10 MiB。独立 SEA 支持 --terminal，并内置 terminal.cjs / terminal-host.cjs。
+
+### 2026-10-08 命令输出与交互输入
+
+终端和插件 IPC 改为按序排队，帮助与突发日志不再因发送并发或每秒限流缺失；移除插件日志 8000 字符截断，onLoad 保存的 logger 在调用异步链中采用当前执行身份。成功状态仅恢复窗口，不追加 succeeded 行。极端过载队列与窗口历史仍有明确上限及截断提示。
+
+common/interaction.ts 负责 next 输入格式、错误元组和宿主通信；TaskScope.context 注入 next(message, String/Number/Boolean/BigInt/Date)，返回 `[InvocationInputError, undefined] | [undefined, T]`。command/ipc.ts 与直接 stdin 均支持执行中等待；terminal/controller/model/render 将提示、草稿与固定窗口绑定，终端插件及 invokeCore 子执行共用该链路。格式无效重试；Ctrl+C 只取消当前 next，返回 cancelled 元组；取消任务、EOF、重启或断连也会结束等待。插件等待输入期间暂停命令 RPC 超时，回复后恢复剩余时限。输入请求不持久化，恢复不重放。

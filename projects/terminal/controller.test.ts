@@ -3,6 +3,105 @@ import { TerminalController } from './controller.ts';
 import { CoreConnection } from './core.ts';
 import { TerminalModel } from './model.ts';
 describe('terminal input routing', () => {
+  it('cancels a pending next on Ctrl+C without clearing drafts or cancelling the command', async () => {
+    const model = new TerminalModel();
+    const window = model.windows[1];
+    model.switch(window.id);
+    const core = new CoreConnection({ args: [] });
+    const call = vi.spyOn(core, 'call').mockResolvedValue(undefined);
+    const controller = new TerminalController(model, core);
+    model.execution({
+      executionId: 'a',
+      windowId: window.id,
+      command: 'prompt',
+      status: 'running',
+    });
+    core.emit('input.request', {
+      id: 'input',
+      identity: { windowId: window.id, executionId: 'a' },
+      message: 'prompt?',
+      type: 'string',
+    });
+    window.input!.draft = 'draft';
+    await controller.key({ name: 'c', ctrl: true, sequence: '\x03' });
+    expect(call).toHaveBeenCalledExactlyOnceWith('input.answer', {
+      id: 'input',
+      value: undefined,
+      error: 'cancelled',
+    });
+    expect(window.input).toBeUndefined();
+    expect(window.task).toBeDefined();
+  });
+  it('answers intermediate prompts with literal text or empty input without recording commands', async () => {
+    const model = new TerminalModel();
+    const window = model.windows[1];
+    model.switch(window.id);
+    window.draft = 'saved command';
+    const core = new CoreConnection({ args: [] });
+    const call = vi.spyOn(core, 'call').mockResolvedValue(undefined);
+    const controller = new TerminalController(model, core);
+    core.emit('input.request', {
+      id: 'first',
+      identity: { windowId: window.id, executionId: 'execution' },
+      message: '请输入',
+      type: 'string',
+    });
+    await controller.line(':literal text');
+    expect(call).toHaveBeenCalledWith('input.answer', {
+      id: 'first',
+      value: ':literal text',
+      error: undefined,
+    });
+    core.emit('input.request', {
+      id: 'second',
+      identity: { windowId: window.id, executionId: 'execution' },
+      message: '请输入',
+      type: 'string',
+    });
+    await controller.key({ name: 'enter', sequence: '\r' });
+    expect(call).toHaveBeenLastCalledWith('input.answer', {
+      id: 'second',
+      value: '',
+      error: undefined,
+    });
+    expect(window.history).toEqual([]);
+    expect(window.draft).toBe('saved command');
+  });
+  it('keeps input drafts in their originating windows and clears prompts on disconnect', async () => {
+    const model = new TerminalModel();
+    const first = model.windows[1];
+    const second = model.newWindow();
+    const core = new CoreConnection({ args: [] });
+    vi.spyOn(core, 'call').mockResolvedValue(undefined);
+    const controller = new TerminalController(model, core);
+    for (const [id, window] of [
+      ['a', first],
+      ['b', second],
+    ] as const) {
+      model.execution({
+        windowId: window.id,
+        executionId: id,
+        command: 'prompt',
+        status: 'running',
+      });
+      core.emit('command.started', window.task);
+      core.emit('input.request', {
+        id,
+        identity: { windowId: window.id, executionId: id },
+        message: id,
+        type: 'string',
+      });
+    }
+    await controller.key({ name: 'text', sequence: 'B' });
+    await controller.key({ name: 'tab', sequence: '\t', shift: true });
+    await controller.key({ name: 'text', sequence: 'A' });
+    expect(first.input?.draft).toBe('A');
+    expect(second.input?.draft).toBe('B');
+    core.emit('closed');
+    expect(first.input).toBeUndefined();
+    expect(second.input).toBeUndefined();
+    await controller.dispose();
+  });
   it('keeps global colon literals and restores the global draft after Escape', async () => {
     const model = new TerminalModel();
     const controller = new TerminalController(model, new CoreConnection({ args: [] }));

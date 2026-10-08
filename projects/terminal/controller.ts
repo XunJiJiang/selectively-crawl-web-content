@@ -4,8 +4,14 @@ import { Renderer } from './render.ts';
 import { CoreConnection } from './core.ts';
 import { TerminalPlugins } from './plugins/load.ts';
 import { splitCommand } from '../server/utils/command.ts';
+import { InvocationInputError } from '../server/common/interaction.ts';
 import type { CommandInfo, ExecutionEvent, OutputEvent } from './protocol.ts';
-import type { TaskSnapshot, InvocationIdentity } from '../server/types/task.d.ts';
+import type {
+  InputFailure,
+  InputRequest,
+  TaskSnapshot,
+  InvocationIdentity,
+} from '../server/types/task.d.ts';
 import type { Key } from './input.ts';
 
 export class TerminalController {
@@ -30,6 +36,7 @@ export class TerminalController {
   private lastStart = 0;
   private retryTimer?: NodeJS.Timeout;
   private pending = false;
+  private inputEnded = false;
   onChange?: () => void;
   onOutput?: (text: string) => void;
   onExit?: () => Promise<void>;
@@ -50,6 +57,18 @@ export class TerminalController {
     });
     core.on('task.changed', (tasks: TaskSnapshot[]) => {
       this.coreTasks = tasks;
+      this.changed();
+    });
+    core.on('input.request', (request: InputRequest) => {
+      this.askInput(request, (value, error) =>
+        core.call('input.answer', { id: request.id, value, error }),
+      );
+    });
+    core.on('input.closed', (value: { id: string; windowId: string }) => {
+      const window = this.model.byId(value.windowId);
+      if (window?.input?.id === value.id) {
+        window.input = undefined;
+      }
       this.changed();
     });
     for (const name of ['command.started', 'command.returned', 'command.finished']) {
@@ -124,6 +143,35 @@ export class TerminalController {
     this.plugins.on('output', (value: OutputEvent) => this.output(value));
     this.plugins.on('task', () => this.updateTerminalExecutions());
     this.plugins.on('failure', () => this.updateTerminalExecutions());
+    this.plugins.nextInput = (request, signal) =>
+      new Promise((resolve, reject) => {
+        const abort = () => {
+          const window = this.model.byId(request.identity.windowId ?? '');
+          if (window?.input?.id === request.id) {
+            window.input = undefined;
+          }
+          reject(new InvocationInputError('cancelled', '输入已取消'));
+          this.changed();
+        };
+        signal.addEventListener('abort', abort, { once: true });
+        this.askInput(request, async (value, error) => {
+          signal.removeEventListener('abort', abort);
+          if (error) {
+            reject(
+              new InvocationInputError(
+                error === 'eof' ? 'closed' : error,
+                error === 'eof'
+                  ? '输入流已关闭'
+                  : error === 'busy'
+                    ? '当前窗口正在等待其他输入'
+                    : '用户取消输入',
+              ),
+            );
+          } else {
+            resolve(value ?? '');
+          }
+        });
+      });
     this.plugins.registry.on(
       'owner.stop',
       ({ identities }: { identities: { executionId: string }[] }) => {
@@ -164,6 +212,73 @@ export class TerminalController {
   }
   private changed() {
     this.onChange?.();
+  }
+  private askInput(
+    request: InputRequest,
+    answer: (value?: string, error?: InputFailure) => Promise<unknown>,
+  ) {
+    const window = this.model.byId(request.identity.windowId ?? '');
+    if (!window || this.inputEnded) {
+      void answer(undefined, 'eof').catch((error) => this.error(error));
+      return;
+    }
+    if (window.input) {
+      void answer(undefined, 'busy').catch((error) => this.error(error));
+      return;
+    }
+    window.input = {
+      ...request,
+      draft: '',
+      cursor: 0,
+      answer: async (value, error) => {
+        await answer(value, error);
+      },
+    };
+    if (window.id === this.model.activeId && this.model.mode === 'normal') {
+      this.model.mode = 'command';
+    }
+    this.output({
+      windowId: window.id,
+      executionId: request.identity.executionId,
+      text: request.message,
+    });
+  }
+  async endInput() {
+    if (this.inputEnded) {
+      return;
+    }
+    this.inputEnded = true;
+    await Promise.all(
+      this.model.windows.map(async (window) => {
+        const input = window.input;
+        if (input) {
+          window.input = undefined;
+          await input.answer(undefined, 'eof').catch((error) => this.error(error));
+        }
+      }),
+    );
+    this.changed();
+  }
+  private async answerInput(value: string) {
+    const window = this.model.active;
+    const input = window.input;
+    if (!input) {
+      return;
+    }
+    window.input = undefined;
+    await input.answer(value);
+    this.changed();
+  }
+  async cancelInput() {
+    const window = this.model.active;
+    const input = window.input;
+    if (!input) {
+      return false;
+    }
+    window.input = undefined;
+    await input.answer(undefined, 'cancelled');
+    this.changed();
+    return true;
   }
   private error(error: unknown) {
     this.model.message = error instanceof Error ? error.message : String(error);
@@ -264,7 +379,19 @@ export class TerminalController {
           this.updateTerminalExecutions();
         });
     } else {
-      await this.core.call('command.execute', { command, windowId, executionId });
+      this.model.execution({ command, windowId, executionId, status: 'running' });
+      try {
+        await this.core.call('command.execute', { command, windowId, executionId });
+      } catch (error) {
+        this.model.execution({
+          command,
+          windowId,
+          executionId,
+          status: 'failed',
+          error: error instanceof Error ? error.message : String(error),
+        });
+        throw error;
+      }
       this.model.record(window, command);
     }
     this.changed();
@@ -532,7 +659,10 @@ export class TerminalController {
       } else if (key.name === 'escape') {
         this.model.mode = 'normal';
       } else if (key.name === 'c' && key.ctrl) {
-        if (this.model.mode === 'command' || this.model.mode === 'global') {
+        if (this.model.active.input) {
+          this.pending = true;
+          await this.cancelInput();
+        } else if (this.model.mode === 'command' || this.model.mode === 'global') {
           this.model.setInput('', 0);
         } else if (this.model.active.task) {
           this.pending = true;
@@ -573,6 +703,8 @@ export class TerminalController {
           this.pending = true;
           if (this.model.mode === 'global') {
             await this.global(this.model.globalDraft);
+          } else if (this.model.active.input) {
+            await this.answerInput(this.model.text);
           } else if (this.model.active.draft.trim()) {
             const window = this.model.active;
             await this.execute(window.id, window.draft);
@@ -580,7 +712,7 @@ export class TerminalController {
             window.cursor = 0;
           }
         } else if (key.name === 'up' || key.name === 'down') {
-          if (this.model.mode === 'command') {
+          if (this.model.mode === 'command' && !this.model.active.input) {
             this.model.history(key.name === 'up' ? -1 : 1);
           } else {
             this.renderer.scroll(this.model, key.name === 'up' ? 1 : -1);
@@ -638,6 +770,8 @@ export class TerminalController {
       if (this.model.confirmation) {
         await this.model.confirmKey(line.trim());
         await this.model.confirmKey('', true);
+      } else if (this.model.active.input) {
+        await this.answerInput(line);
       } else if (line.startsWith(':')) {
         this.model.mode = 'global';
         this.model.globalDraft = line.slice(1);
@@ -648,6 +782,7 @@ export class TerminalController {
             ? this.model.active
             : (this.model.windows.find((window) => window.kind === 'command') ??
               this.model.newWindow());
+        this.model.switch(window.id);
         await this.execute(window.id, line);
       }
     } catch (error) {

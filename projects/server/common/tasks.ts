@@ -1,8 +1,10 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { randomUUID } from 'node:crypto';
 import { EventEmitter } from 'node:events';
+import { inputError, InvocationInputError, nextInput } from './interaction.ts';
 import type {
   InvocationContext,
+  InputConstructor,
   InvocationIdentity,
   TaskReporter,
   TaskSnapshot,
@@ -19,6 +21,7 @@ export class TaskScope {
   private returned = false;
   private revision = 0;
   private disposed = false;
+  private awaitingInput = false;
   private label?: string;
   readonly owner: string;
   readonly id: string;
@@ -84,13 +87,33 @@ export class TaskScope {
     };
   }
   get context(): InvocationContext {
-    if (!this.identity) {
+    const identity = this.identity;
+    if (!identity) {
       throw new Error('进程作用域没有调用身份');
     }
     return Object.freeze({
       ...this.identity,
       tasks: this.reporter,
       signal: this.controller.signal,
+      next: (async (message: string, type: InputConstructor = String) => {
+        try {
+          this.assertOpen();
+          this.controller.signal.throwIfAborted();
+        } catch (error) {
+          return [inputError(error, this.controller.signal), undefined];
+        }
+        if (this.awaitingInput) {
+          return [new InvocationInputError('busy', '同一调用只能等待一个输入'), undefined];
+        }
+        this.awaitingInput = true;
+        const handle = this.reporter.begin('等待输入');
+        try {
+          return await nextInput(identity, message, type, this.controller.signal);
+        } finally {
+          this.awaitingInput = false;
+          handle.end();
+        }
+      }) as InvocationContext['next'],
     });
   }
   start() {

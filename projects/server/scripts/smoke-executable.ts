@@ -73,7 +73,14 @@ export default {
   name: ${JSON.stringify(label)},
   async onLoad(logger, context) { cache = context.cache; await cache.set('shared', ${JSON.stringify(label)}); logger.info('SMOKE_READY'); },
   onRequest() {},
-  pluginConfig: { command: { execute(logger) { logger.info('SMOKE_COMMAND'); } } },
+  pluginConfig: { command: { async execute(logger, options, unused, original, context) {
+    if (original[1] === 'input') {
+      const [error, value] = await context.next('SMOKE_DIRECT_INPUT?', Number);
+      logger.info(error ? 'SMOKE_DIRECT_ERROR:' + error.name + ':' + error.code : 'SMOKE_DIRECT_VALUE:' + value);
+      return;
+    }
+    logger.info('SMOKE_COMMAND');
+  } } },
   ui: { entry: 'web/index.html', api: [{ method: 'get', path: 'status', async handler() { return { value: await cache.get('shared') }; } }] },
 };
 `,
@@ -183,6 +190,22 @@ async function main() {
     );
     core.process.stdin?.write('smoke\n');
     await waitFor(() => core.output().includes('SMOKE_COMMAND'), '确认后仍可执行命令');
+    core.process.stdin?.write('smoke input\ninvalid\n42\n');
+    await waitFor(
+      () => core.output().includes('SMOKE_DIRECT_VALUE:42'),
+      '直接核心管道输入及格式重试',
+    );
+    core.process.stdin?.write('smoke input\n');
+    await waitFor(
+      () => core.output().split('SMOKE_DIRECT_INPUT?').length >= 4,
+      '直接核心等待中断输入',
+    );
+    core.process.kill('SIGINT');
+    await waitFor(
+      () => core.output().includes('SMOKE_DIRECT_ERROR:InvocationInputError:cancelled'),
+      '直接核心 SIGINT 返回错误元组',
+    );
+    assert.equal(core.process.exitCode, null, '取消输入后核心继续运行');
     assert((await foreign?.client.keys(`${prefix}::*`))?.length, 'Redis 键使用配置前缀');
     core.process.stdin?.write('exit\n');
     await waitFor(() => core.process.exitCode !== null, '核心退出');

@@ -6,8 +6,9 @@ import { PluginProcessError, type Manifest } from './protocol.ts';
 import { requestData, sendResource } from './resource.ts';
 import { isPackaged, PLUGIN_HOST } from '../../common/paths.ts';
 import { currentIdentity, taskRegistry } from '../../common/tasks.ts';
+import { inputReply, readInput } from '../../common/interaction.ts';
 import { publishLog, type LogLevel } from '../../utils/log.ts';
-import type { InvocationIdentity, TaskSnapshot } from '../../types/task.d.ts';
+import type { InputRequest, InvocationIdentity, TaskSnapshot } from '../../types/task.d.ts';
 import type {
   ProcessInfo,
   ProcessOptions,
@@ -46,6 +47,8 @@ function childArguments(): string[] {
 export class PluginProcessClient {
   readonly owner = `plugin:${randomUUID()}`;
   private readonly identities = new Map<string, InvocationIdentity>();
+  private readonly commandCalls = new Map<string, string>();
+  private readonly inputs = new Map<string, AbortController>();
   readonly info: ProcessInfo = { mode: 'process', apiVersion: 2, status: 'starting' };
   private readonly options: ClientOptions;
   private readonly child: ChildProcess;
@@ -107,27 +110,33 @@ export class PluginProcessClient {
         this.killTree('SIGKILL');
       }
     });
-    let outputWindow = Date.now();
-    let outputBytes = 0;
     for (const [stream, level] of [
       [this.child.stdout, 'info'],
       [this.child.stderr, 'warn'],
     ] as const) {
-      stream?.on('data', (chunk: Buffer) => {
-        if (Date.now() - outputWindow >= 1000) {
-          outputWindow = Date.now();
-          outputBytes = 0;
-        }
-        outputBytes += chunk.length;
-        if (outputBytes <= 64 * 1024) {
-          options.logger[level](chunk.toString().slice(0, 8000));
-        }
+      stream?.setEncoding('utf8');
+      stream?.on('data', (chunk: string) => {
+        const active = [...this.commandCalls.keys()].flatMap((id) => {
+          const identity = this.identities.get(id);
+          return identity ? [identity] : [];
+        });
+        publishLog(
+          active.length === 1 ? active[0] : undefined,
+          options.pluginId ?? options.name,
+          level,
+          [chunk],
+          () => options.logger[level](chunk),
+        );
       });
     }
     process.once('exit', this.killOnParentExit);
   }
 
   private cleanup(): void {
+    for (const input of this.inputs.values()) {
+      input.abort(new Error('插件宿主已停止'));
+    }
+    this.inputs.clear();
     taskRegistry.removeOwner(this.owner);
     pluginClients.delete(this.owner);
     if (this.heartbeat) {
@@ -169,6 +178,32 @@ export class PluginProcessClient {
   }
 
   private async cacheCall(method: string, args: unknown): Promise<unknown> {
+    if (method === 'input.next') {
+      const request = args as InputRequest;
+      const identity = this.identities.get(request.identity?.executionId);
+      const callId = identity && this.commandCalls.get(identity.executionId);
+      if (
+        !identity ||
+        !callId ||
+        typeof request.id !== 'string' ||
+        typeof request.message !== 'string' ||
+        !['string', 'number', 'boolean', 'bigint', 'date'].includes(request.type)
+      ) {
+        throw new Error('输入请求没有活动命令');
+      }
+      const controller = new AbortController();
+      this.inputs.set(request.id, controller);
+      const resume = this.peer.pauseTimeout(callId);
+      try {
+        return await inputReply(
+          () => readInput({ ...request, identity }, controller.signal),
+          controller.signal,
+        );
+      } finally {
+        this.inputs.delete(request.id);
+        resume();
+      }
+    }
     const data = args as { key?: unknown; data?: unknown; targetKey?: unknown; keys?: unknown };
     const cache = this.options.cache();
     const key = data.key;
@@ -215,7 +250,9 @@ export class PluginProcessClient {
     if (!value || typeof value !== 'object') {
       return;
     }
-    if (event === 'log') {
+    if (event === 'input.cancel') {
+      this.inputs.get((value as { id: string }).id)?.abort();
+    } else if (event === 'log') {
       const data = value as { level: LogLevel; text: string; executionId?: string };
       if (
         ['info', 'pathInfo', 'warn', 'error'].includes(data.level) &&
@@ -226,8 +263,8 @@ export class PluginProcessClient {
           identity,
           this.options.pluginId ?? this.options.name,
           data.level,
-          [data.text.slice(0, 8000)],
-          () => this.options.logger[data.level](data.text.slice(0, 8000)),
+          [data.text],
+          () => this.options.logger[data.level](data.text),
         );
       }
     } else if (event === 'task') {
@@ -313,7 +350,15 @@ export class PluginProcessClient {
       revision: 0,
       busy: true,
     });
-    return this.peer.call<T>(method, { payload: args, identity }, timeoutMs, id);
+    const callId = id ?? randomUUID();
+    if (method === 'command') {
+      this.commandCalls.set(identity.executionId, callId);
+    }
+    return this.peer.call<T>(method, { payload: args, identity }, timeoutMs, callId).finally(() => {
+      if (method === 'command') {
+        this.commandCalls.delete(identity.executionId);
+      }
+    });
   }
   cancel(executionId?: string) {
     this.peer.event('cancel', { executionId });

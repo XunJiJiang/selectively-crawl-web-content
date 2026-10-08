@@ -3,6 +3,57 @@ import { RpcPeer } from './rpc.ts';
 import { MAX_PENDING_CALLS } from './protocol.ts';
 
 describe('bounded plugin RPC', () => {
+  it('reports an oversized log without silently dropping the first event', async () => {
+    const logs: unknown[] = [];
+    const receiver = new RpcPeer((_packet, callback) => callback(null));
+    receiver.onEvent = (_event, data) => logs.push(data);
+    const sender = new RpcPeer((packet, callback) => {
+      receiver.receive(packet);
+      callback(null);
+    });
+    sender.event('log', { text: 'x'.repeat(17 * 1024 * 1024), executionId: 'execution' });
+    await sender.drainEvents();
+    expect(logs).toEqual([
+      expect.objectContaining({ executionId: 'execution', text: expect.stringContaining('截断') }),
+    ]);
+    sender.close();
+    receiver.close();
+  });
+  it('delivers log bursts in order through a slow IPC sender', async () => {
+    const texts: string[] = [];
+    const peer = new RpcPeer((packet, callback) => {
+      setImmediate(() => {
+        if (packet.kind === 'event') texts.push((packet.data as { text: string }).text);
+        callback(null);
+      });
+    });
+    for (let i = 0; i < 500; i++) peer.event('log', { text: String(i) });
+    await peer.drainEvents();
+    expect(texts).toEqual(Array.from({ length: 500 }, (_, i) => String(i)));
+    peer.close();
+  });
+  it('pauses execution deadlines while waiting for input and resumes the remaining time', async () => {
+    vi.useFakeTimers();
+    const peer = new RpcPeer((_packet, callback) => callback(null));
+    try {
+      const call = peer.call('command', {}, 100, 'command-id');
+      const rejection = expect(call).rejects.toMatchObject({ status: 504 });
+      await vi.advanceTimersByTimeAsync(25);
+      const resume = peer.pauseTimeout('command-id');
+      await vi.advanceTimersByTimeAsync(60000);
+      resume();
+      await vi.advanceTimersByTimeAsync(74);
+      await vi.advanceTimersByTimeAsync(1);
+      await rejection;
+      const input = peer.call('input.next', {}, 0, 'input-id');
+      await vi.advanceTimersByTimeAsync(24 * 60 * 60 * 1000);
+      peer.receive({ version: 2, kind: 'result', id: 'input-id', value: '' });
+      expect(await input).toBe('');
+    } finally {
+      peer.close();
+      vi.useRealTimers();
+    }
+  });
   it('rejects excess requests and clears pending promises when a peer disconnects', async () => {
     const peer = new RpcPeer((_message, callback) => callback(null));
     const pending = Array.from({ length: MAX_PENDING_CALLS }, () => peer.call('work', {}, 1000));

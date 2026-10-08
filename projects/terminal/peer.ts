@@ -8,27 +8,20 @@ export class Peer {
   onEvent?: (event: string, data: unknown) => void;
   private pending = new Map<
     string,
-    { resolve: (value: unknown) => void; reject: (error: Error) => void; timer: NodeJS.Timeout }
+    { resolve: (value: unknown) => void; reject: (error: Error) => void; timer?: NodeJS.Timeout }
   >();
   private closed = false;
   private incoming = 0;
   private sending = 0;
   private critical: Packet[] = [];
   private flushing = false;
-  private droppedOutput = 0;
+  private queuedBytes = 0;
   private sendPacket: (packet: Packet, callback: (error: Error | null) => void) => void;
   constructor(sendPacket: (packet: Packet, callback: (error: Error | null) => void) => void) {
     this.sendPacket = sendPacket;
   }
   private send(packet: Packet) {
-    if (
-      this.closed ||
-      this.sending >= 128 ||
-      (this.sending >= 48 &&
-        packet.kind === 'event' &&
-        ['output', 'task.changed'].includes(packet.event)) ||
-      serialize(packet).byteLength > 1024 * 1024
-    ) {
+    if (this.closed || this.sending >= 128 || serialize(packet).byteLength > 1024 * 1024) {
       return Promise.reject(new Error('终端通信已关闭或队列已满'));
     }
     return new Promise<void>((resolve, reject) => {
@@ -54,10 +47,13 @@ export class Peer {
     }
     const id = randomUUID();
     return new Promise<T>((resolve, reject) => {
-      const timer = setTimeout(() => {
-        this.pending.delete(id);
-        reject(new Error(`终端请求超时：${method}`));
-      }, timeout);
+      const timer =
+        timeout > 0
+          ? setTimeout(() => {
+              this.pending.delete(id);
+              reject(new Error(`终端请求超时：${method}`));
+            }, timeout)
+          : undefined;
       this.pending.set(id, { resolve: (value) => resolve(value as T), reject, timer });
       void this.send({
         version: 1,
@@ -77,44 +73,39 @@ export class Peer {
     if (this.closed) {
       return;
     }
+    const packet: Packet = { version: 1, sessionId: this.sessionId, kind: 'event', event, data };
+    const bytes = serialize(packet).byteLength;
+    // Queue bursts in order; never let command.finished overtake command output.
     if (
-      [
-        'ready',
-        'command.started',
-        'command.returned',
-        'command.finished',
-        'confirmation.request',
-        'stopping',
-      ].includes(event)
+      bytes > 1024 * 1024 ||
+      this.queuedBytes + bytes > 32 * 1024 * 1024 ||
+      this.critical.length >= 16384
     ) {
-      if (this.critical.length >= 1024) {
+      // Extreme overload is explicit and attributed to the original window.
+      if (event === 'output') {
+        const last = this.critical.at(-1);
+        if (last?.kind === 'event' && last.event === 'output.overflow') {
+          return;
+        }
+        const marker: Packet = {
+          ...packet,
+          event: 'output.overflow',
+          data: {
+            ...(data as object),
+            text: '[输出队列超过 32 MiB 或 16384 条限制，部分输出已截断]',
+          },
+        };
+        this.critical.push(marker);
+        this.queuedBytes += serialize(marker).byteLength;
+        void this.flushCritical();
+      } else {
         this.close();
-        return;
       }
-      this.critical.push({ version: 1, sessionId: this.sessionId, kind: 'event', event, data });
-      void this.flushCritical();
       return;
     }
-    if (event === 'output' && this.sending >= 48) {
-      this.droppedOutput++;
-      return;
-    }
-    if (event === 'output' && this.droppedOutput) {
-      const count = this.droppedOutput;
-      this.droppedOutput = 0;
-      void this.send({
-        version: 1,
-        sessionId: this.sessionId,
-        kind: 'event',
-        event: 'output',
-        data: { windowId: null, text: `[丢弃 ${count} 条高频输出]` },
-      }).catch(() => undefined);
-    }
-    void this.send({ version: 1, sessionId: this.sessionId, kind: 'event', event, data }).catch(
-      () => {
-        /* Disconnection is handled by the owner. */
-      },
-    );
+    this.queuedBytes += bytes;
+    this.critical.push(packet);
+    void this.flushCritical();
   }
   private async flushCritical() {
     if (this.flushing) {
@@ -125,7 +116,10 @@ export class Peer {
       while (this.critical.length && !this.closed) {
         try {
           await this.send(this.critical[0]);
-          this.critical.shift();
+          const packet = this.critical.shift();
+          if (packet) {
+            this.queuedBytes = Math.max(0, this.queuedBytes - serialize(packet).byteLength);
+          }
         } catch {
           await new Promise((resolve) => setTimeout(resolve, 20));
         }
@@ -205,12 +199,13 @@ export class Peer {
       packet.kind === 'event' &&
       (!this.sessionId || packet.sessionId === this.sessionId)
     ) {
-      this.onEvent?.(packet.event, packet.data);
+      this.onEvent?.(packet.event === 'output.overflow' ? 'output' : packet.event, packet.data);
     }
   }
   close() {
     this.closed = true;
     this.critical = [];
+    this.queuedBytes = 0;
     for (const item of this.pending.values()) {
       clearTimeout(item.timer);
       item.reject(new Error('终端连接已断开'));

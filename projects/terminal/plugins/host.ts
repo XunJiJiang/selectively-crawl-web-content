@@ -1,8 +1,9 @@
-import { inspect } from 'node:util';
+import { formatWithOptions } from 'node:util';
 import { pathToFileURL } from 'node:url';
 import { spawn } from 'node:child_process';
 import { Peer } from '../peer.ts';
 import { TaskRegistry, invocationStorage } from '../../server/common/tasks.ts';
+import { setInputHandler, remoteInput } from '../../server/common/interaction.ts';
 import type { InvocationIdentity, PluginLogger } from '../../server/types/task.d.ts';
 import type { TerminalPlugin, TerminalCommand } from './types.ts';
 
@@ -15,6 +16,7 @@ const peer = new Peer((packet, callback) => {
 });
 process.on('message', (message) => peer.receive(message));
 const registry = new TaskRegistry();
+setInputHandler((request, signal) => remoteInput(peer, request, signal));
 const processScope = registry.create('terminal-plugin', undefined, true);
 registry.on('snapshot', (value) => peer.event('task', value));
 let plugin: TerminalPlugin | undefined;
@@ -24,16 +26,16 @@ const commands = new Map<string, TerminalCommand>();
 function logger(identity?: InvocationIdentity): PluginLogger {
   const method =
     (level: string) =>
-    (...args: unknown[]) =>
+    (...args: unknown[]) => {
+      const origin = identity ?? invocationStorage.getStore();
       peer.event('output', {
-        windowId: identity?.windowId ?? outputId,
-        executionId: identity?.executionId,
+        windowId: origin?.windowId ?? outputId,
+        executionId: origin?.executionId,
         pluginId,
-        text: args
-          .map((value) => (typeof value === 'string' ? value : inspect(value, { depth: 3 })))
-          .join(' '),
+        text: formatWithOptions({}, ...args),
         level,
       });
+    };
   return Object.freeze({
     pluginId,
     windowId: identity?.windowId ?? outputId,

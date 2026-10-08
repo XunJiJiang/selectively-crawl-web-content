@@ -204,6 +204,8 @@ namespace SCWC {
   export type TaskReporter = import('../types/task.d.ts').TaskReporter;
   export type PluginLogger = import('../types/task.d.ts').PluginLogger;
   export type InvocationContext = import('../types/task.d.ts').InvocationContext;
+  export type InvocationInputError = import('../common/interaction.ts').InvocationInputError;
+  export type InputResult<T> = import('../types/task.d.ts').InputResult<T>;
 
   /** Core-generated adapter. Plugins implement IPluginHandler instead. */
   export interface IHostedPluginHandler {

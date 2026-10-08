@@ -4,6 +4,18 @@ export default {
   apiVersion: 1,
   onLoad({ registerCommand }) {
     registerCommand({
+      name: 'ask',
+      description: '演示执行中等待用户输入及取消错误元组',
+      async execute(context) {
+        const [error, value] = await context.next('请输入数量（Ctrl+C 取消）', Number);
+        if (error) {
+          context.logger.warn(error.code, error.message);
+          return;
+        }
+        context.logger.info('输入数量：', value);
+      },
+    });
+    registerCommand({
       name: 'later',
       description: '演示函数返回后仍在执行的后台任务',
       execute(context) {

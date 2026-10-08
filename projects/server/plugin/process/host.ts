@@ -1,9 +1,10 @@
 import { pathToFileURL } from 'node:url';
-import { inspect } from 'node:util';
+import { formatWithOptions } from 'node:util';
 import { spawn } from 'node:child_process';
 import { createRetryGet, LimitPromise } from '../../utils/axios.ts';
 import { RpcPeer } from './rpc.ts';
 import { TaskRegistry, invocationStorage } from '../../common/tasks.ts';
+import { setInputHandler, remoteInput } from '../../common/interaction.ts';
 import type { InvocationIdentity } from '../../types/task.d.ts';
 import type { LogLevel } from '../../utils/log.ts';
 import type { Initialize, Invocation, Manifest } from './protocol.ts';
@@ -23,6 +24,7 @@ const peer = new RpcPeer((message, callback) => {
   process.send(message, callback);
 });
 const tasks = new TaskRegistry();
+setInputHandler((request, signal) => remoteInput(peer, request, signal));
 const processTasks = tasks.create('host', undefined, true);
 tasks.on('snapshot', (snapshot) => {
   const send = () => {
@@ -73,23 +75,9 @@ const connections = new Map<
     closed: boolean;
   }
 >();
-let logWindow = Date.now();
-let logCount = 0;
 function log(level: LogLevel, identity?: InvocationIdentity, dynamic = true): SCWC.TLogger['info'] {
   return (...args: unknown[]) => {
-    if (Date.now() - logWindow >= 1000) {
-      logWindow = Date.now();
-      logCount = 0;
-    }
-    if (++logCount > 100) {
-      return;
-    }
-    const text = args
-      .map((arg) =>
-        typeof arg === 'string' ? arg : inspect(arg, { depth: 3, maxArrayLength: 20 }),
-      )
-      .join(' ')
-      .slice(0, 8000);
+    const text = formatWithOptions({}, ...args);
     const origin = identity ?? (dynamic ? invocationStorage.getStore() : undefined);
     peer.event('log', {
       level,
@@ -104,10 +92,10 @@ let pluginId = 'plugin';
 let logger: SCWC.PluginLogger = Object.freeze({
   pluginId,
   windowId: null,
-  info: log('info', undefined, false),
-  pathInfo: log('pathInfo', undefined, false),
-  warn: log('warn', undefined, false),
-  error: log('error', undefined, false),
+  info: log('info'),
+  pathInfo: log('pathInfo'),
+  warn: log('warn'),
+  error: log('error'),
 });
 function scopedLogger(identity: InvocationIdentity): SCWC.PluginLogger {
   return Object.freeze({
@@ -347,6 +335,9 @@ async function dispatch(method: string, args: unknown, id: string): Promise<unkn
         });
       }
       case 'command': {
+        if (!context) {
+          throw new Error('命令调用上下文缺失');
+        }
         const data = args as {
           index: number;
           args: [Parameters<SCWC.TCommandExecute>[1], string[], string[]];
@@ -478,5 +469,6 @@ peer.onCall = async (method, envelope, id) => {
     return await invocationStorage.run(scope.context, () => dispatch(method, payload, id));
   } finally {
     scope.finish();
+    await peer.drainEvents();
   }
 };
