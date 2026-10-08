@@ -112,11 +112,13 @@ describe('terminal windows and input', () => {
   });
   it('renders colored Chinese text without losing a character at odd widths', () => {
     const model = new TerminalModel();
-    model.append({ windowId: model.output.id, text: '甲乙丙丁戊己' });
+    model.append({ windowId: model.output.id, text: '\x1b[38;2;10;20;30m甲乙丙丁戊己\x1b[0m' });
     const renderer = new Renderer();
     renderer.width = 11;
     renderer.height = 10;
-    const frame = renderer.frame(model, 0).replace(/\x1b\[[\d;?]*[A-Za-z]/g, '');
+    const colored = renderer.frame(model, 0);
+    expect(colored).toContain('\x1b[38;2;10;20;30m');
+    const frame = colored.replace(/\x1b\[[\d;?]*[A-Za-z]/g, '');
     for (const char of '甲乙丙丁戊己') {
       expect(frame).toContain(char);
     }

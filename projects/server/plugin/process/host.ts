@@ -5,6 +5,7 @@ import { createRetryGet, LimitPromise } from '../../utils/axios.ts';
 import { RpcPeer } from './rpc.ts';
 import { TaskRegistry, invocationStorage } from '../../common/tasks.ts';
 import { setInputHandler, remoteInput } from '../../common/interaction.ts';
+import { outputColorLevel } from '../../common/color.ts';
 import type { InvocationIdentity } from '../../types/task.d.ts';
 import type { LogLevel } from '../../utils/log.ts';
 import type { Initialize, Invocation, Manifest } from './protocol.ts';
@@ -77,7 +78,7 @@ const connections = new Map<
 >();
 function log(level: LogLevel, identity?: InvocationIdentity, dynamic = true): SCWC.TLogger['info'] {
   return (...args: unknown[]) => {
-    const text = formatWithOptions({}, ...args);
+    const text = formatWithOptions({ colors: outputColorLevel() > 0 }, ...args);
     const origin = identity ?? (dynamic ? invocationStorage.getStore() : undefined);
     peer.event('log', {
       level,

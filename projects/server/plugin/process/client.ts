@@ -7,6 +7,7 @@ import { requestData, sendResource } from './resource.ts';
 import { isPackaged, PLUGIN_HOST } from '../../common/paths.ts';
 import { currentIdentity, taskRegistry } from '../../common/tasks.ts';
 import { inputReply, readInput } from '../../common/interaction.ts';
+import { colorEnvironment } from '../../common/color.ts';
 import { publishLog, type LogLevel } from '../../utils/log.ts';
 import type { InputRequest, InvocationIdentity, TaskSnapshot } from '../../types/task.d.ts';
 import type {
@@ -72,7 +73,7 @@ export class PluginProcessClient {
     pluginClients.set(this.owner, this);
     this.child = fork(PLUGIN_HOST, isPackaged ? ['--scwc-plugin-host'] : [], {
       cwd: options.cwd ?? process.cwd(),
-      env: options.env ?? process.env,
+      env: colorEnvironment(options.env ?? process.env),
       execArgv: options.execArgv ?? childArguments(),
       serialization: 'advanced',
       stdio: ['ignore', 'pipe', 'pipe', 'ipc'],

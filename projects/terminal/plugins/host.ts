@@ -4,6 +4,7 @@ import { spawn } from 'node:child_process';
 import { Peer } from '../peer.ts';
 import { TaskRegistry, invocationStorage } from '../../server/common/tasks.ts';
 import { setInputHandler, remoteInput } from '../../server/common/interaction.ts';
+import { outputColorLevel } from '../../server/common/color.ts';
 import type { InvocationIdentity, PluginLogger } from '../../server/types/task.d.ts';
 import type { TerminalPlugin, TerminalCommand } from './types.ts';
 
@@ -32,7 +33,7 @@ function logger(identity?: InvocationIdentity): PluginLogger {
         windowId: origin?.windowId ?? outputId,
         executionId: origin?.executionId,
         pluginId,
-        text: formatWithOptions({}, ...args),
+        text: formatWithOptions({ colors: outputColorLevel() > 0 }, ...args),
         level,
       });
     };

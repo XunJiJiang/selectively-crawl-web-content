@@ -7,6 +7,7 @@ import { Peer } from '../peer.ts';
 import { isPackaged, ROOT, SERVER_ROOT } from '../../server/common/paths.ts';
 import { TaskRegistry } from '../../server/common/tasks.ts';
 import { inputReply } from '../../server/common/interaction.ts';
+import { colorEnvironment } from '../../server/common/color.ts';
 import type { InputRequest, InvocationIdentity, TaskSnapshot } from '../../server/types/task.d.ts';
 import type { OutputEvent, CommandInfo } from '../protocol.ts';
 
@@ -56,6 +57,7 @@ export class TerminalPlugins extends EventEmitter {
           ? path.join(SERVER_ROOT, 'terminal-host.cjs')
           : path.join(ROOT, 'projects/terminal/plugins/host.ts');
         child = fork(host, isPackaged ? ['--scwc-terminal-plugin-host'] : [], {
+          env: colorEnvironment(),
           stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
           serialization: 'advanced',
           detached: process.platform !== 'win32',

@@ -27,6 +27,12 @@ export default {
     async execute(logger, options, unused, original, context) {
     const type = original[1] ?? 'quick';
     logger.info('OWNERSHIP:' + logger.windowId + ':' + logger.executionId);
+    if (type === 'color') {
+      logger.info('CORE_COLOR_LEVEL:' + process.env.FORCE_COLOR);
+      logger.warn('CORE_COLOR_WARNING'); logger.error('CORE_COLOR_ERROR');
+      logger.info('CUSTOM_COLOR:\\x1b[35mmagenta\\x1b[39m');
+      console.log({ color: true }); logger.info('CORE_COLOR_DONE'); return;
+    }
     if (type === 'burst') { for (let i = 0; i < 250; i++) savedLogger.info('BURST:' + i); logger.info('LONG:' + 'x'.repeat(9000) + ':END'); return; }
     if (type === 'input') {
       const [nameError, name] = await context.next('INPUT_NAME?' + (original[2] ?? ''), String);
@@ -70,6 +76,7 @@ export async function smokeTerminal(
       registerCommand({ name: 'relay', description: 'nested core command', async execute(context) { context.logger.info('TERMINAL_PLUGIN:' + context.windowId); await context.invokeCore('smoke background 150'); context.write('RELAY_DONE'); } });
       registerCommand({ name: 'ask', description: 'local input', async execute(context) { const [error, value] = await context.next('LOCAL_INPUT?', Number); context.write(error ? 'LOCAL_ERROR:' + error.code : 'LOCAL_RESULT:' + value); } });
       registerCommand({ name: 'relay-ask', description: 'nested input', async execute(context) { await context.invokeCore('smoke input'); context.write('RELAY_INPUT_DONE'); } });
+      registerCommand({ name: 'colors', description: 'terminal colors', execute(context) { context.logger.warn('TERMINAL_COLOR_WARNING'); context.logger.error('TERMINAL_COLOR_ERROR'); context.logger.info({ color: true }); context.write('TERMINAL_COLOR_LEVEL:' + process.env.FORCE_COLOR); context.write('TERMINAL_COLOR_DONE'); } });
     } };`,
   );
   const model = new TerminalModel();
@@ -233,7 +240,9 @@ export async function smokeTerminal(
     lineTerminal.kill('SIGTERM');
     assert.equal((await lineClosed)[0], 0, lineOutput);
   } finally {
-    if (lineTerminal.exitCode === null) lineTerminal.kill('SIGKILL');
+    if (lineTerminal.exitCode === null) {
+      lineTerminal.kill('SIGKILL');
+    }
     await lineClosed;
   }
 
@@ -245,7 +254,9 @@ export async function smokeTerminal(
 exe,cwd=sys.argv[1:3]
 master,slave=pty.openpty()
 fcntl.ioctl(slave,termios.TIOCSWINSZ,struct.pack('HHHH',24,100,0,0))
-p=subprocess.Popen([exe,'--terminal'],stdin=slave,stdout=slave,stderr=slave,cwd=cwd,env={**os.environ,'TERM':'xterm-256color'})
+color_env={**os.environ,'TERM':'xterm-256color'}
+color_env.pop('FORCE_COLOR',None); color_env.pop('NO_COLOR',None)
+p=subprocess.Popen([exe,'--terminal'],stdin=slave,stdout=slave,stderr=slave,cwd=cwd,env=color_env)
 os.close(slave)
 buffer=b''
 def until(text,timeout=15):
@@ -271,6 +282,21 @@ try:
  until('INPUT_CONFIRMED?')
  send(b'false\r')
  until('INPUT_RESULT:pty name:9:false')
+ time.sleep(.15)
+ send(b'smoke color\r')
+ until('CORE_COLOR_DONE')
+ assert b'\x1b[34m[smoke]\x1b[39m' in buffer
+ assert b'\x1b[33m[smoke] [warn]\x1b[39m' in buffer
+ assert b'\x1b[31m[smoke] [error]\x1b[39m' in buffer
+ assert b'\x1b[35mmagenta\x1b[39m' in buffer
+ assert b'\x1b[33mtrue\x1b[39m' in buffer
+ assert b'CORE_COLOR_LEVEL:0' not in buffer
+ time.sleep(.15)
+ send(b'colors\r')
+ until('TERMINAL_COLOR_DONE')
+ assert b'\x1b[33mTERMINAL_COLOR_WARNING\x1b[39m' in buffer
+ assert b'\x1b[31mTERMINAL_COLOR_ERROR\x1b[39m' in buffer
+ assert b'TERMINAL_COLOR_LEVEL:0' not in buffer
  time.sleep(.15)
  buffer=b''
  send(b'smoke input cancel\r')

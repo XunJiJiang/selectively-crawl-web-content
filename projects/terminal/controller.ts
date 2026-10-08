@@ -5,6 +5,7 @@ import { CoreConnection } from './core.ts';
 import { TerminalPlugins } from './plugins/load.ts';
 import { splitCommand } from '../server/utils/command.ts';
 import { InvocationInputError } from '../server/common/interaction.ts';
+import { colorLogText } from '../server/common/color.ts';
 import type { CommandInfo, ExecutionEvent, OutputEvent } from './protocol.ts';
 import type {
   InputFailure,
@@ -285,8 +286,9 @@ export class TerminalController {
     this.output({ windowId: this.model.output.id, text: this.model.message });
   }
   output(value: OutputEvent) {
-    this.model.append(value);
-    this.onOutput?.(sanitizeOutput(value.text));
+    const text = colorLogText(value.text, value.level);
+    this.model.append({ ...value, text });
+    this.onOutput?.(sanitizeOutput(text));
     this.changed();
   }
   private execution(event: ExecutionEvent, done: boolean) {

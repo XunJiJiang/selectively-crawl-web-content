@@ -4,6 +4,7 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { isPackaged, SERVER_ROOT, ROOT } from '../server/common/paths.ts';
 import { Peer } from './peer.ts';
+import { colorEnvironment } from '../server/common/color.ts';
 
 export interface CoreOptions {
   execPath?: string;
@@ -37,7 +38,7 @@ export class CoreConnection extends EventEmitter {
       serialization: 'advanced',
       detached: process.platform !== 'win32',
       cwd: this.options.cwd ?? process.cwd(),
-      env: this.options.env ?? process.env,
+      env: colorEnvironment(this.options.env ?? process.env),
       execArgv: isPackaged
         ? []
         : this.options.useTsx

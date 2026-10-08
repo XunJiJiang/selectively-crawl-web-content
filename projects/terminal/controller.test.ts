@@ -3,6 +3,29 @@ import { TerminalController } from './controller.ts';
 import { CoreConnection } from './core.ts';
 import { TerminalModel } from './model.ts';
 describe('terminal input routing', () => {
+  it('renders structured core and plugin colors, including existing ANSI output', () => {
+    vi.stubEnv('FORCE_COLOR', '1');
+    try {
+      const model = new TerminalModel();
+      const controller = new TerminalController(model, new CoreConnection({ args: [] }));
+      const stdout: string[] = [];
+      controller.onOutput = (text) => stdout.push(text);
+      controller.output({
+        windowId: model.output.id,
+        text: '[core] [warn] warning',
+        level: 'warn',
+      });
+      controller.output({ windowId: model.output.id, text: 'terminal error', level: 'error' });
+      controller.output({ windowId: model.output.id, text: '\x1b[35mcustom\x1b[39m' });
+      const frame = controller.renderer.frame(model, 0);
+      expect(frame).toContain('\x1b[33m');
+      expect(frame).toContain('\x1b[31m');
+      expect(frame).toContain('\x1b[35m');
+      expect(stdout).toEqual(model.output.lines);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
   it('cancels a pending next on Ctrl+C without clearing drafts or cancelling the command', async () => {
     const model = new TerminalModel();
     const window = model.windows[1];

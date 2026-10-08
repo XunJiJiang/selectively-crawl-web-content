@@ -1,4 +1,5 @@
 export const TERMINAL_PROTOCOL_VERSION = 1;
+import type { LogLevel } from '../server/utils/log.ts';
 export interface CommandInfo {
   name: string;
   description?: string;
@@ -13,6 +14,7 @@ export interface OutputEvent {
   executionId?: string;
   text: string;
   pluginId?: string;
+  level?: LogLevel;
 }
 export interface ExecutionEvent {
   executionId: string;

@@ -1,6 +1,7 @@
 import chalk from 'chalk';
 import { formatWithOptions } from 'node:util';
 import { invocationStorage, outputWindowId } from '../common/tasks.ts';
+import { outputColorLevel } from '../common/color.ts';
 import type { InvocationIdentity, PluginLogger } from '../types/task.d.ts';
 import type { TLogger } from '../types/log.d.ts';
 
@@ -10,6 +11,7 @@ type LogSink = (event: {
   executionId?: string;
   sessionId?: string;
   pluginId?: string;
+  level: LogLevel;
   text: string;
 }) => void;
 let sink: LogSink | undefined;
@@ -27,12 +29,13 @@ export function publishLog(
     fallback();
     return;
   }
-  const text = formatWithOptions({}, ...args);
+  const text = formatWithOptions({ colors: outputColorLevel() > 0 }, ...args);
   sink({
     windowId: identity?.windowId ?? outputWindowId,
     executionId: identity?.executionId,
     sessionId: identity?.sessionId,
     pluginId,
+    level,
     text: `[${pluginId}]${level === 'warn' || level === 'error' ? ` [${level}]` : ''} ${text}`,
   });
 }

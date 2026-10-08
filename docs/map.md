@@ -421,6 +421,8 @@ terminal/peer.ts 的版本 1 负责终端↔核心；现有插件 RPC 仍为版�
 
 ### 2026-10-08 命令输出与交互输入
 
+终端颜色通过 common/color.ts 检测真实 stdout 的能力，再向核心和两类插件宿主传递 FORCE_COLOR，避免子进程的管道输出被识别为无色。结构化输出携带 level，终端在保存/显示前给信息标签、警告和错误着色，并保留插件 ANSI 与对象格式化颜色。NO_COLOR / FORCE_COLOR=0 关闭颜色；重定向和 TERM=dumb 默认无色，FORCE_COLOR=1/2/3 可强制启用。
+
 终端和插件 IPC 改为按序排队，帮助与突发日志不再因发送并发或每秒限流缺失；移除插件日志 8000 字符截断，onLoad 保存的 logger 在调用异步链中采用当前执行身份。成功状态仅恢复窗口，不追加 succeeded 行。极端过载队列与窗口历史仍有明确上限及截断提示。
 
 common/interaction.ts 负责 next 输入格式、错误元组和宿主通信；TaskScope.context 注入 next(message, String/Number/Boolean/BigInt/Date)，返回 `[InvocationInputError, undefined] | [undefined, T]`。command/ipc.ts 与直接 stdin 均支持执行中等待；terminal/controller/model/render 将提示、草稿与固定窗口绑定，终端插件及 invokeCore 子执行共用该链路。格式无效重试；Ctrl+C 只取消当前 next，返回 cancelled 元组；取消任务、EOF、重启或断连也会结束等待。插件等待输入期间暂停命令 RPC 超时，回复后恢复剩余时限。输入请求不持久化，恢复不重放。
