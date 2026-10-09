@@ -10,6 +10,7 @@ import type {
 } from '../server/types/task.d.ts';
 import { InvocationInputError, formatInput, inputFormat } from '../server/common/interaction.ts';
 import { globalCommands, type GlobalCommandInfo } from './global.ts';
+import type { PluginPreferences } from './plugin/types.d.ts';
 
 export type Mode = 'normal' | 'global' | 'global-output' | 'confirmation';
 export interface WindowState {
@@ -42,6 +43,7 @@ export interface PanelInput {
   draft: string;
   cursor: number;
   selection?: number;
+  fixedPrefix?: string;
   reply(value?: string, error?: InvocationInputError): void;
 }
 export interface CommandPanel {
@@ -80,6 +82,7 @@ export class TerminalModel {
   globalHistoryDraft = '';
   globalExtensions: GlobalCommandInfo[] = [];
   commands: CommandInfo[] = [];
+  pluginPreferences: PluginPreferences = {};
   completionIndex = 0;
   completionPreview = false;
   panel?: CommandPanel;
@@ -371,6 +374,14 @@ export class TerminalModel {
       this.completionIndex = 0;
     }
     if (this.panel?.input) {
+      const prefix = this.panel.input.fixedPrefix ?? '';
+      if (!text.startsWith(prefix)) {
+        text = prefix + text;
+      }
+      cursor = Math.max(prefix.length, Math.min(text.length, cursor));
+      if (selection !== undefined) {
+        selection = Math.max(prefix.length, Math.min(text.length, selection));
+      }
       this.panel.input.draft = text;
       this.panel.input.cursor = cursor;
       this.panel.input.selection = selection;
@@ -393,6 +404,10 @@ export class TerminalModel {
     }
   }
   edit(insert = '', remove: 'backspace' | 'delete' | undefined = undefined) {
+    const prefix = this.panel?.input?.fixedPrefix ?? '';
+    if (prefix && this.text === prefix && insert.startsWith(prefix)) {
+      insert = insert.slice(prefix.length);
+    }
     let start = this.cursor;
     let end = this.cursor;
     if (this.selection !== undefined) {
@@ -403,6 +418,8 @@ export class TerminalModel {
     } else if (remove === 'delete') {
       end = this.nextBoundary(end);
     }
+    start = Math.max(prefix.length, start);
+    end = Math.max(prefix.length, end);
     this.setInput(this.text.slice(0, start) + insert + this.text.slice(end), start + insert.length);
   }
   private boundaries() {
@@ -552,9 +569,19 @@ export class TerminalModel {
   }
   next(message: string): Promise<InputResult<string>>;
   next<T extends InputConstructor>(message: string, type: T): Promise<InputResult<InputValue<T>>>;
-  async next(
+  next(
     message: string,
     type: InputConstructor = String,
+  ): Promise<InputResult<string | number | boolean | bigint | Date>> {
+    return this.readPanelInput(message, type);
+  }
+  nextChoice(message: string): Promise<InputResult<string>> {
+    return this.readPanelInput(message, String, ':') as Promise<InputResult<string>>;
+  }
+  private async readPanelInput(
+    message: string,
+    type: InputConstructor,
+    fixedPrefix = '',
   ): Promise<InputResult<string | number | boolean | bigint | Date>> {
     const panel = this.panel;
     if (!panel) {
@@ -571,15 +598,17 @@ export class TerminalModel {
           panel.input = {
             text: prompt,
             type: format,
-            draft: '',
-            cursor: 0,
+            draft: fixedPrefix,
+            cursor: fixedPrefix.length,
+            fixedPrefix,
             reply: (value, error) => {
               panel.input = undefined;
               this.mode = 'global-output';
               if (error) {
                 reject(error);
               } else {
-                resolve(value ?? '');
+                const text = value ?? '';
+                resolve(text.startsWith(fixedPrefix) ? text : fixedPrefix + text);
               }
             },
           };

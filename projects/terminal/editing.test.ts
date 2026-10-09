@@ -147,7 +147,7 @@ describe('transient footer and text selection', () => {
     expect(model.panel).toBeUndefined();
     expect(model.output.lines).toEqual([]);
   });
-  it('sizes the footer to its content, caps large panels at five rows and fixes the menu background after the status label', () => {
+  it('sizes the footer to its content, caps the whole footer at half the terminal height and fixes the menu background after the status label', () => {
     const { model, controller } = setup(false);
     const renderer = controller.renderer;
     const panel = model.beginPanel('short');
@@ -161,8 +161,8 @@ describe('transient footer and text selection', () => {
     expect(menu).toContain('\x1b[48;2;30;41;59m');
     model.writePanel(Array.from({ length: 20 }, (_, i) => String(i)).join('\n'));
     renderer.frame(model);
-    expect(renderer.panelAt(18)).toBe(true);
-    expect(renderer.panelAt(17)).toBe(false);
+    expect(renderer.panelAt(12)).toBe(true);
+    expect(renderer.panelAt(11)).toBe(false);
     model.panel = undefined;
     model.mode = 'global';
     model.globalDraft = 'rename ';

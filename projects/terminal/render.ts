@@ -99,10 +99,14 @@ export class Renderer {
       text:
         (window.id === model.activeId ||
         model.windows[model.windows.indexOf(window) - 1]?.id === model.activeId
-          ? '┃'
+          ? this.style('┃', colors.accent, colors.selected)
           : '│') +
         this.title(model, window, tick) +
-        (window === model.windows.at(-1) ? (window.id === model.activeId ? '┃' : '│') : ''),
+        (window === model.windows.at(-1)
+          ? window.id === model.activeId
+            ? this.style('┃', colors.accent, colors.selected)
+            : '│'
+          : ''),
     }));
     const positions: { start: number; end: number }[] = [];
     let total = 0;
@@ -393,7 +397,8 @@ export class Renderer {
     if (model.panel?.input) {
       content.push(...this.wrap(model.panel.input.text).map((text) => ({ text })));
     }
-    const maximum = Math.max(0, Math.min(5, Math.floor(this.height / 2), this.height - 2));
+    // Count the footer input/status row in the half-screen budget too.
+    const maximum = Math.max(0, Math.min(Math.floor(this.height / 2) - 1, this.height - 2));
     this.panelHeight = Math.min(maximum, content.length + 1);
     this.panelFrom = this.height - 1 - this.panelHeight;
     this.panelRowCount = content.length;
@@ -556,7 +561,7 @@ export class Renderer {
             screenRow,
             inlineActive,
           );
-          if (inlineActive && (text || window.input)) {
+          if (inlineActive) {
             caret = { row: screenRow, column: input.column };
           }
           return this.style(this.fit(input.text, this.width), colors.text, background);

@@ -73,6 +73,8 @@ declare namespace SCWCTerminal {
     signal: AbortSignal;
   }
   export interface Plugin {
+    /** Short identifier used to distinguish the plugin; defaults to its directory name. */
+    id?: string;
     apiVersion?: 1;
     onLoad(context: LoadContext): void | Promise<void>;
     onUnload?(): void | Promise<void>;

@@ -40,7 +40,9 @@ function logger(identity?: InvocationIdentity): PluginLogger {
       });
     };
   return Object.freeze({
-    pluginId,
+    get pluginId() {
+      return pluginId;
+    },
     windowId: identity?.windowId ?? outputId,
     executionId: identity?.executionId,
     info: method('info'),
@@ -78,6 +80,15 @@ peer.onCall = async (method, value) => {
     ) {
       throw new Error('无效终端插件契约');
     }
+    if (
+      plugin.id !== undefined &&
+      (typeof plugin.id !== 'string' ||
+        plugin.id.length > 64 ||
+        !/^[^\s:/\\\x00-\x1f\x7f]+$/u.test(plugin.id))
+    ) {
+      throw new Error('插件简短标识不能包含空白、冒号、路径分隔符或控制字符');
+    }
+    pluginId = plugin.id ?? args.pluginId;
     await plugin.onLoad({
       coreCommands: args.commands ?? [],
       tasks: processScope.reporter,
@@ -94,12 +105,19 @@ peer.onCall = async (method, value) => {
         commands.set(command.name, command);
       },
     });
-    return [...commands.values()].map(({ name, description, scope, usage }) => ({
-      name,
-      description,
-      scope,
-      usage,
-    }));
+    return {
+      identifier: plugin.id,
+      commands: [...commands.values()].map(({ name, description, scope, usage }) => ({
+        name,
+        description,
+        scope,
+        usage,
+      })),
+    };
+  }
+  if (method === 'identifier.set') {
+    pluginId = String((value as { identifier: string }).identifier);
+    return;
   }
   if (method === 'cancel') {
     registry.cancel(args.executionId);

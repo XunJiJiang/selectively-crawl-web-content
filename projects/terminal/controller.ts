@@ -50,6 +50,7 @@ export class TerminalController {
   onCopy?: (text: string) => Promise<void>;
   constructor(model: TerminalModel, core: CoreConnection) {
     this.model = model;
+    this.plugins.preferences = model.pluginPreferences;
     this.core = core;
     core.on('output', (value: OutputEvent) => this.output(value));
     core.on('commands', (commands: CommandInfo[]) => {
@@ -147,6 +148,7 @@ export class TerminalController {
       }
     });
     this.plugins.on('commands', () => this.changed());
+    this.plugins.on('preferences', () => this.changed());
     this.plugins.resolveConflict = (conflict) => this.resolvePluginConflict(conflict);
     this.plugins.on('output', (value: OutputEvent) => this.output(value));
     this.plugins.on('task', () => this.updateTerminalExecutions());
@@ -250,38 +252,69 @@ export class TerminalController {
     this.onChange?.();
   }
   private async resolvePluginConflict(conflict: CommandConflict): Promise<ConflictChoice> {
+    if (this.inputEnded) {
+      throw new InvocationInputError('closed', '输入流已关闭');
+    }
     if (this.model.panel?.running) {
       await this.interaction;
     }
     let choice: ConflictChoice | undefined;
-    const work = this.interact(`命令冲突 ${conflict.name}`, async () => {
-      const plugins = conflict.first.kind === 'plugin';
-      const prompt =
-        `命令 "${conflict.name}" 冲突：${conflict.first.id} 与插件 ${conflict.second.id}\n` +
-        (plugins
-          ? `:a 为双方冲突命令添加前缀\n:b 保留第一个 ${conflict.first.id}，放弃第二个插件\n:c 保留第二个 ${conflict.second.id}，卸载第一个插件及其全部命令`
-          : `:a 为插件冲突命令添加前缀（${conflict.second.id}:${conflict.name}）\n:b 放弃加载插件 ${conflict.second.id}`);
-      let text = prompt;
-      for (;;) {
-        const [error, answer] = await this.model.next(text);
-        if (error) {
-          throw error;
+    await this.interact(
+      conflict.kind === 'identifier' ? '插件标识冲突' : '插件命令冲突',
+      async () => {
+        const plugins = conflict.first.kind === 'plugin';
+        const identifier = conflict.kind === 'identifier';
+        const prompt = identifier
+          ? `标识 "${conflict.identifier}" 冲突：\n第一个：${conflict.first.label}\n第二个：${conflict.second.label}\n:a 保留第一个，为第二个自定义标识\n:b 保留第二个，为第一个自定义标识\n:c 两个都自定义标识\n:d 卸载第一个插件\n:e 卸载第二个插件`
+          : conflict.kind === 'cleared'
+            ? `插件 ${conflict.second.label} 曾有命令冲突，其他插件已加前缀或卸载，现已无冲突\n:a 为这个插件全部命令添加标识前缀\n:b 不添加前缀`
+            : `插件 ${conflict.second.label} 与 ${conflict.first.label} 的全部冲突命令：\n${conflict.names.join('、')}\n:a 为当前插件 ${conflict.second.id} 的全部命令添加标识前缀\n:b ${plugins ? `保留 ${conflict.first.id}，卸载当前插件` : '卸载当前插件'}${plugins ? `\n:c 保留当前插件，卸载 ${conflict.first.id}` : ''}`;
+        const allowed: ConflictChoice[] = identifier
+          ? ['a', 'b', 'c', 'd', 'e']
+          : plugins
+            ? ['a', 'b', 'c']
+            : ['a', 'b'];
+        let text = prompt;
+        for (;;) {
+          const [error, answer] = await this.model.nextChoice(text);
+          if (error) {
+            throw error;
+          }
+          const value = answer.trim().slice(1) as ConflictChoice;
+          if (answer.trim() === ':' + value && allowed.includes(value)) {
+            choice = value;
+            break;
+          }
+          text = `请输入 ${allowed.map((item) => ':' + item).join('、')} 后按 Enter\n${prompt}`;
         }
-        if (
-          answer.trim() === ':a' ||
-          answer.trim() === ':b' ||
-          (plugins && answer.trim() === ':c')
-        ) {
-          choice = answer.trim().slice(1) as ConflictChoice;
-          return;
+        if (identifier && choice && ['a', 'b', 'c'].includes(choice)) {
+          const participants: ('first' | 'second')[] =
+            choice === 'a' ? ['second'] : choice === 'b' ? ['first'] : ['first', 'second'];
+          for (const participant of participants) {
+            let message = `为${participant === 'first' ? '第一个' : '第二个'}插件 ${conflict[participant].label} 输入新简短标识`;
+            for (;;) {
+              const [error, value] = await this.model.next(message);
+              if (error) {
+                throw error;
+              }
+              const identifier = value.trim();
+              const failure = conflict.checkIdentifier?.(identifier, participant);
+              if (failure) {
+                message = `${failure}\n请输入另一个简短标识`;
+                continue;
+              }
+              if (conflict.identifiers) {
+                conflict.identifiers[participant] = identifier;
+              }
+              break;
+            }
+          }
         }
-        text = `请输入 ${plugins ? ':a、:b 或 :c' : ':a 或 :b'} 后按 Enter\n${prompt}`;
-      }
-    });
-    await work;
+      },
+    );
     await this.interaction;
     if (!choice) {
-      throw new Error('插件命令冲突未裁决，已取消加载');
+      throw new Error('插件冲突未裁决，已取消加载');
     }
     return choice;
   }
@@ -575,7 +608,7 @@ export class TerminalController {
   private async confirm(text: string) {
     let prompt = text;
     for (;;) {
-      const [error, answer] = await this.model.next(
+      const [error, answer] = await this.model.nextChoice(
         `${prompt}\n输入 :y 确认 / :n 取消，然后按 Enter`,
       );
       if (error) {
@@ -880,6 +913,16 @@ export class TerminalController {
           this.model.completionPreview = false;
           this.model.mode = 'normal';
         }
+      } else if (
+        key.name === 'backspace' &&
+        this.model.mode === 'global' &&
+        !this.model.panel?.input &&
+        !this.model.globalDraft
+      ) {
+        this.model.panel = undefined;
+        this.retirePanelExecutions();
+        this.model.completionPreview = false;
+        this.model.mode = 'normal';
       } else if (this.model.mode === 'global-output') {
         if (!this.model.panel?.running && key.sequence === ':') {
           this.model.enterGlobal();

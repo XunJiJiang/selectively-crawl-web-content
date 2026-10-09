@@ -59,7 +59,7 @@ describe('global terminal extensions', () => {
     try {
       await controller.plugins.load(directory, model.output.id, commands);
       expect(controller.plugins.list('global').map((item) => item.name)).toEqual(
-        expect.arrayContaining(['scwc:server', 'scwc:plugin', 'core-help', 'ask-global']),
+        expect.arrayContaining(['scwc:server', 'scwc:plugin', 'scwc:help', 'ask-global']),
       );
       expect(controller.plugins.has('local')).toBe(true);
       expect(controller.plugins.has('ask-global')).toBe(false);
@@ -81,7 +81,7 @@ describe('global terminal extensions', () => {
       await controller.key({ name: 'enter', sequence: '\r' });
       await expect.poll(() => model.panel?.running).toBe(false);
       expect(model.panel?.lines).toEqual(['CORE:plugin "ps"', 'CORE:server "info"']);
-      await controller.global('core-help C:\\Users\\name\\');
+      await controller.global('scwc:help C:\\Users\\name\\');
       const forwarded = call.mock.calls.findLast(
         ([method, value]) =>
           method === 'command.execute' && (value as { command: string }).command.startsWith('help'),

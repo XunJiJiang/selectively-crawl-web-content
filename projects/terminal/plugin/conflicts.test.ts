@@ -6,21 +6,22 @@ import { TerminalPlugins } from './load.ts';
 import { TerminalController } from '../controller.ts';
 import { TerminalModel } from '../model.ts';
 import { CoreConnection } from '../core.ts';
+import { StateStore } from '../storage.ts';
 import type { CommandConflict } from './types.d.ts';
 
-async function fixture(plugins: Record<string, string[]>) {
+async function fixture(plugins: Record<string, { names: string[]; id?: string }>) {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'scwc-conflicts-'));
-  for (const [id, names] of Object.entries(plugins)) {
-    const folder = path.join(directory, id);
-    await fs.mkdir(folder);
+  for (const [folder, plugin] of Object.entries(plugins)) {
+    const location = path.join(directory, folder);
+    await fs.mkdir(location);
     await fs.writeFile(
-      path.join(folder, 'package.json'),
+      path.join(location, 'package.json'),
       JSON.stringify({ type: 'module', main: 'index.ts' }),
     );
     await fs.writeFile(
-      path.join(folder, 'index.ts'),
-      `export default {onLoad({registerCommand}) {
-      for (const name of ${JSON.stringify(names)}) registerCommand({name, usage: name + ' <value>', description: '${id}', execute(context) {context.write('RUN:${id}');}});
+      path.join(location, 'index.ts'),
+      `export default {id: ${JSON.stringify(plugin.id)}, onLoad({registerCommand}) {
+      for (const name of ${JSON.stringify(plugin.names)}) registerCommand({name, usage: name + ' <value>', description: '${folder}', execute(context) {context.write('RUN:${folder}:' + context.logger.pluginId);}});
     }};`,
     );
   }
@@ -31,151 +32,270 @@ async function cleanup(loader: TerminalPlugins, directory: string) {
   await fs.rm(directory, { recursive: true, force: true });
 }
 
-describe('pairwise terminal command conflict decisions', () => {
-  it('drops the whole rejected plugin and removes it from later system and plugin comparisons', async () => {
-    const directory = await fixture({ first: ['shared', 'extra'], second: ['shared'] });
+describe('plugin identifiers and grouped command conflicts', () => {
+  it('groups every built-in conflict for one plugin into one decision and prefixes all its commands', async () => {
+    const directory = await fixture({ example: { names: ['help', 'one', 'two', 'extra'] } });
     const loader = new TerminalPlugins();
     const conflicts: CommandConflict[] = [];
     loader.resolveConflict = async (conflict) => {
       conflicts.push(conflict);
-      return conflict.second.id === 'first' ? 'b' : 'a';
+      return 'a';
     };
     try {
-      await loader.load(directory, 'output', [{ name: 'shared' }, { name: 'extra' }]);
-      expect(conflicts.map((item) => [item.first.kind, item.name, item.second.id])).toEqual([
-        ['core', 'shared', 'first'],
-        ['core', 'shared', 'second'],
+      await loader.load(directory, 'output', [{ name: 'one' }, { name: 'two' }]);
+      expect(conflicts).toHaveLength(1);
+      expect(conflicts[0].names).toEqual(['help', 'one', 'two']);
+      expect(loader.list().map((command) => command.name)).toEqual([
+        'example:help',
+        'example:one',
+        'example:two',
+        'example:extra',
       ]);
-      expect(loader.has('extra')).toBe(false);
-      expect(loader.has('first:shared')).toBe(false);
+    } finally {
+      await cleanup(loader, directory);
+    }
+  });
+  it('groups plugin-pair conflicts and asks the other plugin even when the first has added a prefix', async () => {
+    const directory = await fixture({
+      first: { names: ['one', 'two'] },
+      second: { names: ['one', 'two'] },
+    });
+    const loader = new TerminalPlugins();
+    const conflicts: CommandConflict[] = [];
+    loader.resolveConflict = async (conflict) => {
+      conflicts.push(conflict);
+      return conflict.kind === 'cleared' ? 'b' : 'a';
+    };
+    try {
+      await loader.load(directory, 'output', []);
+      expect(conflicts.map(({ kind, names, second }) => [kind, names, second.id])).toEqual([
+        ['commands', ['one', 'two'], 'first'],
+        ['cleared', [], 'second'],
+      ]);
+      expect(loader.list().map((command) => command.name)).toEqual([
+        'first:one',
+        'first:two',
+        'one',
+        'two',
+      ]);
+    } finally {
+      await cleanup(loader, directory);
+    }
+  });
+  it('drops whole plugins and continues checking the remaining participants', async () => {
+    const directory = await fixture({
+      first: { names: ['one', 'two'] },
+      second: { names: ['one', 'two'] },
+      third: { names: ['one', 'two'] },
+    });
+    const loader = new TerminalPlugins();
+    const conflicts: CommandConflict[] = [];
+    loader.resolveConflict = async (conflict) => {
+      conflicts.push(conflict);
+      if (conflict.kind === 'cleared') {
+        return 'b';
+      }
+      return conflict.first.id === 'second' ? 'c' : 'b';
+    };
+    try {
+      await loader.load(directory, 'output', []);
+      expect(
+        conflicts
+          .filter(({ kind }) => kind === 'commands')
+          .map(({ first, second, names }) => [first.id, second.id, names]),
+      ).toEqual([
+        ['second', 'first', ['one', 'two']],
+        ['third', 'first', ['one', 'two']],
+      ]);
+      expect(loader.list().map((command) => command.description)).toEqual(['third', 'third']);
+    } finally {
+      await cleanup(loader, directory);
+    }
+  });
+  it('checks all matching identifiers before commands and keeps checking a survivor among three duplicates', async () => {
+    const directory = await fixture({
+      first: { names: ['shared'], id: 'same' },
+      second: { names: ['shared'], id: 'same' },
+      third: { names: ['shared'], id: 'same' },
+    });
+    const loader = new TerminalPlugins();
+    const conflicts: CommandConflict[] = [];
+    loader.resolveConflict = async (conflict) => {
+      conflicts.push(conflict);
+      return 'e';
+    };
+    try {
+      await loader.load(directory, 'output', []);
+      expect(conflicts.map(({ kind, first, second }) => [kind, first.id, second.id])).toEqual([
+        ['identifier', 'first', 'second'],
+        ['identifier', 'first', 'third'],
+      ]);
+      expect(loader.list().map((command) => command.description)).toEqual(['first']);
+    } finally {
+      await cleanup(loader, directory);
+    }
+  });
+  it('renames the second identifier, rejects occupied names and uses the custom identifier for commands and logger identity', async () => {
+    const directory = await fixture({
+      first: { names: ['shared'], id: 'same' },
+      second: { names: ['shared'], id: 'same' },
+      taken: { names: [], id: 'occupied' },
+    });
+    const loader = new TerminalPlugins();
+    const output: string[] = [];
+    loader.on('output', ({ text }: { text: string }) => output.push(text));
+    loader.resolveConflict = async (conflict) => {
+      if (conflict.kind === 'identifier') {
+        expect(conflict.checkIdentifier?.('occupied', 'second')).toContain('已被占用');
+        if (conflict.identifiers) {
+          conflict.identifiers.second = 'custom';
+        }
+        return 'a';
+      }
+      return 'a';
+    };
+    try {
+      await loader.load(directory, 'output', [{ name: 'shared' }]);
+      expect(loader.has('custom:shared')).toBe(true);
+      await loader.execute('custom:shared', [], { windowId: 'window', executionId: 'run' });
+      await expect.poll(() => output.includes('RUN:second:custom')).toBe(true);
+    } finally {
+      await cleanup(loader, directory);
+    }
+  });
+  it('allows both identifiers to change and rejects a duplicate proposed for the second', async () => {
+    const directory = await fixture({
+      first: { names: ['shared'], id: 'same' },
+      second: { names: ['shared'], id: 'same' },
+    });
+    const loader = new TerminalPlugins();
+    loader.resolveConflict = async (conflict) => {
+      if (conflict.kind === 'identifier') {
+        if (conflict.identifiers) {
+          conflict.identifiers.first = 'alpha';
+        }
+        expect(conflict.checkIdentifier?.('alpha', 'second')).toContain('已被占用');
+        if (conflict.identifiers) {
+          conflict.identifiers.second = 'beta';
+        }
+        return 'c';
+      }
+      return 'a';
+    };
+    try {
+      await loader.load(directory, 'output', []);
+      expect(loader.list().map((command) => command.name)).toEqual(['alpha:shared', 'beta:shared']);
+    } finally {
+      await cleanup(loader, directory);
+    }
+  });
+  it('persists renamed identifiers, prefix policies and discarded plugins across a restart', async () => {
+    const directory = await fixture({
+      auxiliaryFirst: { names: ['solo-first'], id: 'alias' },
+      auxiliarySecond: { names: ['solo-second'], id: 'alias' },
+      first: { names: ['one', 'extra'], id: 'same' },
+      second: { names: ['one'], id: 'same' },
+      third: { names: ['two'] },
+    });
+    const model = new TerminalModel();
+    const store = new StateStore(path.join(directory, 'state.json'));
+    const loader = new TerminalPlugins();
+    loader.preferences = model.pluginPreferences;
+    loader.resolveConflict = async (conflict) => {
+      if (conflict.kind === 'identifier') {
+        if (conflict.identifiers) {
+          conflict.identifiers.second = conflict.identifier === 'alias' ? 'custom-only' : 'custom';
+        }
+        return 'a';
+      }
+      return conflict.second.id === 'third' ? 'b' : 'a';
+    };
+    const commands = [{ name: 'one' }, { name: 'two' }];
+    try {
+      await store.lock();
+      await loader.load(directory, 'output', commands);
+      expect(Object.values(model.pluginPreferences)).toContainEqual({
+        policy: undefined,
+        identifier: 'custom-only',
+      });
+      const expected = loader.list().map((command) => command.name);
+      await store.save(model);
+      await loader.unload();
+      const restored = await store.load();
+      const restarted = new TerminalPlugins();
+      restarted.preferences = restored.pluginPreferences;
+      const resolve = vi.fn();
+      restarted.resolveConflict = resolve;
+      try {
+        await restarted.load(directory, 'output', commands);
+        expect(resolve).not.toHaveBeenCalled();
+        expect(restarted.list().map((command) => command.name)).toEqual(expected);
+        expect(restarted.has('custom:one')).toBe(true);
+        expect(restarted.has('two')).toBe(false);
+      } finally {
+        await restarted.unload();
+      }
+    } finally {
+      await store.release();
+      await cleanup(loader, directory);
+    }
+  });
+  it('rechecks new core collisions for plugins previously kept without a prefix', async () => {
+    const directory = await fixture({
+      first: { names: ['shared', 'future'] },
+      second: { names: ['shared'] },
+    });
+    const loader = new TerminalPlugins();
+    const conflicts: CommandConflict[] = [];
+    loader.resolveConflict = async (conflict) => {
+      conflicts.push(conflict);
+      return conflict.kind === 'cleared' ? 'b' : 'a';
+    };
+    try {
+      await loader.load(directory, 'output', []);
+      await loader.reconcile([{ name: 'shared' }]);
+      expect(conflicts.at(-1)?.second.id).toBe('second');
       expect(loader.has('second:shared')).toBe(true);
     } finally {
       await cleanup(loader, directory);
     }
   });
-  it('prompts for every pair among three plugins even after earlier commands received prefixes', async () => {
-    const directory = await fixture({ first: ['shared'], second: ['shared'], third: ['shared'] });
-    const loader = new TerminalPlugins();
-    const pairs: string[] = [];
-    loader.resolveConflict = async (conflict) => {
-      pairs.push(conflict.first.id + ':' + conflict.second.id);
-      return 'a';
-    };
-    const outputs: string[] = [];
-    loader.on('output', ({ text }: { text: string }) => outputs.push(text));
-    try {
-      await loader.load(directory, 'output', []);
-      expect(pairs).toEqual(['first:second', 'first:third', 'second:third']);
-      expect(loader.list().map((item) => item.name)).toEqual([
-        'first:shared',
-        'second:shared',
-        'third:shared',
-      ]);
-      expect(loader.list()[1].usage).toBe('second:shared <value>');
-      await loader.execute('second:shared', [], { windowId: 'window', executionId: 'run' });
-      await expect.poll(() => outputs.includes('RUN:second')).toBe(true);
-    } finally {
-      await cleanup(loader, directory);
-    }
-  });
-  it('keeps the first or second entire plugin and stops comparing a discarded owner', async () => {
-    const directory = await fixture({
-      first: ['shared', 'first-only'],
-      second: ['shared', 'second-only'],
-      third: ['shared', 'third-only'],
-    });
-    const loader = new TerminalPlugins();
-    const pairs: string[] = [];
-    loader.resolveConflict = async (conflict) => {
-      pairs.push(conflict.first.id + ':' + conflict.second.id);
-      return conflict.second.id === 'second' ? 'b' : 'c';
-    };
-    try {
-      await loader.load(directory, 'output', []);
-      expect(pairs).toEqual(['first:second', 'first:third']);
-      expect(loader.list().map((item) => item.name)).toEqual(['shared', 'third-only']);
-      expect(loader.has('first-only')).toBe(false);
-      expect(loader.has('second-only')).toBe(false);
-    } finally {
-      await cleanup(loader, directory);
-    }
-  });
-  it('does not ask about additional commands after either participant was rejected', async () => {
-    const directory = await fixture({
-      first: ['one', 'two'],
-      second: ['one', 'two'],
-      third: ['one', 'two'],
-    });
-    const loader = new TerminalPlugins();
-    const conflicts: string[] = [];
-    loader.resolveConflict = async (conflict) => {
-      conflicts.push(`${conflict.first.id}:${conflict.second.id}:${conflict.name}`);
-      return conflict.second.id === 'second' ? 'c' : 'b';
-    };
-    try {
-      await loader.load(directory, 'output', []);
-      expect(conflicts).toEqual(['first:second:one', 'second:third:one']);
-      expect(loader.list().map((item) => item.description)).toEqual(['second', 'second']);
-    } finally {
-      await cleanup(loader, directory);
-    }
-  });
-  it('serializes terminal and core conflicts, then handles core commands registered after loading', async () => {
-    const directory = await fixture({ first: ['help', 'future'] });
-    const loader = new TerminalPlugins();
-    const conflicts: CommandConflict[] = [];
-    loader.resolveConflict = async (conflict) => {
-      conflicts.push(conflict);
-      return 'a';
-    };
-    try {
-      await loader.load(directory, 'output', [{ name: 'help' }]);
-      expect(conflicts.map((item) => item.first.kind)).toEqual(['terminal', 'core']);
-      expect(loader.has('first:help')).toBe(true);
-      await loader.reconcile([{ name: 'help' }, { name: 'future' }]);
-      expect(conflicts.map((item) => item.name)).toEqual(['help', 'help', 'future']);
-      expect(loader.has('first:future')).toBe(true);
-      await loader.reconcile([{ name: 'help' }, { name: 'future' }]);
-      expect(conflicts).toHaveLength(3);
-    } finally {
-      await cleanup(loader, directory);
-    }
-  });
-  it('waits for valid keyboard decisions before publishing commands', async () => {
-    const directory = await fixture({ example: ['shared'] });
+  it('provides a fixed colon for keyboard choices, retains window drafts and retries invalid choices', async () => {
+    const directory = await fixture({ example: { names: ['one', 'two'] } });
     const model = new TerminalModel();
     model.switch(model.windows[1].id);
     model.record(model.active, 'old');
     model.setInput('saved draft', 11);
     const core = new CoreConnection({ args: [] });
     const controller = new TerminalController(model, core);
-    core.emit('commands', [{ name: 'shared' }]);
-    const loading = controller.plugins.load(directory, model.output.id, [{ name: 'shared' }]);
+    core.emit('commands', [{ name: 'one' }, { name: 'two' }]);
+    const loading = controller.plugins.load(directory, model.output.id, [
+      { name: 'one' },
+      { name: 'two' },
+    ]);
     try {
-      await expect.poll(() => model.confirmation?.text).toContain(':a');
-      expect(model.confirmation?.text).toContain(':b');
-      expect(model.confirmation?.text).not.toContain(':c');
-      expect(controller.plugins.has('shared')).toBe(false);
+      await expect.poll(() => model.confirmation?.text).toContain('one、two');
+      expect(model.text).toBe(':');
+      await controller.key({ name: 'backspace', sequence: '' });
+      expect(model.text).toBe(':');
+      await controller.key({ name: 'text', sequence: 'c' });
+      await controller.key({ name: 'enter', sequence: '\r' });
+      expect(model.confirmation?.text).toContain('请输入 :a、:b');
+      expect(model.text).toBe(':');
       controller.renderer.frame(model);
       await controller.key({ name: 'up', sequence: '' });
       expect(model.active.draft).toBe('saved draft');
-      for (const sequence of ':c') {
-        await controller.key({ name: 'text', sequence });
-      }
-      await controller.key({ name: 'enter', sequence: '\r' });
-      expect(model.confirmation?.text).toContain('请输入 :a 或 :b');
-      for (const sequence of ':a') {
-        await controller.key({ name: 'text', sequence });
-      }
+      await controller.key({ name: 'text', sequence: 'a' });
       await controller.key({ name: 'enter', sequence: '\r' });
       await loading;
-      expect(controller.plugins.has('example:shared')).toBe(true);
+      expect(controller.plugins.has('example:one')).toBe(true);
+      expect(controller.plugins.has('example:two')).toBe(true);
     } finally {
       await cleanup(controller.plugins, directory);
     }
   });
-  it('does not silently choose a prefix when no conflict decision UI is available', async () => {
-    const directory = await fixture({ example: ['help', 'extra'] });
+  it('does not silently choose a policy without a decision UI', async () => {
+    const directory = await fixture({ example: { names: ['help', 'extra'] } });
     const loader = new TerminalPlugins();
     const output = vi.fn();
     loader.on('output', output);
@@ -184,7 +304,6 @@ describe('pairwise terminal command conflict decisions', () => {
       expect(loader.has('extra')).toBe(false);
       expect(loader.has('example:help')).toBe(false);
       expect(output.mock.calls.some(([event]) => event.text.includes('需要交互裁决'))).toBe(true);
-      expect(loader.registry.busy()).toBe(false);
     } finally {
       await cleanup(loader, directory);
     }

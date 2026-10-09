@@ -167,8 +167,8 @@ describe('terminal windows and input', () => {
     model.writePanel(Array.from({ length: 50 }, (_, index) => `output ${index}`).join('\n'));
     model.finishPanel(panel);
     frame = renderer.frame(model, 0);
-    expect(renderer.panelAt(18)).toBe(true);
-    expect(renderer.panelAt(17)).toBe(false);
+    expect(renderer.panelAt(12)).toBe(true);
+    expect(renderer.panelAt(11)).toBe(false);
     expect(frame).toContain('\x1b[38;2;');
     expect(frame).toContain('\x1b[48;2;');
     expect(frame).not.toContain('\x1b[7m');

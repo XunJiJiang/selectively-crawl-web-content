@@ -80,6 +80,7 @@ export class StateStore {
       activeId: model.activeId,
       globalDraft: model.globalDraft,
       globalHistory: model.globalHistory,
+      pluginPreferences: model.pluginPreferences,
       transparentBackground: model.transparentBackground,
       windows: model.windows.map(({ input: _input, ...window }) => window),
     });
@@ -212,6 +213,36 @@ export function restoreState(value: unknown): TerminalModel {
       ? value.globalHistory.filter((item): item is string => typeof item === 'string').slice(-1000)
       : [];
   model.globalHistoryCursor = model.globalHistory.length;
+  if (
+    'pluginPreferences' in value &&
+    value.pluginPreferences &&
+    typeof value.pluginPreferences === 'object' &&
+    !Array.isArray(value.pluginPreferences)
+  ) {
+    for (const [key, preference] of Object.entries(value.pluginPreferences).slice(-10000)) {
+      if (!/^[a-f0-9]{64}$/.test(key) || !preference || typeof preference !== 'object') {
+        continue;
+      }
+      const policy = 'policy' in preference ? preference.policy : undefined;
+      const identifier =
+        'identifier' in preference &&
+        typeof preference.identifier === 'string' &&
+        preference.identifier.length <= 64 &&
+        /^[^\s:/\\\x00-\x1f\x7f]+$/u.test(preference.identifier)
+          ? preference.identifier
+          : undefined;
+      if (
+        (policy === undefined || ['prefix', 'plain', 'discard'].includes(String(policy))) &&
+        (policy !== undefined || identifier !== undefined)
+      ) {
+        model.pluginPreferences[key] = {
+          policy: policy as 'prefix' | 'plain' | 'discard' | undefined,
+          identifier,
+        };
+      }
+    }
+  }
+
   model.transparentBackground = !(
     'transparentBackground' in value && value.transparentBackground === false
   );

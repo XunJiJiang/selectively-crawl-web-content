@@ -1,7 +1,7 @@
 {
   "version": 1,
   "created_at": "2026-10-08T13:03:04Z",
-  "updated_at": "2026-10-09T13:39:23Z",
+  "updated_at": "2026-10-09T14:59:22Z",
   "files": {
     ".gitattributes": {
       "role": "index",
@@ -11,9 +11,9 @@
     },
     ".gitignore": {
       "role": "index",
-      "sha256": "e16a34ed5a7dd2e02e941a5adff90416aed7ee6bb328585e86fdae6d4feb0dd9",
-      "size": 2812,
-      "normalized_sha256": "e16a34ed5a7dd2e02e941a5adff90416aed7ee6bb328585e86fdae6d4feb0dd9"
+      "sha256": "33f670df7328940421e0465ed64c0c3e0bd5d818a63cba57cb1e6063e1d7c2b1",
+      "size": 2957,
+      "normalized_sha256": "33f670df7328940421e0465ed64c0c3e0bd5d818a63cba57cb1e6063e1d7c2b1"
     },
     ".vscode/extensions.json": {
       "role": "index",
@@ -53,9 +53,9 @@
     },
     "aoci.code.txt": {
       "role": "index",
-      "sha256": "0685adbccd2e86347ff7d898c5cac1d1801f92ed493d6f532d0aa95956cc6a81",
-      "size": 174507,
-      "normalized_sha256": "0685adbccd2e86347ff7d898c5cac1d1801f92ed493d6f532d0aa95956cc6a81"
+      "sha256": "538ffb6a36b60490321a01a379bfbc6138c90dc058924a854c5a0a1d1e52ef6a",
+      "size": 175400,
+      "normalized_sha256": "538ffb6a36b60490321a01a379bfbc6138c90dc058924a854c5a0a1d1e52ef6a"
     },
     "aoci.meta.txt": {
       "role": "index",
@@ -6559,9 +6559,9 @@
     },
     "projects/terminal/README.md": {
       "role": "observe",
-      "sha256": "6eb2e4d8d531468b0dc581160d167e67005079dff2a9894c59fc6e130448061d",
-      "size": 12711,
-      "normalized_sha256": "6eb2e4d8d531468b0dc581160d167e67005079dff2a9894c59fc6e130448061d"
+      "sha256": "0097dbf9588e6dcfcde3a23e25de5770126db751a3d72697567e90140e28dab4",
+      "size": 14660,
+      "normalized_sha256": "0097dbf9588e6dcfcde3a23e25de5770126db751a3d72697567e90140e28dab4"
     },
     "projects/terminal/clipboard.ts": {
       "role": "index",
@@ -6577,9 +6577,9 @@
     },
     "projects/terminal/controller.ts": {
       "role": "index",
-      "sha256": "4f64e36bd0920621e9e6f301ed6dea4209e498cf3ac2e6b0ec53446f32876789",
-      "size": 39783,
-      "normalized_sha256": "4f64e36bd0920621e9e6f301ed6dea4209e498cf3ac2e6b0ec53446f32876789"
+      "sha256": "e265e80b27fc7bb71696683be941cfa22e75f3558dab0b708a2249c7e1260ba4",
+      "size": 42096,
+      "normalized_sha256": "e265e80b27fc7bb71696683be941cfa22e75f3558dab0b708a2249c7e1260ba4"
     },
     "projects/terminal/core.ts": {
       "role": "index",
@@ -6589,9 +6589,9 @@
     },
     "projects/terminal/editing.test.ts": {
       "role": "index",
-      "sha256": "c84d2fc8e9614acf56c795df3f539b9b39402b1c73b751cbae92cb7a42a748c2",
-      "size": 11082,
-      "normalized_sha256": "c84d2fc8e9614acf56c795df3f539b9b39402b1c73b751cbae92cb7a42a748c2"
+      "sha256": "12dee98b5c63ab99c492451abb05b8bf87a39e535d807c135eae4219ded44a14",
+      "size": 11101,
+      "normalized_sha256": "12dee98b5c63ab99c492451abb05b8bf87a39e535d807c135eae4219ded44a14"
     },
     "projects/terminal/global.ts": {
       "role": "index",
@@ -6613,15 +6613,15 @@
     },
     "projects/terminal/model.test.ts": {
       "role": "index",
-      "sha256": "70d4ec895348b9bc79e62020a55c6e48cbe9349a5c46e0366c25ab98fa91cd05",
+      "sha256": "f1f3a4692766504a4d2fe844196ddff8e0ecfeec15a76632c3fc2b3c9f01359d",
       "size": 8352,
-      "normalized_sha256": "70d4ec895348b9bc79e62020a55c6e48cbe9349a5c46e0366c25ab98fa91cd05"
+      "normalized_sha256": "f1f3a4692766504a4d2fe844196ddff8e0ecfeec15a76632c3fc2b3c9f01359d"
     },
     "projects/terminal/model.ts": {
       "role": "index",
-      "sha256": "9b5845822f630ee7918517dbc45451fe8b665d0d52b923fc6783ed2279125f4d",
-      "size": 18893,
-      "normalized_sha256": "9b5845822f630ee7918517dbc45451fe8b665d0d52b923fc6783ed2279125f4d"
+      "sha256": "b36f40e762e45e49ceb3e43980416672409b6b135b89f1b7ab92c71fb7a1ea00",
+      "size": 20123,
+      "normalized_sha256": "b36f40e762e45e49ceb3e43980416672409b6b135b89f1b7ab92c71fb7a1ea00"
     },
     "projects/terminal/package.json": {
       "role": "index",
@@ -6643,33 +6643,39 @@
     },
     "projects/terminal/plugin/conflicts.test.ts": {
       "role": "index",
-      "sha256": "fee2ed927a7595996d0565bd05c23c7fca24bdec4d261fb19da4a2cf24e2fb00",
-      "size": 8275,
-      "normalized_sha256": "fee2ed927a7595996d0565bd05c23c7fca24bdec4d261fb19da4a2cf24e2fb00"
+      "sha256": "712b269b10d14e68856afa1cc436b6d6248750f475b7f9cc32f6cd071671020c",
+      "size": 12409,
+      "normalized_sha256": "712b269b10d14e68856afa1cc436b6d6248750f475b7f9cc32f6cd071671020c"
     },
     "projects/terminal/plugin/global.test.ts": {
       "role": "index",
-      "sha256": "ff2c004f6208283257c18333069955e19bd32457473f95e544c8f24c1ea0f99f",
+      "sha256": "0fbdb22a9f1c0deb5fe9290a70ec59a3ee6e160a37d160cc7b27487789e18e71",
       "size": 6112,
-      "normalized_sha256": "ff2c004f6208283257c18333069955e19bd32457473f95e544c8f24c1ea0f99f"
+      "normalized_sha256": "0fbdb22a9f1c0deb5fe9290a70ec59a3ee6e160a37d160cc7b27487789e18e71"
     },
     "projects/terminal/plugin/host.ts": {
       "role": "index",
-      "sha256": "b5110280d82c090407f281c461fb976c8a28c6bffe0a254e2a557ec945ee4779",
-      "size": 5155,
-      "normalized_sha256": "b5110280d82c090407f281c461fb976c8a28c6bffe0a254e2a557ec945ee4779"
+      "sha256": "9a9995d7d871b213d913bf385ba6be34f50c7c20523ece865407b8d342179748",
+      "size": 5710,
+      "normalized_sha256": "9a9995d7d871b213d913bf385ba6be34f50c7c20523ece865407b8d342179748"
+    },
+    "projects/terminal/plugin/interactions.test.ts": {
+      "role": "index",
+      "sha256": "3414a4b9e478c981a4a5e9ac11f56eeeac1ced693596132a390f9b552a0dc3a1",
+      "size": 5239,
+      "normalized_sha256": "3414a4b9e478c981a4a5e9ac11f56eeeac1ced693596132a390f9b552a0dc3a1"
     },
     "projects/terminal/plugin/load.ts": {
       "role": "index",
-      "sha256": "55821229a5f0696e33362a93c4e5bd93aefc47888cb6e659307f49d01ead51f8",
-      "size": 16290,
-      "normalized_sha256": "55821229a5f0696e33362a93c4e5bd93aefc47888cb6e659307f49d01ead51f8"
+      "sha256": "ac7dbbad854245c63351dcf15d36108e80b009f68d83fc30aeb434aa1abe0969",
+      "size": 21146,
+      "normalized_sha256": "ac7dbbad854245c63351dcf15d36108e80b009f68d83fc30aeb434aa1abe0969"
     },
     "projects/terminal/plugin/types.d.ts": {
       "role": "index",
-      "sha256": "46a3fa8c4137e24bd3f70e2096e6a238eca329b697ab0c97045bb8596282942e",
-      "size": 572,
-      "normalized_sha256": "46a3fa8c4137e24bd3f70e2096e6a238eca329b697ab0c97045bb8596282942e"
+      "sha256": "d9d783e87b679a1f11e8afebdedc887ab0eb0cc2653e7e6d07c4c7b7153ae1e1",
+      "size": 1076,
+      "normalized_sha256": "d9d783e87b679a1f11e8afebdedc887ab0eb0cc2653e7e6d07c4c7b7153ae1e1"
     },
     "projects/terminal/plugins/global.test.ts": {
       "role": "index",
@@ -6691,15 +6697,15 @@
     },
     "projects/terminal/plugins/plugin-env.d.ts": {
       "role": "index",
-      "sha256": "d6661c21b010f76b5e5b16efa2638add36ab713c79ccd841de705e1851a54ce5",
-      "size": 2575,
-      "normalized_sha256": "d6661c21b010f76b5e5b16efa2638add36ab713c79ccd841de705e1851a54ce5"
+      "sha256": "2262a0643dd490537c898eda17354dfb2c5c18a995d1e590bb53d59913e1925a",
+      "size": 2684,
+      "normalized_sha256": "2262a0643dd490537c898eda17354dfb2c5c18a995d1e590bb53d59913e1925a"
     },
     "projects/terminal/plugins/scwc/index.ts": {
       "role": "index",
-      "sha256": "a8842a5e53eefaf108cd97517fbab87fffde332a6adf65df7fdc2ef49fbb0635",
-      "size": 1154,
-      "normalized_sha256": "a8842a5e53eefaf108cd97517fbab87fffde332a6adf65df7fdc2ef49fbb0635"
+      "sha256": "137c2b6b3c2e43ee7c2d4836d6e413cd3c58cddba0b9f64ec18b8f358999f059",
+      "size": 1114,
+      "normalized_sha256": "137c2b6b3c2e43ee7c2d4836d6e413cd3c58cddba0b9f64ec18b8f358999f059"
     },
     "projects/terminal/plugins/scwc/package.json": {
       "role": "index",
@@ -6751,15 +6757,15 @@
     },
     "projects/terminal/render.ts": {
       "role": "index",
-      "sha256": "4c4f997bcab774aaa1c63f4e5c69b61ccde9b3b09474e6c44bbd4d7354233e24",
-      "size": 24303,
-      "normalized_sha256": "4c4f997bcab774aaa1c63f4e5c69b61ccde9b3b09474e6c44bbd4d7354233e24"
+      "sha256": "11a7e4bb08a4c4af5ab60b8cb68253b6461e081cbec54f769ccdd8d0a8889f75",
+      "size": 24480,
+      "normalized_sha256": "11a7e4bb08a4c4af5ab60b8cb68253b6461e081cbec54f769ccdd8d0a8889f75"
     },
     "projects/terminal/smoke.ts": {
       "role": "index",
-      "sha256": "63f74b7e5810d635f779740059048494e0e1d555175577f9f720c66ef9983c20",
-      "size": 16427,
-      "normalized_sha256": "63f74b7e5810d635f779740059048494e0e1d555175577f9f720c66ef9983c20"
+      "sha256": "1ec66d954b4d8c65caf53b0468e6bcdf30c221655dd932a066d564525ad656d5",
+      "size": 16368,
+      "normalized_sha256": "1ec66d954b4d8c65caf53b0468e6bcdf30c221655dd932a066d564525ad656d5"
     },
     "projects/terminal/storage.test.ts": {
       "role": "index",
@@ -6769,9 +6775,9 @@
     },
     "projects/terminal/storage.ts": {
       "role": "index",
-      "sha256": "2211cfd993d96de48bd608ca933423117f6025122f43517e4cfc7456fe42383e",
-      "size": 7899,
-      "normalized_sha256": "2211cfd993d96de48bd608ca933423117f6025122f43517e4cfc7456fe42383e"
+      "sha256": "52fe8b206d1dfa6290fda960c1f3cdcbcf1da4e646e2ef12507980eb5f7e630d",
+      "size": 9032,
+      "normalized_sha256": "52fe8b206d1dfa6290fda960c1f3cdcbcf1da4e646e2ef12507980eb5f7e630d"
     },
     "projects/terminal/vitest.config.ts": {
       "role": "index",

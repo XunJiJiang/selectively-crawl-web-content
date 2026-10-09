@@ -86,7 +86,7 @@ export async function smokeTerminal(
   const controller = new TerminalController(model, core);
   controller.plugins.resolveConflict = async (conflict) => {
     assert.equal(conflict.second.id, 'scwc');
-    assert.equal(conflict.first.kind, 'core');
+    assert.equal(conflict.first.kind, 'system');
     return 'a';
   };
   const store = new StateStore(path.join(deployment, 'wire-state.json'));
@@ -228,7 +228,7 @@ export async function smokeTerminal(
   try {
     await waitFor(() => lineOutput.includes('TERMINAL_CORE_READY'), '逐行终端启动');
     await new Promise((resolve) => setTimeout(resolve, 100));
-    lineTerminal.stdin.write(':a\n:a\nsmoke input\npipe name\ninvalid\n11\nfalse\n');
+    lineTerminal.stdin.write('a\nsmoke input\npipe name\ninvalid\n11\nfalse\n');
     await waitFor(
       () => lineOutput.includes('INPUT_RESULT:pipe name:11:false'),
       '预先输入的管道回复',
@@ -280,10 +280,8 @@ def until(text,timeout=15):
 def send(data): os.write(master,data)
 try:
  until('TERMINAL_CORE_READY')
- until('命令 "server" 冲突')
- send(b':a\r')
- until('命令 "plugin" 冲突')
- send(b':a\r')
+ until('server、plugin')
+ send(b'a\r')
  time.sleep(.15)
  send(b'\tsmoke input\r')
  until('INPUT_NAME?')
