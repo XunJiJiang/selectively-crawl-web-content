@@ -79,6 +79,7 @@ export class StateStore {
       version: 1,
       activeId: model.activeId,
       globalDraft: model.globalDraft,
+      transparentBackground: model.transparentBackground,
       windows: model.windows.map(({ input: _input, ...window }) => window),
     });
     this.writing = this.writing
@@ -165,6 +166,14 @@ export function restoreState(value: unknown): TerminalModel {
       id,
       kind: entry.kind,
       number,
+      title:
+        entry.kind === 'command' && typeof entry.title === 'string'
+          ? sanitizeOutput(entry.title)
+              .replace(/\x1b\[[\d;]*m/g, '')
+              .replace(/\n/g, ' ')
+              .trim()
+              .slice(0, 256) || undefined
+          : undefined,
       lines,
       bytes,
       lineOffset: Math.max(0, Number(entry.lineOffset) || 0),
@@ -197,5 +206,8 @@ export function restoreState(value: unknown): TerminalModel {
       ? value.globalDraft.slice(0, 65536)
       : '';
   model.globalCursor = model.globalDraft.length;
+  model.transparentBackground = !(
+    'transparentBackground' in value && value.transparentBackground === false
+  );
   return model;
 }

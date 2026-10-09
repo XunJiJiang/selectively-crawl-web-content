@@ -45,7 +45,10 @@ describe('terminal input routing', () => {
       message: 'prompt?',
       type: 'string',
     });
-    window.input!.draft = 'draft';
+    expect(window.input).toBeDefined();
+    if (window.input) {
+      window.input.draft = 'draft';
+    }
     await controller.key({ name: 'c', ctrl: true, sequence: '\x03' });
     expect(call).toHaveBeenCalledExactlyOnceWith('input.answer', {
       id: 'input',
@@ -138,12 +141,12 @@ describe('terminal input routing', () => {
     expect(model.globalDraft).toBe('run 1 fetch https://x');
     expect(model.mode).toBe('global');
   });
-  it('ignores mouse motion during confirmation and cancels only from keyboard input', async () => {
+  it('keeps confirmations until an explicit valid answer and Enter', async () => {
     const model = new TerminalModel();
-    const controller = new TerminalController(model, new CoreConnection({ args: [] }));
-    const accept = vi.fn();
-    const decline = vi.fn();
-    model.ask('confirm?', accept, decline);
+    const core = new CoreConnection({ args: [] });
+    const call = vi.spyOn(core, 'call').mockResolvedValue(undefined);
+    const controller = new TerminalController(model, core);
+    core.emit('confirmation.request', { id: 'config', text: 'confirm?' });
     await controller.key({
       name: 'mouse',
       sequence: '',
@@ -151,8 +154,17 @@ describe('terminal input routing', () => {
     });
     expect(model.confirmation).toBeDefined();
     await controller.key({ name: 'text', sequence: 'x' });
-    expect(decline).toHaveBeenCalledOnce();
-    expect(accept).not.toHaveBeenCalled();
+    expect(call).not.toHaveBeenCalled();
+    await controller.key({ name: 'enter', sequence: '\r' });
+    expect(model.confirmation?.text).toContain('请输入 :y 或 :n');
+    expect(call).not.toHaveBeenCalled();
+    await controller.line(':n');
+    expect(call).toHaveBeenCalledExactlyOnceWith('confirmation.answer', {
+      id: 'config',
+      answer: false,
+    });
+    expect(model.panel).toBeUndefined();
+    expect(model.mode).toBe('normal');
   });
   it('allows editing a new window without changing the original command draft', async () => {
     const model = new TerminalModel();
@@ -163,9 +175,156 @@ describe('terminal input routing', () => {
     model.setInput('original', 8);
     await controller.global('new');
     await controller.key({ name: 'text', sequence: 'i' });
-    expect(model.active.draft).toBe('i');
+    expect(model.mode).toBe('command');
+    expect(model.active.draft).toBe('');
     expect(original.draft).toBe('original');
     await controller.global('s 1');
     expect(model.active.draft).toBe('original');
+  });
+  it('leaves global input after a command with no output and requires a new colon', async () => {
+    const model = new TerminalModel();
+    const controller = new TerminalController(model, new CoreConnection({ args: [] }));
+    for (const sequence of ':new') {
+      await controller.key({ name: 'text', sequence });
+    }
+    await controller.key({ name: 'enter', sequence: '\r' });
+    expect(model.windows).toHaveLength(3);
+    expect(model.mode).toBe('normal');
+    expect(model.globalDraft).toBe('');
+    await controller.key({ name: 'text', sequence: 'n' });
+    expect(model.windows).toHaveLength(3);
+    await controller.key({ name: 'text', sequence: ':' });
+    expect(model.mode).toBe('global');
+  });
+  it('cycles completion previews without narrowing candidates and commits on Space or Enter', async () => {
+    const model = new TerminalModel();
+    const controller = new TerminalController(model, new CoreConnection({ args: [] }));
+    for (const sequence of ':r') {
+      await controller.key({ name: 'text', sequence });
+    }
+    expect(model.globalCandidates.map((item) => item.name)).toEqual(['rename', 'restart', 'run']);
+    await controller.key({ name: 'tab', sequence: '\t' });
+    expect(model.displayText).toBe('rename');
+    expect(model.globalDraft).toBe('r');
+    await controller.key({ name: 'tab', sequence: '\t' });
+    expect(model.displayText).toBe('restart');
+    expect(model.globalCandidates).toHaveLength(3);
+    await controller.key({ name: 'tab', sequence: '\x1b[Z', shift: true });
+    expect(model.displayText).toBe('rename');
+    await controller.key({ name: 'text', sequence: ' ' });
+    expect(model.globalDraft).toBe('rename ');
+    expect(model.globalCandidates).toEqual([]);
+    expect(controller.renderer.frame(model)).toContain('rename [new title] <tab id>');
+    for (const sequence of 'new-title 1') {
+      await controller.key({ name: 'text', sequence });
+    }
+    await controller.key({ name: 'enter', sequence: '\r' });
+    expect(model.title(model.windows[1])).toBe('new-title');
+    for (const sequence of ':h') {
+      await controller.key({ name: 'text', sequence });
+    }
+    await controller.key({ name: 'tab', sequence: '\t' });
+    await controller.key({ name: 'enter', sequence: '\r' });
+    expect(model.panel?.command).toBe('help');
+  });
+  it('keeps help only in the transient panel and scrolls it until Escape', async () => {
+    const model = new TerminalModel();
+    model.switch(model.windows[1].id);
+    const controller = new TerminalController(model, new CoreConnection({ args: [] }));
+    controller.commands = Array.from({ length: 30 }, (_, i) => ({
+      name: `plugin${i}`,
+      description: 'desc',
+    }));
+    await controller.global('help');
+    expect(model.mode).toBe('global-output');
+    expect(model.panel?.running).toBe(false);
+    expect(model.windows.every((window) => !window.lines.length && !window.history.length)).toBe(
+      true,
+    );
+    controller.renderer.frame(model);
+    await controller.key({ name: 'up', sequence: '\x1b[A' });
+    expect(model.panel?.scroll).toBe(1);
+    expect(model.active.scroll).toBe(0);
+    await controller.key({
+      name: 'mouse',
+      sequence: '',
+      mouse: { row: 15, column: 2, button: 64, release: false },
+    });
+    expect(model.panel?.scroll).toBe(4);
+    await controller.key({ name: 'text', sequence: 'new' });
+    await controller.key({ name: 'enter', sequence: '\r' });
+    expect(model.windows).toHaveLength(2);
+    await controller.key({ name: 'escape', sequence: '\x1b' });
+    expect(model.panel).toBeUndefined();
+    expect(model.mode).toBe('normal');
+    await controller.global('help');
+    expect(model.panel?.lines.filter((line) => line.startsWith('全局命令'))).toHaveLength(1);
+  });
+  it('renames only command tabs, including inactive tabs and running tasks', async () => {
+    const model = new TerminalModel();
+    const window = model.windows[1];
+    const controller = new TerminalController(model, new CoreConnection({ args: [] }));
+    await controller.global('rename "采集任务" 1');
+    expect(model.title(window)).toBe('采集任务');
+    model.switch(window.id);
+    await controller.global('rename "新名称 with spaces"');
+    model.execution({
+      windowId: window.id,
+      executionId: 'task',
+      command: 'fetch',
+      status: 'running',
+    });
+    expect(model.title(window)).toBe('新名称 with spaces');
+    await controller.global('rename bad 0');
+    expect(model.title(model.output)).toBe('输出');
+    expect(model.panel?.lines.join('\n')).toContain('不能重命名');
+    await controller.global('rename');
+    expect(model.panel?.lines.join('\n')).toContain('参数错误');
+  });
+  it('dismisses notices on the next operation and returns normal Escape to the bottom', async () => {
+    const model = new TerminalModel();
+    const controller = new TerminalController(model, new CoreConnection({ args: [] }));
+    model.message = 'notice';
+    await controller.key({
+      name: 'mouse',
+      sequence: '',
+      mouse: { row: 0, column: 2, button: 32, release: false },
+    });
+    expect(model.message).toBe('notice');
+    await controller.key({ name: 'up', sequence: '\x1b[A' });
+    expect(model.message).toBe('');
+    model.output.scroll = 10;
+    model.output.anchor = { line: 2, offset: 0 };
+    await controller.key({ name: 'escape', sequence: '\x1b' });
+    expect(model.output.scroll).toBe(0);
+    expect(model.output.anchor).toBeUndefined();
+    await controller.global('transparent-bg false');
+    expect(model.transparentBackground).toBe(false);
+    expect(model.mode).toBe('normal');
+  });
+  it('advances replacement and forced cancellation through multiple next calls', async () => {
+    const model = new TerminalModel();
+    const window = model.windows[1];
+    const core = new CoreConnection({ args: [] });
+    const call = vi.spyOn(core, 'call').mockResolvedValue(undefined);
+    const controller = new TerminalController(model, core);
+    vi.spyOn(controller.plugins, 'cancel').mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+    model.execution({ windowId: window.id, executionId: 'old', command: 'old', status: 'running' });
+    await controller.global('run 1 next-task');
+    expect(model.confirmation?.text).toContain('终止并执行');
+    await controller.line('invalid');
+    expect(model.confirmation?.text).toContain('请输入 :y 或 :n');
+    expect(window.task?.executionId).toBe('old');
+    await controller.line(':y');
+    expect(model.confirmation?.text).toContain('整个插件进程');
+    expect(window.history).toEqual([]);
+    await controller.line(':y');
+    expect(call).toHaveBeenCalledWith(
+      'command.execute',
+      expect.objectContaining({ command: 'next-task', windowId: window.id }),
+    );
+    expect(window.history).toEqual(['next-task']);
+    expect(model.panel).toBeUndefined();
+    expect(model.mode).toBe('normal');
   });
 });

@@ -157,12 +157,10 @@ export async function smokeTerminal(
     assert(!second.lines.some((line) => line.includes('OWNERSHIP:' + original.id)));
     await controller.global('run 1 smoke quick');
     assert(model.confirmation);
-    await model.confirmKey(':n');
-    await model.confirmKey('', true);
+    await controller.line(':n');
     assert(original.task);
     await controller.global('run 1 smoke quick');
-    await model.confirmKey(':y');
-    await model.confirmKey('', true);
+    await controller.line(':y');
     await waitFor(() => !original.task, '确认替换并协作取消');
     await controller.global('run 2 relay');
     await waitFor(
@@ -183,11 +181,10 @@ export async function smokeTerminal(
     await controller.global('run 2 smoke hold');
     await waitFor(() => replacement.task?.status === 'background', '不可协作后台任务');
     await controller.global('run 2 smoke quick');
-    await model.confirmKey(':y');
-    await model.confirmKey('', true);
+    await controller.line(':y');
     assert(model.confirmation?.text.includes('整个插件进程'));
-    await model.confirmKey(':y');
-    await assert.rejects(model.confirmKey('', true), /不可用|停止|未就绪/);
+    await controller.line(':y');
+    assert(model.panel?.lines.some((line) => /不可用|停止|未就绪/.test(line)));
     await waitFor(() => !replacement.task, '强停插件中断旧任务');
     assert(replacement.lines.some((line) => line.includes('interrupted')));
     const ids = model.windows.map((window) => window.id);
@@ -238,7 +235,13 @@ export async function smokeTerminal(
       '输入流关闭返回错误元组',
     );
     lineTerminal.kill('SIGTERM');
-    assert.equal((await lineClosed)[0], 0, lineOutput);
+    const [exitCode, signal] = await lineClosed;
+    if (process.platform === 'win32') {
+      // Node terminates Windows children directly; SIGTERM is not a catchable signal there.
+      assert.equal(signal, 'SIGTERM', lineOutput);
+    } else {
+      assert.equal(exitCode, 0, lineOutput);
+    }
   } finally {
     if (lineTerminal.exitCode === null) {
       lineTerminal.kill('SIGKILL');

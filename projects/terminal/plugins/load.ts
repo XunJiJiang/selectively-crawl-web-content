@@ -8,6 +8,7 @@ import { isPackaged, ROOT, SERVER_ROOT } from '../../server/common/paths.ts';
 import { TaskRegistry } from '../../server/common/tasks.ts';
 import { inputReply } from '../../server/common/interaction.ts';
 import { colorEnvironment } from '../../server/common/color.ts';
+import { reservedCommands } from '../global.ts';
 import type { InputRequest, InvocationIdentity, TaskSnapshot } from '../../server/types/task.d.ts';
 import type { OutputEvent, CommandInfo } from '../protocol.ts';
 
@@ -169,24 +170,9 @@ export class TerminalPlugins extends EventEmitter {
         };
         this.loaded.push(loaded);
         for (const info of infos) {
-          const reserved = [
-            'exit',
-            'restart',
-            'help',
-            'q',
-            'w',
-            'r',
-            's',
-            'c',
-            'new',
-            'run',
-            'cancel',
-            'close',
-            'switch',
-          ];
           let name = info.name;
           if (
-            reserved.includes(name) ||
+            reservedCommands.includes(name) ||
             this.commands.has(name) ||
             coreCommands.some((item) => item.name === name)
           ) {

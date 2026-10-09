@@ -1,12 +1,22 @@
 import { randomUUID } from 'node:crypto';
 import type { ExecutionEvent, OutputEvent } from './protocol.ts';
-import type { InputFailure, InputRequest } from '../server/types/task.d.ts';
+import type {
+  InputConstructor,
+  InputFailure,
+  InputRequest,
+  InputResult,
+  InputValue,
+  InputFormat,
+} from '../server/types/task.d.ts';
+import { InvocationInputError, formatInput, inputFormat } from '../server/common/interaction.ts';
+import { globalCommands } from './global.ts';
 
-export type Mode = 'normal' | 'command' | 'global' | 'confirmation';
+export type Mode = 'normal' | 'command' | 'global' | 'global-output' | 'confirmation';
 export interface WindowState {
   id: string;
   kind: 'output' | 'command';
   number?: number;
+  title?: string;
   lines: string[];
   bytes: number;
   lineOffset: number;
@@ -26,12 +36,22 @@ export interface WindowState {
     answer(value?: string, error?: InputFailure): Promise<void>;
   };
 }
-export interface Confirmation {
+export interface PanelInput {
   text: string;
-  input: string;
-  before: Mode;
-  accept: () => Promise<void> | void;
-  decline?: () => Promise<void> | void;
+  type: InputFormat;
+  draft: string;
+  cursor: number;
+  selection?: number;
+  reply(value?: string, error?: InvocationInputError): void;
+}
+export interface CommandPanel {
+  command: string;
+  lines: string[];
+  bytes: number;
+  scroll: number;
+  running: boolean;
+  input?: PanelInput;
+  step: PromiseWithResolvers<void>;
 }
 export function sanitizeOutput(text: string) {
   // Keep SGR colors, remove OSC/DCS/other CSI sequences and screen controls.
@@ -54,7 +74,10 @@ export class TerminalModel {
   globalDraft = '';
   globalCursor = 0;
   globalSelection?: number;
-  confirmation?: Confirmation;
+  completionIndex = 0;
+  completionPreview = false;
+  panel?: CommandPanel;
+  transparentBackground = true;
   message = '';
   tabOffset = 0;
   private boundary?: { direction: number; time: number };
@@ -86,6 +109,9 @@ export class TerminalModel {
   get output() {
     return this.windows[0];
   }
+  get confirmation() {
+    return this.panel?.input;
+  }
   byIndex(value: string) {
     if (!/^\d+$/.test(value) || !this.windows[Number(value)]) {
       throw new Error('无效的标签序号');
@@ -98,9 +124,21 @@ export class TerminalModel {
   title(window: WindowState) {
     return window.kind === 'output'
       ? '输出'
-      : window.task
-        ? window.task.command.trim().split(/\s/)[0]
-        : `cmd${window.number}`;
+      : (window.title ??
+          (window.task ? window.task.command.trim().split(/\s/)[0] : `cmd${window.number}`));
+  }
+  rename(window: WindowState, title: string) {
+    if (window.kind === 'output') {
+      throw new Error('输出标签不能重命名');
+    }
+    const clean = sanitizeOutput(title)
+      .replace(/\x1b\[[\d;]*m/g, '')
+      .replace(/\n/g, ' ')
+      .trim();
+    if (!clean || clean.length > 256) {
+      throw new Error('标签名称须为 1 至 256 个字符');
+    }
+    window.title = clean;
   }
   newWindow() {
     if (this.windows.length >= 128) {
@@ -264,24 +302,38 @@ export class TerminalModel {
     );
   }
   get text() {
-    return this.mode === 'global'
-      ? this.globalDraft
-      : (this.active.input?.draft ?? this.active.draft);
+    return this.panel?.input
+      ? this.panel.input.draft
+      : this.mode === 'global'
+        ? this.globalDraft
+        : (this.active.input?.draft ?? this.active.draft);
   }
   get cursor() {
-    return this.mode === 'global'
-      ? this.globalCursor
-      : (this.active.input?.cursor ?? this.active.cursor);
+    return this.panel?.input
+      ? this.panel.input.cursor
+      : this.mode === 'global'
+        ? this.globalCursor
+        : (this.active.input?.cursor ?? this.active.cursor);
   }
   get selection() {
-    return this.mode === 'global'
-      ? this.globalSelection
-      : this.active.input
-        ? this.active.input.selection
-        : this.active.selection;
+    return this.panel?.input
+      ? this.panel.input.selection
+      : this.mode === 'global'
+        ? this.globalSelection
+        : this.active.input
+          ? this.active.input.selection
+          : this.active.selection;
   }
   setInput(text: string, cursor: number, selection?: number) {
-    if (this.mode === 'global') {
+    if (this.panel?.input) {
+      this.panel.input.draft = text;
+      this.panel.input.cursor = cursor;
+      this.panel.input.selection = selection;
+    } else if (this.mode === 'global') {
+      if (text !== this.globalDraft) {
+        this.completionPreview = false;
+        this.completionIndex = 0;
+      }
       this.globalDraft = text;
       this.globalCursor = cursor;
       this.globalSelection = selection;
@@ -304,7 +356,7 @@ export class TerminalModel {
     } else if (remove === 'backspace') {
       start = this.previous(start);
     } else if (remove === 'delete') {
-      end = this.next(end);
+      end = this.nextBoundary(end);
     }
     this.setInput(this.text.slice(0, start) + insert + this.text.slice(end), start + insert.length);
   }
@@ -323,43 +375,145 @@ export class TerminalModel {
         .at(-1) ?? 0
     );
   }
-  private next(cursor: number) {
+  private nextBoundary(cursor: number) {
     return this.boundaries().find((index) => index > cursor) ?? this.text.length;
   }
   move(direction: number, selecting = false) {
-    const cursor = direction < 0 ? this.previous(this.cursor) : this.next(this.cursor);
+    const cursor = direction < 0 ? this.previous(this.cursor) : this.nextBoundary(this.cursor);
     this.setInput(this.text, cursor, selecting ? (this.selection ?? this.cursor) : undefined);
   }
-  ask(text: string, accept: Confirmation['accept'], decline?: Confirmation['decline']) {
-    if (this.confirmation) {
-      throw new Error('正在等待其他确认');
-    }
-    this.confirmation = { text, accept, decline, input: '', before: this.mode };
-    this.mode = 'confirmation';
+  get globalCandidates() {
+    return /\s/.test(this.globalDraft)
+      ? []
+      : globalCommands.filter((command) => command.name.startsWith(this.globalDraft));
   }
-  async confirmKey(sequence: string, enter = false) {
-    const confirmation = this.confirmation;
-    if (!confirmation) {
+  get globalHint() {
+    const name = this.globalDraft.split(/\s/)[0];
+    return globalCommands.find(
+      (command) => command.name === name || command.aliases?.includes(name),
+    );
+  }
+  get displayText() {
+    return this.mode === 'global' && this.completionPreview
+      ? (this.globalCandidates[this.completionIndex]?.name ?? this.text)
+      : this.text;
+  }
+  completeGlobal(direction: number) {
+    const count = this.globalCandidates.length;
+    if (!count) {
       return;
     }
-    let answer: boolean | undefined;
-    if (enter) {
-      answer = confirmation.input === ':y';
+    this.completionIndex = this.completionPreview
+      ? (this.completionIndex + direction + count) % count
+      : direction < 0
+        ? count - 1
+        : 0;
+    this.completionPreview = true;
+  }
+  commitGlobalCompletion() {
+    if (this.completionPreview) {
+      this.setInput(this.displayText, this.displayText.length);
+      this.completionPreview = false;
+    }
+  }
+  beginPanel(command: string) {
+    this.panel = {
+      command,
+      lines: [],
+      bytes: 0,
+      scroll: 0,
+      running: true,
+      step: Promise.withResolvers<void>(),
+    };
+    this.mode = 'global-output';
+    this.completionPreview = false;
+    return this.panel;
+  }
+  writePanel(text: string) {
+    const panel = this.panel;
+    if (!panel) {
+      return;
+    }
+    const lines = sanitizeOutput(text).split('\n');
+    if (lines.at(-1) === '') {
+      lines.pop();
+    }
+    panel.lines.push(...lines);
+    panel.bytes += lines.reduce((sum, line) => sum + Buffer.byteLength(line), 0);
+    while (panel.lines.length > 10000 || panel.bytes > 10 * 1024 * 1024) {
+      panel.bytes -= Buffer.byteLength(panel.lines.shift() ?? '');
+    }
+    panel.scroll = 0;
+  }
+  finishPanel(panel: CommandPanel) {
+    panel.running = false;
+    panel.step.resolve();
+    if (this.panel !== panel) {
+      return;
+    }
+    this.globalDraft = '';
+    this.globalCursor = 0;
+    this.globalSelection = undefined;
+    if (panel.lines.length) {
+      this.mode = 'global-output';
     } else {
-      confirmation.input += sequence;
-      if (![':', ':y', ':n'].some((candidate) => candidate.startsWith(confirmation.input))) {
-        answer = false;
+      this.panel = undefined;
+      this.mode = 'normal';
+    }
+  }
+  cancelPanelInput(code: 'cancelled' | 'closed' = 'cancelled') {
+    this.panel?.input?.reply(undefined, new InvocationInputError(code, '输入已取消'));
+  }
+  next(message: string): Promise<InputResult<string>>;
+  next<T extends InputConstructor>(message: string, type: T): Promise<InputResult<InputValue<T>>>;
+  async next(
+    message: string,
+    type: InputConstructor = String,
+  ): Promise<InputResult<string | number | boolean | bigint | Date>> {
+    const panel = this.panel;
+    if (!panel) {
+      return [new InvocationInputError('unavailable', '没有正在执行的全局命令'), undefined];
+    }
+    if (panel.input) {
+      return [new InvocationInputError('busy', '正在等待其他输入'), undefined];
+    }
+    try {
+      const format = inputFormat(type);
+      let prompt = message;
+      for (;;) {
+        const answer = await new Promise<string>((resolve, reject) => {
+          panel.input = {
+            text: prompt,
+            type: format,
+            draft: '',
+            cursor: 0,
+            reply: (value, error) => {
+              panel.input = undefined;
+              this.mode = 'global-output';
+              if (error) {
+                reject(error);
+              } else {
+                resolve(value ?? '');
+              }
+            },
+          };
+          this.mode = 'confirmation';
+          panel.scroll = 0;
+          panel.step.resolve();
+        });
+        try {
+          return [undefined, formatInput(answer, format)];
+        } catch (error) {
+          prompt = `${error instanceof Error ? error.message : error}\n${message}`;
+        }
       }
-    }
-    if (answer === undefined) {
-      return;
-    }
-    this.confirmation = undefined;
-    this.mode = confirmation.before;
-    if (answer) {
-      await confirmation.accept();
-    } else {
-      await confirmation.decline?.();
+    } catch (error) {
+      return [
+        error instanceof InvocationInputError
+          ? error
+          : new InvocationInputError('unavailable', String(error)),
+        undefined,
+      ];
     }
   }
 }

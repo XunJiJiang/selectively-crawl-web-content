@@ -81,7 +81,7 @@ export async function startTerminal(args: string[] = process.argv.slice(2)) {
       model.active.kind === 'command'
         ? model.active
         : model.windows.find((item) => item.kind === 'command');
-    if (window?.task && !window.input && !inputLines[0].startsWith(':')) {
+    if (window?.task && !window.input && !model.panel?.input && !inputLines[0].startsWith(':')) {
       return;
     }
     lineRunning = true;

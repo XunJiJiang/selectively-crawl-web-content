@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import stringWidth from 'string-width';
 import { TerminalModel } from './model.ts';
 import { Renderer } from './render.ts';
@@ -61,29 +61,29 @@ describe('terminal windows and input', () => {
     model.edit('中');
     expect(model.text).toBe('A中B');
   });
-  it('only accepts the explicit confirmation and consumes unrelated input', async () => {
+  it('supports typed next input, validation retries and cancellation', async () => {
     const model = new TerminalModel();
-    const accept = vi.fn();
-    const decline = vi.fn();
-    model.mode = 'global';
-    model.globalDraft = 'run 1 task';
-    model.ask('replace?', accept, decline);
-    await model.confirmKey(':');
-    await model.confirmKey('y');
-    expect(accept).not.toHaveBeenCalled();
-    await model.confirmKey('', true);
-    expect(accept).toHaveBeenCalledOnce();
-    expect(model.mode).toBe('global');
-    expect(model.globalDraft).toBe('run 1 task');
-    model.ask('replace?', accept, decline);
-    await model.confirmKey(':q');
-    expect(decline).toHaveBeenCalledOnce();
-    expect(accept).toHaveBeenCalledOnce();
+    const panel = model.beginPanel('typed');
+    const number = model.next('number?', Number);
+    panel.input?.reply('invalid');
+    await expect.poll(() => panel.input?.text).toContain('有效的 number');
+    panel.input?.reply('42');
+    expect(await number).toEqual([undefined, 42]);
+    const string = model.next('literal?');
+    panel.input?.reply(':anything');
+    expect(await string).toEqual([undefined, ':anything']);
+    const cancelled = model.next('cancel?');
+    model.cancelPanelInput();
+    expect((await cancelled)[0]?.code).toBe('cancelled');
+    model.finishPanel(panel);
+    expect(model.mode).toBe('normal');
   });
   it('preserves fixed IDs and marks background tasks interrupted during restore', () => {
     const model = new TerminalModel();
     model.switch(model.windows[1].id);
     model.globalDraft = 'run 1 test';
+    model.rename(model.active, '持久名称');
+    model.transparentBackground = false;
     model.active.task = {
       executionId: 'a',
       windowId: model.active.id,
@@ -94,6 +94,7 @@ describe('terminal windows and input', () => {
       version: 1,
       activeId: model.activeId,
       globalDraft: model.globalDraft,
+      transparentBackground: model.transparentBackground,
       windows: model.windows,
     });
     expect(restored.activeId).toBe(model.activeId);
@@ -101,6 +102,9 @@ describe('terminal windows and input', () => {
     expect(restored.active.lines.at(-1)).toContain('未重新执行');
     expect(restored.globalDraft).toBe(model.globalDraft);
     expect(restored.mode).toBe('normal');
+    expect(restored.title(restored.active)).toBe('持久名称');
+    expect(restored.transparentBackground).toBe(false);
+    expect(restored.panel).toBeUndefined();
   });
   it('removes terminal control sequences and bounds history storage', () => {
     const model = new TerminalModel();
@@ -143,6 +147,41 @@ describe('terminal windows and input', () => {
     renderer.width = 30;
     renderer.frame(model);
     expect(model.output.anchor).toBeDefined();
+  });
+  it('bounds the floating panel, uses fixed width tabs and supplies both theme colors', () => {
+    const model = new TerminalModel();
+    model.newWindow();
+    model.rename(model.windows[1], 'long 中文 tab name');
+    const renderer = new Renderer();
+    renderer.width = 100;
+    renderer.height = 24;
+    model.mode = 'global';
+    model.globalDraft = 'rename ';
+    let frame = renderer.frame(model, 0);
+    expect(renderer.panelAt(18)).toBe(true);
+    expect(renderer.panelAt(17)).toBe(false);
+    expect(renderer.hits.filter((hit) => hit.id).map((hit) => hit.to - hit.from)).toEqual([
+      26, 26, 26,
+    ]);
+    const panel = model.beginPanel('help');
+    model.writePanel(Array.from({ length: 50 }, (_, index) => `output ${index}`).join('\n'));
+    model.finishPanel(panel);
+    frame = renderer.frame(model, 0);
+    expect(renderer.panelAt(11)).toBe(true);
+    expect(renderer.panelAt(10)).toBe(false);
+    expect(frame).toContain('\x1b[38;2;');
+    expect(frame).toContain('\x1b[48;2;');
+    expect(frame).not.toContain('\x1b[7m');
+    for (const height of [1, 2, 4, 10, 24]) {
+      renderer.width = 11;
+      renderer.height = height;
+      const rows = renderer
+        .frame(model, 0)
+        .replace(/\x1b\[[\d;?]*[A-Za-z]/g, '')
+        .split('\r\n');
+      expect(rows).toHaveLength(height);
+      expect(rows.every((row) => stringWidth(row) <= 11)).toBe(true);
+    }
   });
   it('decodes fragmented mouse, paste, UTF-8 and Shift+arrow packets', () => {
     const keys: { name: string; sequence: string; shift?: boolean }[] = [];
