@@ -126,6 +126,94 @@
         "created_by": "aoci-init",
         "order": 106,
         "enabled": true
+      },
+      {
+        "rule_id": "core-all-projects",
+        "action": "index",
+        "pattern": "projects",
+        "pattern_kind": "directory",
+        "reason": "用户明确projects下所有目录均为核心，全部纳入索引，仅排除projects/server/plugins",
+        "source": "user",
+        "created_by": "codex",
+        "order": 1100,
+        "enabled": true
+      },
+      {
+        "rule_id": "core-root-package",
+        "action": "index",
+        "pattern": "package.json",
+        "pattern_kind": "file",
+        "reason": "实际核心项目工作区、依赖和构建启动脚本的声明",
+        "source": "user",
+        "created_by": "codex",
+        "order": 1101,
+        "enabled": true
+      },
+      {
+        "rule_id": "core-root-tsconfig",
+        "action": "index",
+        "pattern": "tsconfig*.json",
+        "pattern_kind": "glob",
+        "reason": "所有核心项目实际使用的TypeScript编译边界",
+        "source": "user",
+        "created_by": "codex",
+        "order": 1102,
+        "enabled": true
+      },
+      {
+        "rule_id": "core-root-tooling",
+        "action": "index",
+        "pattern": "*.config.ts",
+        "pattern_kind": "glob",
+        "reason": "核心项目测试、格式化与静态检查的实际配置",
+        "source": "user",
+        "created_by": "codex",
+        "order": 1103,
+        "enabled": true
+      },
+      {
+        "rule_id": "core-root-vite-types",
+        "action": "index",
+        "pattern": "vite-env.d.ts",
+        "pattern_kind": "file",
+        "reason": "核心前端项目依赖的Vite全局类型声明",
+        "source": "user",
+        "created_by": "codex",
+        "order": 1104,
+        "enabled": true
+      },
+      {
+        "rule_id": "core-no-readme-evidence",
+        "action": "observe",
+        "pattern": "**/README*",
+        "pattern_kind": "glob",
+        "reason": "用户要求索引只依据实际代码且不参考README；文档只观察变化，不读取或生成认知条目",
+        "source": "user",
+        "created_by": "codex",
+        "order": 5001,
+        "enabled": true
+      },
+      {
+        "rule_id": "core-no-docs-evidence",
+        "action": "observe",
+        "pattern": "**/docs/**",
+        "pattern_kind": "glob",
+        "reason": "用户要求不参考docs目录；文档只观察变化，不读取或生成认知条目",
+        "source": "user",
+        "created_by": "codex",
+        "order": 5002,
+        "enabled": true
+      },
+      {
+        "rule_id": "core-user-excluded-plugins",
+        "action": "exclude",
+        "pattern": "projects/server/plugins",
+        "pattern_kind": "directory",
+        "reason": "用户明确排除具体插件内容，此目录不属于当前核心服务",
+        "source": "user",
+        "created_by": "codex",
+        "order": 6000,
+        "enabled": true
       }
     ]
   },
@@ -196,6 +284,7 @@
   "automation": {
     "mode": "auto"
   },
+  "maintain_transport_budget_bytes": 65536,
   "ai": {
     "enabled": false,
     "provider": "openai-compatible",

@@ -1,1 +1,1239 @@
 #AOCI-CODE-VOLUME: 1
+
+===/Users/xunji/Documents/Develop/selectively-crawl-web-content/===
+.gitattributes[FR4T]: F:固定Git文本检出的LF换行并保留自动识别的二进制文件 | R:- | A:* text=auto eol=lf | S:AOCI按原始字节绑定Baseline，跨平台检出必须覆盖autocrlf避免整仓伪漂移
+.gitignore[FR5S]: F:排除依赖、构建产物、环境文件、运行数据与本机Agent配置，保留插件模板和类型声明 | R:code:projects/server/scripts/build.ts | A:Git忽略规则 | S:public/web和public/lib是被忽略的生成目录；具体插件默认忽略但模板及plugin-env.d.ts显式保留
+AGENTS.md[SG7S]: F:规定本仓库AOCI认知加载、证据创作、批次维护与安全停点 | R:- | A:Agent仓库执行合同 | S:上下文压缩后必须重新完整交付Overview再确认；不得用路径或规则生成语义，内部创作批次自动续接
+LICENSE[SZ2T]: F:授予本项目MIT使用和再分发许可并声明免责 | R:- | A:MIT许可文本 | S:复制或实质分发须保留版权和许可声明
+bun.lock[FV5L]: F:锁定Bun工作区包身份、实际依赖解析与完整性信息 | R:code:package.json | A:lockfileVersion,workspaces,packages | S:工作区包通过workspace绑定本地实现，依赖版本升级须同步锁文件
+oxfmt.config.ts[FQ4T]: F:为TypeScript源码配置100列、单引号、LF和两空格格式化规则 | R:code:package.json | A:defineConfig | S:包含插件TypeScript但忽略构建产物、锁文件与编辑器目录
+oxlint.config.ts[FQ5S]: F:为服务与浏览器代码设置类型感知检查、导入规则和运行环境覆盖 | R:code:package.json | A:defineConfig,rules,overrides | S:ts与js导入必须保留扩展名；模板目录和嵌套test目录被忽略，浏览器与Node环境按路径分别启用
+package.json[FV8S]: F:定义所有projects工作区、共享依赖以及服务、终端、前端、核心可执行文件的开发构建入口 | R:code:projects/server/scripts/setup.ts,code:projects/server/scripts/build-executable.ts,code:projects/terminal/index.ts | A:workspaces,scripts,dependencies,engines | S:包声明源码运行Node24；独立SEA产物构建器另要求Node至少25.5，不能据此统一降级构建环境
+tsconfig.app.json[FQ6T]: F:检查用户脚本、Web及共享前端源码并纳入Vite和插件全局类型 | R:code:tsconfig.json,code:projects/shared/store/config.ts | A:compilerOptions,include | S:只做noEmit检查，启用旧装饰器元数据和erasableSyntaxOnly；全局插件声明仍来自server/plugins
+tsconfig.json[FQ7T]: F:组织公开Vite包、终端、前端、Node配置、服务和插件Web六个类型检查项目 | R:code:tsconfig.app.json,code:tsconfig.node.json,code:tsconfig.serve.json,code:tsconfig.terminal.json | A:references,files | S:根files为空，tsc -b依项目引用检查，不能将根配置当单个源码编译配置
+tsconfig.node.json[FQ5T]: F:为根工具配置与继承项目提供严格Node侧Bundler类型检查 | R:code:projects/vite-plugin/tsconfig.json,code:tsconfig.json | A:compilerOptions,include | S:根include仅星号.config.ts，noEmit且拒绝未使用变量；公开Vite包继承后另开JS检查
+tsconfig.plugin-web.json[FQ6T]: F:检查全部具体插件Web源码，并注入浏览器工具、SDK和全局插件类型 | R:code:projects/webUtils/lib.d.ts,code:projects/server/plugin/sdk/modules.d.ts,code:vite-env.d.ts | A:compilerOptions,include | S:编译范围包含server/plugins下Web，独立于本次AOCI核心索引范围；使用ESNext和装饰器元数据
+tsconfig.serve.json[FQ6T]: F:为核心及插件后端TypeScript提供ESNext、装饰器和严格无输出检查 | R:code:tsconfig.json,code:projects/server/index.ts | A:compilerOptions,include,exclude | S:包含服务目录所有TS但排除插件Web；未使用项检查关闭，旧工具也可留在编译范围
+tsconfig.terminal.json[FQ6T]: F:继承服务检查配置，覆盖终端源码集合并引入插件全局类型 | R:code:tsconfig.serve.json,code:projects/terminal/index.ts | A:extends,include,exclude | S:exclude显式清空，不继承服务对插件Web的排除；使用独立tsbuildinfo文件
+vite-env.d.ts[FC5T]: F:为前端提供Vite客户端模块与import.meta类型环境 | R:code:tsconfig.app.json,code:tsconfig.plugin-web.json | A:vite/client类型引用 | S:-
+vitest.config.ts[FQ6T]: F:将根测试命令分派到服务、用户脚本、Web和终端四个测试项目 | R:code:projects/server/vitest.config.ts,code:projects/terminal/vitest.config.ts | A:defineConfig,test.projects | S:测试项目显式列出，不自动覆盖所有projects工作区
+
+===/Users/xunji/Documents/Develop/selectively-crawl-web-content/.vscode/===
+extensions.json[XQ2T]: F:推荐TypeScript原生预览扩展并禁止推荐远程仓库扩展 | R:- | A:recommendations,unwantedRecommendations | S:-
+settings.json[XQ3T]: F:配置拼写词典、SQLite浏览连接、OXC检查与保存时格式化 | R:code:oxlint.config.ts,code:oxfmt.config.ts | A:editor.defaultFormatter,oxc.typeAware,sqltools.connections | S:TypeScript单独选择原生预览格式化器，覆盖默认OXC格式化器
+setup.sh[XG1T]: F:保留zsh工作区设置脚本入口，当前没有可执行设置步骤 | R:- | A:zsh脚本入口 | S:-
+
+===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/command/===
+index.ts[EU7M]: F:注册系统生命周期与插件页面构建命令，并协调直接stdin的命令执行和调用输入 | R:code:projects/server/utils/command.ts,code:projects/server/common/interaction.ts,code:projects/server/plugin/web/build.ts | A:registerDefaultCommands,listenProcessStdin,cancelStdinInput | S:待答交互优先消费输入，普通命令串行执行；build-web只接受无路径分隔符的单个插件目录名并传递取消信号
+ipc.ts[IN8M]: F:在核心与多窗口终端间桥接握手、命令调用、日志、任务、交互和生命周期控制 | R:code:projects/terminal/peer.ts,code:projects/server/common/tasks.ts,code:projects/server/plugin/process/client.ts | A:createCoreBridge | S:命令返回不等于完成，须等关联任务空闲；每窗口只准一个顶层执行，子命令不能退出或重启，强制取消只终止仍忙的宿主
+web-build.test.ts[TE5T]: F:验证全局build-web命令定位插件、传递取消信号并拒绝目录穿越 | R:code:projects/server/command/index.ts,code:projects/server/plugin/web/build.ts | A:Vitest全局页面构建用例 | S:-
+
+===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/common/===
+color.test.ts[TO4T]: F:验证真实TTY、环境颜色偏好和管道子进程颜色继承，以及日志正文ANSI保留 | R:code:projects/server/common/color.ts | A:Vitest颜色能力用例 | S:-
+color.ts[CO5T]: F:推断输出颜色级别、传递子进程颜色环境并按日志级别绘制标签 | R:code:projects/server/utils/log.ts | A:outputColorLevel,colorEnvironment,colorLogText | S:显式FORCE_COLOR优先于NO_COLOR与TTY；无颜色模式去除全部ANSI，启用时保留正文自定义颜色
+config.test.ts[TC5S]: F:验证启动参数、端口边界、Redis鉴权和插件目录路径及覆盖确认规则 | R:code:projects/server/common/config.ts,code:projects/server/common/pluginDirectory.ts | A:Vitest启动配置用例 | S:-
+config.ts[FC8S]: F:严格解析布尔整数、启动选项、递增端口区间、Redis连接和插件目录配置 | R:code:projects/server/common/environment.ts,code:projects/server/common/pluginDirectory.ts | A:parseStartupArgs,portSettings,redisSettings,pluginDirectorySettings,integerSetting,booleanSetting | S:CLI端口覆盖环境；插件环境路径相对env目录而CLI路径相对cwd，二者并存须确认；禁Redis前缀通配符防止SCAN清错命名空间
+env.ts[FC7T]: F:加载环境并导出监听端口区间、当前实际端口、主机地址和访问TOKEN | R:code:projects/server/common/config.ts,code:projects/server/common/environment.ts,code:projects/server/common/setupParam.ts | A:PORT,PORT_SEARCH_RANGE,ACTIVE_PORT,setListeningPort,TOKEN,HOST | S:TOKEN缺省生成UUID，字符串null显式禁用鉴权；日志打印TOKEN，实际监听端口与请求起始端口分开保存
+environment.test.ts[TC4T]: F:验证相邻.env覆盖同名进程变量、保留缺省键且无文件时保持环境 | R:code:projects/server/common/environment.ts | A:Vitest环境优先级用例 | S:-
+environment.ts[FC6T]: F:从明确部署环境目录加载.env并合并到进程环境 | R:code:projects/server/common/paths.ts | A:loadEnvironment | S:文件中的键优先于已有环境变量，不从当前工作目录寻找.env；模块导入立即执行加载
+interaction.test.ts[TU5T]: F:验证输入类型严格转换、无效答案重试、窗口隔离和取消及忙碌状态 | R:code:projects/server/common/interaction.ts,code:projects/server/common/tasks.ts | A:Vitest调用交互用例 | S:-
+interaction.ts[CU7S]: F:统一调用输入类型转换、错误分类、重试及跨IPC取消转发 | R:code:projects/server/types/task.d.ts,code:projects/server/common/tasks.ts | A:InvocationInputError,nextInput,remoteInput,setInputHandler,formatInput,inputReply | S:输入等待没有墙钟超时，remoteInput以timeout=0请求并单独发送input.cancel；原始字符串保留空白，其他类型严格转换
+logger.ts[CO4T]: F:创建核心服务server日志实例供启动和路由使用 | R:code:projects/server/utils/log.ts | A:serverLogger | S:-
+paths.ts[CR8T]: F:统一源码与SEA模式的部署根、资源根、环境目录和插件宿主位置 | R:code:projects/server/scripts/sea-bootstrap.ts | A:isPackaged,APP_DIR,ROOT,SERVER_ROOT,ENV_DIR,PLUGIN_HOST | S:SEA部署写入可执行文件邻接目录，只读资源从SCWC_RUNTIME_ROOT临时目录读取；源码模式ROOT为仓库根，不能用cwd替代
+pluginDirectory.ts[AE5T]: F:决议默认与CLI插件目录，必要时通过stdin确认覆盖环境配置 | R:code:projects/server/common/config.ts | A:resolvePluginDirectory | S:拒绝确认或输入关闭均保留环境目录，只有明确y才覆盖
+setupParam.ts[FC5T]: F:解析进程启动参数并判断开发与生产模式 | R:code:projects/server/common/config.ts | A:parsedArgs,isProd,isDev | S:未提供mode默认生产，未知mode既不算开发也不算生产
+tasks.test.ts[TW6T]: F:验证调用任务的自动及手工忙碌、独立句柄、子任务取消、过期快照和日志身份隔离 | R:code:projects/server/common/tasks.ts,code:projects/server/utils/log.ts | A:Vitest任务与日志归属用例 | S:绑定日志对象在异步调用之外仍保留原窗口和执行身份，测试断言对象不可变
+tasks.ts[CW8M]: F:以调用身份维护任务作用域、忙碌快照、父子执行关系和取消，并传播异步调用上下文 | R:code:projects/server/common/interaction.ts,code:projects/server/types/task.d.ts | A:TaskScope,TaskRegistry,invocationStorage,currentIdentity,configureTaskIdentity,taskRegistry | S:返回后手工busy或begin句柄仍续命；同一调用只准一个输入；快照revision须递增，宿主移除后迟到状态永久拒收
+
+===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/===
+index.ts[EG9T]: F:编排核心启动、终端握手、端口监听、插件加载与退出清理 | R:code:projects/server/command/ipc.ts,code:projects/server/plugin/load.ts,code:projects/server/utils/cache.ts | A:main,SIGINT,SIGTERM | S:先监听再异步加载插件；SIGINT优先取消待答输入；退出等加载结束后卸载插件，重启保留缓存而普通退出清空
+package.json[FV5T]: F:声明核心服务ESM工作区和通过setup启动开发或生产模式及测试检查脚本 | R:code:package.json,code:projects/server/scripts/setup.ts | A:module,scripts,engines | S:源码运行要求Node24，主要依赖来自仓库根工作区
+vitest.config.ts[FQ5T]: F:为服务工作区测试将scwc虚拟模块指向真实SDK实现 | R:code:projects/server/plugin/sdk/dependencies.ts,code:projects/server/plugin/sdk/runtime.ts | A:defineConfig,resolve.alias | S:虚拟模块别名需与进程内SDK Hook保持同一依赖和运行时合同
+
+===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/plugin/===
+load.ts[AE9M]: F:发现插件包、验证入口、创建独立宿主并注册命令、API、资源和WebSocket，保存未激活原因 | R:code:projects/server/plugin/process/client.ts,code:projects/server/plugin/process/options.ts,code:projects/server/router/web/api/load.ts | A:loadPlugins,configuredPluginDirectory,initCacheErrorHandler,plugins,inactivePlugins | S:所有插件均进v2子进程，无同进程回退；两个工作者并发加载；onLoad先完成才公布manifest，页面准备或激活失败要停止宿主并标记未激活
+log.ts[CO3T]: F:创建核心插件管理日志实例 | R:code:projects/server/utils/log.ts | A:pluginLogger | S:-
+
+===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/plugin/process/===
+client.ts[IE9L]: F:在核心侧管理隔离插件进程、生命周期与心跳，将回调转换为RPC并桥接缓存、输入、任务、日志及Web连接 | R:code:projects/server/plugin/process/host.ts,code:projects/server/plugin/process/rpc.ts,code:projects/server/plugin/process/resource.ts | A:PluginProcessClient,pluginClients,ClientOptions | S:fork使用advanced序列化和独立进程组，卸载杀整棵子树；输入等待和初始化页面构建暂停相应RPC计时；HTML刷新1秒超时可回退旧快照；流和真实socket留在核心
+host.ts[RE9L]: F:在独立进程安装SDK并执行插件初始化、命令、采集、API、资源、控件和WebSocket回调，回传任务与日志 | R:code:projects/server/plugin/process/rpc.ts,code:projects/server/common/tasks.ts,code:projects/server/plugin/sdk/register.ts | A:initialize,dispatch,IPC消息处理 | S:onLoad前请求页面构建；函数留在宿主，只发路由索引和manifest；卸载等activeCalls结束；父IPC断开自毁进程树，SIGINT由核心统一协调
+installed-plugins.test.ts[TE5S]: F:按本机已安装插件验证默认v2独立进程启停与代表性API及资源描述符 | R:code:projects/server/plugin/process/client.ts,code:projects/server/plugin/process/options.ts | A:Vitest已安装插件迁移用例 | S:插件可选，缺少ASMR时跳过其资源用例；测试为插件配置临时数据目录并在卸载时使用重启语义
+loader.test.ts[TE6S]: F:验证缺省与部分runtime仍隔离加载、坏插件不阻塞好插件，以及页面构建先于onLoad | R:code:projects/server/plugin/load.ts,code:projects/server/plugin/web/build.ts | A:Vitest隔离加载用例 | S:构建耗时超过startupTimeout的用例证明初始化页面准备会暂停宿主计时；禁用及旧版本插件不得执行入口
+options.test.ts[TE4T]: F:验证默认process/v2配置、超时覆盖和不合法runtime的拒绝 | R:code:projects/server/plugin/process/options.ts | A:Vitest运行配置用例 | S:-
+options.ts[FE7T]: F:校验插件运行配置并固定独立进程v2协议，保留有界超时覆盖 | R:code:projects/server/types/plugin-process.d.ts | A:resolveProcessOptions | S:省略配置仍选择process/v2，禁止旧协议或同进程模式；超时仅接受100至600000的整数
+process.test.ts[TE7L]: F:通过真实子进程和HTTP验证隔离执行、日志输入、缓存控件、资源Range、WebSocket与故障清理 | R:code:projects/server/plugin/process/client.ts,code:projects/server/plugin/process/fixtures/plugin.ts,code:projects/server/router/web/api/load.ts | A:Vitest隔离插件宿主集成用例 | S:验证同步阻塞不拖住核心或其他插件，输入耗时不消耗命令期限；大文件走资源通路而非16MiB IPC，父进程被强杀也须清理后代
+protocol.ts[FN8T]: F:定义插件v2调用结果事件信封、manifest、初始化数据、远端错误和传输容量常量 | R:code:projects/server/types/plugin-process.d.ts,code:projects/server/plugin/process/rpc.ts | A:PROTOCOL_VERSION,MAX_MESSAGE_BYTES,MAX_PENDING_CALLS,PluginProcessError,remoteError,Message | S:函数从manifest剔除只传可序列化元数据；单消息16MiB、并发调用64，错误消息截断至8000字符
+resource.ts[IN7T]: F:抽取可跨进程请求元数据，并在核心Express响应文件或普通资源结果 | R:code:projects/server/types/plugin-process.d.ts,code:projects/server/plugin/process/client.ts | A:requestData,sendResource | S:文件必须绝对路径且文件字节不经过IPC，由Express处理Range和背压；已中断传输的结束回调不视为资源错误
+rpc.test.ts[TN6T]: F:验证RPC和事件队列有界、日志有序及溢出标记、输入期间暂停计时和断连清理 | R:code:projects/server/plugin/process/rpc.ts,code:projects/server/plugin/process/protocol.ts | A:Vitest有界RPC用例 | S:用伪时钟证明timeout=0无限等待与暂停后恢复剩余时间；发送函数或超大值须在Node IPC前失败
+rpc.ts[CN8M]: F:实现共享有界插件RPC、异步事件队列、远端错误、调用期限暂停及断连拒绝 | R:code:projects/server/plugin/process/protocol.ts | A:RpcPeer.call,RpcPeer.event,RpcPeer.receive,RpcPeer.pauseTimeout,RpcPeer.drainEvents,RpcPeer.close | S:用V8序列化预检16MiB上限；请求64、发送128，事件32MiB或16384项；超时不取消业务，输入暂停只保存剩余执行期限
+
+===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/plugin/process/fixtures/===
+plugin.ts[TE5S]: F:提供可模拟启动失败、阻塞、崩溃、子进程和多类回调的v2宿主测试插件 | R:code:projects/server/plugin/process/process.test.ts | A:onLoad,onUnload,onRequest,pluginConfig,ui | S:fixture故意返回17MiB响应触发IPC上限，同时文件资源描述符可传输更大文件
+
+===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/plugin/sdk/===
+browser.ts[LE4T]: F:为核心兼容入口重导出浏览器安全的Zod依赖 | R:code:projects/vite-plugin/browser.js | A:z | S:浏览器入口不暴露Node原生或服务端依赖
+dependencies.ts[LE6T]: F:定义插件共享后端依赖导出，包括Axios、Chalk、Zod、SQLite、trash及文件类型探测 | R:code:projects/server/plugin/sdk/register.ts | A:axios,chalk,z,Database,trash,fileType | S:这是显式依赖合同而非全部根依赖；trash动态导入保留原生ESM默认导出和资源相对URL
+executable-sdk.test.ts[TE6S]: F:验证插件移至无核心依赖的外部目录后，在源码与SEA宿主中仍能使用共享SDK、Worker和API | R:code:projects/server/plugin/process/host.ts,code:projects/server/scripts/shared-package-assets.ts,code:projects/server/plugin/web/build.ts | A:Vitest移位插件SDK用例 | S:实际插件或可执行产物缺失时跳过对应模式；测试仅提供插件自有依赖，核心SQLite等必须由SDK提供
+modules.d.ts[FE6T]: F:为scwc:deps和scwc:runtime虚拟模块声明原包命名空间及运行时泛型类型 | R:code:projects/server/plugin/sdk/dependencies.ts,code:projects/server/plugin/sdk/runtime.ts | A:scwc:deps,scwc:runtime | S:类型重导出须保留Zod和SQLite命名空间及Axios泛型，不能替换为松散值声明
+register.ts[LE8T]: F:注册Node同步模块解析和加载Hook，将共享依赖与运行时暴露为scwc虚拟模块 | R:code:projects/server/plugin/sdk/dependencies.ts,code:projects/server/plugin/sdk/runtime.ts | A:registerPluginSdk | S:每个宿主或Worker须在动态导入插件前注册；冻结模块存于全局Symbol，幂等注册使ESM与require共享同一依赖实例
+runtime.ts[LE7T]: F:导出插件RPC和错误类型，并为外部插件创建预装SDK的Worker | R:code:projects/server/plugin/sdk/worker-bootstrap.ts,code:projects/server/plugin/process/rpc.ts | A:createPluginWorker,PluginWorkerOptions,RpcPeer,PluginProcessError | S:只接受file入口URL；SEA使用runtime根下bootstrap，新Worker单独安装模块Hook，入口通过环境变量传递
+sdk.test.ts[TE7M]: F:验证外部插件的共享包类型、ESM与CommonJS实例、Worker，以及源码和打包模式依赖分发 | R:code:projects/server/plugin/sdk/register.ts,code:projects/server/plugin/sdk/runtime.ts,code:projects/server/scripts/shared-package-assets.ts | A:Vitest共享SDK用例 | S:必须无需插件node_modules即可使用核心SDK；传递包的冲突版本保持各自解析，缺少可选依赖应跳过
+worker-bootstrap.ts[EE6T]: F:读取Worker入口、安装插件SDK，再动态加载插件Worker并传播初始化错误 | R:code:projects/server/plugin/sdk/register.ts,code:projects/server/plugin/sdk/runtime.ts | A:Worker启动入口 | S:读取后立即删入口环境变量；异步导入失败转成setImmediate抛错以触发Worker error事件
+
+===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/plugin/web/===
+build.ts[AE8S]: F:队列化隔离Vite页面构建、去重同目录请求，准备缺失入口并更新初始HTML快照 | R:code:projects/server/plugin/web/host.ts,code:projects/server/plugin/web/options.ts,code:projects/server/common/paths.ts | A:buildPluginWeb,preparePluginWeb,ensurePluginWeb,cancelPluginWebBuilds | S:所有目录构建串行，同目录共享Promise；5分钟或取消时杀子树；退出后不接新构建，发布路由前刷新旧HTML快照
+cli.ts[EE5T]: F:解析插件目录并启动单次内置页面构建，将失败映射为非零退出 | R:code:projects/server/plugin/web/build.ts,code:projects/server/common/config.ts | A:--build-plugin-web,--directory | S:两种目录参数缺失时立即抛错，构建异常设置exitCode=1
+dependencies.ts[FE5T]: F:定义核心Vite构建器共享包并兼容重导出公开包的浏览器依赖目录 | R:code:projects/vite-plugin/dependencies.js | A:packageName,sharedBrowserPackages,sharedBuildPackages | S:浏览器依赖以公开Vite包为权威，构建共享目录额外包含Vite、Monkey、esbuild及本地Vite插件
+host.ts[OV8S]: F:在隔离进程加载Vite配置与共享构建依赖，暂存构建页面并发布到插件目录 | R:code:projects/server/plugin/web/build.ts,code:projects/vite-plugin/index.js | A:runWebBuild,WebBuildRequest | S:插件自有包优先，仅缺失且在白名单的包回退核心；outDir必须在插件目录内且不等于源码根；先暂存验证入口再换目录，发布失败恢复旧目录
+options.ts[FV7T]: F:将声明的vite build脚本解析为有界配置选项和绝对路径 | R:code:projects/server/utils/command.ts,code:projects/server/plugin/web/host.ts | A:parseWebBuildScript,WebBuildOptions,WebBuildRequest | S:不执行shell，只接受vite build及白名单选项；拒绝命令串联与任意脚本，其他构建选项须写入Vite配置
+web-build.test.ts[TV7M]: F:验证独立插件前端构建、共享依赖与Worker装饰器、同目录去重和失败保留原页面 | R:code:projects/server/plugin/web/build.ts,code:projects/server/plugin/web/options.ts,code:projects/vite-plugin/index.js | A:Vitest插件前端合同用例 | S:实际在JSDOM验证Lit属性反射，并检查生成脚本语法；SEA用例要求没有外部Node或核心node_modules
+
+===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/public/lib/===
+scwcutils.iife.muz2nwq1.js[LU3L]: F:保存含配置存储和插件fetch、resource、websocket初始化的浏览器工具构建产物 | R:code:projects/webUtils/lib/index.ts,code:projects/server/router/web/page/index.ts | A:default工具对象 | S:产物含ESM默认导出；路由按文件名时间戳选最新库并以普通script注入
+scwcutils.iife.muz2nwqe.js[LU4M]: F:以UMD封装分发浏览器插件工具并响应配置消息或load事件初始化请求和资源访问 | R:code:projects/webUtils/lib/index.ts,code:projects/server/router/web/page/index.ts | A:window.scwcutils,fetch,resource,websocket | S:初始化完成前fetch只警告、websocket抛错；配置消息与load兜底初始化共享工具对象
+
+===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/public/resources/arcofont/===
+arcofont.json[RU3L]: F:保存Arco图标字体的字形名称、CSS类名和Unicode编码映射 | R:code:projects/server/public/resources/arcofont/index.css | A:font_family,css_prefix_text,glyphs | S:-
+arcofont.svg[RU2L]: F:定义arcofont的SVG字体度量和各Unicode字形轮廓 | R:code:projects/server/public/resources/arcofont/index.css | A:font#arcofont,glyph | S:-
+demo.css[RU2M]: F:为字体演示页提供样式重置、居中标题和图标网格及悬停效果 | R:code:projects/server/public/resources/arcofont/demo.html | A:.header,.icons,.class-icon | S:-
+demo.html[EU2L]: F:通过字体CSS类展示Arco图标全集及其名称 | R:code:projects/server/public/resources/arcofont/demo.css,code:projects/server/public/resources/arcofont/index.css | A:iconfont-list演示页 | S:-
+index.css[RU3L]: F:加载arcofont多格式字体并将图标类映射到伪元素Unicode字形 | R:code:projects/server/public/resources/arcofont/arcofont.svg,code:projects/server/public/resources/arcofont/arcofont.json | A:@font-face,.arcofont-*::before | S:WOFF直接嵌入data URL，其他格式引用相邻字体文件
+index.js[RU3T]: F:在DOM就绪时注入隐藏SVG symbol图标库及通用图标样式 | R:code:projects/server/public/resources/arcofont/svg/align-center.svg | A:arcofont-* symbol,.svg-symbol | S:图标库以零尺寸隐藏svg插入body，实际引用由use选择symbol
+index.less[RU3L]: F:以Less嵌套规则和全局选择器提供arcofont字体加载及图标伪元素映射 | R:code:projects/server/public/resources/arcofont/index.css | A:@font-face,:global,.arcofont-* | S:字形类放入:global以避免样式模块改写名称，before独立指定字体
+
+===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/public/resources/arcofont/svg/===
+align-center.svg[RU2T]: F:提供长短横线居中排列的文本居中对齐图标 | R:code:projects/server/router/web/page/index.ts | A:48x48 SVG | S:-
+align-left.svg[RU2T]: F:提供长短横线左边缘对齐的文本左对齐图标 | R:code:projects/server/router/web/page/index.ts | A:48x48 SVG | S:-
+align-right.svg[RU2T]: F:提供长短横线右边缘对齐的文本右对齐图标 | R:code:projects/server/router/web/page/index.ts | A:48x48 SVG | S:-
+apps.svg[RU2T]: F:提供四个方格组成的应用网格图标 | R:code:projects/server/router/web/page/index.ts | A:48x48 SVG | S:-
+archive.svg[RU2T]: F:提供带顶盖和横向把手的归档箱图标 | R:code:projects/server/router/web/page/index.ts | A:48x48 SVG | S:-
+arrow-down.svg[RU2T]: F:提供竖直线杆与V形箭头组成的向下箭头 | R:code:projects/server/router/web/page/index.ts | A:48x48 SVG | S:-
+arrow-fall.svg[RU2T]: F:提供实心粗线杆向下箭头图标 | R:code:projects/server/router/web/page/index.ts | A:48x48 SVG | S:-
+arrow-left.svg[RU2T]: F:提供水平线杆向左的轮廓箭头图标 | R:code:projects/server/router/web/page/index.ts | A:48x48 SVG | S:-
+arrow-right.svg[RU2T]: F:提供水平线杆向右的轮廓箭头图标 | R:code:projects/server/router/web/page/index.ts | A:48x48 SVG | S:-
+arrow-rise.svg[RU2T]: F:提供实心粗线杆向上箭头图标 | R:code:projects/server/router/web/page/index.ts | A:48x48 SVG | S:-
+arrow-up.svg[RU2T]: F:提供竖直线杆与折线箭头组成的向上箭头 | R:code:projects/server/router/web/page/index.ts | A:48x48 SVG | S:-
+at.svg[RU2T]: F:提供环绕小圆的at符号图标 | R:code:projects/server/router/web/page/index.ts | A:48x48 SVG | S:-
+attachment.svg[RU2T]: F:提供斜置回形针的附件图标 | R:code:projects/server/router/web/page/index.ts | A:48x48 SVG | S:-
+backward.svg[RU2T]: F:提供两个向左空心三角的后退图标 | R:code:projects/server/router/web/page/index.ts | A:48x48 SVG | S:-
+bg-colors.svg[RU2T]: F:提供倾倒油漆桶、液滴和下划线的背景填色图标 | R:code:projects/server/router/web/page/index.ts | A:48x48 SVG | S:-
+bold.svg[RU2T]: F:提供字母B轮廓表示文本加粗的图标 | R:code:projects/server/router/web/page/index.ts | A:48x48 SVG | S:-
+book.svg[RU2T]: F:提供展开书页与页内短线的书籍图标 | R:code:projects/server/router/web/page/index.ts | A:48x48 SVG | S:-
+branch.svg[RU2T]: F:提供三圆节点和分叉连接的分支图标 | R:code:projects/server/router/web/page/index.ts | A:48x48 SVG | S:-
+brush.svg[RU2T]: F:提供刷辊头部与折线手柄的画刷图标 | R:code:projects/server/router/web/page/index.ts | A:48x48 SVG | S:-
+bug.svg[RU2T]: F:提供六足甲虫轮廓的缺陷图标 | R:code:projects/server/router/web/page/index.ts | A:48x48 SVG | S:-
+bulb.svg[RU2T]: F:提供圆头及底座灯泡轮廓图标 | R:code:projects/server/router/web/page/index.ts | A:48x48 SVG | S:-
+calendar.svg[RU2T]: F:提供双挂环与分隔线的日历轮廓图标 | R:code:projects/server/router/web/page/index.ts | A:48x48 SVG | S:-
+calendar_clock.svg[RU2T]: F:提供右下角附带时钟的日历图标 | R:code:projects/server/router/web/page/index.ts | A:48x48 SVG | S:-
+camera.svg[RU2T]: F:提供矩形机身与圆镜头的相机轮廓图标 | R:code:projects/server/router/web/page/index.ts | A:48x48 SVG | S:-
+caret-down.svg[RU2T]: F:提供实心向下三角的展开指示图标 | R:code:projects/server/router/web/page/index.ts | A:48x48 SVG | S:-
+caret-left.svg[RU2T]: F:提供实心向左三角的方向指示图标 | R:code:projects/server/router/web/page/index.ts | A:48x48 SVG | S:-
+caret-right.svg[RU2T]: F:提供实心向右三角的方向指示图标 | R:code:projects/server/router/web/page/index.ts | A:48x48 SVG | S:-
+caret-up.svg[RU2T]: F:提供实心向上三角的折叠指示图标 | R:code:projects/server/router/web/page/index.ts | A:48x48 SVG | S:-
+check-circle-fill.svg[RU2T]: F:提供实心圆底上的白色勾选图标 | R:code:projects/server/router/web/page/index.ts | A:48x48 SVG | S:-
+check-circle.svg[RU2T]: F:提供空心圆框内的勾选图标 | R:code:projects/server/router/web/page/index.ts | A:48x48 SVG | S:-
+check-square.svg[RU2T]: F:提供空心方框内的勾选图标 | R:code:projects/server/router/web/page/index.ts | A:48x48 SVG | S:-
+check.svg[RU2T]: F:提供两段折线构成的独立勾选图标 | R:code:projects/server/router/web/page/index.ts | A:48x48 SVG | S:-
+chinese-fill.svg[RU2T]: F:提供实心圆底上白色中文字的中文语言图标 | R:code:projects/server/router/web/page/index.ts | A:48x48 SVG | S:-
+clock-circle.svg[RU2T]: F:提供圆形表盘和直角指针的时钟图标 | R:code:projects/server/router/web/page/index.ts | A:48x48 SVG | S:-
+close-circle-fill.svg[RU2T]: F:提供实心圆底上白色交叉线的关闭图标 | R:code:projects/server/router/web/page/index.ts | A:48x48 SVG | S:-
+close-circle.svg[RU2T]: F:提供圆轮廓内两条交叉线的关闭图标 | R:code:projects/server/router/web/page/index.ts | A:48x48 SVG | S:-
+close.svg[RU2T]: F:提供两条对角交叉线的独立关闭图标 | R:code:projects/server/router/web/page/index.ts | A:48x48 SVG | S:-
+cloud-download.svg[RU2T]: F:提供云轮廓与向下箭头的下载图标 | R:code:projects/server/router/web/page/index.ts | A:48x48 SVG | S:-
+cloud.svg[RU2T]: F:提供圆弧组成的云朵轮廓图标 | R:- | A:SVG图形 | S:-
+code-block.svg[RU2T]: F:提供一对花括号的代码块图标 | R:- | A:SVG图形 | S:-
+code-square.svg[RU2T]: F:提供方框内尖括号和斜线的代码图标 | R:- | A:SVG图形 | S:-
+code.svg[RU2T]: F:提供两侧尖括号和中间斜线的代码标记 | R:- | A:SVG图形 | S:-
+command.svg[RU2T]: F:提供四角回环的Command键符号 | R:- | A:SVG图形 | S:-
+common.svg[RU2T]: F:提供三个菱面构成的立方体轮廓图标 | R:- | A:SVG图形 | S:-
+compass.svg[RU2T]: F:提供圆盘内菱形指针的指南针图标 | R:- | A:SVG图形 | S:-
+copy.svg[RU2T]: F:提供两个错位方框的复制图标 | R:- | A:SVG图形 | S:-
+copyright.svg[RU2T]: F:提供圆圈包围字母C的版权符号 | R:- | A:SVG图形 | S:-
+customer-service.svg[RU2T]: F:提供带麦克风耳机的客服图标 | R:- | A:SVG图形 | S:-
+dashboard.svg[RU2T]: F:提供刻度圆盘和竖直指针的仪表图标 | R:- | A:SVG图形 | S:-
+delete.svg[RU2T]: F:提供有盖及双竖线桶身的删除图标 | R:- | A:SVG图形 | S:-
+desktop.svg[RU2T]: F:提供矩形屏幕和底座的桌面显示器图标 | R:- | A:SVG图形 | S:-
+dice.svg[RU2T]: F:提供方框内五点的骰子图标 | R:- | A:SVG图形 | S:-
+double-down.svg[RU2T]: F:提供双层向下折线的方向图标 | R:- | A:SVG图形 | S:-
+double-left.svg[RU2T]: F:提供双层向左折线的方向图标 | R:- | A:SVG图形 | S:-
+double-right.svg[RU2T]: F:提供双层向右折线的方向图标 | R:- | A:SVG图形 | S:-
+double-up.svg[RU2T]: F:提供双层向上折线的方向图标 | R:- | A:SVG图形 | S:-
+down-circle.svg[RU2T]: F:提供圆框内向下折线的展开图标 | R:- | A:SVG图形 | S:-
+down.svg[RU2T]: F:提供单个向下V形折线的方向图标 | R:- | A:SVG图形 | S:-
+download.svg[RU2T]: F:提供向下箭头和底部托架的下载图标 | R:- | A:SVG图形 | S:-
+drag-arrow.svg[RU2T]: F:提供四个方向箭头的拖移图标 | R:- | A:SVG图形 | S:-
+drag-dot-vertical.svg[RU2T]: F:提供两列三行小方点的竖向拖动柄 | R:- | A:SVG图形 | S:-
+drag-dot.svg[RU2T]: F:提供三列两行小方点的横向拖动柄 | R:- | A:SVG图形 | S:-
+drive-file.svg[RU2T]: F:提供带右上折角的空白文件轮廓 | R:- | A:SVG图形 | S:-
+ear.svg[RU2T]: F:提供外耳和内耳弧线的听觉图标 | R:- | A:SVG图形 | S:-
+edit.svg[RU2T]: F:提供斜置铅笔及下划线的编辑图标 | R:- | A:SVG图形 | S:-
+email.svg[RU2T]: F:提供矩形信封和V形封口的邮件图标 | R:- | A:SVG图形 | S:-
+empty.svg[RU2T]: F:提供托盘与上方提示短线的空状态图标 | R:- | A:SVG图形 | S:-
+english-fill.svg[RU2T]: F:提供实心圆内白色En字样的英语图标 | R:- | A:SVG图形 | S:-
+eraser.svg[RU2T]: F:提供斜置菱形橡皮及底线的擦除图标 | R:- | A:SVG图形 | S:-
+exclamation-circle-fill.svg[RU2T]: F:提供实心圆内白色感叹号的警示图标 | R:- | A:SVG图形 | S:-
+exclamation-circle.svg[RU2T]: F:提供圆轮廓内感叹号的提示图标 | R:- | A:SVG图形 | S:-
+exclamation-polygon-fill.svg[RU2T]: F:提供实心八边形内白色感叹号的警示图标 | R:- | A:SVG图形 | S:-
+exclamation.svg[RU2T]: F:提供独立竖线和底点组成的感叹号 | R:- | A:SVG图形 | S:-
+expand.svg[RU2T]: F:提供相对两个直角边界的展开图标 | R:- | A:SVG图形 | S:-
+experiment.svg[RU2T]: F:提供锥形瓶和液面轮廓的实验图标 | R:- | A:SVG图形 | S:-
+export.svg[RU2T]: F:提供开放框与向外右箭头的导出图标 | R:- | A:SVG图形 | S:-
+eye-invisible.svg[RU2T]: F:提供斜线划过眼睛轮廓的隐藏图标 | R:- | A:SVG图形 | S:-
+eye.svg[RU2T]: F:提供眼形轮廓和圆瞳的可见图标 | R:- | A:SVG图形 | S:-
+face-frown-fill.svg[RU2T]: F:提供圆形深色脸、白色眼睛及下弯嘴的悲伤表情 | R:- | A:SVG图形 | S:-
+face-meh-fill.svg[RU2T]: F:提供圆形深色脸、白色眼睛及平嘴的平静表情 | R:- | A:SVG图形 | S:-
+face-smile-fill.svg[RU2T]: F:提供圆形深色脸、白色眼睛及上弯嘴的微笑表情 | R:- | A:SVG图形 | S:-
+file-audio.svg[RU2T]: F:提供折角文件内音符的音频文件图标 | R:- | A:SVG图形 | S:-
+file-image.svg[RU2T]: F:提供折角文件内山形和点的图片文件图标 | R:- | A:SVG图形 | S:-
+file-pdf.svg[RU2T]: F:提供折角文件内三岔曲线的PDF文件图标 | R:- | A:SVG图形 | S:-
+file-video.svg[RU2T]: F:提供折角文件内播放三角的影片文件图标 | R:- | A:SVG图形 | S:-
+file.svg[RU2T]: F:提供折角文件内两条横线的文本文件图标 | R:- | A:SVG图形 | S:-
+filter.svg[RU2T]: F:提供上宽下窄漏斗轮廓的筛选图标 | R:- | A:SVG图形 | S:-
+find-replace.svg[RU2T]: F:提供横线列表与放大镜的查找替换图标 | R:- | A:SVG图形 | S:-
+fire.svg[RU2T]: F:提供多层尖峰火焰轮廓图标 | R:- | A:SVG图形 | S:-
+fold.svg[RU2T]: F:提供上方尖顶与下方横线的折叠图标 | R:- | A:SVG图形 | S:-
+folder-add.svg[RU2T]: F:提供文件夹轮廓内加号的新增图标 | R:- | A:SVG图形 | S:-
+folder-delete.svg[RU2T]: F:提供文件夹轮廓内减号的移除图标 | R:- | A:SVG图形 | S:-
+folder.svg[RU2T]: F:提供带左上标签的文件夹轮廓 | R:- | A:SVG图形 | S:-
+font-colors.svg[RU2T]: F:提供大写A及下划线的文字颜色图标 | R:- | A:SVG图形 | S:-
+formula.svg[RU2T]: F:提供上下横线连接折角的求和符号 | R:- | A:SVG图形 | S:-
+forward.svg[RU2T]: F:提供两个向右空心三角的快进图标 | R:- | A:SVG图形 | S:-
+fullscreen-exit.svg[RU2T]: F:提供四个向内直角的退出全屏图标 | R:- | A:SVG图形 | S:-
+fullscreen.svg[RU2T]: F:提供四个向外直角的全屏图标 | R:- | A:SVG图形 | S:-
+general.svg[RU2T]: F:提供三行三列小方格的通用网格图标 | R:- | A:SVG图形 | S:-
+gift.svg[RU2T]: F:提供带蝴蝶结和顶盖的礼盒轮廓 | R:- | A:SVG图形 | S:-
+h1.svg[RU2T]: F:提供H加数字1的一级标题标记 | R:- | A:SVG图形 | S:-
+h2.svg[RU2T]: F:提供H加数字2的二级标题标记 | R:- | A:SVG图形 | S:-
+h3.svg[RU2T]: F:提供H加数字3的三级标题标记 | R:- | A:SVG图形 | S:-
+h4.svg[RU2T]: F:提供H加数字4的四级标题标记 | R:- | A:SVG图形 | S:-
+h5.svg[RU2T]: F:提供H加数字5的五级标题标记 | R:- | A:SVG图形 | S:-
+h6.svg[RU2T]: F:提供H加数字6的六级标题标记 | R:- | A:SVG图形 | S:-
+h7.svg[RU2T]: F:提供H加数字7的标题样式标记 | R:- | A:SVG图形 | S:-
+heart-fill.svg[RU2T]: F:提供实心心形的收藏或喜爱图标 | R:- | A:SVG图形 | S:-
+heart.svg[RU2T]: F:提供空心心形的收藏或喜爱图标 | R:- | A:SVG图形 | S:-
+highlight.svg[RU2T]: F:提供窄笔头与阶梯笔身的高亮笔图标 | R:- | A:SVG图形 | S:-
+history.svg[RU2T]: F:提供回绕箭头和时钟指针的历史图标 | R:- | A:SVG图形 | S:-
+home.svg[RU2T]: F:提供尖屋顶、墙面及门框的主页图标 | R:- | A:SVG图形 | S:-
+idcard.svg[RU2T]: F:提供证件框内头像和文字短线的身份卡图标 | R:- | A:SVG图形 | S:-
+image-close.svg[RU2T]: F:提供图片框右下角附关闭圆标的移除图片图标 | R:- | A:SVG图形 | S:-
+image.svg[RU2T]: F:提供方框内山形和角点的图片图标 | R:- | A:SVG图形 | S:-
+import.svg[RU2T]: F:提供开放框与向内左箭头的导入图标 | R:- | A:SVG图形 | S:-
+info-circle-fill.svg[RU2T]: F:提供实心圆内白色小写i的信息图标 | R:- | A:SVG图形 | S:-
+info-circle.svg[RU2T]: F:提供圆轮廓内小写i的信息图标 | R:- | A:SVG图形 | S:-
+info.svg[RU2T]: F:提供独立竖线和顶点组成的小写i信息标记 | R:- | A:SVG图形 | S:-
+interaction.svg[RU2T]: F:提供分为顶栏与双列内容的界面交互图标 | R:- | A:SVG图形 | S:-
+italic.svg[RU2T]: F:提供倾斜I和上下短横的斜体文字图标 | R:- | A:SVG图形 | S:-
+language.svg[RU2T]: F:提供中文字与字母A叠置的语言切换图标 | R:- | A:SVG图形 | S:-
+launch.svg[RU2T]: F:提供方框向右上伸出箭头的外部打开图标 | R:- | A:SVG图形 | S:-
+layout.svg[RU2T]: F:提供矩形内竖向分栏的页面布局图标 | R:- | A:SVG图形 | S:-
+left-circle.svg[RU2T]: F:提供圆框内向左折线的返回图标 | R:- | A:SVG图形 | S:-
+left.svg[RU2T]: F:提供单个向左折线的方向图标 | R:- | A:SVG图形 | S:-
+line-height.svg[RU2T]: F:提供字母T和双向竖箭头的行高图标 | R:- | A:SVG图形 | S:-
+link.svg[RU2T]: F:提供两段斜向链节连接的链接图标 | R:- | A:SVG图形 | S:-
+list.svg[RU2T]: F:提供三行方点和横线组成的列表图标 | R:- | A:SVG图形 | S:-
+live-broadcast.svg[RU2T]: F:提供天线电视框内播放三角的直播图标 | R:- | A:SVG图形 | S:-
+loading.svg[RU2T]: F:提供留有缺口的圆弧加载指示 | R:- | A:SVG图形 | S:-
+location.svg[RU2T]: F:提供圆心和尖底轮廓的定位标记 | R:- | A:SVG图形 | S:-
+lock.svg[RU2T]: F:提供弧形锁梁与矩形锁体的锁定图标 | R:- | A:SVG图形 | S:-
+loop.svg[RU2T]: F:提供两个首尾回环箭头的循环图标 | R:- | A:SVG图形 | S:-
+man.svg[RU2T]: F:提供圆环和右上箭头的男性符号 | R:- | A:SVG图形 | S:-
+menu-fold.svg[RU2T]: F:提供三条菜单横线与向左三角的收起菜单图标 | R:- | A:SVG图形 | S:-
+menu-unfold.svg[RU2T]: F:提供三条菜单横线与向右三角的展开菜单图标 | R:- | A:SVG图形 | S:-
+menu.svg[RU2T]: F:提供三条等长横线的菜单图标 | R:- | A:SVG图形 | S:-
+message-banned.svg[RU2T]: F:提供对话气泡与右下禁止圆标的禁言图标 | R:- | A:SVG图形 | S:-
+message.svg[RU2T]: F:提供带文字横线的对话气泡图标 | R:- | A:SVG图形 | S:-
+mind-mapping.svg[RU2T]: F:提供竖向主干及三个横向分支的思维导图图标 | R:- | A:SVG图形 | S:-
+minus-circle-fill.svg[RU2T]: F:提供实心圆内白色短横的减号图标 | R:- | A:SVG图形 | S:-
+minus-circle.svg[RU2T]: F:提供圆轮廓内短横的减号图标 | R:- | A:SVG图形 | S:-
+minus.svg[RU2T]: F:提供单条水平线的减号标记 | R:- | A:SVG图形 | S:-
+mobile.svg[RU2T]: F:提供带顶部短线和底部圆点的手机轮廓 | R:- | A:SVG图形 | S:-
+moon-fill.svg[RU2T]: F:提供实心月牙形的夜间主题图标 | R:- | A:SVG图形 | S:-
+moon.svg[RU2T]: F:提供空心月牙轮廓的夜间主题图标 | R:- | A:SVG图形 | S:-
+more-vertical.svg[RU2T]: F:提供竖向排列三方点的更多操作图标 | R:- | A:SVG图形 | S:-
+more.svg[RU2T]: F:提供横向排列三方点的更多操作图标 | R:- | A:SVG图形 | S:-
+mosaic.svg[RU2T]: F:提供交错深色方格组成的马赛克图标 | R:- | A:SVG图形 | S:-
+music.svg[RU2T]: F:提供双音符杆和两圆音符头的音乐图标 | R:- | A:SVG图形 | S:-
+mute-fill.svg[RU2T]: F:提供实心扬声器与斜向划线的静音图标 | R:- | A:SVG图形 | S:-
+mute.svg[RU2T]: F:提供轮廓扬声器与斜向划线的静音图标 | R:- | A:SVG图形 | S:-
+nav.svg[RU2T]: F:提供带左侧窄列和横向分行的导航表格图标 | R:- | A:SVG图形 | S:-
+notification-close.svg[RU2T]: F:提供铃铛轮廓上斜划线的关闭通知图标 | R:- | A:SVG图形 | S:-
+notification.svg[RU2T]: F:提供钟形铃身和底部短线的通知图标 | R:- | A:SVG图形 | S:-
+oblique-line.svg[RU2T]: F:提供单条右倾斜线的分隔标记 | R:- | A:SVG图形 | S:-
+old-version.svg[RU2T]: F:提供显示器内向左箭头的旧版本返回图标 | R:- | A:SVG图形 | S:-
+ordered-list.svg[RU2T]: F:提供数字1至3配横线的有序列表图标 | R:- | A:SVG图形 | S:-
+original-size.svg[RU2T]: F:提供1:1文字构成的原始尺寸图标 | R:- | A:SVG图形 | S:-
+palette.svg[RU2T]: F:提供椭圆调色盘、颜料点和斜置画笔的图标 | R:- | A:SVG图形 | S:-
+paste.svg[RU2T]: F:提供错位实线框与虚线边角的粘贴图标 | R:- | A:SVG图形 | S:-
+pause-circle-fill.svg[RU2T]: F:提供实心圆内白色双竖条的暂停图标 | R:- | A:SVG图形 | S:-
+pause-circle.svg[RU2T]: F:提供圆轮廓内双竖条的暂停图标 | R:- | A:SVG图形 | S:-
+pause.svg[RU2T]: F:提供独立双竖条的暂停标记 | R:- | A:SVG图形 | S:-
+pen-fill.svg[RU2T]: F:提供实心斜置铅笔与分隔笔帽的书写图标 | R:- | A:SVG图形 | S:-
+pen.svg[RU2T]: F:提供空心斜置铅笔和笔尖轮廓的书写图标 | R:- | A:SVG图形 | S:-
+phone.svg[RU2T]: F:提供弯曲听筒轮廓的电话图标 | R:- | A:SVG图形 | S:-
+play-arrow-fill.svg[RU2T]: F:提供独立实心向右三角的播放标记 | R:- | A:SVG图形 | S:-
+play-arrow.svg[RU2T]: F:提供独立空心向右三角的播放标记 | R:- | A:SVG图形 | S:-
+play-circle-fill.svg[RU2T]: F:提供实心圆内白色向右三角的播放图标 | R:- | A:SVG图形 | S:-
+play-circle.svg[RU2T]: F:提供圆轮廓内空心向右三角的播放图标 | R:- | A:SVG图形 | S:-
+plus-circle-fill.svg[RU2T]: F:提供实心圆内白色加号的新增图标 | R:- | A:SVG图形 | S:-
+plus-circle.svg[RU2T]: F:提供圆轮廓内加号的新增图标 | R:- | A:SVG图形 | S:-
+plus.svg[RU2T]: F:提供横竖线交叉的独立加号 | R:- | A:SVG图形 | S:-
+poweroff.svg[RU2T]: F:提供开口圆环和竖线的电源关闭符号 | R:- | A:SVG图形 | S:-
+printer.svg[RU2T]: F:提供上下纸张和矩形机身的打印机图标 | R:- | A:SVG图形 | S:-
+public.svg[RU2T]: F:提供圆球内大陆轮廓的全球公开图标 | R:- | A:SVG图形 | S:-
+pushpin.svg[RU2T]: F:提供斜置图钉头和尖脚的固定图标 | R:- | A:SVG图形 | S:-
+qrcode.svg[RU2T]: F:提供三个定位方框及零散方格的二维码图标 | R:- | A:SVG图形 | S:-
+question-circle-fill.svg[RU2T]: F:提供实心圆内白色问号的帮助图标 | R:- | A:SVG图形 | S:-
+question-circle.svg[RU2T]: F:提供圆轮廓内问号的帮助图标 | R:- | A:SVG图形 | S:-
+question.svg[RU2T]: F:提供独立弧形钩和底点组成的问号 | R:- | A:SVG图形 | S:-
+quote.svg[RU2T]: F:提供两个大弯钩形引号的引用图标 | R:- | A:SVG图形 | S:-
+record-stop.svg[RU2T]: F:提供圆轮廓内实心圆角方块的停止录制图标 | R:- | A:SVG图形 | S:-
+record.svg[RU2T]: F:提供圆轮廓内实心圆点的录制图标 | R:- | A:SVG图形 | S:-
+redo.svg[RU2T]: F:提供向右上回弯箭头的重做图标 | R:- | A:SVG图形 | S:-
+refresh.svg[RU2T]: F:提供两支绕圈折返箭头的刷新图标 | R:- | A:SVG图形 | S:-
+reply.svg[RU2T]: F:提供向左弯曲箭头的回复图标 | R:- | A:SVG图形 | S:-
+right-circle.svg[RU2T]: F:提供圆框内向右折线的前进图标 | R:- | A:SVG图形 | S:-
+right.svg[RU2T]: F:提供单个向右折线的方向图标 | R:- | A:SVG图形 | S:-
+robot-add.svg[RU2T]: F:提供机器人方形脸及右下加号的新增机器人图标 | R:- | A:SVG图形 | S:-
+robot.svg[RU2T]: F:提供双眼方形机器人头部和天线图标 | R:- | A:SVG图形 | S:-
+rotate-left.svg[RU2T]: F:提供方框上方向左弯箭头的左旋转图标 | R:- | A:SVG图形 | S:-
+rotate-right.svg[RU2T]: F:提供方框上方向右弯箭头的右旋转图标 | R:- | A:SVG图形 | S:-
+safe.svg[RU2T]: F:提供盾牌轮廓内勾选的安全图标 | R:- | A:SVG图形 | S:-
+save.svg[RU2T]: F:提供折角外框与顶部槽口的软盘保存图标 | R:- | A:SVG图形 | S:-
+scan.svg[RU2T]: F:提供四角框和横向扫描线的扫描图标 | R:- | A:SVG图形 | S:-
+schedule.svg[RU2T]: F:提供圆盘和斜下指针的日程时钟图标 | R:- | A:SVG图形 | S:-
+scissor.svg[RU2T]: F:提供双圆手柄和交叉刀片的剪刀图标 | R:- | A:SVG图形 | S:-
+search.svg[RU2T]: F:提供圆镜面和右下斜柄的搜索图标 | R:- | A:SVG图形 | S:-
+select-all.svg[RU2T]: F:提供三行勾选和横线的全选图标 | R:- | A:SVG图形 | S:-
+send.svg[RU2T]: F:提供向右尖角及中间折线的纸飞机发送图标 | R:- | A:SVG图形 | S:-
+settings.svg[RU2T]: F:提供齿轮轮廓和中心圆孔的设置图标 | R:- | A:SVG图形 | S:-
+shake.svg[RU2T]: F:提供倾斜手机和两侧短线的震动图标 | R:- | A:SVG图形 | S:-
+share-alt.svg[RU2T]: F:提供三个圆节点及两条连接线的分享图标 | R:- | A:SVG图形 | S:-
+share-external.svg[RU2T]: F:提供开放方框内向上箭头的外部分享图标 | R:- | A:SVG图形 | S:-
+share-internal.svg[RU2T]: F:提供底部托架和向右弯箭头的内部分享图标 | R:- | A:SVG图形 | S:-
+shrink.svg[RU2T]: F:提供相向直角折线的收缩图标 | R:- | A:SVG图形 | S:-
+skin.svg[RU2T]: F:提供短袖T恤轮廓的皮肤主题图标 | R:- | A:SVG图形 | S:-
+skip-next-fill.svg[RU2T]: F:提供实心向右三角和竖栏的下一项图标 | R:- | A:SVG图形 | S:-
+skip-next.svg[RU2T]: F:提供空心向右三角和竖栏的下一项图标 | R:- | A:SVG图形 | S:-
+skip-previous-fill.svg[RU2T]: F:提供实心向左三角和竖栏的上一项图标 | R:- | A:SVG图形 | S:-
+skip-previous.svg[RU2T]: F:提供空心向左三角和竖栏的上一项图标 | R:- | A:SVG图形 | S:-
+sort-ascending.svg[RU2T]: F:提供向下箭头和A到Z文字的升序排序图标 | R:- | A:SVG图形 | S:-
+sort-descending.svg[RU2T]: F:提供向上箭头和A到Z文字的降序排序图标 | R:- | A:SVG图形 | S:-
+sort.svg[RU2T]: F:提供自上而下逐渐变短横线的排序图标 | R:- | A:SVG图形 | S:-
+sound-fill.svg[RU2T]: F:提供实心扬声器和双层声波的音量图标 | R:- | A:SVG图形 | S:-
+sound.svg[RU2T]: F:提供轮廓扬声器和双层声波的音量图标 | R:- | A:SVG图形 | S:-
+stamp.svg[RU2T]: F:提供圆头印章手柄和矩形底座图标 | R:- | A:SVG图形 | S:-
+star-fill.svg[RU2T]: F:提供实心五角星的收藏图标 | R:- | A:SVG图形 | S:-
+star.svg[RU2T]: F:提供空心五角星的收藏图标 | R:- | A:SVG图形 | S:-
+stop.svg[RU2T]: F:提供圆圈内斜杠的停止或禁止图标 | R:- | A:SVG图形 | S:-
+storage.svg[RU2T]: F:提供三层存储柜及小方块指示的存储图标 | R:- | A:SVG图形 | S:-
+strikethrough.svg[RU2T]: F:提供横线穿过字母S的删除线文字图标 | R:- | A:SVG图形 | S:-
+subscribe-add.svg[RU2T]: F:提供书签轮廓右上加号的新增订阅图标 | R:- | A:SVG图形 | S:-
+subscribe.svg[RU2T]: F:提供底部V形缺口的书签订阅图标 | R:- | A:SVG图形 | S:-
+subscribed.svg[RU2T]: F:提供书签轮廓内勾选的已订阅图标 | R:- | A:SVG图形 | S:-
+sun-fill.svg[RU2T]: F:提供实心太阳圆心及八向光点的日间主题图标 | R:- | A:SVG图形 | S:-
+sun.svg[RU2T]: F:提供空心太阳圆环及八向光点的日间主题图标 | R:- | A:SVG图形 | S:-
+swap.svg[RU2T]: F:提供上下相反方向水平箭头的交换图标 | R:- | A:SVG图形 | S:-
+sync.svg[RU2T]: F:提供两段竖向回绕箭头的同步图标 | R:- | A:SVG图形 | S:-
+tag.svg[RU2T]: F:提供带圆孔的斜置单张标签轮廓 | R:- | A:SVG图形 | S:-
+tags.svg[RU2T]: F:提供带圆孔及底部叠影的多标签图标 | R:- | A:SVG图形 | S:-
+thumb-down-fill.svg[RU2T]: F:提供实心向下拇指及旁侧竖线的否定图标 | R:- | A:SVG图形 | S:-
+thumb-down.svg[RU2T]: F:提供空心向下拇指及旁侧竖线的否定图标 | R:- | A:SVG图形 | S:-
+thumb-up-fill.svg[RU2T]: F:提供实心向上拇指及旁侧竖线的赞同图标 | R:- | A:SVG图形 | S:-
+thumb-up.svg[RU2T]: F:提供空心向上拇指及旁侧竖线的赞同图标 | R:- | A:SVG图形 | S:-
+thunderbolt.svg[RU2T]: F:提供折角闪电轮廓的电力图标 | R:- | A:SVG图形 | S:-
+to-bottom.svg[RU2T]: F:提供向下粗箭头与底线的置底图标 | R:- | A:SVG图形 | S:-
+to-left.svg[RU2T]: F:提供向左粗箭头与左竖栏的靠左图标 | R:- | A:SVG图形 | S:-
+to-right.svg[RU2T]: F:提供向右粗箭头与右竖栏的靠右图标 | R:- | A:SVG图形 | S:-
+to-top.svg[RU2T]: F:提供向上粗箭头与顶线的置顶图标 | R:- | A:SVG图形 | S:-
+tool.svg[RU2T]: F:提供斜置开口扳手的工具图标 | R:- | A:SVG图形 | S:-
+translate.svg[RU2T]: F:提供回环箭头包围字母A的翻译图标 | R:- | A:SVG图形 | S:-
+trophy.svg[RU2T]: F:提供双耳杯身和底座的奖杯轮廓 | R:- | A:SVG图形 | S:-
+underline.svg[RU2T]: F:提供字母U和底部横线的下划线文字图标 | R:- | A:SVG图形 | S:-
+undo.svg[RU2T]: F:提供向左上回弯箭头的撤销图标 | R:- | A:SVG图形 | S:-
+unfold.svg[RU2T]: F:提供两条横线和下方V形的展开图标 | R:- | A:SVG图形 | S:-
+unlock.svg[RU2T]: F:提供打开锁梁与方形锁体的解锁图标 | R:- | A:SVG图形 | S:-
+unordered-list.svg[RU2T]: F:提供三行小方点配横线的无序列表图标 | R:- | A:SVG图形 | S:-
+up-circle.svg[RU2T]: F:提供圆框内向上折线的收起图标 | R:- | A:SVG图形 | S:-
+up.svg[RU2T]: F:提供单个向上折线的方向图标 | R:- | A:SVG图形 | S:-
+upload.svg[RU2T]: F:提供向上箭头和底部托架的上传图标 | R:- | A:SVG图形 | S:-
+user-add.svg[RU2T]: F:提供人物头像及右下加号的新增用户图标 | R:- | A:SVG图形 | S:-
+user-group.svg[RU2T]: F:提供前后两个头像轮廓的用户组图标 | R:- | A:SVG图形 | S:-
+user.svg[RU2T]: F:提供圆头及半身轮廓的单用户图标 | R:- | A:SVG图形 | S:-
+video-camera.svg[RU2T]: F:提供矩形机身和侧面梯形镜头的摄像机图标 | R:- | A:SVG图形 | S:-
+voice.svg[RU2T]: F:提供圆头麦克风、弧形支架和底部杆的语音图标 | R:- | A:SVG图形 | S:-
+wifi.svg[RU2T]: F:提供三层圆弧和底部点的无线网络图标 | R:- | A:SVG图形 | S:-
+woman.svg[RU2T]: F:提供圆环和底部十字的女性符号 | R:- | A:SVG图形 | S:-
+zoom-in.svg[RU2T]: F:提供放大镜内加号的放大图标 | R:- | A:SVG图形 | S:-
+zoom-out.svg[RU2T]: F:提供放大镜内减号的缩小图标 | R:- | A:SVG图形 | S:-
+
+===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/public/resources/vscode-codicons/icons/===
+account.svg[RU2T]: F:提供圆形边框内实心头像的账户图标 | R:- | A:SVG图形 | S:-
+activate-breakpoints.svg[RU2T]: F:提供实心圆和偏移圆弧的启用断点图标 | R:- | A:SVG图形 | S:-
+add-compact.svg[RU2T]: F:提供笔画较粗的紧凑加号 | R:- | A:SVG图形 | S:-
+add-small.svg[RU2T]: F:提供较小交叉线构成的新增加号 | R:- | A:SVG图形 | S:-
+add.svg[RU2T]: F:提供细笔画横竖交叉的标准新增加号 | R:- | A:SVG图形 | S:-
+agent-compact.svg[RU2T]: F:提供粗笔画六边轮廓与中间分隔的紧凑Agent标记 | R:- | A:SVG图形 | S:-
+agent.svg[RU2T]: F:提供细笔画六边轮廓与中间分隔的Agent标记 | R:- | A:SVG图形 | S:-
+archive.svg[RU2T]: F:提供圆角箱体、上盖和短把手的归档图标 | R:- | A:SVG图形 | S:-
+arrow-both.svg[RU2T]: F:提供左右两端箭头的双向水平指示 | R:- | A:SVG图形 | S:-
+arrow-circle-down.svg[RU2T]: F:提供圆框内向下直杆箭头的图标 | R:- | A:SVG图形 | S:-
+arrow-circle-left.svg[RU2T]: F:提供圆框内向左直杆箭头的图标 | R:- | A:SVG图形 | S:-
+arrow-circle-right.svg[RU2T]: F:提供圆框内向右直杆箭头的图标 | R:- | A:SVG图形 | S:-
+arrow-circle-up-sparkle.svg[RU2T]: F:提供上箭头圆框与右上星光的增强上传图标 | R:- | A:SVG图形 | S:-
+arrow-circle-up.svg[RU2T]: F:提供圆框内向上直杆箭头的图标 | R:- | A:SVG图形 | S:-
+arrow-down.svg[RU2T]: F:提供向下直杆和斜角尖头的箭头 | R:- | A:SVG图形 | S:-
+arrow-left.svg[RU2T]: F:提供向左直杆和斜角尖头的箭头 | R:- | A:SVG图形 | S:-
+arrow-right.svg[RU2T]: F:提供向右直杆和斜角尖头的箭头 | R:- | A:SVG图形 | S:-
+arrow-small-down.svg[RU2T]: F:提供居中短杆向下小箭头 | R:- | A:SVG图形 | S:-
+arrow-small-left.svg[RU2T]: F:提供居中短杆向左小箭头 | R:- | A:SVG图形 | S:-
+arrow-small-right.svg[RU2T]: F:提供居中短杆向右小箭头 | R:- | A:SVG图形 | S:-
+arrow-small-up.svg[RU2T]: F:提供居中短杆向上小箭头 | R:- | A:SVG图形 | S:-
+arrow-swap.svg[RU2T]: F:提供上下错位反向箭头的交换图标 | R:- | A:SVG图形 | S:-
+arrow-up-compact.svg[RU2T]: F:提供粗笔画向上大箭头的紧凑图标 | R:- | A:SVG图形 | S:-
+arrow-up.svg[RU2T]: F:提供细笔画直杆向上箭头 | R:- | A:SVG图形 | S:-
+ask-compact.svg[RU2T]: F:提供粗笔画气泡内问号的紧凑询问图标 | R:- | A:SVG图形 | S:-
+ask.svg[RU2T]: F:提供细笔画气泡内问号的询问图标 | R:- | A:SVG图形 | S:-
+attach-compact.svg[RU2T]: F:提供粗笔画斜置回形针的紧凑附件图标 | R:- | A:SVG图形 | S:-
+attach.svg[RU2T]: F:提供细笔画斜置回形针的附件图标 | R:- | A:SVG图形 | S:-
+azure-devops.svg[RU2T]: F:提供带上方尖角和侧面折片的Azure DevOps标志 | R:- | A:SVG图形 | S:-
+azure.svg[RU2T]: F:提供折叠字母A形的Azure标志 | R:- | A:SVG图形 | S:-
+beaker-compact.svg[RU2T]: F:提供粗笔画锥形瓶与液面线的紧凑实验图标 | R:- | A:SVG图形 | S:-
+beaker-stop.svg[RU2T]: F:提供锥形瓶右下禁止圆标的停止实验图标 | R:- | A:SVG图形 | S:-
+beaker.svg[RU2T]: F:提供细笔画锥形瓶与液面线的实验图标 | R:- | A:SVG图形 | S:-
+bell-dot.svg[RU2T]: F:提供铃铛和右上圆点的未读通知图标 | R:- | A:SVG图形 | S:-
+bell-slash-dot.svg[RU2T]: F:提供斜杠铃铛与圆点的静默未读图标 | R:- | A:SVG图形 | S:-
+bell-slash.svg[RU2T]: F:提供斜线划过铃铛的关闭通知图标 | R:- | A:SVG图形 | S:-
+bell.svg[RU2T]: F:提供带底部铃舌的通知铃铛轮廓 | R:- | A:SVG图形 | S:-
+blank.svg[RU1T]: F:预留16像素空白图标画布，不绘制任何图形 | R:- | A:空SVG画布 | S:-
+bold.svg[RU2T]: F:提供实心字母B的加粗文字图标 | R:- | A:SVG图形 | S:-
+book-compact.svg[RU2T]: F:提供粗笔画展开书页的紧凑书籍图标 | R:- | A:SVG图形 | S:-
+book.svg[RU2T]: F:提供细笔画双页书本轮廓 | R:- | A:SVG图形 | S:-
+bookmark.svg[RU2T]: F:提供下缘V形缺口的书签轮廓 | R:- | A:SVG图形 | S:-
+bracket-dot.svg[RU2T]: F:提供花括号及右下实心点的代码状态图标 | R:- | A:SVG图形 | S:-
+bracket-error.svg[RU2T]: F:提供花括号及右下叉圆的代码错误图标 | R:- | A:SVG图形 | S:-
+briefcase.svg[RU2T]: F:提供带提手和锁扣的公文包轮廓 | R:- | A:SVG图形 | S:-
+broadcast.svg[RU2T]: F:提供中心点和两侧弧线的广播图标 | R:- | A:SVG图形 | S:-
+browser.svg[RU2T]: F:提供顶部横栏分隔的圆角浏览器窗口图标 | R:- | A:SVG图形 | S:-
+bug.svg[RU2T]: F:提供圆形虫身和两侧足的缺陷图标 | R:- | A:SVG图形 | S:-
+build.svg[RU2T]: F:提供托盘点阵与向下箭头的构建图标 | R:- | A:SVG图形 | S:-
+calendar.svg[RU2T]: F:提供圆角日期框及六个日期点的日历图标 | R:- | A:SVG图形 | S:-
+call-incoming.svg[RU2T]: F:提供听筒与向内左下箭头的来电图标 | R:- | A:SVG图形 | S:-
+call-outgoing.svg[RU2T]: F:提供听筒与向外右上箭头的去电图标 | R:- | A:SVG图形 | S:-
+case-sensitive.svg[RU2T]: F:提供大小写Aa文字的区分大小写图标 | R:- | A:SVG图形 | S:-
+chat-export.svg[RU2T]: F:提供聊天气泡及下箭头圆标的导出聊天图标 | R:- | A:SVG图形 | S:-
+chat-import.svg[RU2T]: F:提供聊天气泡及上箭头圆标的导入聊天图标 | R:- | A:SVG图形 | S:-
+chat-sparkle-error.svg[RU2T]: F:提供气泡星光及叉圆状态的智能聊天错误图标 | R:- | A:SVG图形 | S:-
+chat-sparkle-warning.svg[RU2T]: F:提供气泡星光及警示三角的智能聊天警告图标 | R:- | A:SVG图形 | S:-
+chat-sparkle.svg[RU2T]: F:提供聊天气泡右上星光的智能聊天图标 | R:- | A:SVG图形 | S:-
+check-all.svg[RU2T]: F:提供两个错位勾选的全部完成图标 | R:- | A:SVG图形 | S:-
+check-compact.svg[RU2T]: F:提供粗笔画折线勾选的紧凑确认图标 | R:- | A:SVG图形 | S:-
+check.svg[RU2T]: F:提供细笔画折线勾选的确认图标 | R:- | A:SVG图形 | S:-
+checklist-compact.svg[RU2T]: F:提供三行粗勾选配圆点的紧凑检查清单图标 | R:- | A:SVG图形 | S:-
+checklist.svg[RU2T]: F:提供三行细勾选配横线的检查清单图标 | R:- | A:SVG图形 | S:-
+chevron-down-compact.svg[RU2T]: F:提供粗笔画向下V形的紧凑展开图标 | R:- | A:SVG图形 | S:-
+chevron-down.svg[RU2T]: F:提供细笔画向下V形的展开图标 | R:- | A:SVG图形 | S:-
+chevron-left-compact.svg[RU2T]: F:提供粗笔画向左折线的紧凑方向图标 | R:- | A:SVG图形 | S:-
+chevron-left.svg[RU2T]: F:提供细笔画向左折线的方向图标 | R:- | A:SVG图形 | S:-
+chevron-right-compact.svg[RU2T]: F:提供粗笔画向右折线的紧凑方向图标 | R:- | A:SVG图形 | S:-
+chevron-right.svg[RU2T]: F:提供细笔画向右折线的方向图标 | R:- | A:SVG图形 | S:-
+chevron-up-compact.svg[RU2T]: F:提供粗笔画向上折线的紧凑收起图标 | R:- | A:SVG图形 | S:-
+chevron-up.svg[RU2T]: F:提供细笔画向上折线的收起图标 | R:- | A:SVG图形 | S:-
+chip.svg[RU2T]: F:提供中心圆点方框和四周引脚的芯片图标 | R:- | A:SVG图形 | S:-
+chrome-close.svg[RU2T]: F:提供两条斜线交叉的窗口关闭按钮图形 | R:- | A:SVG图形 | S:-
+chrome-maximize.svg[RU2T]: F:提供单方框的窗口最大化按钮图形 | R:- | A:SVG图形 | S:-
+chrome-minimize.svg[RU2T]: F:提供短横线的窗口最小化按钮图形 | R:- | A:SVG图形 | S:-
+chrome-restore.svg[RU2T]: F:提供两个重叠方框的窗口还原按钮 | R:- | A:SVG图形 | S:-
+circle-filled-compact.svg[RU2T]: F:提供中等实心圆的紧凑状态标记 | R:- | A:SVG图形 | S:-
+circle-filled.svg[RU2T]: F:提供较小实心圆的状态标记 | R:- | A:SVG图形 | S:-
+circle-large-filled.svg[RU2T]: F:提供大实心圆的状态标记 | R:- | A:SVG图形 | S:-
+circle-large.svg[RU2T]: F:提供大圆轮廓的状态标记 | R:- | A:SVG图形 | S:-
+circle-slash-compact.svg[RU2T]: F:提供粗圆圈内斜杠的紧凑禁用标记 | R:- | A:SVG图形 | S:-
+circle-slash.svg[RU2T]: F:提供细圆圈内斜杠的禁用标记 | R:- | A:SVG图形 | S:-
+circle-small-filled-compact.svg[RU2T]: F:提供微小实心圆的紧凑点标记 | R:- | A:SVG图形 | S:-
+circle-small-filled.svg[RU2T]: F:提供微小实心点的标准状态标记 | R:- | A:SVG图形 | S:-
+circle-small.svg[RU2T]: F:提供微小空心圆的状态标记 | R:- | A:SVG图形 | S:-
+circle.svg[RU2T]: F:提供中等空心圆的状态标记 | R:- | A:SVG图形 | S:-
+circuit-board.svg[RU2T]: F:提供圆角板框内线路与节点的电路板图标 | R:- | A:SVG图形 | S:-
+claude.svg[RU2T]: F:提供不规则放射状细线组成的Claude标记 | R:- | A:SVG图形 | S:-
+clear-all.svg[RU2T]: F:提供交叉线及横向列表线的全部清除图标 | R:- | A:SVG图形 | S:-
+clippy.svg[RU2T]: F:提供剪贴板与上下反向箭头的剪贴内容图标 | R:- | A:SVG图形 | S:-
+clockface.svg[RU2T]: F:提供圆形表盘与直角指针的时间图标 | R:- | A:SVG图形 | S:-
+close-all.svg[RU2T]: F:提供叠置圆角框内叉号的全部关闭图标 | R:- | A:SVG图形 | S:-
+close-compact.svg[RU2T]: F:提供粗笔画大交叉线的紧凑关闭标记 | R:- | A:SVG图形 | S:-
+close-small.svg[RU2T]: F:提供较小交叉线的关闭标记 | R:- | A:SVG图形 | S:-
+close.svg[RU2T]: F:提供细笔画大交叉线的标准关闭标记 | R:- | A:SVG图形 | S:-
+cloud-compact.svg[RU2T]: F:提供粗笔画多圆弧的紧凑云轮廓 | R:- | A:SVG图形 | S:-
+cloud-download-compact.svg[RU2T]: F:提供粗云轮廓与向下箭头圆标的下载图标 | R:- | A:SVG图形 | S:-
+cloud-download.svg[RU2T]: F:提供细云轮廓与向下箭头圆标的下载图标 | R:- | A:SVG图形 | S:-
+cloud-small.svg[RU2T]: F:提供粗轮廓小云朵的云服务图标 | R:- | A:SVG图形 | S:-
+cloud-upload-compact.svg[RU2T]: F:提供粗云轮廓与向上箭头圆标的上传图标 | R:- | A:SVG图形 | S:-
+cloud-upload.svg[RU2T]: F:提供细云轮廓与向上箭头圆标的上传图标 | R:- | A:SVG图形 | S:-
+cloud.svg[RU2T]: F:提供细线条多圆弧的标准云轮廓 | R:- | A:SVG图形 | S:-
+code-oss.svg[RU2T]: F:提供左侧窄栏和右侧文字短线的开源代码窗口图标 | R:- | A:SVG图形 | S:-
+code-review.svg[RU2T]: F:提供聊天气泡内尖括号的代码评审图标 | R:- | A:SVG图形 | S:-
+code.svg[RU2T]: F:提供左右尖括号与中间斜线的代码图标 | R:- | A:SVG图形 | S:-
+coffee.svg[RU2T]: F:提供冒蒸汽的带把手咖啡杯轮廓 | R:- | A:SVG图形 | S:-
+collapse-all-compact.svg[RU2T]: F:提供粗叠置方框内减号的紧凑全部折叠图标 | R:- | A:SVG图形 | S:-
+collapse-all.svg[RU2T]: F:提供细叠置方框内减号的全部折叠图标 | R:- | A:SVG图形 | S:-
+collection-small.svg[RU2T]: F:提供三枚粗轮廓重叠小方框的集合图标 | R:- | A:SVG图形 | S:-
+collection.svg[RU2T]: F:提供三枚细輪廓错位方框的集合图标 | R:- | A:SVG图形 | S:-
+color-mode.svg[RU2T]: F:提供一半填充一半空白的圆形颜色模式图标 | R:- | A:SVG图形 | S:-
+combine.svg[RU2T]: F:提供三个小方框经箭头合为长框的合并图标 | R:- | A:SVG图形 | S:-
+comment-compact.svg[RU2T]: F:提供粗轮廓圆角对话气泡的紧凑评论图标 | R:- | A:SVG图形 | S:-
+comment-discussion-quote.svg[RU2T]: F:提供带两条横线的聊天气泡引用图标 | R:- | A:SVG图形 | S:-
+comment-discussion-sparkle.svg[RU2T]: F:提供双聊天气泡与星光的智能讨论图标 | R:- | A:SVG图形 | S:-
+comment-discussion.svg[RU2T]: F:提供大小两个叠置气泡的讨论图标 | R:- | A:SVG图形 | S:-
+comment-draft.svg[RU2T]: F:提供虚线圆角气泡的评论草稿图标 | R:- | A:SVG图形 | S:-
+comment-unresolved-compact.svg[RU2T]: F:提供粗聊天气泡与实心圆点的待解决评论图标 | R:- | A:SVG图形 | S:-
+comment-unresolved.svg[RU2T]: F:提供细聊天气泡与实心圆点的待解决评论图标 | R:- | A:SVG图形 | S:-
+comment.svg[RU2T]: F:提供细轮廓圆角气泡的标准评论图标 | R:- | A:SVG图形 | S:-
+compass-active.svg[RU2T]: F:提供指南针圆盘和勾选圆标的启用导航图标 | R:- | A:SVG图形 | S:-
+compass-dot.svg[RU2T]: F:提供指南针圆盘和右下实心点的导航状态图标 | R:- | A:SVG图形 | S:-
+compass.svg[RU2T]: F:提供圆盘内倾斜菱形指针的指南针图标 | R:- | A:SVG图形 | S:-
+copilot-blocked.svg[RU2T]: F:提供助手面罩与减号圆标的阻止Copilot图标 | R:- | A:SVG图形 | S:-
+copilot-compact.svg[RU2T]: F:提供粗轮廓双镜片与圆脸的紧凑Copilot图标 | R:- | A:SVG图形 | S:-
+copilot-dot-compact.svg[RU2T]: F:提供粗助手面罩与右上圆点的紧凑Copilot状态图标 | R:- | A:SVG图形 | S:-
+copilot-dot.svg[RU2T]: F:提供助手面罩与右上实心圆点的Copilot状态图标 | R:- | A:SVG图形 | S:-
+copilot-error.svg[RU2T]: F:提供助手面罩及实心叉圆的Copilot错误图标 | R:- | A:SVG图形 | S:-
+copilot-in-progress.svg[RU2T]: F:提供助手面罩及回环箭头圆标的Copilot处理中图标 | R:- | A:SVG图形 | S:-
+copilot-large.svg[RU2T]: F:提供大号面罩与双眼的Copilot助手图形 | R:- | A:SVG图形 | S:-
+copilot-not-connected.svg[RU2T]: F:提供助手面罩及空心叉圆的Copilot未连接图标 | R:- | A:SVG图形 | S:-
+copilot-snooze.svg[RU2T]: F:提供助手面罩与双Z字符的Copilot休眠图标 | R:- | A:SVG图形 | S:-
+copilot-success.svg[RU2T]: F:提供助手面罩与勾选圆标的Copilot成功图标 | R:- | A:SVG图形 | S:-
+copilot-unavailable.svg[RU2T]: F:提供斜线划过助手面罩的Copilot不可用图标 | R:- | A:SVG图形 | S:-
+copilot-warning-large.svg[RU2T]: F:提供大助手面罩与感叹号圆标的Copilot警告图标 | R:- | A:SVG图形 | S:-
+copilot-warning.svg[RU2T]: F:提供标准助手面罩与感叹号圆标的Copilot警告图标 | R:- | A:SVG图形 | S:-
+copilot.svg[RU2T]: F:提供双镜片与圆脸面罩的标准Copilot助手标志 | R:- | A:SVG图形 | S:-
+copy.svg[RU2T]: F:提供两个错位圆角矩形的复制图标 | R:- | A:SVG图形 | S:-
+coverage.svg[RU2T]: F:提供重叠圆框与勾选的覆盖率状态图标 | R:- | A:SVG图形 | S:-
+credit-card.svg[RU2T]: F:提供圆角卡片、顶部横栏和底部短线的信用卡图标 | R:- | A:SVG图形 | S:-
+cursor.svg[RU2T]: F:提供尖顶斜边鼠标指针轮廓 | R:- | A:SVG图形 | S:-
+dash.svg[RU2T]: F:提供独立居中短横的破折号标记 | R:- | A:SVG图形 | S:-
+dashboard.svg[RU2T]: F:提供双圆仪表盘与倾斜指针的控制面板图标 | R:- | A:SVG图形 | S:-
+database.svg[RU2T]: F:提供椭圆顶面和圆柱侧壁的数据库图标 | R:- | A:SVG图形 | S:-
+debug-all.svg[RU2T]: F:提供虫形与叠置播放三角的全部调试图标 | R:- | A:SVG图形 | S:-
+debug-alt-small.svg[RU2T]: F:提供小虫形与播放三角的紧凑调试图标 | R:- | A:SVG图形 | S:-
+debug-alt.svg[RU2T]: F:提供虫形与播放三角的标准调试图标 | R:- | A:SVG图形 | S:-
+debug-breakpoint-conditional-unverified.svg[RU2T]: F:提供空心圆内两短横的未验证条件断点标记 | R:- | A:SVG图形 | S:-
+debug-breakpoint-conditional.svg[RU2T]: F:提供实心圆内两白短横的条件断点标记 | R:- | A:SVG图形 | S:-
+debug-breakpoint-data-unverified.svg[RU2T]: F:提供空心六边形的未验证数据断点标记 | R:- | A:SVG图形 | S:-
+debug-breakpoint-data.svg[RU2T]: F:提供实心六边形的数据断点标记 | R:- | A:SVG图形 | S:-
+debug-breakpoint-function-unverified.svg[RU2T]: F:提供空心三角的未验证函数断点标记 | R:- | A:SVG图形 | S:-
+debug-breakpoint-function.svg[RU2T]: F:提供实心三角的函数断点标记 | R:- | A:SVG图形 | S:-
+debug-breakpoint-log-unverified.svg[RU2T]: F:提供空心菱形的未验证日志断点标记 | R:- | A:SVG图形 | S:-
+debug-breakpoint-log.svg[RU2T]: F:提供实心菱形的日志断点标记 | R:- | A:SVG图形 | S:-
+debug-breakpoint-unsupported.svg[RU2T]: F:提供实心圆内白色感叹号的不支持断点标记 | R:- | A:SVG图形 | S:-
+debug-connected-compact.svg[RU2T]: F:提供粗线连接插头轮廓的紧凑调试连接图标 | R:- | A:SVG图形 | S:-
+debug-connected.svg[RU2T]: F:提供细线连接插头轮廓的调试连接图标 | R:- | A:SVG图形 | S:-
+debug-console.svg[RU2T]: F:提供窗口内命令尖括号与虫形的调试控制台图标 | R:- | A:SVG图形 | S:-
+debug-continue-small.svg[RU2T]: F:提供小播放三角与左竖栏的继续调试图标 | R:- | A:SVG图形 | S:-
+debug-continue.svg[RU2T]: F:提供粗播放三角与左竖栏的继续调试图标 | R:- | A:SVG图形 | S:-
+debug-coverage.svg[RU2T]: F:提供播放三角与左下灯泡的调试覆盖图标 | R:- | A:SVG图形 | S:-
+debug-disconnect-compact.svg[RU2T]: F:提供粗线分离插头的紧凑调试断连图标 | R:- | A:SVG图形 | S:-
+debug-disconnect.svg[RU2T]: F:提供细线分离插头的调试断连图标 | R:- | A:SVG图形 | S:-
+debug-line-by-line.svg[RU2T]: F:提供播放圆标与三条代码横线的逐行调试图标 | R:- | A:SVG图形 | S:-
+debug-pause.svg[RU2T]: F:提供两条圆端竖线的暂停调试标记 | R:- | A:SVG图形 | S:-
+debug-rerun.svg[RU2T]: F:提供播放三角与左下回弯箭头的重新运行图标 | R:- | A:SVG图形 | S:-
+debug-restart-frame.svg[RU2T]: F:提供两条横线与回弯箭头的重启栈帧图标 | R:- | A:SVG图形 | S:-
+debug-restart.svg[RU2T]: F:提供粗圆形回弯箭头的重新调试图标 | R:- | A:SVG图形 | S:-
+debug-reverse-continue.svg[RU2T]: F:提供向左播放三角与右竖栏的反向继续图标 | R:- | A:SVG图形 | S:-
+debug-stackframe-active.svg[RU2T]: F:提供右尖标签轮廓内实心点的活动栈帧标记 | R:- | A:SVG图形 | S:-
+debug-stackframe.svg[RU2T]: F:提供空心右尖标签轮廓的栈帧标记 | R:- | A:SVG图形 | S:-
+debug-start.svg[RU2T]: F:提供独立空心播放三角的开始调试标记 | R:- | A:SVG图形 | S:-
+debug-step-back.svg[RU2T]: F:提供左回弯箭头和底部点的调试退步图标 | R:- | A:SVG图形 | S:-
+debug-step-into.svg[RU2T]: F:提供向下箭头和底部点的调试步入图标 | R:- | A:SVG图形 | S:-
+debug-step-out.svg[RU2T]: F:提供上箭头和底部点的调试步出图标 | R:- | A:SVG图形 | S:-
+debug-step-over.svg[RU2T]: F:提供上方弯箭头和下方点的调试步过图标 | R:- | A:SVG图形 | S:-
+debug-stop.svg[RU2T]: F:提供粗线方框的停止调试标记 | R:- | A:SVG图形 | S:-
+debug.svg[RU2T]: F:提供虫身内叉号的调试图标 | R:- | A:SVG图形 | S:-
+desktop-download.svg[RU2T]: F:提供显示器与右下箭头的桌面下载图标 | R:- | A:SVG图形 | S:-
+developer-tools.svg[RU2T]: F:提供代码窗口与扳手的开发工具图标 | R:- | A:SVG图形 | S:-
+device-camera-video.svg[RU2T]: F:提供圆角摄像机机身和侧镜头的设备图标 | R:- | A:SVG图形 | S:-
+device-camera.svg[RU2T]: F:提供肩部隆起和圆镜头的相机设备图标 | R:- | A:SVG图形 | S:-
+device-mobile.svg[RU2T]: F:提供圆角手机机身与底部短线的移动设备图标 | R:- | A:SVG图形 | S:-
+diff-added.svg[RU2T]: F:提供圆角框内加号的差异新增标记 | R:- | A:SVG图形 | S:-
+diff-ignored.svg[RU2T]: F:提供圆角框内斜杠的差异忽略标记 | R:- | A:SVG图形 | S:-
+diff-modified.svg[RU2T]: F:提供圆角框内实心圆的差异修改标记 | R:- | A:SVG图形 | S:-
+diff-multiple.svg[RU2T]: F:提供叠置折角文件内加减符号的多文件差异图标 | R:- | A:SVG图形 | S:-
+diff-removed.svg[RU2T]: F:提供圆角框内减号的差异删除标记 | R:- | A:SVG图形 | S:-
+diff-renamed.svg[RU2T]: F:提供圆角框内右箭头的差异重命名标记 | R:- | A:SVG图形 | S:-
+diff-single.svg[RU2T]: F:提供单个折角文件内加减符号的文件差异图标 | R:- | A:SVG图形 | S:-
+diff.svg[RU2T]: F:提供并排窄栏窗口的差异对比图标 | R:- | A:SVG图形 | S:-
+discard.svg[RU2T]: F:提供向左回弯折线箭头的丢弃变更图标 | R:- | A:SVG图形 | S:-
+download.svg[RU2T]: F:提供细线向下箭头与底部短线的下载图标 | R:- | A:SVG图形 | S:-
+edit-code.svg[RU2T]: F:提供代码气泡与斜置实心笔的编辑代码图标 | R:- | A:SVG图形 | S:-
+edit-compact.svg[RU2T]: F:提供粗轮廓斜置铅笔的紧凑编辑图标 | R:- | A:SVG图形 | S:-
+edit-session.svg[RU2T]: F:提供文档加减号及右上循环箭头的编辑会话图标 | R:- | A:SVG图形 | S:-
+edit-sparkle.svg[RU2T]: F:提供斜置铅笔与星光的智能编辑图标 | R:- | A:SVG图形 | S:-
+edit.svg[RU2T]: F:提供细轮廓斜置铅笔的标准编辑图标 | R:- | A:SVG图形 | S:-
+editor-layout.svg[RU2T]: F:提供错位窗框与左侧窄栏的编辑器布局图标 | R:- | A:SVG图形 | S:-
+ellipsis.svg[RU2T]: F:提供三个水平圆点的省略与更多图标 | R:- | A:SVG图形 | S:-
+empty-window.svg[RU2T]: F:提供窗口轮廓左上加号圆标的新建空窗口图标 | R:- | A:SVG图形 | S:-
+eraser.svg[RU2T]: F:提供斜置矩形及分隔底角的橡皮擦图标 | R:- | A:SVG图形 | S:-
+error-compact.svg[RU2T]: F:提供粗圆轮廓内叉号的紧凑错误图标 | R:- | A:SVG图形 | S:-
+error-small.svg[RU2T]: F:提供小圆轮廓内叉号的错误状态标记 | R:- | A:SVG图形 | S:-
+error.svg[RU2T]: F:提供标准细圆轮廓内叉号的错误图标 | R:- | A:SVG图形 | S:-
+exclude.svg[RU2T]: F:提供齿轮与减号圆标的排除图标 | R:- | A:SVG图形 | S:-
+expand-all.svg[RU2T]: F:提供叠置圆角框内加号的全部展开图标 | R:- | A:SVG图形 | S:-
+export.svg[RU2T]: F:提供左竖线与向右箭头的导出图标 | R:- | A:SVG图形 | S:-
+extensions-large.svg[RU2T]: F:提供大号三方格与斜置第四格的扩展图标 | R:- | A:SVG图形 | S:-
+extensions.svg[RU2T]: F:提供三方格与斜置第四格的标准扩展图标 | R:- | A:SVG图形 | S:-
+eye-closed.svg[RU2T]: F:提供斜杠划过上眼弧和瞳孔的隐藏图标 | R:- | A:SVG图形 | S:-
+eye.svg[RU2T]: F:提供上眼弧与空心瞳孔的查看图标 | R:- | A:SVG图形 | S:-
+feedback.svg[RU2T]: F:提供人物轮廓和小气泡的反馈图标 | R:- | A:SVG图形 | S:-
+file-binary.svg[RU2T]: F:提供折角文件内01文字的二进制文件图标 | R:- | A:SVG图形 | S:-
+file-code.svg[RU2T]: F:提供折角文件与尖括号的代码文件图标 | R:- | A:SVG图形 | S:-
+file-media-compact.svg[RU2T]: F:提供折角文件及粗图片圆角块的紧凑媒体文件图标 | R:- | A:SVG图形 | S:-
+file-media.svg[RU2T]: F:提供折角文件及图片山形的媒体文件图标 | R:- | A:SVG图形 | S:-
+file-pdf.svg[RU2T]: F:提供折角文件内PDF字样的PDF文件图标 | R:- | A:SVG图形 | S:-
+file-submodule.svg[RU2T]: F:提供文件夹轮廓及叠置底边的子模块图标 | R:- | A:SVG图形 | S:-
+file-symlink-directory.svg[RU2T]: F:提供文件夹及右上箭头圆角块的目录链接图标 | R:- | A:SVG图形 | S:-
+file-symlink-file.svg[RU2T]: F:提供折角文件及右上箭头圆角块的文件链接图标 | R:- | A:SVG图形 | S:-
+file-text.svg[RU2T]: F:提供折角文件内三条横线的文本文件图标 | R:- | A:SVG图形 | S:-
+file-zip.svg[RU2T]: F:提供文件夹内阶梯拉链的压缩文件图标 | R:- | A:SVG图形 | S:-
+file.svg[RU2T]: F:提供没有内部装饰的折角文件轮廓 | R:- | A:SVG图形 | S:-
+files.svg[RU2T]: F:提供两个叠置折角文件的多文件图标 | R:- | A:SVG图形 | S:-
+filter-filled.svg[RU2T]: F:提供实心上宽下窄漏斗的筛选图标 | R:- | A:SVG图形 | S:-
+filter.svg[RU2T]: F:提供空心上宽下窄漏斗的筛选图标 | R:- | A:SVG图形 | S:-
+fish1-happy.svg[RU2T]: F:提供带笑嘴的侧向短身小鱼表情图标 | R:- | A:SVG图形 | S:-
+fish1-neutral.svg[RU2T]: F:提供无嘴线的侧向短身小鱼中性表情 | R:- | A:SVG图形 | S:-
+fish1-sad.svg[RU2T]: F:提供带下弯嘴的侧向短身小鱼悲伤表情 | R:- | A:SVG图形 | S:-
+fish1-very-sad.svg[RU2T]: F:提供露出多条鱼骨的短身小鱼极悲伤表情 | R:- | A:SVG图形 | S:-
+fish2-happy.svg[RU2T]: F:提供带笑嘴与纵向条纹的窄身鱼表情 | R:- | A:SVG图形 | S:-
+fish2-neutral.svg[RU2T]: F:提供无嘴线的纵向条纹窄身鱼中性表情 | R:- | A:SVG图形 | S:-
+fish2-sad.svg[RU2T]: F:提供带下弯嘴的条纹窄身鱼悲伤表情 | R:- | A:SVG图形 | S:-
+fish2-very-sad.svg[RU2T]: F:提供横向骨线穿过纵纹的窄身鱼极悲伤表情 | R:- | A:SVG图形 | S:-
+fish3-happy.svg[RU2T]: F:提供带笑嘴、弧形身体分隔的圆身鱼表情 | R:- | A:SVG图形 | S:-
+fish3-neutral.svg[RU2T]: F:提供无嘴线的弧形分隔圆身鱼中性表情 | R:- | A:SVG图形 | S:-
+fish3-sad.svg[RU2T]: F:提供带下弯嘴的弧形分隔圆身鱼悲伤表情 | R:- | A:SVG图形 | S:-
+fish3-very-sad.svg[RU2T]: F:提供横竖骨线构成的圆身鱼极悲伤表情 | R:- | A:SVG图形 | S:-
+fish4-happy.svg[RU2T]: F:提供斜置圆身、分段鱼鳍和笑嘴的鱼表情 | R:- | A:SVG图形 | S:-
+fish4-neutral.svg[RU2T]: F:提供斜置圆身和无嘴线的鱼中性表情 | R:- | A:SVG图形 | S:-
+fish4-sad.svg[RU2T]: F:提供斜置圆身和下弯嘴的鱼悲伤表情 | R:- | A:SVG图形 | S:-
+fish4-very-sad.svg[RU2T]: F:提供斜置鱼骨轮廓的极悲伤鱼表情 | R:- | A:SVG图形 | S:-
+flag.svg[RU2T]: F:提供竖杆和燕尾旗面的标志旗图标 | R:- | A:SVG图形 | S:-
+flame.svg[RU2T]: F:提供单层尖顶火焰轮廓图标 | R:- | A:SVG图形 | S:-
+fold-down.svg[RU2T]: F:提供双层向下折线的下方折叠图标 | R:- | A:SVG图形 | S:-
+fold-up.svg[RU2T]: F:提供双层向上折线的上方折叠图标 | R:- | A:SVG图形 | S:-
+fold.svg[RU2T]: F:提供上下相向折线的代码折叠图标 | R:- | A:SVG图形 | S:-
+folder-active.svg[RU2T]: F:提供文件夹及勾选圆标的活动目录图标 | R:- | A:SVG图形 | S:-
+folder-compact.svg[RU2T]: F:提供粗圆角文件夹轮廓的紧凑目录图标 | R:- | A:SVG图形 | S:-
+folder-library.svg[RU2T]: F:提供文件夹和三本书脊的库目录图标 | R:- | A:SVG图形 | S:-
+folder-opened-compact.svg[RU2T]: F:提供粗双层打开文件夹的紧凑目录图标 | R:- | A:SVG图形 | S:-
+folder-opened.svg[RU2T]: F:提供细双层打开文件夹的标准目录图标 | R:- | A:SVG图形 | S:-
+folder.svg[RU2T]: F:提供左上标签圆角文件夹轮廓 | R:- | A:SVG图形 | S:-
+forward.svg[RU2T]: F:提供向右弯曲箭头的前进图标 | R:- | A:SVG图形 | S:-
+game.svg[RU2T]: F:提供圆角手柄内十字和双按钮的游戏图标 | R:- | A:SVG图形 | S:-
+gear-compact.svg[RU2T]: F:提供粗齿轮轮廓和圆心的紧凑设置图标 | R:- | A:SVG图形 | S:-
+gear.svg[RU2T]: F:提供细齿轮轮廓和圆心的标准设置图标 | R:- | A:SVG图形 | S:-
+gift.svg[RU2T]: F:提供双环蝴蝶结和十字包装带的礼盒图标 | R:- | A:SVG图形 | S:-
+gist-secret.svg[RU2T]: F:提供折角文件与锁形的私密代码片段图标 | R:- | A:SVG图形 | S:-
+gist.svg[RU2T]: F:提供折角文件与左右尖括号的代码片段图标 | R:- | A:SVG图形 | S:-
+git-branch-changes.svg[RU2T]: F:提供分支节点与星号圆标的分支修改图标 | R:- | A:SVG图形 | S:-
+git-branch-compact.svg[RU2T]: F:提供粗线三节点分叉的紧凑Git分支图标 | R:- | A:SVG图形 | S:-
+git-branch-conflicts.svg[RU2T]: F:提供分支节点与感叹号圆标的分支冲突图标 | R:- | A:SVG图形 | S:-
+git-branch-staged-changes.svg[RU2T]: F:提供分支节点与加号圆标的暂存变更图标 | R:- | A:SVG图形 | S:-
+git-branch.svg[RU2T]: F:提供细线三节点分叉的标准Git分支图标 | R:- | A:SVG图形 | S:-
+git-commit.svg[RU2T]: F:提供圆节点上下延伸竖线的Git提交图标 | R:- | A:SVG图形 | S:-
+git-compare.svg[RU2T]: F:提供双节点与相反弯箭头的Git比较图标 | R:- | A:SVG图形 | S:-
+git-fetch.svg[RU2T]: F:提供虚线竖杆和向下箭头的Git获取图标 | R:- | A:SVG图形 | S:-
+git-merge.svg[RU2T]: F:提供主干双节点与旁侧汇入节点的Git合并图标 | R:- | A:SVG图形 | S:-
+git-pull-request-closed.svg[RU2T]: F:提供双节点分支及右上叉号的已关闭拉取请求图标 | R:- | A:SVG图形 | S:-
+git-pull-request-comment.svg[RU2T]: F:提供双节点拉取箭头及评论气泡的拉取请求图标 | R:- | A:SVG图形 | S:-
+git-pull-request-create.svg[RU2T]: F:提供双节点拉取箭头及加号圆标的新建拉取请求图标 | R:- | A:SVG图形 | S:-
+git-pull-request-done.svg[RU2T]: F:提供双节点拉取箭头及勾选圆标的完成拉取请求图标 | R:- | A:SVG图形 | S:-
+git-pull-request-draft.svg[RU2T]: F:提供主干节点和点状旁支的拉取请求草稿图标 | R:- | A:SVG图形 | S:-
+git-pull-request-error.svg[RU2T]: F:提供拉取请求节点与叉圆的错误状态图标 | R:- | A:SVG图形 | S:-
+git-pull-request-go-to-changes.svg[RU2T]: F:提供加减文档与转向箭头的进入变更图标 | R:- | A:SVG图形 | S:-
+git-pull-request-new-changes.svg[RU2T]: F:提供加减文档与圆点的新变更图标 | R:- | A:SVG图形 | S:-
+git-pull-request.svg[RU2T]: F:提供主干双节点和左转旁支的拉取请求图标 | R:- | A:SVG图形 | S:-
+git-stash-apply.svg[RU2T]: F:提供托盘和虚线向上箭头的应用暂存图标 | R:- | A:SVG图形 | S:-
+git-stash-pop.svg[RU2T]: F:提供托盘和实线向上箭头的弹出暂存图标 | R:- | A:SVG图形 | S:-
+git-stash.svg[RU2T]: F:提供托盘和向下箭头的暂存图标 | R:- | A:SVG图形 | S:-
+github-action.svg[RU2T]: F:提供文字气泡与闪电的GitHub Action图标 | R:- | A:SVG图形 | S:-
+github-alt.svg[RU2T]: F:提供猫形头部轮廓与下部双线的GitHub替代标志 | R:- | A:SVG图形 | S:-
+github-inverted.svg[RU2T]: F:提供实心圆底上白色猫形的反色GitHub标志 | R:- | A:SVG图形 | S:-
+github-project.svg[RU2T]: F:提供纵横分格方框的GitHub项目图标 | R:- | A:SVG图形 | S:-
+github.svg[RU2T]: F:提供圆框内实心猫形的GitHub标志 | R:- | A:SVG图形 | S:-
+globe.svg[RU2T]: F:提供经纬线交叉圆球的全球图标 | R:- | A:SVG图形 | S:-
+go-to-editing-session.svg[RU2T]: F:提供加减文档和右上箭头的进入编辑会话图标 | R:- | A:SVG图形 | S:-
+go-to-file.svg[RU2T]: F:提供折角文件和右转箭头的跳转文件图标 | R:- | A:SVG图形 | S:-
+go-to-search.svg[RU2T]: F:提供放大镜和弯箭头的跳转搜索图标 | R:- | A:SVG图形 | S:-
+google-gemini.svg[RU2T]: F:提供四尖内凹星形的Gemini标志 | R:- | A:SVG图形 | S:-
+grabber.svg[RU2T]: F:提供两条水平短线的抓取柄 | R:- | A:SVG图形 | S:-
+graph-left.svg[RU2T]: F:提供横轴左箭头和三条下悬柱的图表图标 | R:- | A:SVG图形 | S:-
+graph-line.svg[RU2T]: F:提供直角坐标轴内上升折线的折线图标 | R:- | A:SVG图形 | S:-
+graph-scatter.svg[RU2T]: F:提供直角坐标轴内三个空心点的散点图标 | R:- | A:SVG图形 | S:-
+graph.svg[RU2T]: F:提供三根递增空心柱的柱状图标 | R:- | A:SVG图形 | S:-
+gripper.svg[RU2T]: F:提供两列三行圆点的拖动柄 | R:- | A:SVG图形 | S:-
+group-by-ref-type.svg[RU2T]: F:提供花括号旁树状方节点的引用类型分组图标 | R:- | A:SVG图形 | S:-
+heart-filled.svg[RU2T]: F:提供实心心形的喜爱标记 | R:- | A:SVG图形 | S:-
+heart.svg[RU2T]: F:提供空心心形的喜爱标记 | R:- | A:SVG图形 | S:-
+history.svg[RU2T]: F:提供回绕箭头和时钟指针的历史图标 | R:- | A:SVG图形 | S:-
+home.svg[RU2T]: F:提供圆角房屋轮廓和门洞的主页图标 | R:- | A:SVG图形 | S:-
+horizontal-rule.svg[RU2T]: F:提供HR字样与底部横线的水平分隔线图标 | R:- | A:SVG图形 | S:-
+hubot.svg[RU2T]: F:提供方形微笑机器人气泡和天线的Hubot图标 | R:- | A:SVG图形 | S:-
+important-compact.svg[RU2T]: F:提供粗线空心感叹号及圆点的重要事项图标 | R:- | A:SVG图形 | S:-
+important.svg[RU2T]: F:提供细线空心感叹号及圆点的重要事项图标 | R:- | A:SVG图形 | S:-
+inbox.svg[RU2T]: F:提供圆角方框内凹槽横线的收件箱图标 | R:- | A:SVG图形 | S:-
+indent.svg[RU2T]: F:提供左上直角转向右箭头的缩进图标 | R:- | A:SVG图形 | S:-
+index-zero.svg[RU2T]: F:提供方括号包围数字0的零索引标记 | R:- | A:SVG图形 | S:-
+info.svg[RU2T]: F:提供圆轮廓内小写i的信息提示图标 | R:- | A:SVG图形 | S:-
+insert.svg[RU2T]: F:提供箭头进入双方框之间的插入图标 | R:- | A:SVG图形 | S:-
+inspect.svg[RU2T]: F:提供方框边界内鼠标指针的元素检查图标 | R:- | A:SVG图形 | S:-
+issue-draft.svg[RU2T]: F:提供虚线圆轮廓内小点的议题草稿标记 | R:- | A:SVG图形 | S:-
+issue-reopened.svg[RU2T]: F:提供圆形回绕箭头和中心点的重开议题图标 | R:- | A:SVG图形 | S:-
+issues.svg[RU2T]: F:提供圆轮廓内中心点的议题状态图标 | R:- | A:SVG图形 | S:-
+italic.svg[RU2T]: F:提供倾斜字母I及上下横线的斜体文字图标 | R:- | A:SVG图形 | S:-
+jersey.svg[RU2T]: F:提供短袖圆领球衣轮廓图标 | R:- | A:SVG图形 | S:-
+json.svg[RU2T]: F:提供一对花括号的JSON数据标记 | R:- | A:SVG图形 | S:-
+kebab-vertical.svg[RU2T]: F:提供三个竖直圆点的更多操作菜单图标 | R:- | A:SVG图形 | S:-
+key.svg[RU2T]: F:提供圆孔钥匙头与锯齿钥匙杆的钥匙图标 | R:- | A:SVG图形 | S:-
+keyboard-tab-above.svg[RU2T]: F:提供右向箭头及上移终点栏的键盘跳转图标 | R:- | A:SVG图形 | S:-
+keyboard-tab-below.svg[RU2T]: F:提供右向箭头及下移终点栏的键盘跳转图标 | R:- | A:SVG图形 | S:-
+keyboard-tab.svg[RU2T]: F:提供右向箭头和竖向终点栏的Tab键标记 | R:- | A:SVG图形 | S:-
+kimi.svg[RU2T]: F:提供斜向白条分割黑圆的Kimi标志 | R:- | A:SVG图形 | S:-
+law.svg[RU2T]: F:提供双盘天平及底座的法律图标 | R:- | A:SVG图形 | S:-
+layers-active.svg[RU2T]: F:提供三层菱面和勾选圆标的活动图层图标 | R:- | A:SVG图形 | S:-
+layers-dot.svg[RU2T]: F:提供三层菱面和右下实心点的图层状态图标 | R:- | A:SVG图形 | S:-
+layers.svg[RU2T]: F:提供三层错位菱面轮廓的图层图标 | R:- | A:SVG图形 | S:-
+layout-activitybar-left.svg[RU2T]: F:提供方窗左侧实心窄栏的左活动栏布局图标 | R:- | A:SVG图形 | S:-
+layout-activitybar-right.svg[RU2T]: F:提供方窗右侧实心窄栏的右活动栏布局图标 | R:- | A:SVG图形 | S:-
+layout-centered.svg[RU2T]: F:提供方窗中央实心竖栏的居中布局图标 | R:- | A:SVG图形 | S:-
+layout-density-compact.svg[RU2T]: F:提供连贯分栏分行方窗的紧凑密度布局图标 | R:- | A:SVG图形 | S:-
+layout-density-default.svg[RU2T]: F:提供独立高栏和双方块的默认密度布局图标 | R:- | A:SVG图形 | S:-
+layout-menubar.svg[RU2T]: F:提供窗口顶部三个短横的菜单栏布局图标 | R:- | A:SVG图形 | S:-
+layout-panel-center.svg[RU2T]: F:提供窗口底部中央实心块的面板居中图标 | R:- | A:SVG图形 | S:-
+layout-panel-dock.svg[RU2T]: F:提供窗口内下箭头的面板停靠图标 | R:- | A:SVG图形 | S:-
+layout-panel-justify.svg[RU2T]: F:提供分栏窗底部全宽实心块的面板铺满图标 | R:- | A:SVG图形 | S:-
+layout-panel-left.svg[RU2T]: F:提供窗口左下实心块的面板靠左图标 | R:- | A:SVG图形 | S:-
+layout-panel-off.svg[RU2T]: F:提供底部面板空心分区的关闭面板布局图标 | R:- | A:SVG图形 | S:-
+layout-panel-right.svg[RU2T]: F:提供窗口右下实心块的面板靠右图标 | R:- | A:SVG图形 | S:-
+layout-panel.svg[RU2T]: F:提供窗口底部实心横栏的面板布局图标 | R:- | A:SVG图形 | S:-
+layout-sidebar-left-dock.svg[RU2T]: F:提供左侧填充栏及向左箭头的侧栏停靠图标 | R:- | A:SVG图形 | S:-
+layout-sidebar-left-off.svg[RU2T]: F:提供左侧空心分栏的关闭左侧栏图标 | R:- | A:SVG图形 | S:-
+layout-sidebar-left.svg[RU2T]: F:提供左侧实心分栏的左侧栏布局图标 | R:- | A:SVG图形 | S:-
+layout-sidebar-right-dock.svg[RU2T]: F:提供右侧填充栏及向右箭头的侧栏停靠图标 | R:- | A:SVG图形 | S:-
+layout-sidebar-right-off.svg[RU2T]: F:提供右侧空心分栏的关闭右侧栏图标 | R:- | A:SVG图形 | S:-
+layout-sidebar-right.svg[RU2T]: F:提供右侧实心分栏的右侧栏布局图标 | R:- | A:SVG图形 | S:-
+layout-statusbar.svg[RU2T]: F:提供窗口底缘实心窄栏的状态栏布局图标 | R:- | A:SVG图形 | S:-
+layout.svg[RU2T]: F:提供左竖栏和右双区块的通用布局图标 | R:- | A:SVG图形 | S:-
+library-compact.svg[RU2T]: F:提供两竖一斜粗书脊的紧凑库图标 | R:- | A:SVG图形 | S:-
+library.svg[RU2T]: F:提供两竖一斜细书脊的标准库图标 | R:- | A:SVG图形 | S:-
+lightbulb-autofix.svg[RU2T]: F:提供灯泡轮廓及星形圆标的自动修复图标 | R:- | A:SVG图形 | S:-
+lightbulb-compact.svg[RU2T]: F:提供粗线圆头灯泡的紧凑建议图标 | R:- | A:SVG图形 | S:-
+lightbulb-empty.svg[RU2T]: F:提供细线空心灯泡的空建议图标 | R:- | A:SVG图形 | S:-
+lightbulb-sparkle.svg[RU2T]: F:提供灯泡和右上星光的智能建议图标 | R:- | A:SVG图形 | S:-
+lightbulb.svg[RU2T]: F:提供圆头与双底线的标准灯泡图标 | R:- | A:SVG图形 | S:-
+link-external.svg[RU2T]: F:提供开放方框与右上箭头的外部链接图标 | R:- | A:SVG图形 | S:-
+link.svg[RU2T]: F:提供横向链环与中间短横的链接图标 | R:- | A:SVG图形 | S:-
+list-filter.svg[RU2T]: F:提供自上而下递减横线的列表筛选图标 | R:- | A:SVG图形 | S:-
+list-flat.svg[RU2T]: F:提供四条交替长短横线的平坦列表图标 | R:- | A:SVG图形 | S:-
+list-ordered.svg[RU2T]: F:提供1至3数字配横线的有序列表图标 | R:- | A:SVG图形 | S:-
+list-selection.svg[RU2T]: F:提供长短交错三横线的列表选择图标 | R:- | A:SVG图形 | S:-
+list-tree.svg[RU2T]: F:提供竖向主干及三横分支的树形列表图标 | R:- | A:SVG图形 | S:-
+list-unordered.svg[RU2T]: F:提供三圆点配三横线的无序列表图标 | R:- | A:SVG图形 | S:-
+live-share.svg[RU2T]: F:提供窗口内向外弯箭头的实时共享图标 | R:- | A:SVG图形 | S:-
+loading-compact.svg[RU2T]: F:提供粗半圆弧的紧凑加载指示 | R:- | A:SVG图形 | S:-
+loading.svg[RU2T]: F:提供细半圆弧的标准加载指示 | R:- | A:SVG图形 | S:-
+location.svg[RU2T]: F:提供圆心尖底水滴轮廓的定位图标 | R:- | A:SVG图形 | S:-
+lock-small.svg[RU2T]: F:提供小弧形锁梁与方形锁体的锁定标记 | R:- | A:SVG图形 | S:-
+lock.svg[RU2T]: F:提供大弧形锁梁与矩形锁体的锁定图标 | R:- | A:SVG图形 | S:-
+magnet.svg[RU2T]: F:提供双端分隔U形轮廓的磁铁图标 | R:- | A:SVG图形 | S:-
+mail-read.svg[RU2T]: F:提供上方打开三角封口的已读邮件图标 | R:- | A:SVG图形 | S:-
+mail.svg[RU2T]: F:提供封闭矩形内双斜线封口的邮件图标 | R:- | A:SVG图形 | S:-
+map-filled.svg[RU2T]: F:提供三块竖向实心折页的地图图标 | R:- | A:SVG图形 | S:-
+map-vertical-filled.svg[RU2T]: F:提供三块横向实心折页的竖向地图图标 | R:- | A:SVG图形 | S:-
+map-vertical.svg[RU2T]: F:提供横向三折页空心轮廓的竖向地图图标 | R:- | A:SVG图形 | S:-
+map.svg[RU2T]: F:提供竖向三折页空心轮廓的地图图标 | R:- | A:SVG图形 | S:-
+markdown.svg[RU2T]: F:提供字母M和向下箭头的Markdown标记 | R:- | A:SVG图形 | S:-
+mcp.svg[RU2T]: F:提供双回环斜线和折角短线的MCP标志 | R:- | A:SVG图形 | S:-
+megaphone.svg[RU2T]: F:提供扩口喇叭与弧形手柄的扩音器图标 | R:- | A:SVG图形 | S:-
+mention.svg[RU2T]: F:提供环绕a字形的at提及标记 | R:- | A:SVG图形 | S:-
+menu.svg[RU2T]: F:提供三条水平圆端线的菜单图标 | R:- | A:SVG图形 | S:-
+merge-into.svg[RU2T]: F:提供向上箭头接入弯曲旁支的合入图标 | R:- | A:SVG图形 | S:-
+merge.svg[RU2T]: F:提供向上主干与右侧汇入弧线的合并图标 | R:- | A:SVG图形 | S:-
+mic-compact.svg[RU2T]: F:提供粗轮廓麦克风与U形支架的紧凑语音图标 | R:- | A:SVG图形 | S:-
+mic-download-compact.svg[RU2T]: F:提供粗麦克风与下箭头圆标的语音下载图标 | R:- | A:SVG图形 | S:-
+mic-download.svg[RU2T]: F:提供细麦克风与下箭头圆标的标准语音下载图标 | R:- | A:SVG图形 | S:-
+mic-filled.svg[RU2T]: F:提供实心麦克风头和U形支架的语音图标 | R:- | A:SVG图形 | S:-
+mic-off-compact.svg[RU2T]: F:提供粗麦克风上斜杠的紧凑禁用语音图标 | R:- | A:SVG图形 | S:-
+mic-off.svg[RU2T]: F:提供细麦克风上斜杠的禁用语音图标 | R:- | A:SVG图形 | S:-
+mic.svg[RU2T]: F:提供圆头麦克风与底部杆的标准语音图标 | R:- | A:SVG图形 | S:-
+microsoft.svg[RU2T]: F:提供四块等大实心方格的Microsoft标志 | R:- | A:SVG图形 | S:-
+milestone.svg[RU2T]: F:提供竖杆与右尖路牌的里程碑图标 | R:- | A:SVG图形 | S:-
+mirror.svg[RU2T]: F:提供折页框内左右箭头的镜像图标 | R:- | A:SVG图形 | S:-
+mortar-board.svg[RU2T]: F:提供菱形帽顶和弧形帽身的学位帽图标 | R:- | A:SVG图形 | S:-
+move.svg[RU2T]: F:提供四个分离方向箭头的移动图标 | R:- | A:SVG图形 | S:-
+multiple-windows.svg[RU2T]: F:提供叠置带顶栏圆角窗口的多窗口图标 | R:- | A:SVG图形 | S:-
+music.svg[RU2T]: F:提供双音符杆与空心音符头的音乐图标 | R:- | A:SVG图形 | S:-
+mute.svg[RU2T]: F:提供空心扬声器和旁侧叉号的静音图标 | R:- | A:SVG图形 | S:-
+new-collection.svg[RU2T]: F:提供叠置方框与加号圆标的新建集合图标 | R:- | A:SVG图形 | S:-
+new-file.svg[RU2T]: F:提供折角文件与加号圆标的新建文件图标 | R:- | A:SVG图形 | S:-
+new-folder.svg[RU2T]: F:提供文件夹与加号圆标的新建目录图标 | R:- | A:SVG图形 | S:-
+new-session.svg[RU2T]: F:提供开放方框与斜置笔的新建会话图标 | R:- | A:SVG图形 | S:-
+newline.svg[RU2T]: F:提供从右上弯向左侧的换行箭头 | R:- | A:SVG图形 | S:-
+no-newline.svg[RU2T]: F:提供换行箭头与禁止圆标的无末尾换行图标 | R:- | A:SVG图形 | S:-
+note.svg[RU2T]: F:提供右下折起圆角便签的笔记图标 | R:- | A:SVG图形 | S:-
+notebook-template.svg[RU2T]: F:提供笔记本与外围虚线框的模板图标 | R:- | A:SVG图形 | S:-
+notebook.svg[RU2T]: F:提供顶部标题框和右侧装订点的笔记本图标 | R:- | A:SVG图形 | S:-
+octoface.svg[RU2T]: F:提供双耳黑脸与白眼区的Octoface标志 | R:- | A:SVG图形 | S:-
+open-in-product.svg[RU2T]: F:提供开放方框与左上箭头的产品内打开图标 | R:- | A:SVG图形 | S:-
+open-in-window.svg[RU2T]: F:提供叠置方窗与右上箭头的新窗口打开图标 | R:- | A:SVG图形 | S:-
+open-preview.svg[RU2T]: F:提供分栏方窗与左下放大镜的预览图标 | R:- | A:SVG图形 | S:-
+openai.svg[RU2T]: F:提供六瓣互锁绳结轮廓的OpenAI标志 | R:- | A:SVG图形 | S:-
+organization.svg[RU2T]: F:提供三个人物轮廓的组织图标 | R:- | A:SVG图形 | S:-
+output.svg[RU2T]: F:提供带文字横线和折角的装订页输出图标 | R:- | A:SVG图形 | S:-
+package.svg[RU2T]: F:提供三面立方包箱及侧面短线的包图标 | R:- | A:SVG图形 | S:-
+paintcan.svg[RU2T]: F:提供倾斜油漆桶和旁侧液滴的填色图标 | R:- | A:SVG图形 | S:-
+pass-compact.svg[RU2T]: F:提供粗圆框内勾选的紧凑通过状态图标 | R:- | A:SVG图形 | S:-
+pass-filled-compact.svg[RU2T]: F:提供大实心圆内白勾选的紧凑通过状态图标 | R:- | A:SVG图形 | S:-
+pass-filled.svg[RU2T]: F:提供实心圆内白勾选的标准通过状态图标 | R:- | A:SVG图形 | S:-
+pass.svg[RU2T]: F:提供细圆框内勾选的通过状态图标 | R:- | A:SVG图形 | S:-
+percentage.svg[RU2T]: F:提供双圆点和斜线的百分比符号 | R:- | A:SVG图形 | S:-
+person-add.svg[RU2T]: F:提供人物轮廓和加号圆标的新建成员图标 | R:- | A:SVG图形 | S:-
+person-voice-compact.svg[RU2T]: F:提供粗半身头像和声波的紧凑发言者图标 | R:- | A:SVG图形 | S:-
+person-voice-filled-compact.svg[RU2T]: F:提供粗实心半身头像和声波的紧凑发言图标 | R:- | A:SVG图形 | S:-
+person-voice-filled.svg[RU2T]: F:提供实心半身头像和声波的标准发言图标 | R:- | A:SVG图形 | S:-
+person-voice.svg[RU2T]: F:提供空心半身头像和声波的标准发言者图标 | R:- | A:SVG图形 | S:-
+person.svg[RU2T]: F:提供圆头与全身轮廓的人物图标 | R:- | A:SVG图形 | S:-
+piano.svg[RU2T]: F:提供黑白长短琴键的钢琴图标 | R:- | A:SVG图形 | S:-
+pie-chart.svg[RU2T]: F:提供分离四分之一扇区的饼图图标 | R:- | A:SVG图形 | S:-
+pin.svg[RU2T]: F:提供水平图钉头和左侧针脚的固定图标 | R:- | A:SVG图形 | S:-
+pinned-dirty.svg[RU2T]: F:提供斜置图钉及圆点的已固定变更图标 | R:- | A:SVG图形 | S:-
+pinned.svg[RU2T]: F:提供斜置图钉轮廓的已固定图标 | R:- | A:SVG图形 | S:-
+play-circle.svg[RU2T]: F:提供圆框内实心播放三角的播放图标 | R:- | A:SVG图形 | S:-
+play.svg[RU2T]: F:提供大空心向右三角的播放标记 | R:- | A:SVG图形 | S:-
+plug.svg[RU2T]: F:提供双插脚和尾线的电源插头图标 | R:- | A:SVG图形 | S:-
+preserve-case.svg[RU2T]: F:提供大写AB文字的保持大小写图标 | R:- | A:SVG图形 | S:-
+preview.svg[RU2T]: F:提供窗口内标题框和文本块的内容预览图标 | R:- | A:SVG图形 | S:-
+primitive-square.svg[RU2T]: F:提供居中小方框的基本方形标记 | R:- | A:SVG图形 | S:-
+project-compact.svg[RU2T]: F:提供粗圆角窗口及上横栏的紧凑项目图标 | R:- | A:SVG图形 | S:-
+project.svg[RU2T]: F:提供细圆角窗口及上横栏的标准项目图标 | R:- | A:SVG图形 | S:-
+pulse.svg[RU2T]: F:提供上下起伏折线的脉冲图标 | R:- | A:SVG图形 | S:-
+python.svg[RU2T]: F:提供两个错位圆头蛇形轮廓的Python标志 | R:- | A:SVG图形 | S:-
+question.svg[RU2T]: F:提供圆框内问号的帮助图标 | R:- | A:SVG图形 | S:-
+quote.svg[RU2T]: F:提供两枚实心后引号的引用图标 | R:- | A:SVG图形 | S:-
+quotes.svg[RU2T]: F:提供左右成对弯引号的引用标记 | R:- | A:SVG图形 | S:-
+radio-tower.svg[RU2T]: F:提供塔架、顶点和无线圆弧的广播塔图标 | R:- | A:SVG图形 | S:-
+reactions.svg[RU2T]: F:提供微笑脸与加号圆标的添加反应图标 | R:- | A:SVG图形 | S:-
+record-keys-compact.svg[RU2T]: F:提供粗键盘轮廓及两行键点的快捷键记录图标 | R:- | A:SVG图形 | S:-
+record-keys.svg[RU2T]: F:提供细键盘轮廓及两行键点的快捷键记录图标 | R:- | A:SVG图形 | S:-
+record-small.svg[RU2T]: F:提供小圆框内圆点的录制状态标记 | R:- | A:SVG图形 | S:-
+record.svg[RU2T]: F:提供大圆框内实心圆的录制图标 | R:- | A:SVG图形 | S:-
+redo.svg[RU2T]: F:提供向右上回折箭头的重做图标 | R:- | A:SVG图形 | S:-
+references.svg[RU2T]: F:提供两块文字页与转向箭头的引用关系图标 | R:- | A:SVG图形 | S:-
+refresh-compact.svg[RU2T]: F:提供粗圆回绕箭头的紧凑刷新图标 | R:- | A:SVG图形 | S:-
+refresh.svg[RU2T]: F:提供细圆回绕箭头的标准刷新图标 | R:- | A:SVG图形 | S:-
+regex.svg[RU2T]: F:提供星号与左下点的正则表达式标记 | R:- | A:SVG图形 | S:-
+remote-compact.svg[RU2T]: F:提供粗笔画相对折线的紧凑远程图标 | R:- | A:SVG图形 | S:-
+remote-explorer.svg[RU2T]: F:提供显示器与相对折线圆标的远程浏览图标 | R:- | A:SVG图形 | S:-
+remote.svg[RU2T]: F:提供细笔画相对折线的标准远程图标 | R:- | A:SVG图形 | S:-
+remove-small.svg[RU2T]: F:提供较短粗横线的小型移除标记 | R:- | A:SVG图形 | S:-
+remove.svg[RU2T]: F:提供细水平线的标准移除标记 | R:- | A:SVG图形 | S:-
+rename.svg[RU2T]: F:提供括号框与竖向文本光标的重命名图标 | R:- | A:SVG图形 | S:-
+replace-all.svg[RU2T]: F:提供ab转入ac实心框的全部替换图标 | R:- | A:SVG图形 | S:-
+replace.svg[RU2T]: F:提供b转入c实心框的单项替换图标 | R:- | A:SVG图形 | S:-
+reply.svg[RU2T]: F:提供向左回弯箭头的回复图标 | R:- | A:SVG图形 | S:-
+repo-clone.svg[RU2T]: F:提供带下箭头的装订页仓库克隆图标 | R:- | A:SVG图形 | S:-
+repo-compact.svg[RU2T]: F:提供粗装订书页轮廓的紧凑仓库图标 | R:- | A:SVG图形 | S:-
+repo-fetch.svg[RU2T]: F:提供虚线下箭头指向提交圆节点的仓库获取图标 | R:- | A:SVG图形 | S:-
+repo-force-push.svg[RU2T]: F:提供双上箭头从提交圆节点伸出的强制推送图标 | R:- | A:SVG图形 | S:-
+repo-forked-compact.svg[RU2T]: F:提供粗三节点Y形分叉的紧凑仓库派生图标 | R:- | A:SVG图形 | S:-
+repo-forked.svg[RU2T]: F:提供细三节点Y形分叉的标准仓库派生图标 | R:- | A:SVG图形 | S:-
+repo-pinned.svg[RU2T]: F:提供装订页和实心图钉的固定仓库图标 | R:- | A:SVG图形 | S:-
+repo-pull.svg[RU2T]: F:提供向下箭头指向提交节点的仓库拉取图标 | R:- | A:SVG图形 | S:-
+repo-push.svg[RU2T]: F:提供向上箭头从提交节点伸出的仓库推送图标 | R:- | A:SVG图形 | S:-
+repo-selected.svg[RU2T]: F:提供实心装订页内白勾选的选中仓库图标 | R:- | A:SVG图形 | S:-
+repo.svg[RU2T]: F:提供细线装订页轮廓的标准仓库图标 | R:- | A:SVG图形 | S:-
+report.svg[RU2T]: F:提供聊天气泡内感叹号的报告图标 | R:- | A:SVG图形 | S:-
+request-changes.svg[RU2T]: F:提供折角文件内加减符号的请求修改图标 | R:- | A:SVG图形 | S:-
+right-panel-hide.svg[RU2T]: F:提供右栏实心块内白右折线的隐藏右面板图标 | R:- | A:SVG图形 | S:-
+right-panel-show.svg[RU2T]: F:提供右栏空心分区内左折线的显示右面板图标 | R:- | A:SVG图形 | S:-
+robot.svg[RU2T]: F:提供双眼机器人头与下方半身轮廓图标 | R:- | A:SVG图形 | S:-
+rocket-compact.svg[RU2T]: F:提供粗轮廓斜置火箭和尾焰短线的发射图标 | R:- | A:SVG图形 | S:-
+rocket.svg[RU2T]: F:提供细轮廓斜置火箭和尾焰短线的标准发射图标 | R:- | A:SVG图形 | S:-
+root-folder-opened.svg[RU2T]: F:提供打开目录与同心圆标的根目录图标 | R:- | A:SVG图形 | S:-
+root-folder.svg[RU2T]: F:提供关闭目录与同心圆标的根目录图标 | R:- | A:SVG图形 | S:-
+rss.svg[RU2T]: F:提供圆角方框内两道广播弧和小点的RSS图标 | R:- | A:SVG图形 | S:-
+ruby.svg[RU2T]: F:提供多面切割菱形轮廓的Ruby标志 | R:- | A:SVG图形 | S:-
+run-above.svg[RU2T]: F:提供播放三角与向上箭头的运行上方代码图标 | R:- | A:SVG图形 | S:-
+run-all-coverage.svg[RU2T]: F:提供叠置播放三角与勾选圆标的全部覆盖运行图标 | R:- | A:SVG图形 | S:-
+run-all.svg[RU2T]: F:提供叠置双播放三角的运行全部图标 | R:- | A:SVG图形 | S:-
+run-below.svg[RU2T]: F:提供播放三角与向下箭头的运行下方代码图标 | R:- | A:SVG图形 | S:-
+run-compact.svg[RU2T]: F:提供粗轮廓播放三角的紧凑运行图标 | R:- | A:SVG图形 | S:-
+run-coverage.svg[RU2T]: F:提供播放三角与勾选圆标的覆盖运行图标 | R:- | A:SVG图形 | S:-
+run-errors.svg[RU2T]: F:提供播放三角与叉圆标的运行错误图标 | R:- | A:SVG图形 | S:-
+run-with-deps.svg[RU2T]: F:提供播放三角和依赖双格的附依赖运行图标 | R:- | A:SVG图形 | S:-
+save-all.svg[RU2T]: F:提供叠置双软盘轮廓的全部保存图标 | R:- | A:SVG图形 | S:-
+save-as.svg[RU2T]: F:提供软盘轮廓与斜置实心笔的另存为图标 | R:- | A:SVG图形 | S:-
+save.svg[RU2T]: F:提供折角软盘内上下槽位的保存图标 | R:- | A:SVG图形 | S:-
+screen-cut.svg[RU2T]: F:提供虚线屏框与剪刀的截取屏幕图标 | R:- | A:SVG图形 | S:-
+screen-full.svg[RU2T]: F:提供四个向外角框的全屏图标 | R:- | A:SVG图形 | S:-
+screen-normal.svg[RU2T]: F:提供四个相向圆角的恢复常规屏幕图标 | R:- | A:SVG图形 | S:-
+search-compact.svg[RU2T]: F:提供粗轮廓大放大镜的紧凑搜索图标 | R:- | A:SVG图形 | S:-
+search-fuzzy.svg[RU2T]: F:提供放大镜下方锯齿线的模糊搜索图标 | R:- | A:SVG图形 | S:-
+search-large.svg[RU2T]: F:提供细轮廓大放大镜的搜索图标 | R:- | A:SVG图形 | S:-
+search-sparkle.svg[RU2T]: F:提供放大镜和星光的智能搜索图标 | R:- | A:SVG图形 | S:-
+search-stop.svg[RU2T]: F:提供放大镜与禁止圆标的停止搜索图标 | R:- | A:SVG图形 | S:-
+search.svg[RU2T]: F:提供圆镜面与斜柄的标准搜索图标 | R:- | A:SVG图形 | S:-
+send-to-remote-agent.svg[RU2T]: F:提供云轮廓及实心纸飞机的发送到远程Agent图标 | R:- | A:SVG图形 | S:-
+send.svg[RU2T]: F:提供折线三角纸飞机的发送图标 | R:- | A:SVG图形 | S:-
+server-environment.svg[RU2T]: F:提供立式服务器及底部支架的服务环境图标 | R:- | A:SVG图形 | S:-
+server-process.svg[RU2T]: F:提供服务器轮廓与双齿轮的服务进程图标 | R:- | A:SVG图形 | S:-
+server.svg[RU2T]: F:提供三层圆角机箱和侧面指示点的服务器图标 | R:- | A:SVG图形 | S:-
+session-in-progress-compact.svg[RU2T]: F:提供粗线分段圆环的会话进行中指示 | R:- | A:SVG图形 | S:-
+session-in-progress.svg[RU2T]: F:提供细线分段圆环的会话进行中指示 | R:- | A:SVG图形 | S:-
+settings-compact.svg[RU2T]: F:提供双横线与错位实心滑块的紧凑设置图标 | R:- | A:SVG图形 | S:-
+settings-gear.svg[RU2T]: F:提供细齿轮和中心孔的设置图标 | R:- | A:SVG图形 | S:-
+settings.svg[RU2T]: F:提供双横线与错位空心滑块的标准设置图标 | R:- | A:SVG图形 | S:-
+share-window.svg[RU2T]: F:提供重叠窗框及实心交叠块的窗口分享图标 | R:- | A:SVG图形 | S:-
+share.svg[RU2T]: F:提供开放方框内弯向右外的分享箭头 | R:- | A:SVG图形 | S:-
+shield-compact.svg[RU2T]: F:提供粗盾牌轮廓内钥匙孔的紧凑保护图标 | R:- | A:SVG图形 | S:-
+shield.svg[RU2T]: F:提供细盾牌轮廓内钥匙孔的标准保护图标 | R:- | A:SVG图形 | S:-
+sign-in.svg[RU2T]: F:提供开放方框与向内左箭头的登录图标 | R:- | A:SVG图形 | S:-
+sign-out.svg[RU2T]: F:提供开放方框与向外右箭头的退出登录图标 | R:- | A:SVG图形 | S:-
+skip.svg[RU2T]: F:提供圆轮廓内斜杠的跳过状态图标 | R:- | A:SVG图形 | S:-
+smiley.svg[RU2T]: F:提供圆脸双眼与微笑弧线的表情图标 | R:- | A:SVG图形 | S:-
+snake.svg[RU2T]: F:提供竖起蛇头与盘绕身体轮廓的蛇图标 | R:- | A:SVG图形 | S:-
+sort-precedence.svg[RU2T]: F:提供下箭头与前后两张点卡的优先级排序图标 | R:- | A:SVG图形 | S:-
+source-control.svg[RU2T]: F:提供三节点分叉的源代码版本控制图标 | R:- | A:SVG图形 | S:-
+sparkle-compact.svg[RU2T]: F:提供粗轮廓大小两枚四尖星的紧凑智能标记 | R:- | A:SVG图形 | S:-
+sparkle-filled.svg[RU2T]: F:提供实心大小两枚四尖星的智能标记 | R:- | A:SVG图形 | S:-
+sparkle.svg[RU2T]: F:提供细轮廓大小两枚四尖星的标准智能标记 | R:- | A:SVG图形 | S:-
+split-horizontal.svg[RU2T]: F:提供方框内竖向分隔线的左右分屏图标 | R:- | A:SVG图形 | S:-
+split-vertical.svg[RU2T]: F:提供方框内横向分隔线的上下分屏图标 | R:- | A:SVG图形 | S:-
+squirrel.svg[RU2T]: F:提供竖起卷尾与前爪的松鼠轮廓 | R:- | A:SVG图形 | S:-
+star-empty.svg[RU2T]: F:提供空心五角星的未收藏标记 | R:- | A:SVG图形 | S:-
+star-full.svg[RU2T]: F:提供实心五角星的已收藏标记 | R:- | A:SVG图形 | S:-
+star-half.svg[RU2T]: F:提供一半填充五角星的半星评分图标 | R:- | A:SVG图形 | S:-
+stop-circle.svg[RU2T]: F:提供圆框内实心方块的停止图标 | R:- | A:SVG图形 | S:-
+strikethrough.svg[RU2T]: F:提供横线穿过字母S的删除线标记 | R:- | A:SVG图形 | S:-
+surround-with.svg[RU2T]: F:提供方括号包围三点的包裹代码图标 | R:- | A:SVG图形 | S:-
+symbol-array.svg[RU2T]: F:提供一对空心方括号的数组符号 | R:- | A:SVG图形 | S:-
+symbol-boolean.svg[RU2T]: F:提供半黑半白块内相反箭头的布尔符号 | R:- | A:SVG图形 | S:-
+symbol-class.svg[RU2T]: F:提供菱形主节点分叉到两小菱形的类符号 | R:- | A:SVG图形 | S:-
+symbol-color-compact.svg[RU2T]: F:提供粗调色盘轮廓及五颜料点的紧凑颜色符号 | R:- | A:SVG图形 | S:-
+symbol-color.svg[RU2T]: F:提供细调色盘轮廓及五颜料点的颜色符号 | R:- | A:SVG图形 | S:-
+symbol-constant.svg[RU2T]: F:提供圆角方框内双横线的常量符号 | R:- | A:SVG图形 | S:-
+symbol-enum-member.svg[RU2T]: F:提供一实一空文本块的枚举成员符号 | R:- | A:SVG图形 | S:-
+symbol-enum.svg[RU2T]: F:提供叠置双空心文本块的枚举符号 | R:- | A:SVG图形 | S:-
+symbol-event.svg[RU2T]: F:提供空心折角闪电的事件符号 | R:- | A:SVG图形 | S:-
+symbol-field.svg[RU2T]: F:提供扁立方框内分叉短线的字段符号 | R:- | A:SVG图形 | S:-
+symbol-file.svg[RU2T]: F:提供折角空白文件轮廓的文件符号 | R:- | A:SVG图形 | S:-
+symbol-interface.svg[RU2T]: F:提供大小圆节点直线相连的接口符号 | R:- | A:SVG图形 | S:-
+symbol-key.svg[RU2T]: F:提供小写abc文字的键符号 | R:- | A:SVG图形 | S:-
+symbol-keyword.svg[RU2T]: F:提供代码横线和首行方框的关键字符号 | R:- | A:SVG图形 | S:-
+symbol-method-arrow.svg[RU2T]: F:提供立方体和右箭头的方法跳转符号 | R:- | A:SVG图形 | S:-
+symbol-method.svg[RU2T]: F:提供三面立方体轮廓的方法符号 | R:- | A:SVG图形 | S:-
+symbol-misc.svg[RU2T]: F:提供三角、方形和圆形组合的其他类型符号 | R:- | A:SVG图形 | S:-
+symbol-namespace.svg[RU2T]: F:提供一对花括号的命名空间符号 | R:- | A:SVG图形 | S:-
+symbol-numeric.svg[RU2T]: F:提供双竖双横交叉井号的数值符号 | R:- | A:SVG图形 | S:-
+symbol-operator.svg[RU2T]: F:提供加减乘除四种运算标记的操作符号 | R:- | A:SVG图形 | S:-
+symbol-parameter.svg[RU2T]: F:提供尖括号包围文本光标的参数符号 | R:- | A:SVG图形 | S:-
+symbol-property.svg[RU2T]: F:提供斜置扳手轮廓的属性符号 | R:- | A:SVG图形 | S:-
+symbol-ruler.svg[RU2T]: F:提供窄长矩形内三刻度的标尺符号 | R:- | A:SVG图形 | S:-
+symbol-snippet.svg[RU2T]: F:提供空心方框和底部三点的代码片段符号 | R:- | A:SVG图形 | S:-
+symbol-string.svg[RU2T]: F:提供小写abc文字的字符串符号 | R:- | A:SVG图形 | S:-
+symbol-structure.svg[RU2T]: F:提供长主框与两个下方小框的结构符号 | R:- | A:SVG图形 | S:-
+symbol-variable.svg[RU2T]: F:提供方括号内链形小块的变量符号 | R:- | A:SVG图形 | S:-
+sync-compact.svg[RU2T]: F:提供粗线两段回环箭头的紧凑同步图标 | R:- | A:SVG图形 | S:-
+sync-ignored.svg[RU2T]: F:提供斜杠划过回环箭头的忽略同步图标 | R:- | A:SVG图形 | S:-
+sync.svg[RU2T]: F:提供细线两段回环箭头的标准同步图标 | R:- | A:SVG图形 | S:-
+table.svg[RU2T]: F:提供三行三列分格方框的表格图标 | R:- | A:SVG图形 | S:-
+tag.svg[RU2T]: F:提供带圆孔的斜置圆角标签图标 | R:- | A:SVG图形 | S:-
+target.svg[RU2T]: F:提供双圆框和中心点的目标图标 | R:- | A:SVG图形 | S:-
+tasklist.svg[RU2T]: F:提供三行勾选与横线的任务列表图标 | R:- | A:SVG图形 | S:-
+telescope.svg[RU2T]: F:提供斜置镜筒和三脚架的望远镜图标 | R:- | A:SVG图形 | S:-
+terminal-bash.svg[RU2T]: F:提供六边体内shell提示文字的Bash终端标志 | R:- | A:SVG图形 | S:-
+terminal-cmd.svg[RU2T]: F:提供带顶栏窗口内C路径字样的CMD终端图标 | R:- | A:SVG图形 | S:-
+terminal-compact.svg[RU2T]: F:提供粗窗口轮廓内尖括号与下划线的终端图标 | R:- | A:SVG图形 | S:-
+terminal-debian.svg[RU2T]: F:提供逐渐内卷的螺旋线Debian标志 | R:- | A:SVG图形 | S:-
+terminal-git-bash.svg[RU2T]: F:提供菱形底上分支节点的Git Bash标志 | R:- | A:SVG图形 | S:-
+terminal-linux.svg[RU2T]: F:提供站立企鹅轮廓的Linux终端标志 | R:- | A:SVG图形 | S:-
+terminal-powershell.svg[RU2T]: F:提供圆角窗框内尖括号和短横的PowerShell终端图标 | R:- | A:SVG图形 | S:-
+terminal-secure.svg[RU2T]: F:提供终端窗框与锁形的安全终端图标 | R:- | A:SVG图形 | S:-
+terminal-tmux.svg[RU2T]: F:提供一竖两横实心分区的Tmux终端标志 | R:- | A:SVG图形 | S:-
+terminal-ubuntu.svg[RU2T]: F:提供三点环绕圆形分段的Ubuntu终端标志 | R:- | A:SVG图形 | S:-
+terminal.svg[RU2T]: F:提供细窗口轮廓内尖括号和下划线的标准终端图标 | R:- | A:SVG图形 | S:-
+text-size.svg[RU2T]: F:提供一小一大字母A的文字尺寸图标 | R:- | A:SVG图形 | S:-
+thinking.svg[RU2T]: F:提供云状气泡和下方两圆点的思考图标 | R:- | A:SVG图形 | S:-
+three-bars.svg[RU2T]: F:提供三条等长水平线的菜单标记 | R:- | A:SVG图形 | S:-
+thumbsdown-filled.svg[RU2T]: F:提供实心向下拇指的反对图标 | R:- | A:SVG图形 | S:-
+thumbsdown.svg[RU2T]: F:提供空心向下拇指的反对图标 | R:- | A:SVG图形 | S:-
+thumbsup-filled.svg[RU2T]: F:提供实心向上拇指的赞同图标 | R:- | A:SVG图形 | S:-
+thumbsup.svg[RU2T]: F:提供空心向上拇指的赞同图标 | R:- | A:SVG图形 | S:-
+tools.svg[RU2T]: F:提供并排扳手与螺丝刀的工具图标 | R:- | A:SVG图形 | S:-
+trash.svg[RU2T]: F:提供桶盖及双竖槽的垃圾桶图标 | R:- | A:SVG图形 | S:-
+triangle-down.svg[RU2T]: F:提供圆角实心向下三角的方向标记 | R:- | A:SVG图形 | S:-
+triangle-left.svg[RU2T]: F:提供圆角实心向左三角的方向标记 | R:- | A:SVG图形 | S:-
+triangle-right.svg[RU2T]: F:提供圆角实心向右三角的方向标记 | R:- | A:SVG图形 | S:-
+triangle-up.svg[RU2T]: F:提供圆角实心向上三角的方向标记 | R:- | A:SVG图形 | S:-
+twitter.svg[RU2T]: F:提供交叉双斜线构成的X社交平台标志 | R:- | A:SVG图形 | S:-
+type-hierarchy-sub.svg[RU2T]: F:提供一个上方方节点分叉到两下方节点的子类型图标 | R:- | A:SVG图形 | S:-
+type-hierarchy-super.svg[RU2T]: F:提供两上方节点汇入一下方节点的父类型图标 | R:- | A:SVG图形 | S:-
+type-hierarchy.svg[RU2T]: F:提供一个上圆节点分叉到两下圆节点的类型层次图标 | R:- | A:SVG图形 | S:-
+unarchive.svg[RU2T]: F:提供归档箱与回弯箭头圆标的取消归档图标 | R:- | A:SVG图形 | S:-
+unfold.svg[RU2T]: F:提供上下背向折线的展开代码图标 | R:- | A:SVG图形 | S:-
+ungroup-by-ref-type.svg[RU2T]: F:提供双向竖箭头与树状方节点的取消引用分组图标 | R:- | A:SVG图形 | S:-
+unlock.svg[RU2T]: F:提供打开弧形锁梁与方形锁体的解锁图标 | R:- | A:SVG图形 | S:-
+unmute.svg[RU2T]: F:提供空心扬声器和双声波的开启声音图标 | R:- | A:SVG图形 | S:-
+unpin.svg[RU2T]: F:提供斜杠划过图钉的取消固定图标 | R:- | A:SVG图形 | S:-
+unverified.svg[RU2T]: F:提供齿状徽章内问号的未验证状态图标 | R:- | A:SVG图形 | S:-
+variable-group.svg[RU2T]: F:提供锁形内括号与x字符的变量组图标 | R:- | A:SVG图形 | S:-
+verified-filled.svg[RU2T]: F:提供实心齿状徽章内白勾选的验证通过图标 | R:- | A:SVG图形 | S:-
+verified.svg[RU2T]: F:提供空心齿状徽章内勾选的验证通过图标 | R:- | A:SVG图形 | S:-
+versions.svg[RU2T]: F:提供双叠置圆角方框的版本图标 | R:- | A:SVG图形 | S:-
+vm-active.svg[RU2T]: F:提供显示器与勾选圆标的活动虚拟机图标 | R:- | A:SVG图形 | S:-
+vm-compact.svg[RU2T]: F:提供粗显示器轮廓和三段底座的紧凑虚拟机图标 | R:- | A:SVG图形 | S:-
+vm-connect.svg[RU2T]: F:提供显示器与相对折线圆标的虚拟机连接图标 | R:- | A:SVG图形 | S:-
+vm-outline.svg[RU2T]: F:提供显示器与空心圆标的虚拟机轮廓状态图标 | R:- | A:SVG图形 | S:-
+vm-pending.svg[RU2T]: F:提供显示器与时钟圆标的虚拟机等待图标 | R:- | A:SVG图形 | S:-
+vm-running.svg[RU2T]: F:提供显示器与播放圆标的虚拟机运行图标 | R:- | A:SVG图形 | S:-
+vm-small.svg[RU2T]: F:提供小矩形屏幕与双底脚的虚拟机图标 | R:- | A:SVG图形 | S:-
+vm.svg[RU2T]: F:提供细显示器轮廓与三段底座的标准虚拟机图标 | R:- | A:SVG图形 | S:-
+voice-mode-compact.svg[RU2T]: F:提供粗线五根高低竖条的紧凑语音模式图标 | R:- | A:SVG图形 | S:-
+voice-mode-download-compact.svg[RU2T]: F:提供粗语音竖条及下箭头圆标的语音下载图标 | R:- | A:SVG图形 | S:-
+voice-mode-download.svg[RU2T]: F:提供细语音竖条及下箭头圆标的标准语音下载图标 | R:- | A:SVG图形 | S:-
+voice-mode.svg[RU2T]: F:提供细线五根高低竖条的标准语音模式图标 | R:- | A:SVG图形 | S:-
+vr.svg[RU2T]: F:提供带顶条双目眼罩轮廓的虚拟现实图标 | R:- | A:SVG图形 | S:-
+vscode-insiders-outline.svg[RU2T]: F:提供空心交叉三角与立面轮廓的VS Code Insiders标志 | R:- | A:SVG图形 | S:-
+vscode-insiders.svg[RU2T]: F:提供实心交叉三角与立面的VS Code Insiders标志 | R:- | A:SVG图形 | S:-
+vscode-outline.svg[RU2T]: F:提供交叉带状空心轮廓的VS Code标志 | R:- | A:SVG图形 | S:-
+vscode.svg[RU2T]: F:提供交叉带状实心图形的VS Code标志 | R:- | A:SVG图形 | S:-
+wand.svg[RU2T]: F:提供斜置魔杖与三枚小十字的智能操作图标 | R:- | A:SVG图形 | S:-
+warning-compact.svg[RU2T]: F:提供粗三角轮廓内感叹号的紧凑警告图标 | R:- | A:SVG图形 | S:-
+warning.svg[RU2T]: F:提供细三角轮廓内感叹号的标准警告图标 | R:- | A:SVG图形 | S:-
+watch.svg[RU2T]: F:提供方形表盘、上下表带及侧按钮的手表图标 | R:- | A:SVG图形 | S:-
+whitespace.svg[RU2T]: F:提供段落回钩与双竖杆的空白字符图标 | R:- | A:SVG图形 | S:-
+whole-word.svg[RU2T]: F:提供ab文字下方托架的全词匹配图标 | R:- | A:SVG图形 | S:-
+window-active.svg[RU2T]: F:提供窗口与勾选圆标的活动窗口图标 | R:- | A:SVG图形 | S:-
+window-compact.svg[RU2T]: F:提供粗圆角窗口与顶横栏的紧凑窗口图标 | R:- | A:SVG图形 | S:-
+window.svg[RU2T]: F:提供细圆角窗口与顶横栏的标准窗口图标 | R:- | A:SVG图形 | S:-
+word-wrap.svg[RU2T]: F:提供ab及下一行c配折返箭头的自动换行图标 | R:- | A:SVG图形 | S:-
+workspace-trusted.svg[RU2T]: F:提供盾牌内勾选的工作区信任图标 | R:- | A:SVG图形 | S:-
+workspace-unknown.svg[RU2T]: F:提供盾牌内问号的工作区未知状态图标 | R:- | A:SVG图形 | S:-
+workspace-untrusted.svg[RU2T]: F:提供盾牌内叉号的工作区不信任图标 | R:- | A:SVG图形 | S:-
+worktree-compact.svg[RU2T]: F:提供粗单主干分叉双箭头的紧凑工作树图标 | R:- | A:SVG图形 | S:-
+worktree-small.svg[RU2T]: F:提供小单主干分叉双箭头的工作树图标 | R:- | A:SVG图形 | S:-
+worktree.svg[RU2T]: F:提供细单主干分叉双箭头的标准工作树图标 | R:- | A:SVG图形 | S:-
+xai.svg[RU2T]: F:提供交错尖条与斜向长线的xAI标志 | R:- | A:SVG图形 | S:-
+zoom-in.svg[RU2T]: F:提供放大镜内加号的放大图标 | R:- | A:SVG图形 | S:-
+zoom-out.svg[RU2T]: F:提供放大镜内减号的缩小图标 | R:- | A:SVG图形 | S:-
+
+===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/public/web/assets/===
+index-BnV2wF9o.css[RU2T]: F:提供生产Web入口的body零边距与Arial默认字体样式 | R:code:projects/web/style.css | A:body样式 | S:-
+index-Dh065xvD.js[LU4L]: F:打包生产Web的Lit组件、配置存储和插件页面列表及iframe宿主交互 | R:code:projects/web/src/main.ts,code:projects/web/src/layouts/content.ts | A:app-root,app-content,app-header,app-footer | S:插件iframe加载后通过postMessage传递配置，产物固定引用/web路径
+
+===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/public/web/===
+index.html[EU4T]: F:加载生产Web模块脚本及样式并挂载app-root组件 | R:code:projects/server/public/web/assets/index-Dh065xvD.js,code:projects/server/public/web/assets/index-BnV2wF9o.css | A:生产WebHTML入口 | S:构建后的模块与样式地址固定在/web/assets下
+
+===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/router/===
+index.ts[EN9M]: F:创建Express核心API、任务作用域与鉴权中间件，分派采集到匹配插件并监听可用端口 | R:code:projects/server/router/plugin.ts,code:projects/server/router/web/index.ts,code:projects/server/router/web/websocket.ts,code:projects/server/utils/listen.ts | A:app,listen,/api/metadata/scrape | S:除/web/api外的/web GET跳过鉴权；其余需Origin/Referer与site同hostname，不比较端口协议；空TOKEN仍要求site；采集插件顺序执行，单个失败不中断其他插件
+plugin.ts[AE8M]: F:按站点返回插件控件配置，转换通道命名空间并校验和分派控件触发请求 | R:code:projects/server/plugin/load.ts,code:projects/server/router/utils/index.ts,code:projects/shared/types/plugin.d.ts | A:/api/plugin/config,/api/plugin/toggle | S:通道采用plugin:name:id:channel；触发按请求体id与通道name选择插件，通道内id未参与匹配；控件值只许原始标量或null
+
+===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/router/utils/===
+index.ts[KN7T]: F:提取URL origin并按前缀、通配和否定规则匹配插件站点 | R:code:projects/server/router/plugin.ts,code:projects/server/router/index.ts | A:getRootUrl,matchLink | S:空规则匹配全部；非通配是前缀，通配正则只锚开头且命中即返回，肯定与否定规则顺序影响结果
+
+===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/router/web/api/===
+index.ts[EN7T]: F:提供已加载插件safeId查询与有页面插件清单，并挂载动态插件API | R:code:projects/server/plugin/load.ts,code:projects/server/router/web/api/load.ts | A:/web/api/safeId/:pluginDir,/web/api/pages | S:safeId每次加载生成，目录名只与pluginDir末段匹配；本路由仍由核心Bearer鉴权覆盖
+load.ts[IE8T]: F:按safeId注册插件HTTP API和独立媒体资源路由，将宿主错误状态映射到响应 | R:code:projects/server/plugin/process/client.ts,code:projects/server/plugin/process/resource.ts,code:projects/server/router/index.ts | A:registerPluginApi,registerPluginResources,pluginResourceRouter | S:API包装success/message/data；媒体资源在/web/api外，GET跳过核心Bearer，资源处理器须自己校验短期票据
+
+===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/router/web/===
+index.ts[EN7T]: F:挂载Web页面、API和插件资源，在生产服务构建文件，在开发重定向到Vite | R:code:projects/server/router/web/page/index.ts,code:projects/server/router/web/api/index.ts,code:projects/server/common/setupParam.ts | A:/web,/web/assets,/web/api,/web/resource/plugin | S:开发地址硬编码localhost:3201；未知mode不提供生产文件或开发重定向，API及插件页面仍挂载
+websocket.test.ts[TN5S]: F:验证同名WebSocket通道按safeId隔离消息，并拒绝缺site或token的握手 | R:code:projects/server/router/web/websocket.ts | A:Vitest通道隔离与握手用例 | S:-
+websocket.ts[IN8S]: F:注册插件WebSocket通道并处理HTTP升级、域名与TOKEN校验、消息发送广播和连接清理 | R:code:projects/server/plugin/process/client.ts,code:projects/server/utils/url.ts,code:projects/server/common/env.ts | A:PluginWebSocketRegistry,pluginWebSocketRegistry | S:握手使用查询token，通道按safeId隔离且拒绝点点路径；onConnect未完成就关闭仍须在结果返回时清理，真实socket保留在核心
+
+===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/router/web/page/===
+index.ts[EU8M]: F:服务插件页面与静态资源、注入浏览器工具、支持SPA深链并渲染错误页 | R:code:projects/server/plugin/load.ts,code:projects/server/router/web/page/worry.html,code:projects/webUtils/lib/index.ts | A:/web/page/plugin/:pluginDir,/web/page/lib,/web/page/resources,/web/page/worry/:id | S:工具文件按文件名的36进制时间戳选最新而非mtime；无点的缺失资源按SPA回退；HTML仅替换小写body结束标记，动态页面超时可用宿主旧快照
+worry.html[EU3T]: F:提供含title、status和message占位符的简洁错误页面模板 | R:code:projects/server/router/web/page/index.ts | A:{{title}},{{status}},{{message}} | S:-
+
+===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/scripts/===
+build-executable.ts[OV8S]: F:构建Web与浏览器工具，打包核心、终端和插件宿主及共享依赖，再生成平台SEA可执行文件 | R:code:projects/server/scripts/sea-bootstrap.ts,code:projects/server/scripts/shared-package-assets.ts,code:projects/server/scripts/build.ts | A:main,dist/core/scwc | S:构建需Node至少25.5，目标源码仍Node24；保留函数名供命令装饰器；构建工具依赖单独标记web-build延迟释放，macOS产物做临时签名
+build.ts[OV6T]: F:构建projects/web到服务公开目录，并按模式、强制标志和现有index.html决定是否构建 | R:code:projects/web/vite.config.ts,code:projects/server/scripts/setup.ts | A:buildWeb,isWebBuilt,shouldBuildWeb,buildWebIfNeeded | S:现有Web仅检查index.html存在；prod缺页自动构建，其他模式只有build标志触发
+executable-launch.test.ts[TV6T]: F:验证移位SEA默认启动终端、no-terminal直接核心和干净退出及状态文件差异 | R:code:projects/server/scripts/sea-bootstrap.ts | A:Vitest独立产物启动模式用例 | S:没有已构建SEA时整组跳过；临时.env关闭TOKEN与Redis，默认终端须保存三个窗口
+killRedisServer.sh[OD3T]: F:调用redis-cli关闭本机6379端口的Redis服务 | R:- | A:redis-cli shutdown | S:端口固定6379，不读取核心Redis配置
+parseArgs.ts[LC5L]: F:提供带注册、缩写、位置参数、多值转换和帮助输出的通用进程argv解析器 | R:- | A:registerArg,registerUnnamedArg,getNameArg,getUnnamedArg,registerExample,printHelp | S:首次get触发一次解析，之后注册静默忽略；解析错误直接exit(1)，help数组存在即打印并退出，false值也如此
+proxy.ts[ON3T]: F:保留开发Web地址改写的代理试验入口 | R:code:projects/server/router/web/index.ts | A:needPortForwarding,startProxy | S:只发起一次https.get输出响应，不启动监听代理
+restart.ts[OR3S]: F:在旧进程自行退出后以独立shell启动bun服务，超时则停止重启 | R:- | A:--pid,--runtime,--version | S:硬编码cwd/server/index.ts和bun start，主服务未使用此脚本
+sea-bootstrap.ts[ER8T]: F:释放SEA资源并分派核心、终端、插件宿主或内置页面构建入口 | R:code:projects/server/scripts/build-executable.ts,code:projects/server/common/paths.ts | A:SEA主入口,--no-terminal,--build-plugin-web | S:默认多窗口终端；宿主复用父runtime，首进程私有临时目录退出删除；构建依赖延迟释放，已有资源只按文件大小判复用
+setup.ts[AV6T]: F:兼容启动参数缩写，按模式准备Web构建后启动多窗口终端 | R:code:projects/server/scripts/build.ts,code:projects/terminal/index.ts,code:projects/server/common/config.ts | A:启动脚本main | S:缺省prod；仅mode等部分选项映射缩写，build接受布尔true或字符串true，最终启动终端而非直接核心
+shared-package-assets.ts[OV7T]: F:收集SEA共享包及递归依赖的文件，保存Node包查找层次和版本冲突位置 | R:code:projects/server/scripts/build-executable.ts | A:sharedExternalPackages,sharedPackageAssets | S:better-sqlite3和trash保留原始包文件及资源路径；不同传递版本嵌套放置，缺失可选依赖跳过，不遍历包内node_modules或Git
+smoke-executable.ts[TV7M]: F:在移位部署中验证SEA端口搜索、相邻环境、插件进程、Redis隔离、页面、输入取消和终端启停 | R:code:projects/server/scripts/build-executable.ts,code:projects/terminal/smoke.ts | A:独立部署smoke脚本main | S:启动临时带密码Redis并占用起始端口；退出必须清本实例前缀而保留外部前缀，错误cwd环境不得覆盖部署.env
+
+===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/types/===
+axios.d.ts[FN5T]: F:声明重试请求泛型、响应类型到原始数据的映射和并发任务队列接口 | R:code:projects/server/utils/axios.ts | A:IRetryRequest,TRetryRequestClass,TRetryGet,TCreateRetryGet,TLimitPromise,ILimitPromise | S:未指定responseType时原始返回类型按text处理，自定义data与raw分开
+cache.d.ts[FD6T]: F:声明绑定插件命名空间的缓存操作和可缓存值类型 | R:code:projects/server/utils/cache.ts,code:projects/server/plugin/process/client.ts | A:TPluginCacheableData,IPluginCache | S:类型含Readable但隔离进程通路不支持流；插件接口不暴露namespace参数或全局清空
+command.d.ts[FU6T]: F:声明命令选项、子命令和携带调用上下文的执行回调 | R:code:projects/server/utils/command.ts,code:projects/server/types/task.d.ts | A:TCommandOption,TCommandExecute,TSubCommand | S:第五参数为InvocationContext，原始参数和未使用参数分别传入，执行可同步或异步
+log.d.ts[FO4T]: F:声明核心日志的info、pathInfo、warn和error四种方法 | R:code:projects/server/utils/log.ts | A:TLogger | S:-
+plugin-process.d.ts[FE8T]: F:声明插件v2请求、资源描述符、WebSocket回调、宿主配置及状态合同 | R:code:projects/server/plugin/process/host.ts,code:projects/server/plugin/process/resource.ts | A:ProcessPluginHandler,ProcessRequestContext,ResourceResponse,ProcessSocket,ProcessOptions,ProcessInfo | S:回调仅留在插件进程，请求不含Express或真实socket；文件通过绝对路径描述符交给核心传输，省略apiVersion默认2
+task.d.ts[FW7T]: F:定义调用身份、取消上下文、任务报告、输入协议和可变忙碌快照 | R:code:projects/server/common/tasks.ts,code:projects/server/common/interaction.ts | A:InvocationContext,InvocationIdentity,TaskReporter,TaskSnapshot,InputResult,InputRequest | S:next以错误或值二选一元组返回，支持五种构造器；显式任务句柄须结束，命令返回后任务仍可能忙
+
+===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/utils/===
+axios.test.ts[TN5T]: F:验证隔离缓存的流绕过、假值命中、自定义请求类和Buffer传递 | R:code:projects/server/utils/axios.ts | A:Vitest重试请求缓存用例 | S:-
+axios.ts[IN7L]: F:提供共享代理Axios实例、缓存与重定向感知的GET重试工厂，以及有界并发任务队列 | R:code:projects/server/utils/cache.ts,code:projects/server/types/axios.d.ts,code:projects/server/utils/tryCatch.ts | A:createRetryGet,LimitPromise | S:隔离插件stream跳过缓存；最多5次重试仅网络或5xx，固定10秒取消；waitAll依赖后续任务结束，空队列不会立即完成
+cache-disabled.test.ts[TD5T]: F:验证禁用Redis时使用真实内存缓存、命名空间和重定向且不创建Redis客户端 | R:code:projects/server/utils/cache.ts | A:Vitest无Redis缓存用例 | S:禁用后故意提供无效Redis端口，证明连接配置不被读取
+cache.test.ts[TD6T]: F:验证插件同名缓存键、重定向和批量删除隔离，以及冻结控制器不暴露全清接口 | R:code:projects/server/utils/cache.ts | A:Vitest命名空间缓存用例 | S:-
+cache.ts[PD9L]: F:管理内存与可选Redis缓存、插件命名空间、重定向、文件溢出及集中错误处理 | R:code:projects/server/common/config.ts,code:projects/server/common/paths.ts,code:projects/server/types/cache.d.ts | A:setCache,getCache,deleteCache,mDeleteCache,createNamespacedCache,cacheController | S:超5MiB及流落盘，del和TTL不清文件；插件控制器冻结且不暴露clearAll；核心clearAll即使传namespace仍清全部，重定向须存在且同命名空间无环
+command.test.ts[TU6T]: F:验证命令引号和空参数、子命令失败不回退、固定日志上下文及不可用插件预校验 | R:code:projects/server/utils/command.ts | A:Vitest命令调用合同用例 | S:不可用命令须在取消旧任务以替换执行前拒绝
+command.ts[AU8M]: F:管理系统和插件命令注册、冲突改名、参数拆分验证及单回调执行和帮助事件 | R:code:projects/server/common/tasks.ts,code:projects/server/utils/log.ts,code:projects/server/types/command.d.ts | A:registerCommand,splitCommand,validateCommand,parseAndRunCommands,getCommands,commandEvents | S:每插件仅一个主命令，冲突时旧新命令均加插件前缀；子命令优先且失败不回退；选项值用等号，双短横之后按原文参数，未知选项仅警告
+convertToCN.ts[LL4T]: F:依次使用香港、台湾和日本转换器将汉字转为大陆简体 | R:- | A:convertToCN | S:非字符串输入直接原样返回
+fetchImage.ts[IN5T]: F:以原生fetch读取图片为Buffer，失败记录日志并返回null | R:code:projects/server/utils/log.ts | A:fetchImage | S:全量读入内存，不复用Axios重试工厂
+listen.test.ts[TN5T]: F:验证实际端口绑定、递增范围耗尽及权限错误不重试 | R:code:projects/server/utils/listen.ts | A:Vitest端口搜索用例 | S:成功后临时error和listening监听器须移除
+listen.ts[CN7T]: F:在指定起始端口和最大偏移内直接尝试绑定服务并返回实际端口 | R:code:projects/server/router/index.ts | A:listenAvailable | S:直接绑定避免先探测后绑定的竞争；只有EADDRINUSE才尝试下一个端口，其他错误立即抛出，range为偏移而非候选数
+log.ts[CO7S]: F:创建带标签日志、发送结构化输出并将日志对象固定绑定调用身份 | R:code:projects/server/common/tasks.ts,code:projects/server/common/color.ts,code:projects/server/types/log.d.ts | A:createLogger,publishLog,bindLogger,setLogSink,LogLevel | S:有sink时不再输出到原控制台；bindLogger冻结身份，异步晚到日志仍归原窗口，普通日志从当前异步上下文取身份
+strValidation.ts[LS5T]: F:将字符串中的Windows路径禁用字符替换为短横线 | R:code:projects/server/utils/writeData.ts | A:strValidation | S:只替换字符，不做HTML转义或目录边界验证
+tryCatch.ts[CR5S]: F:将同步或异步异常转成错误与结果元组，并支持预期错误分类 | R:code:projects/server/utils/axios.ts | A:tryCatch,isPromiseLike,createTryCatch | S:普通版将非Error规范化；自定义版保留原始错误并标记isExpectedError，同步结果保持同步
+url.ts[CN6T]: F:解析两个URL并判断主机名是否相同，解析失败返回false | R:code:projects/server/router/index.ts,code:projects/server/router/web/websocket.ts | A:isSameDomain | S:只比较hostname，协议和端口差异不影响匹配
+writeData.ts[PD6S]: F:保存网络或dataURL图片，并将采集项或任意JSON数据追加到目录中的data.json | R:code:projects/server/utils/fetchImage.ts,code:projects/server/utils/log.ts | A:writeData,writeDataURL | S:追加靠读全文件再覆写，无锁；已存在空data.json会解析失败；网络图片统一扩展png，不检测实际类型；writeDataURL不创建目录
+
+===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/shared/components/===
+button.css[CU3T]: F:定义按钮主次内联样式、活动和禁用态及鼠标交互区域 | R:code:projects/shared/components/button.ts | A:.scwc-btn,.scwc-btn-primary,.scwc-btn-secondary,.scwc-btn-inline | S:宿主不接收指针事件，内层按钮单独恢复
+button.ts[CU5T]: F:实现带插槽、状态、样式和无障碍属性的Lit按钮组件 | R:code:projects/shared/components/button.css,code:projects/shared/utils/customElement.ts | A:scwc-button,SCWCButtonEventMap | S:吞掉原生点击后派发冒泡CustomEvent，事件不再携带原MouseEvent字段
+checkbox.css[CU3T]: F:定义复选框标签排布、文字颜色及禁用态指针 | R:code:projects/shared/components/checkbox.ts | A:.scwc-checkbox-label,.scwc-checkbox,.scwc-checkbox-desc | S:-
+checkbox.ts[CU5T]: F:实现带唯一标识、标签和禁用状态的Lit复选框，将布尔选择传给宿主 | R:code:projects/shared/components/checkbox.css,code:projects/shared/utils/customElement.ts | A:scwc-checkbox,SCWCCheckboxEventMap | S:change携带布尔detail并冒泡；checked是外部输入属性，不在回调中自动更新
+index.ts[CU4T]: F:通过副作用导入注册共享按钮、输入、触发、开关、选择和复选框组件 | R:code:projects/shared/components/button.ts,code:projects/shared/components/input.ts,code:projects/shared/components/trigger.ts | A:共享组件注册入口 | S:通知组件另由自身模块导入，不包含在此入口
+input.css[CU3T]: F:定义文本数值输入框、标签横纵排布及聚焦禁用状态 | R:code:projects/shared/components/input.ts | A:.scwc-input-label,.scwc-input,.scwc-input-disabled | S:-
+input.ts[CU5S]: F:实现Lit文本或数值输入组件，并转换input、change和blur为自定义事件 | R:code:projects/shared/components/input.css,code:projects/shared/utils/customElement.ts | A:scwc-input,SCWCInputEventMap | S:number类型仍返回字符串；三个自定义事件默认不冒泡，value由外部属性控制
+notify.css[CU4M]: F:定义六个通知锚点、类型配色、测量隐藏态和250毫秒入离场动画 | R:code:projects/shared/components/notify.ts | A:.notify-list,.notify-item,enter-t,enter-b,leave-t,leave-b | S:测量态禁止点击，显示容器透传指针；动画时长须与组件删除计时同步
+notify.ts[CU6M]: F:创建全局共享通知宿主并维护六方向通知队列、布局测量、交互与动画状态 | R:code:projects/shared/components/notify.css,code:projects/shared/types/notify.d.ts | A:notify,scwc-notify,window.scwc.notify | S:导入即向body注入；manual关闭不触发onclose；悬停离开重置3000ms而非自定义duration；250ms移除须与CSS动画一致
+select.css[CU3T]: F:定义选择框与标签纵向排布、边框及禁用配色 | R:code:projects/shared/components/select.ts | A:.scwc-select,.scwc-select-control | S:-
+select.ts[CU5T]: F:实现Lit原生下拉框、空选项占位和字符串值变更事件 | R:code:projects/shared/components/select.css,code:projects/shared/utils/customElement.ts | A:scwc-select,SCWCSelectEventMap | S:options仅通过属性传入；change不冒泡；label与select各自生成新UUID，for未指向同一id
+toggle.ts[CU4T]: F:用共享复选框封装布尔开关并转发标签、状态和选择事件 | R:code:projects/shared/components/checkbox.ts | A:scwc-toggle,SCWCToggleEventMap | S:change重新冒泡；导入的toggle.css当前为空，外观继承复选框
+trigger.ts[CU4T]: F:用共享按钮封装无返回值的trigger事件组件 | R:code:projects/shared/components/button.ts | A:scwc-trigger,SCWCTriggerEventMap | S:吞掉子按钮click后改派trigger，导入的trigger.css当前为空
+
+===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/shared/store/===
+config.ts[FC7M]: F:管理浏览器默认配置、持久化、设置控件、刷新规则缓存和storage跨页面同步 | R:code:projects/shared/utils/storage.ts,code:projects/shared/utils/refreshRuleParser.ts,code:projects/shared/types/config.d.ts | A:ConfigController,defaultValue,parseRefreshRule,isConfig,isConfigItem,configContext | S:setConfig仅更新实例和存储，同页不会自动同步；静态配置靠storage事件广播，卸载不移除强引用；控件回调每次重建防抖器
+
+===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/shared/types/===
+api.d.ts[FN4T]: F:声明HTTP API统一success、message和可选泛型data响应结构 | R:code:projects/web/src/api/plugins.ts,code:projects/user-script/src/api/crawl.ts | A:ResponseData | S:-
+config.d.ts[FC6T]: F:声明浏览器API连接、插件刷新规则、通知位置和带标识的脚本设置控件类型 | R:code:projects/shared/store/config.ts,code:projects/shared/utils/refreshRuleParser.ts | A:TConfig,ScriptConfig,ScriptConfigItem | S:脚本设置使用本地Symbol标识及本地trigger，不能当成服务端插件JSON配置传输
+notify.d.ts[FU5T]: F:声明通知选项、关闭来源和内部测量入离场状态数据 | R:code:projects/shared/components/notify.ts | A:INotifyOptions,TNotify | S:公开onclose只有auto或user，内部manual关闭不触发回调
+plugin.d.ts[FE6T]: F:声明浏览器插件控件配置、必填选项映射和采集数据提供回调 | R:code:projects/server/router/plugin.ts,code:projects/user-script/src/layouts/content-plugin.ts | A:PluginItem,PluginConfig,TRequiredOptions,GetCrawlData | S:浏览器PluginItem移除服务端trigger，由调用方按通道请求核心
+utils.d.ts[FD5T]: F:定义递归JSON、以函数表示数组的配置模板及解析结果类型映射 | R:code:projects/shared/utils/storage.ts | A:JSONValue,JSONValueWithFunction,ArrayProcessor,JSONValueToFunction,ResolvedJSONValue | S:模板数组通过函数表达，装载时处理已有数组或生成缺省数组
+
+===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/shared/utils/===
+cache.ts[CP4T]: F:按JSON序列化参数缓存函数返回值 | R:code:projects/shared/store/config.ts | A:cache | S:缓存无淘汰；Promise含拒绝结果也会保留
+common.ts[FC5T]: F:集中定义SCWC标记、选择项与配置存储键、初始位置和旧版持久化键 | R:code:projects/shared/utils/updateLocalStorage.ts | A:SCWC_TAG,SELECTIVE_CRAWL_KEY,CONFIG_KEY,INIT_POS,PERSISTENT_DATA_KEY | S:-
+console.ts[CO4T]: F:提供带统一SCWC标签与颜色样式的浏览器日志方法 | R:code:projects/shared/utils/common.ts | A:scwcLog,scwcWarn,scwcError | S:-
+customElement.ts[CE5T]: F:封装Lit组件装饰器，避免重复注册同名自定义元素 | R:code:projects/shared/components/index.ts | A:customElement | S:已有名称保持原组件定义，后加载版本不会替换
+debounce.ts[CW4T]: F:延迟调用并用最后一次参数替换等待中的函数执行 | R:code:projects/shared/store/config.ts | A:debounce | S:不保留this或返回值，没有取消或立即刷新入口
+fetch.ts[LN4T]: F:定义携带可选Response的FetchError及其类型判断方法 | R:code:projects/webUtils/lib/utils/fetch.ts | A:FetchError,isFetchError | S:-
+refreshRuleParser.test.ts[TC6M]: F:验证pathname、search和hash刷新规则的缺省值、继承及六种区域排列组合 | R:code:projects/shared/utils/refreshRuleParser.ts | A:Vitest刷新规则解析用例 | S:同一解析器反复使用，组合测试保证区域顺序不改变结构结果
+refreshRuleParser.ts[KC7L]: F:将路径、查询和片段刷新规则解析为层级规则及参数映射，并返回定位诊断 | R:code:projects/shared/store/config.ts,code:projects/shared/types/config.d.ts | A:RefreshRuleParser,TParseResult,parse | S:缺省忽略，空区域检测变化；路径末尾斜线使后层忽略，否则继承末级；查询同名参数和基础规则首项胜，异常返回诊断而非抛错
+storage.ts[PD7S]: F:按模板修复浏览器JSON配置和函数数组格式，保存并装载localStorage | R:code:projects/shared/types/utils.d.ts,code:projects/shared/utils/console.ts | A:completeProperties,loadFromStorage,saveToStorage | S:只保留模板键；同为原始类型时直接按a或b选值，不强制具体类型一致；加载失败禁执行模板函数并将数组置空后覆盖存储
+tryCatch.ts[CR5S]: F:为浏览器共享代码提供同步异步错误结果元组和预期错误分类 | R:code:projects/user-script/src/api/plugins.ts,code:projects/web/src/layouts/content.ts | A:tryCatch,isPromiseLike,createTryCatch | S:普通版非Error转成Error，自定义分类版保留原始错误，同步调用不变成Promise
+updateLocalStorage.ts[AD6T]: F:将旧版浮窗位置、最小化和插件展开键迁移到带版本的统一持久化记录 | R:code:projects/shared/utils/common.ts,code:projects/user-script/src/main.ts | A:updateLocalStorage | S:有字符串version即跳过；迁移成功删旧键，坏JSON停止；旧pos直接保留localStorage字符串未解析，后续模板装载会回退默认位置
+
+===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/terminal/===
+controller.test.ts[TU6S]: F:验证终端日志颜色、窗口输入隔离、取消、EOF、全局草稿和确认键盘路由 | R:code:projects/terminal/controller.ts,code:projects/terminal/model.ts | A:Vitest终端输入路由用例 | S:Ctrl+C待答时只取消输入，原任务仍存在；交互答案含冒号也不能变成全局命令或历史
+controller.ts[AU9L]: F:协调多窗口键鼠命令、输入、任务取消、核心生命周期和终端扩展子命令 | R:code:projects/terminal/model.ts,code:projects/terminal/core.ts,code:projects/terminal/render.ts,code:projects/terminal/plugins/load.ts | A:TerminalController,start,global,lifecycle,key,line | S:先校验新命令再取消旧任务，确认回调重验executionId；Ctrl+C优先取消输入；强停杀整个宿主；子执行不改父窗标题，核心异常退出最多退避重试3次
+core.ts[IN8S]: F:管理终端父进程与核心子进程的fork、会话握手、启动就绪和退出等待 | R:code:projects/terminal/peer.ts,code:projects/server/command/ipc.ts,code:projects/server/common/paths.ts | A:CoreConnection,CoreOptions | S:追加no-terminal与interaction=ipc防递归启动；45秒启动等待在目录确认期间停表，回答后重置；SEA使用自身可执行文件及空execArgv
+index.ts[EU8M]: F:启动终端模型、状态锁、核心与扩展，组织TTY或管道输入、绘制、周期保存和退出清理 | R:code:projects/terminal/controller.ts,code:projects/terminal/storage.ts,code:projects/terminal/input.ts | A:startTerminal,SCWC_TERMINAL_STATE_FILE,SCWC_CMD_PLUGIN_DIR | S:管道答案等核心和插件就绪后排队消费，EOF仅关闭输入；核心启动失败仍保留终端供重试退出；默认每秒保存，退出恢复TTY控制并释放本实例锁
+input.ts[CN6S]: F:从分片UTF8输入解码键盘转义、鼠标、粘贴和控制键事件 | R:code:projects/terminal/controller.ts | A:InputDecoder,Key | S:鼠标坐标转为零基；不完整ESC等待35ms才按Escape处理，括号粘贴整体返回，不将其中换行直接执行
+model.test.ts[TU6S]: F:验证窗口身份、边界切换、字素编辑、确认、任务恢复、输出上限及彩色中文绘制 | R:code:projects/terminal/model.ts,code:projects/terminal/render.ts,code:projects/terminal/storage.ts | A:Vitest终端模型与输入用例 | S:恢复只标记旧任务interrupted不重跑；迟到输出不能落入复用编号的新窗口
+model.ts[DU8M]: F:维护终端窗口、输入模式、草稿历史、任务归属、输出缓冲和确认状态 | R:code:projects/terminal/protocol.ts,code:projects/terminal/storage.ts | A:TerminalModel,WindowState,Mode,sanitizeOutput | S:UUID不复用而编号可复用，关窗迟到日志进输出窗；128窗、每窗1万行和10MiB；只保留SGR颜色；边界Tab需600ms内第二次，确认仅:y加Enter
+package.json[FV4T]: F:声明私有ESM终端工作区及Node启动和Vitest测试脚本 | R:code:projects/terminal/index.ts | A:scripts.start,scripts.test | S:依赖沿用根工作区声明
+peer.test.ts[TN6T]: F:验证终端IPC输出溢出归属、突发顺序、完成事件顺序及旧会话拒绝 | R:code:projects/terminal/peer.ts | A:Vitest会话与消息交付用例 | S:首次超大输出即须给原窗口截断标记，不能等待后续事件才补发
+peer.ts[CN8M]: F:实现终端v1会话RPC、顺序事件队列、有界发送及断连清理 | R:code:projects/terminal/protocol.ts,code:projects/server/command/ipc.ts | A:Peer | S:hello建立sessionId，旧会话结果丢弃；消息1MiB、请求64、发送128，事件32MiB或16384条；输出溢出归原窗，完成事件不得越过输出
+protocol.ts[FN7T]: F:定义终端v1会话消息、命令清单、结构化输出和执行状态 | R:code:projects/terminal/peer.ts,code:projects/terminal/controller.ts | A:Packet,CommandInfo,OutputEvent,ExecutionEvent,TERMINAL_PROTOCOL_VERSION | S:command.returned与command.finished分离，background表示函数已返回但关联任务未完成
+render.ts[PU7M]: F:按ANSI显示宽度绘制终端标签、输出折行、提示及光标，提供滚动和鼠标命中映射 | R:code:projects/terminal/model.ts,code:projects/terminal/controller.ts | A:Renderer | S:滚动锚以逻辑行及列偏移记录，新增输出和resize不跳历史位置；保留ANSI颜色且不截断宽字，尺寸最小1行1列
+smoke.ts[TU7M]: F:用SEA与实际核心及扩展验证并发日志、后台任务、输入取消、替换确认、强停、重启和PTY | R:code:projects/terminal/controller.ts,code:projects/terminal/core.ts,code:projects/terminal/storage.ts | A:smokeTerminal | S:非Windows额外用Python真实PTY检验颜色、键鼠、resize及TTY恢复；恢复窗口身份相同但任务不重放，强停须中断宿主相关执行
+storage.test.ts[TD6T]: F:验证终端状态单实例锁、备份恢复、坏输入保留和解锁后重新接管 | R:code:projects/terminal/storage.ts | A:Vitest终端原子持久化用例 | S:恢复后保存不得把损坏主文件覆盖到健康备份
+storage.ts[PD8M]: F:锁定并串行原子保存终端窗口状态，保留备份和损坏副本并恢复有界数据 | R:code:projects/terminal/model.ts | A:StateStore,restoreState | S:锁按PID存活及token归属判断，只有本token可释放；不保存待答输入，旧忙任务仅标中断不执行；坏主文件不能成为新备份
+vitest.config.ts[FQ3T]: F:提供终端工作区Vitest基础配置 | R:code:projects/terminal/package.json | A:defineConfig | S:-
+
+===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/terminal/plugins/===
+host.ts[RE7S]: F:在终端扩展子进程安装SDK，注册并执行命令，回传输出、任务、输入及核心子调用 | R:code:projects/terminal/plugins/types.ts,code:projects/terminal/peer.ts,code:projects/server/common/tasks.ts | A:hello,execute,cancel,unload | S:终端扩展使用apiVersion1，不能套服务插件v2；invokeCore以任务句柄等待真实子执行；父IPC断开自毁子树
+load.ts[AE8M]: F:发现终端扩展并创建独立宿主，协调命令冲突、输出任务、交互、取消和卸载 | R:code:projects/terminal/plugins/host.ts,code:projects/terminal/controller.ts,code:projects/server/common/tasks.ts | A:TerminalPlugins | S:生命周期和全局命令保留，冲突加插件前缀且后注册核心可迫使改名；强制取消按忙碌owner杀宿主整树，失败移除该宿主所有命令
+types.ts[FE7T]: F:声明终端扩展v1生命周期、命令注册和带输入任务及核心调用的执行上下文 | R:code:projects/terminal/plugins/host.ts,code:projects/server/types/task.d.ts | A:TerminalPlugin,TerminalCommand,TerminalCommandContext | S:终端契约独立于服务插件v2；invokeCore等待子命令实际完成，不能直接执行生命周期命令
+
+===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/terminal/plugins/template/===
+index.ts[TE4T]: F:提供终端扩展模板，演示typed next输入、错误元组和可取消后台任务 | R:code:projects/terminal/plugins/types.ts | A:ask,later | S:后台句柄需在正常计时结束和abort分支均end
+package.json[FE3T]: F:声明终端扩展模板的ESM入口并默认禁用 | R:code:projects/terminal/plugins/template/index.ts | A:main,enabled | S:enabled=false避免模板示例随核心默认执行
+
+===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/user-script/===
+.gitignore[FR3T]: F:忽略用户脚本依赖、构建输出、日志及本机编辑器文件 | R:code:projects/user-script/vite.config.ts | A:Git忽略规则 | S:-
+package.json[FV5T]: F:声明用户脚本工作区元数据及Vite开发构建和检查入口 | R:code:projects/user-script/vite.config.ts | A:scripts.dev,scripts.build,scripts.lint | S:构建产物由Monkey插件生成用户脚本
+vite.config.ts[FV7T]: F:通过Monkey配置开发与构建全站用户脚本，注入核心连接缺省值并生成包元数据 | R:code:projects/user-script/src/main.ts,code:projects/user-script/package.json,code:package.json | A:defineConfig,monkey,HOST,PORT | S:匹配所有HTTP和HTTPS页面并授予unsafeWindow；读取cwd环境，构建写仓库根dist且emptyOutDir=true，不是工作区内dist
+
+===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/user-script/src/api/===
+crawl.ts[IN7T]: F:将当前页面采集结果带Bearer TOKEN发送到核心metadata接口并规范化反馈 | R:code:projects/server/router/index.ts,code:projects/user-script/src/types/api.d.ts | A:sendCrawlRequest | S:site同时出现在URL查询与JSON体中，端口去掉非数字；网络或非规范响应返回失败对象而非抛出
+plugins.ts[IE7S]: F:读取站点匹配插件控件，检查采集完整性并发送触发请求，将反馈转为通知 | R:code:projects/server/router/plugin.ts,code:projects/shared/types/plugin.d.ts,code:projects/user-script/src/utils/notify.ts | A:fetchPlugins,triggerPlugin | S:非button且autoTrigger=false不请求；requireFullContent时缺选择器阻止调用；triggerPlugin未等待内部fetch反馈完成
+
+===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/user-script/src/layouts/===
+content-claw.css[CU3T]: F:定义采集工具栏、选择表单、可滚动条目列表和拖动柄样式 | R:code:projects/user-script/src/layouts/content-claw.ts | A:.claw-header,.claw-item-list,.claw-item-drag-handle | S:-
+content-claw.ts[AU8L]: F:实现网页元素选择与高亮、父层撤销、采集项持久化编辑排序及采集请求反馈 | R:code:projects/user-script/src/utils/claw.ts,code:projects/user-script/src/utils/selector.ts,code:projects/user-script/src/api/crawl.ts,code:projects/shared/store/config.ts | A:scwc-layout-content-claw,scwc-element-highlight | S:选择时捕获document点击并阻止默认行为；选中或取消才移除监听；任一选择器失效则普通采集不发送；切换高亮目标会新建控制器
+content-plugin.css[CU4S]: F:定义插件标签栏、内容滚动区和共享控件Shadow part的主题样式 | R:code:projects/user-script/src/layouts/content-plugin.ts,code:projects/shared/components/index.ts | A:.plugin-window,.plugin-window-tab,.plugin-window-content | S:原生复选框的checkbox part被零尺寸隐藏，布局依赖标签交互
+content-plugin.ts[EU6S]: F:渲染插件和脚本设置标签，按控件类型绑定共享组件与通道值触发 | R:code:projects/user-script/src/layouts/hooks/plugins.ts,code:projects/shared/components/index.ts | A:SCWCContentPlugin,scwc-layout-content-plugin | S:展开render触发首次加载；toggle复用checkbox，number输入仍传字符串；只有用户切标签才派发持久化事件
+content.ts[AU5T]: F:组合采集和插件面板，将采集项和当前标签事件转发给浮窗根组件 | R:code:projects/user-script/src/layouts/content-claw.ts,code:projects/user-script/src/layouts/content-plugin.ts | A:scwc-layout-content | S:采集项留在实例并传给插件面板，父组件只通过自定义事件接收更新
+footer.ts[EU2T]: F:注册用户脚本浮窗页脚占位组件，当前渲染为空 | R:code:projects/user-script/src/layouts/root.ts | A:scwc-layout-footer | S:-
+header.css[CU3T]: F:定义可拖动浮窗标题栏及采集、插件展开和最小化按钮样式 | R:code:projects/user-script/src/layouts/header.ts | A:.scwc-layout-header | S:-
+header.ts[EU5S]: F:提供浮窗拖移、窗口边界修正及采集插件展开和最小化事件 | R:code:projects/user-script/src/layouts/root.ts,code:projects/user-script/src/layouts/header.css | A:scwc-layout-header,move,toggleclaw,toggleplugin,minimize | S:边界按selectionExpanded估算固定尺寸而非实际插件内容大小；resize监听卸载清理，拖动监听到mouseup才移除
+minimized.css[CU3T]: F:定义靠左半隐藏的最小化拖动条外观与竖向SCWC文字 | R:code:projects/user-script/src/layouts/minimized.ts | A:.scwc-layout-minimized | S:实际条高42px，组件拖动边界按38px估算
+minimized.ts[EU5S]: F:实现最小化浮窗条的垂直拖动和非拖动点击还原事件 | R:code:projects/user-script/src/layouts/root.ts,code:projects/user-script/src/layouts/minimized.css | A:scwc-layout-minimized,move,maximize | S:只更新y并保留x，但CSS固定左边缘；任意mousemove记为拖动，随后的click不还原窗口
+root.css[CU3T]: F:定义浮窗容器固定定位、暗色背景、边框阴影和列布局 | R:code:projects/user-script/src/layouts/root.ts | A:.scwc-layout-root | S:-
+root.ts[AU7S]: F:组合浮窗头部、采集插件内容及最小化入口，持久化位置、最小化与插件标签状态 | R:code:projects/shared/utils/storage.ts,code:projects/user-script/src/layouts/header.ts,code:projects/user-script/src/layouts/content.ts | A:scwc-layout-root | S:持久化版本为数据格式2.0.0-1而非包版本；默认最小化；采集展开和条目数组本身不由此根对象持久化
+
+===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/user-script/src/layouts/hooks/===
+plugins.ts[AE7M]: F:管理浏览器插件列表、配置控件、激活标签、通道值和相关值，并协调远端触发 | R:code:projects/user-script/src/api/plugins.ts,code:projects/shared/store/config.ts,code:projects/user-script/src/utils/claw.ts | A:PluginsController | S:每次urlchange直接reload，未应用refreshRule；reload先清值与活动项；输入每次重建防抖器，不能合并连续触发
+
+===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/user-script/src/===
+main.ts[EU7T]: F:迁移浏览器旧存储并创建用户脚本浮窗挂载点，接收同源插件宿主隐藏消息 | R:code:projects/user-script/src/layouts/root.ts,code:projects/shared/utils/updateLocalStorage.ts | A:用户脚本入口,scwc-plugin-hinder | S:只在window load事件追加根组件，无readyState兜底；消息仅按type与isSameOrigin字段隐藏，不检查发送origin
+
+===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/user-script/src/types/===
+api.d.ts[FN5T]: F:声明采集响应中的插件通知数组或错误字符串数组 | R:code:projects/shared/types/api.d.ts,code:projects/user-script/src/api/crawl.ts | A:TCrawlResult,TCrawlResponse | S:-
+claw.d.ts[FB6T]: F:声明选择器采集项、描述前缀和带失效选择器列表的采集结果 | R:code:projects/user-script/src/utils/claw.ts | A:Item,TCrawlData | S:failed保存选择器字符串，不是条目序号或图片下载失败
+
+===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/user-script/src/utils/===
+claw.ts[KB7T]: F:按选择器采集文本片段与去重图片，将图片转PNG dataURL并汇总失效项 | R:code:projects/user-script/src/utils/selector.ts,code:projects/user-script/src/types/claw.d.ts | A:getCrawlData | S:prefix加到每个文本片段；canvas跨域等失败回退img.src，图片失败不进入failed，failed只记录选择器无元素
+notify.ts[CU3T]: F:为用户脚本重导出共享通知函数 | R:code:projects/shared/components/notify.ts | A:notify | S:-
+selector.ts[KU6T]: F:生成id或层级CSS选择器并安全查询页面元素 | R:code:projects/user-script/src/layouts/content-claw.ts | A:getSelector,getElementBySelector | S:以井号开头时全部余串按id查找，不解析复合CSS；类名未转义，路径拼接以约200字符为上限
+
+===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/vite-plugin/===
+browser.d.ts[FE5T]: F:为浏览器安全的scwc共享依赖入口声明Zod导出类型 | R:code:projects/vite-plugin/browser.js | A:z | S:与后端scwc:deps不同，不声明Node原生依赖
+browser.js[LE6T]: F:作为浏览器scwc:deps入口只导出Zod | R:code:projects/vite-plugin/index.js | A:z | S:浏览器共享API不自动继承后端SQLite、trash等导出
+dependencies.d.ts[FE5T]: F:声明浏览器共享包名单、公开Vite包身份和包名提取函数 | R:code:projects/vite-plugin/dependencies.js | A:sharedBrowserPackages,vitePluginPackageName,packageName | S:-
+dependencies.js[FE7T]: F:维护浏览器可共享依赖白名单和从裸模块说明符提取包名的规则 | R:code:projects/vite-plugin/index.js,code:projects/server/plugin/web/dependencies.ts | A:sharedBrowserPackages,vitePluginPackageName,packageName | S:不自动暴露所有根依赖；相对绝对路径、井号与含冒号说明符不属于包名，作用域包只取前两段
+index.d.ts[FE6T]: F:定义公开scwc Vite插件选项、返回类型和共享包名单导出 | R:code:projects/vite-plugin/index.js | A:ScwcViteOptions,scwcVite,sharedBrowserPackages | S:dependencyRoot可指向工作区或SEA释放的运行目录
+index.js[LV8T]: F:为Vite插件页面解析浏览器共享包和虚拟SDK，并按最近tsconfig降低装饰器语法 | R:code:projects/vite-plugin/dependencies.js,code:projects/vite-plugin/browser.js,code:projects/server/plugin/web/host.ts | A:scwcVite,resolveId,transform | S:只首个同名实例生效；插件自有包优先，缺失白名单包才回退共享锚点；raw/url和虚拟模块跳过转换，Worker也须注入此插件
+package.json[FV6T]: F:声明私有ESM的公开SCWC Vite插件包、类型入口和构建器peer依赖 | R:code:projects/vite-plugin/index.js,code:projects/vite-plugin/index.d.ts | A:@scwc/vite-plugin,exports,peerDependencies | S:只公开根插件入口，Vite和esbuild由消费者或核心提供
+tsconfig.json[FQ5T]: F:扩展Node检查配置并检查Vite插件JavaScript及声明文件 | R:code:tsconfig.node.json,code:projects/vite-plugin/index.js | A:allowJs,checkJs,include | S:JS实现启用checkJs，不仅检查声明入口
+
+===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/web/===
+index.html[EU5T]: F:提供Web宿主HTML入口，挂载app-root并加载模块和基础样式 | R:code:projects/web/src/main.ts,code:projects/web/style.css | A:app-root,模块脚本入口 | S:-
+package.json[FV5T]: F:声明Web工作区的Vite开发构建、Vitest及检查脚本 | R:code:projects/web/vite.config.ts | A:scripts,ESM工作区 | S:-
+style.css[CU3T]: F:设置Web全局body零边距和Arial字体 | R:code:projects/web/index.html | A:body样式 | S:-
+var.css[CU3T]: F:声明浅深色根背景和文字变量并按系统色彩偏好切换 | R:code:projects/web/src/layouts/header.css,code:projects/web/src/layouts/content.css | A:--base-background-color,--base-text-color | S:index.html和style.css未引入，变量不会自行注入页面
+vite.config.ts[FV7T]: F:配置核心Web应用开发服务、环境注入和生产资源输出目录 | R:code:projects/web/index.html,code:projects/server/scripts/build.ts | A:defineConfig,server.port,build.outDir | S:生产base固定/web/，开发端口3201与核心重定向约定一致；输出server/public/web并清空旧构建目录
+
+===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/web/src/api/===
+plugins.ts[IN6T]: F:携带站点和Bearer配置查询核心插件页面清单，将异常归一为失败响应 | R:code:projects/server/router/web/api/index.ts,code:projects/web/src/types/api.d.ts | A:getPluginPages | S:端口去除非数字；异常不向外抛出，调用方需检查success
+
+===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/web/src/layouts/===
+content.css[CU3T]: F:定义150像素插件侧栏、全高主区、隐藏侧栏和无边框iframe布局 | R:code:projects/web/src/layouts/content.ts | A:#root-content,.root-aside,.root-main,.plugin-iframe | S:-
+content.ts[AU7T]: F:展示插件目录导航并用iframe承载选中页面，下发连接配置与同源隐藏消息 | R:code:projects/web/src/api/plugins.ts,code:projects/shared/store/config.ts,code:projects/web/src/layouts/content.css | A:app-content | S:页面列表只在connected请求；配置仅iframe load时发送，不随配置改变主动推送；postMessage目标为星号并包含TOKEN，初始不选任何页面
+footer.css[CU2T]: F:使Web页脚宿主不占弹性剩余空间 | R:code:projects/web/src/layouts/footer.ts | A::host flex | S:-
+footer.ts[EU3T]: F:注册Web页脚组件并提供空footer容器 | R:code:projects/web/src/layouts/footer.css | A:app-footer | S:-
+header.css[CU3T]: F:定义34像素Web顶栏、侧栏开关按钮和标题样式 | R:code:projects/web/src/layouts/header.ts | A:#root-header,.expand-collapse-btn | S:-
+header.ts[EU5T]: F:渲染Web标题和侧栏展开收起按钮并派发切换事件 | R:code:projects/web/src/layouts/root.ts,code:projects/web/src/layouts/header.css | A:app-header,toggle-left-bar | S:切换事件显式bubbles和composed，能跨Shadow DOM传递
+index.ts[EU4T]: F:通过副作用导入注册Web根布局和其子布局 | R:code:projects/web/src/layouts/root.ts | A:Web布局注册入口 | S:-
+root.css[CU3T]: F:定义Web根宿主满视口高度的纵向弹性布局 | R:code:projects/web/src/layouts/root.ts | A::host布局 | S:-
+root.ts[AU6T]: F:组合Web顶栏、插件内容和页脚，并统一控制侧栏展开状态 | R:code:projects/web/src/layouts/header.ts,code:projects/web/src/layouts/content.ts,code:projects/web/src/layouts/footer.ts | A:app-root | S:侧栏默认展开，状态仅保留在当前根实例，不持久化
+
+===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/web/src/===
+main.ts[EU6T]: F:注册共享控件与Web应用布局的模块入口 | R:code:projects/shared/components/index.ts,code:projects/web/src/layouts/index.ts | A:Web模块入口 | S:实际app-root挂载节点来自HTML，此入口只做注册
+
+===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/web/src/types/===
+api.d.ts[FN5T]: F:声明带目录名和插件ID的页面清单及标准API响应类型 | R:code:projects/shared/types/api.d.ts,code:projects/web/src/api/plugins.ts | A:TPluginPagesResult,TPluginPagesResponse | S:-
+
+===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/webUtils/===
+lib.d.ts[FE6T]: F:将工具库类型扩展到所有插件页面的window.scwcutils | R:code:projects/webUtils/lib/index.ts | A:Window.scwcutils | S:export空模块确保全局扩展在外部TypeScript项目也一致生效
+package.json[FV5T]: F:声明ESM浏览器工具工作区的构建、测试和检查脚本 | R:code:projects/webUtils/vite.config.ts | A:scripts,工作区元数据 | S:-
+vite.config.ts[FV6T]: F:配置scwcutils工具库构建、环境缺省值和服务公开库文件输出 | R:code:projects/webUtils/lib/index.ts,code:projects/server/router/web/page/index.ts | A:defineConfig,build.lib,build.outDir | S:库文件名嵌入36进制当前毫秒，路由依该格式选最新；emptyOutDir清旧产物，页面以普通script注入此库
+
+===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/webUtils/lib/===
+index.ts[LU7T]: F:维护插件页面工具对象，按父页面配置消息或load兜底初始化请求、资源和WebSocket工厂 | R:code:projects/webUtils/lib/utils/fetch.ts,code:projects/shared/store/config.ts,code:projects/server/router/web/page/index.ts | A:TSCWCUtils,default工具对象,scwc-plugin-config | S:消息不检查origin且可重初始化；独立页只在load读一次存储，无配置变化监听；初始化前fetch只警告、resource为空、websocket抛错
+
+===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/webUtils/lib/utils/===
+fetch.ts[IN7T]: F:查询当前插件safeId并绑定API请求、媒体资源URL及WebSocket连接创建 | R:code:projects/server/router/web/api/index.ts,code:projects/server/router/web/api/load.ts,code:projects/server/router/web/websocket.ts | A:createFetch,TFetch,TResource,TWebSocket | S:从pathname第4段取插件目录，实际请求使用页面同源地址而非config host；API强制Bearer，媒体URL不带TOKEN，WebSocket以查询token鉴权
