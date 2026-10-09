@@ -4,6 +4,8 @@ export interface Key {
   sequence: string;
   shift?: boolean;
   ctrl?: boolean;
+  alt?: boolean;
+  meta?: boolean;
   mouse?: { button: number; column: number; row: number; release: boolean };
 }
 export class InputDecoder {
@@ -50,7 +52,7 @@ export class InputDecoder {
         });
         continue;
       }
-      const escape = /^\x1b(?:\[([\d;]*)([A-Za-z~])|O([A-DHF]))/.exec(this.text);
+      const escape = /^\x1b(?:\[([\d;:]*)([A-Za-z~])|O([A-DHF]))/.exec(this.text);
       if (escape) {
         this.text = this.text.slice(escape[0].length);
         const code = escape[2] ?? escape[3];
@@ -63,22 +65,91 @@ export class InputDecoder {
           F: 'end',
           Z: 'tab',
         };
+        const parameters = (escape[1] ?? '').split(';');
+        const modifier = Math.max(0, Number(parameters[1]?.split(':')[0] ?? 1) - 1);
+        // CSI-u and modifyOtherKeys preserve combinations including Cmd/Super+C.
+        const unicode =
+          code === 'u'
+            ? Number(parameters[0].split(':')[0])
+            : code === '~' && parameters[0] === '27'
+              ? Number(parameters[2])
+              : undefined;
+        if (parameters[1]?.split(':')[1] === '3') {
+          continue;
+        } // Key release, not input.
         const name =
-          code === '~'
-            ? ({ '3': 'delete', '5': 'pageup', '6': 'pagedown' }[escape[1]] ?? 'unknown')
-            : (names[code] ?? 'unknown');
+          unicode !== undefined
+            ? ({
+                13: 'enter',
+                9: 'tab',
+                27: 'escape',
+                127: 'backspace',
+                57350: 'left',
+                57351: 'right',
+                57352: 'up',
+                57353: 'down',
+                57358: 'home',
+                57359: 'end',
+              }[unicode] ??
+              (unicode === 99 && modifier & 44
+                ? 'c'
+                : unicode >= 57344 && unicode <= 63743
+                  ? 'unknown'
+                  : 'text'))
+            : code === '~'
+              ? ({
+                  '1': 'home',
+                  '3': 'delete',
+                  '4': 'end',
+                  '5': 'pageup',
+                  '6': 'pagedown',
+                  '7': 'home',
+                  '8': 'end',
+                }[parameters[0]] ?? 'unknown')
+              : (names[code] ?? 'unknown');
         this.emit({
           name,
-          sequence: escape[0],
-          shift: code === 'Z' || /;2$/.test(escape[1]),
-          ctrl: /;5$/.test(escape[1]),
+          sequence:
+            unicode !== undefined && unicode <= 0x10ffff
+              ? String.fromCodePoint(unicode)
+              : escape[0],
+          shift: code === 'Z' || Boolean(modifier & 1),
+          alt: Boolean(modifier & 2),
+          ctrl: Boolean(modifier & 4),
+          meta: Boolean(modifier & 40),
         });
         continue;
       }
       if (this.text[0] === '\x1b') {
+        const altArrow = /^\x1b\x1b(?:\[|O)([CD])/.exec(this.text);
+        if (altArrow) {
+          this.text = this.text.slice(altArrow[0].length);
+          this.emit({
+            name: altArrow[1] === 'C' ? 'right' : 'left',
+            sequence: altArrow[0],
+            alt: true,
+          });
+          continue;
+        }
         if (this.text.length > 1 && !['[', 'O'].includes(this.text[1])) {
-          this.text = this.text.slice(1);
-          this.emit({ name: 'escape', sequence: '\x1b' });
+          const character = [...this.text.slice(1)][0];
+          if (character === 'b' || character === 'f') {
+            this.text = this.text.slice(2);
+            this.emit({
+              name: character === 'b' ? 'left' : 'right',
+              sequence: character,
+              alt: true,
+            });
+          } else if (character !== '\x1b') {
+            this.text = this.text.slice(1);
+            this.emit({ name: 'escape', sequence: '\x1b' });
+          } else {
+            this.timer = setTimeout(() => {
+              this.text = '';
+              this.emit({ name: 'escape', sequence: '\x1b' });
+            }, 35);
+            return;
+          }
           continue;
         }
         this.timer = setTimeout(() => {

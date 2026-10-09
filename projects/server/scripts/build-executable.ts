@@ -29,7 +29,7 @@ async function main(): Promise<void> {
       ['index.ts', 'core.cjs'],
       ['plugin/process/host.ts', 'host.cjs'],
       ['../terminal/index.ts', 'terminal.cjs'],
-      ['../terminal/plugins/host.ts', 'terminal-host.cjs'],
+      ['../terminal/plugin/host.ts', 'terminal-host.cjs'],
       ['plugin/sdk/worker-bootstrap.ts', 'plugin-worker.cjs'],
       ['plugin/web/host.ts', 'web-build-host.cjs'],
       ['plugin/web/cli.ts', 'web-build-cli.cjs'],

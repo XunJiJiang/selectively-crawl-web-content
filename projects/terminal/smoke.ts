@@ -84,6 +84,11 @@ export async function smokeTerminal(
   const second = model.newWindow();
   const core = new CoreConnection({ entry: executable, execPath: executable, args: [], cwd, env });
   const controller = new TerminalController(model, core);
+  controller.plugins.resolveConflict = async (conflict) => {
+    assert.equal(conflict.second.id, 'scwc');
+    assert.equal(conflict.first.kind, 'core');
+    return 'a';
+  };
   const store = new StateStore(path.join(deployment, 'wire-state.json'));
   await store.lock();
   try {
@@ -223,7 +228,7 @@ export async function smokeTerminal(
   try {
     await waitFor(() => lineOutput.includes('TERMINAL_CORE_READY'), '逐行终端启动');
     await new Promise((resolve) => setTimeout(resolve, 100));
-    lineTerminal.stdin.write('smoke input\npipe name\ninvalid\n11\nfalse\n');
+    lineTerminal.stdin.write(':a\n:a\nsmoke input\npipe name\ninvalid\n11\nfalse\n');
     await waitFor(
       () => lineOutput.includes('INPUT_RESULT:pipe name:11:false'),
       '预先输入的管道回复',
@@ -275,7 +280,12 @@ def until(text,timeout=15):
 def send(data): os.write(master,data)
 try:
  until('TERMINAL_CORE_READY')
- send(b'\tismoke input\r')
+ until('命令 "server" 冲突')
+ send(b':a\r')
+ until('命令 "plugin" 冲突')
+ send(b':a\r')
+ time.sleep(.15)
+ send(b'\tsmoke input\r')
  until('INPUT_NAME?')
  send(b'pty name\r')
  until('INPUT_COUNT?')
@@ -312,7 +322,7 @@ try:
  time.sleep(.1)
  send(b'\x1b[<0;3;1M:new\r')
  until('cmd2')
- send(b'\x1bismoke background 3000\r')
+ send(b'\x1bsmoke background 3000\r')
  until('FUNCTION_RETURNING')
  send(b'\x1b:q\r')
  until('是否确认退出')
@@ -320,7 +330,7 @@ try:
  time.sleep(.1)
  fcntl.ioctl(master,termios.TIOCSWINSZ,struct.pack('HHHH',12,48,0,0)); p.send_signal(signal.SIGWINCH)
  buffer=b''
- send(b'\x1b:\r')
+ send(b'\x1b:q\r')
  until('是否确认退出')
  send(b':y\r')
  deadline=time.time()+15

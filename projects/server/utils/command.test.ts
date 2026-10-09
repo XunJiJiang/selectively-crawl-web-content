@@ -1,9 +1,24 @@
 import { describe, expect, it, vi } from 'vitest';
-import { splitCommand, registerCommand, parseAndRunCommands, validateCommand } from './command.ts';
+import {
+  splitCommand,
+  registerCommand,
+  parseAndRunCommands,
+  validateCommand,
+  getCommands,
+  SYSTEM_SYMBOL,
+} from './command.ts';
 import { TaskRegistry } from '../common/tasks.ts';
 
 const logger = { info: vi.fn(), pathInfo: vi.fn(), warn: vi.fn(), error: vi.fn() };
 describe('command invocation contract', () => {
+  it('distinguishes system commands from business plugin commands in terminal discovery', () => {
+    registerCommand(logger, 'test-system-discovery', vi.fn(), SYSTEM_SYMBOL);
+    registerCommand(logger, 'test-business-discovery', vi.fn(), 'discovery-plugin');
+    expect(getCommands().find((item) => item.name === 'test-system-discovery')?.system).toBe(true);
+    expect(getCommands().find((item) => item.name === 'test-business-discovery')?.system).toBe(
+      false,
+    );
+  });
   it('preserves quotes, empty arguments, whitespace and literal Windows paths', () => {
     expect(splitCommand('example "" "a b"\tC:\\Users\\name')).toEqual([
       'example',

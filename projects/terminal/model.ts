@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { ExecutionEvent, OutputEvent } from './protocol.ts';
+import type { ExecutionEvent, OutputEvent, CommandInfo } from './protocol.ts';
 import type {
   InputConstructor,
   InputFailure,
@@ -9,9 +9,9 @@ import type {
   InputFormat,
 } from '../server/types/task.d.ts';
 import { InvocationInputError, formatInput, inputFormat } from '../server/common/interaction.ts';
-import { globalCommands } from './global.ts';
+import { globalCommands, type GlobalCommandInfo } from './global.ts';
 
-export type Mode = 'normal' | 'command' | 'global' | 'global-output' | 'confirmation';
+export type Mode = 'normal' | 'global' | 'global-output' | 'confirmation';
 export interface WindowState {
   id: string;
   kind: 'output' | 'command';
@@ -48,6 +48,7 @@ export interface CommandPanel {
   command: string;
   lines: string[];
   bytes: number;
+  lineOffset: number;
   scroll: number;
   running: boolean;
   input?: PanelInput;
@@ -74,6 +75,11 @@ export class TerminalModel {
   globalDraft = '';
   globalCursor = 0;
   globalSelection?: number;
+  globalHistory: string[] = [];
+  globalHistoryCursor = 0;
+  globalHistoryDraft = '';
+  globalExtensions: GlobalCommandInfo[] = [];
+  commands: CommandInfo[] = [];
   completionIndex = 0;
   completionPreview = false;
   panel?: CommandPanel;
@@ -160,9 +166,7 @@ export class TerminalModel {
     }
     this.activeId = id;
     this.boundary = undefined;
-    if (this.mode === 'command' && window.kind === 'output') {
-      this.mode = 'normal';
-    }
+    this.completionPreview = false;
   }
   tab(direction: number, now = Date.now()) {
     const index = this.windows.indexOf(this.active);
@@ -280,6 +284,23 @@ export class TerminalModel {
     window.historyDraft = '';
   }
   history(direction: number) {
+    this.completionPreview = false;
+    if (this.mode === 'global') {
+      if (this.globalHistoryCursor === this.globalHistory.length) {
+        this.globalHistoryDraft = this.globalDraft;
+      }
+      this.globalHistoryCursor = Math.max(
+        0,
+        Math.min(this.globalHistory.length, this.globalHistoryCursor + direction),
+      );
+      this.globalDraft =
+        this.globalHistoryCursor === this.globalHistory.length
+          ? this.globalHistoryDraft
+          : this.globalHistory[this.globalHistoryCursor];
+      this.globalCursor = this.globalDraft.length;
+      this.globalSelection = undefined;
+      return;
+    }
     const window = this.active;
     if (window.historyCursor === window.history.length) {
       window.historyDraft = window.draft;
@@ -294,6 +315,26 @@ export class TerminalModel {
         : window.history[window.historyCursor];
     window.cursor = window.draft.length;
     window.selection = undefined;
+  }
+  recordGlobal(command: string) {
+    if (command && this.globalHistory.at(-1) !== command) {
+      this.globalHistory.push(command);
+      this.globalHistory = this.globalHistory.slice(-1000);
+    }
+    this.globalHistoryCursor = this.globalHistory.length;
+    this.globalHistoryDraft = '';
+  }
+  get editing() {
+    return (
+      this.mode === 'global' ||
+      Boolean(this.panel?.input) ||
+      (this.mode === 'normal' && (this.active.kind === 'command' || Boolean(this.active.input)))
+    );
+  }
+  enterGlobal() {
+    this.mode = 'global';
+    this.completionPreview = false;
+    this.completionIndex = 0;
   }
   scroll(amount: number) {
     this.active.scroll = Math.max(
@@ -325,6 +366,10 @@ export class TerminalModel {
           : this.active.selection;
   }
   setInput(text: string, cursor: number, selection?: number) {
+    if (text !== this.text) {
+      this.completionPreview = false;
+      this.completionIndex = 0;
+    }
     if (this.panel?.input) {
       this.panel.input.draft = text;
       this.panel.input.cursor = cursor;
@@ -378,28 +423,66 @@ export class TerminalModel {
   private nextBoundary(cursor: number) {
     return this.boundaries().find((index) => index > cursor) ?? this.text.length;
   }
-  move(direction: number, selecting = false) {
-    const cursor = direction < 0 ? this.previous(this.cursor) : this.nextBoundary(this.cursor);
+  move(direction: number, selecting = false, unit: 'grapheme' | 'word' | 'edge' = 'grapheme') {
+    this.completionPreview = false;
+    let cursor = this.cursor;
+    if (!selecting && this.selection !== undefined && unit === 'grapheme') {
+      cursor = direction < 0 ? Math.min(cursor, this.selection) : Math.max(cursor, this.selection);
+    } else if (unit === 'edge') {
+      cursor = direction < 0 ? 0 : this.text.length;
+    } else if (unit === 'word') {
+      if (direction < 0) {
+        while (cursor > 0 && /\s/.test(this.text[cursor - 1])) {
+          cursor--;
+        }
+        while (cursor > 0 && !/\s/.test(this.text[cursor - 1])) {
+          cursor--;
+        }
+      } else {
+        while (cursor < this.text.length && !/\s/.test(this.text[cursor])) {
+          cursor++;
+        }
+        while (cursor < this.text.length && /\s/.test(this.text[cursor])) {
+          cursor++;
+        }
+      }
+    } else {
+      cursor = direction < 0 ? this.previous(cursor) : this.nextBoundary(cursor);
+    }
     this.setInput(this.text, cursor, selecting ? (this.selection ?? this.cursor) : undefined);
+  }
+  get globalCommands(): GlobalCommandInfo[] {
+    return [...globalCommands, ...this.globalExtensions];
   }
   get globalCandidates() {
     return /\s/.test(this.globalDraft)
       ? []
-      : globalCommands.filter((command) => command.name.startsWith(this.globalDraft));
+      : this.globalCommands.filter((command) => command.name.startsWith(this.globalDraft));
   }
   get globalHint() {
     const name = this.globalDraft.split(/\s/)[0];
-    return globalCommands.find(
+    return this.globalCommands.find(
       (command) => command.name === name || command.aliases?.includes(name),
     );
   }
+  get candidates() {
+    return this.mode === 'global'
+      ? this.globalCandidates
+      : this.mode === 'normal' &&
+          this.active.kind === 'command' &&
+          !this.active.input &&
+          this.text &&
+          !/\s/.test(this.text)
+        ? this.commands.filter((command) => command.name.startsWith(this.text))
+        : [];
+  }
   get displayText() {
-    return this.mode === 'global' && this.completionPreview
-      ? (this.globalCandidates[this.completionIndex]?.name ?? this.text)
+    return this.completionPreview
+      ? (this.candidates[this.completionIndex]?.name ?? this.text)
       : this.text;
   }
   completeGlobal(direction: number) {
-    const count = this.globalCandidates.length;
+    const count = this.candidates.length;
     if (!count) {
       return;
     }
@@ -417,10 +500,12 @@ export class TerminalModel {
     }
   }
   beginPanel(command: string) {
+    const previous = this.panel;
     this.panel = {
       command,
-      lines: [],
-      bytes: 0,
+      lines: previous?.lines ?? [],
+      bytes: previous?.bytes ?? 0,
+      lineOffset: previous?.lineOffset ?? 0,
       scroll: 0,
       running: true,
       step: Promise.withResolvers<void>(),
@@ -442,6 +527,7 @@ export class TerminalModel {
     panel.bytes += lines.reduce((sum, line) => sum + Buffer.byteLength(line), 0);
     while (panel.lines.length > 10000 || panel.bytes > 10 * 1024 * 1024) {
       panel.bytes -= Buffer.byteLength(panel.lines.shift() ?? '');
+      panel.lineOffset++;
     }
     panel.scroll = 0;
   }

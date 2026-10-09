@@ -14,7 +14,7 @@ tsconfig.json[FQ7T]: F:组织公开Vite包、终端、前端、Node配置、服�
 tsconfig.node.json[FQ5T]: F:为根工具配置与继承项目提供严格Node侧Bundler类型检查 | R:code:projects/vite-plugin/tsconfig.json,code:tsconfig.json | A:compilerOptions,include | S:根include仅星号.config.ts，noEmit且拒绝未使用变量；公开Vite包继承后另开JS检查
 tsconfig.plugin-web.json[FQ6T]: F:检查全部具体插件Web源码，并注入浏览器工具、SDK和全局插件类型 | R:code:projects/webUtils/lib.d.ts,code:projects/server/plugin/sdk/modules.d.ts,code:vite-env.d.ts | A:compilerOptions,include | S:编译范围包含server/plugins下Web，独立于本次AOCI核心索引范围；使用ESNext和装饰器元数据
 tsconfig.serve.json[FQ6T]: F:为核心及插件后端TypeScript提供ESNext、装饰器和严格无输出检查 | R:code:tsconfig.json,code:projects/server/index.ts | A:compilerOptions,include,exclude | S:包含服务目录所有TS但排除插件Web；未使用项检查关闭，旧工具也可留在编译范围
-tsconfig.terminal.json[FQ6T]: F:继承服务检查配置，覆盖终端源码集合并引入插件全局类型 | R:code:tsconfig.serve.json,code:projects/terminal/index.ts | A:extends,include,exclude | S:exclude显式清空，不继承服务对插件Web的排除；使用独立tsbuildinfo文件
+tsconfig.terminal.json[FQ6T]: F:继承服务检查配置，覆盖终端源码并显式引入独立终端插件声明及共享SDK所需核心声明 | R:code:tsconfig.serve.json,code:projects/terminal/index.ts,code:projects/terminal/plugins/plugin-env.d.ts,code:projects/server/plugin/sdk/register.ts | A:extends,include,exclude | S:核心SCWC声明为共享SDK进程协议的间接依赖，终端插件自身使用SCWCTerminal；exclude置空，使用独立tsbuildinfo
 vite-env.d.ts[FC5T]: F:为前端提供Vite客户端模块与import.meta类型环境 | R:code:tsconfig.app.json,code:tsconfig.plugin-web.json | A:vite/client类型引用 | S:-
 vitest.config.ts[FQ6T]: F:将根测试命令分派到服务、用户脚本、Web和终端四个测试项目 | R:code:projects/server/vitest.config.ts,code:projects/terminal/vitest.config.ts | A:defineConfig,test.projects | S:测试项目显式列出，不自动覆盖所有projects工作区
 
@@ -1022,7 +1022,7 @@ index-BnV2wF9o.css[RU2T]: F:提供生产Web入口的body零边距与Arial默认�
 index-Dh065xvD.js[LU4L]: F:打包生产Web的Lit组件、配置存储和插件页面列表及iframe宿主交互 | R:code:projects/web/src/main.ts,code:projects/web/src/layouts/content.ts | A:app-root,app-content,app-header,app-footer | S:插件iframe加载后通过postMessage传递配置，产物固定引用/web路径
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/public/web/===
-index.html[EU4T]: F:加载生产Web模块脚本及样式并挂载app-root组件 | R:code:projects/server/public/web/assets/index-Dh065xvD.js,code:projects/server/public/web/assets/index-BnV2wF9o.css | A:生产WebHTML入口 | S:构建后的模块与样式地址固定在/web/assets下
+index.html[EU4T]: F:加载生产Web脚本、样式及图标并挂载app-root组件 | R:code:projects/server/public/web/assets/index-Dh065xvD.js,code:projects/server/public/web/assets/index-BnV2wF9o.css | A:生产WebHTML入口 | S:构建脚本与样式地址固定在/web/assets下
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/router/===
 index.ts[EN9M]: F:创建Express核心API、任务作用域与鉴权中间件，分派采集到匹配插件并监听可用端口 | R:code:projects/server/router/plugin.ts,code:projects/server/router/web/index.ts,code:projects/server/router/web/websocket.ts,code:projects/server/utils/listen.ts | A:app,listen,/api/metadata/scrape | S:除/web/api外的/web GET跳过鉴权；其余需Origin/Referer与site同hostname，不比较端口协议；空TOKEN仍要求site；采集插件顺序执行，单个失败不中断其他插件
@@ -1045,7 +1045,7 @@ index.ts[EU8M]: F:服务插件页面与静态资源、注入浏览器工具、�
 worry.html[EU3T]: F:提供含title、status和message占位符的简洁错误页面模板 | R:code:projects/server/router/web/page/index.ts | A:{{title}},{{status}},{{message}} | S:-
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/scripts/===
-build-executable.ts[OV8S]: F:构建Web与浏览器工具，打包核心、终端和插件宿主及共享依赖，再生成平台SEA可执行文件 | R:code:projects/server/scripts/sea-bootstrap.ts,code:projects/server/scripts/shared-package-assets.ts,code:projects/server/scripts/build.ts | A:main,dist/core/scwc | S:构建需Node至少25.5，目标源码仍Node24；保留函数名供命令装饰器；构建工具依赖单独标记web-build延迟释放，macOS产物做临时签名
+build-executable.ts[OV8S]: F:构建Web和浏览器工具，打包核心、终端及重组后的插件宿主和共享依赖，生成平台SEA可执行文件 | R:code:projects/server/scripts/sea-bootstrap.ts,code:projects/server/scripts/shared-package-assets.ts,code:projects/server/scripts/build.ts,code:projects/terminal/plugin/host.ts | A:main,dist/core/scwc | S:构建需Node至少25.5，源码仍Node24；保留函数名供装饰器，web-build依赖延迟释放；终端宿主内嵌scwc插件，macOS产物做临时签名
 build.ts[OV6T]: F:构建projects/web到服务公开目录，并按模式、强制标志和现有index.html决定是否构建 | R:code:projects/web/vite.config.ts,code:projects/server/scripts/setup.ts | A:buildWeb,isWebBuilt,shouldBuildWeb,buildWebIfNeeded | S:现有Web仅检查index.html存在；prod缺页自动构建，其他模式只有build标志触发
 executable-launch.test.ts[TV6T]: F:验证移位SEA默认启动终端、no-terminal直接核心和干净退出及状态文件差异 | R:code:projects/server/scripts/sea-bootstrap.ts | A:Vitest独立产物启动模式用例 | S:没有已构建SEA时整组跳过；临时.env关闭TOKEN与Redis，默认终端须保存三个窗口
 killRedisServer.sh[OD3T]: F:调用redis-cli关闭本机6379端口的Redis服务 | R:- | A:redis-cli shutdown | S:端口固定6379，不读取核心Redis配置
@@ -1071,8 +1071,8 @@ axios.ts[IN7L]: F:提供共享代理Axios实例、缓存与重定向感知的GET
 cache-disabled.test.ts[TD5T]: F:验证禁用Redis时使用真实内存缓存、命名空间和重定向且不创建Redis客户端 | R:code:projects/server/utils/cache.ts | A:Vitest无Redis缓存用例 | S:禁用后故意提供无效Redis端口，证明连接配置不被读取
 cache.test.ts[TD6T]: F:验证插件同名缓存键、重定向和批量删除隔离，以及冻结控制器不暴露全清接口 | R:code:projects/server/utils/cache.ts | A:Vitest命名空间缓存用例 | S:-
 cache.ts[PD9L]: F:管理内存与可选Redis缓存、插件命名空间、重定向、文件溢出及集中错误处理 | R:code:projects/server/common/config.ts,code:projects/server/common/paths.ts,code:projects/server/types/cache.d.ts | A:setCache,getCache,deleteCache,mDeleteCache,createNamespacedCache,cacheController | S:超5MiB及流落盘，del和TTL不清文件；插件控制器冻结且不暴露clearAll；核心clearAll即使传namespace仍清全部，重定向须存在且同命名空间无环
-command.test.ts[TU6T]: F:验证命令引号和空参数、子命令失败不回退、固定日志上下文及不可用插件预校验 | R:code:projects/server/utils/command.ts | A:Vitest命令调用合同用例 | S:不可用命令须在取消旧任务以替换执行前拒绝
-command.ts[AU8M]: F:管理系统和插件命令注册、冲突改名、参数拆分验证及单回调执行和帮助事件 | R:code:projects/server/common/tasks.ts,code:projects/server/utils/log.ts,code:projects/server/types/command.d.ts | A:registerCommand,splitCommand,validateCommand,parseAndRunCommands,getCommands,commandEvents | S:每插件仅一个主命令，冲突时旧新命令均加插件前缀；子命令优先且失败不回退；选项值用等号，双短横之后按原文参数，未知选项仅警告
+command.test.ts[TU6T]: F:验证系统身份发现、命令引号和空参数、子命令失败不回退、固定日志上下文及不可用插件预校验 | R:code:projects/server/utils/command.ts | A:Vitest命令调用合同用例 | S:不可用命令须在取消旧任务以替换执行前拒绝
+command.ts[AU8M]: F:注册系统与插件命令，发布含系统身份的清单，解析校验参数并执行单回调和帮助事件 | R:code:projects/server/common/tasks.ts,code:projects/server/utils/log.ts,code:projects/server/types/command.d.ts | A:registerCommand,splitCommand,validateCommand,parseAndRunCommands,getCommands,commandEvents | S:每插件仅一个主命令，冲突时旧新命令均加插件前缀；子命令失败不回退；选项值用等号，双短横后按原文参数；系统身份按注册符号判断，不按插件ID字符串判断
 convertToCN.ts[LL4T]: F:依次使用香港、台湾和日本转换器将汉字转为大陆简体 | R:- | A:convertToCN | S:非字符串输入直接原样返回
 fetchImage.ts[IN5T]: F:以原生fetch读取图片为Buffer，失败记录日志并返回null | R:code:projects/server/utils/log.ts | A:fetchImage | S:全量读入内存，不复用Axios重试工厂
 listen.test.ts[TN5T]: F:验证实际端口绑定、递增范围耗尽及权限错误不重试 | R:code:projects/server/utils/listen.ts | A:Vitest端口搜索用例 | S:成功后临时error和listening监听器须移除
@@ -1122,32 +1122,30 @@ tryCatch.ts[CR5S]: F:为浏览器共享代码提供同步异步错误结果元�
 updateLocalStorage.ts[AD6T]: F:将旧版浮窗位置、最小化和插件展开键迁移到带版本的统一持久化记录 | R:code:projects/shared/utils/common.ts,code:projects/user-script/src/main.ts | A:updateLocalStorage | S:有字符串version即跳过；迁移成功删旧键，坏JSON停止；旧pos直接保留localStorage字符串未解析，后续模板装载会回退默认位置
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/terminal/===
-controller.test.ts[TU6M]: F:验证终端输入隔离、一次性全局命令、补全、临时底栏、多步确认、重命名和通知消失 | R:code:projects/terminal/controller.ts,code:projects/terminal/model.ts | A:Vitest终端交互用例 | S:Ctrl+C待答时只取消输入；含冒号的插件答案不能变成命令或历史；Tab预览保留原始候选前缀
-controller.ts[AU9L]: F:编排多窗口命令和插件执行、全局会话、连续确认、键鼠路由及核心生命周期 | R:code:projects/terminal/model.ts,code:projects/terminal/core.ts,code:projects/terminal/render.ts,code:projects/terminal/plugins/load.ts,code:projects/terminal/global.ts | A:TerminalController,start,global,lifecycle,key,line | S:全局执行在每次next等待时让出处理，避免管道回复死锁；无输出完成即normal，有输出只读到Esc；替换前校验命令，答复后重验executionId；Ctrl+C优先取消输入；强停杀整个宿主；子执行不改父窗标题，核心异常退出最多退避重试3次
+controller.test.ts[TU6M]: F:验证终端输入隔离、正文直接输入、全局补全与临时底栏、多步确认、重命名和通知消失 | R:code:projects/terminal/controller.ts,code:projects/terminal/model.ts | A:Vitest终端交互用例 | S:Ctrl+C待答时只取消输入；含冒号的插件答案不能变成命令或历史；Tab预览保留原始候选前缀
+controller.ts[AU9L]: F:编排窗口及全局扩展执行、插件冲突交互裁决、正文编辑复制、临时确认和核心生命周期 | R:code:projects/terminal/model.ts,code:projects/terminal/core.ts,code:projects/terminal/render.ts,code:projects/terminal/plugin/load.ts | A:TerminalController,start,global,lifecycle,key,line | S:全局next等待让出处理；冲突答案须冒号加选项并回车，无效重试，提示滚动不改窗口草稿；扩展及核心子输出只归临时会话，Esc后晚到丢弃；替换先校验再重验executionId；复制优先Ctrl+C取消，空Cmd+C无操作；强停杀宿主，子执行不改父标题；核心异常退出最多重试3次
 core.ts[IN8S]: F:管理终端父进程与核心子进程的fork、会话握手、启动就绪和退出等待 | R:code:projects/terminal/peer.ts,code:projects/server/command/ipc.ts,code:projects/server/common/paths.ts | A:CoreConnection,CoreOptions | S:追加no-terminal与interaction=ipc防递归启动；45秒启动等待在目录确认期间停表，回答后重置；SEA使用自身可执行文件及空execArgv
-index.ts[EU8M]: F:启动终端模型、状态锁、核心与扩展，协调TTY或管道输入、绘制、保存和退出清理 | R:code:projects/terminal/controller.ts,code:projects/terminal/storage.ts,code:projects/terminal/input.ts | A:startTerminal,SCWC_TERMINAL_STATE_FILE,SCWC_CMD_PLUGIN_DIR | S:管道等核心和插件就绪后消费，待全局next时答案可越过窗口忙碌门禁；EOF只关闭输入；启动失败仍留终端供重试退出；每秒保存，退出恢复TTY并释放本实例锁
-input.ts[CN6S]: F:从分片UTF8输入解码键盘转义、鼠标、粘贴和控制键事件 | R:code:projects/terminal/controller.ts | A:InputDecoder,Key | S:鼠标坐标转为零基；不完整ESC等待35ms才按Escape处理，括号粘贴整体返回，不将其中换行直接执行
-model.test.ts[TU6M]: F:验证窗口身份、字素编辑、typed next重试取消、恢复、输出上限及底栏和主题尺寸 | R:code:projects/terminal/model.ts,code:projects/terminal/render.ts,code:projects/terminal/storage.ts | A:Vitest终端模型与渲染用例 | S:恢复不重跑旧任务；迟到输出不能进入复用编号的新窗；极小尺寸仍须保持帧行数和中文显示宽度
-model.ts[DU8L]: F:维护窗口和自定义名称、草稿历史、任务输出、补全预览及临时全局会话和typed next输入 | R:code:projects/terminal/protocol.ts,code:projects/terminal/storage.ts,code:projects/terminal/global.ts,code:projects/server/common/interaction.ts | A:TerminalModel,WindowState,CommandPanel,Mode,next,sanitizeOutput | S:UUID不复用而编号可复用，关窗迟到日志进输出窗；128窗、输出各限1万行及10MiB；仅保留SGR；边界Tab需600ms内二次；补全预览不改草稿，Space或Enter才提交；名称去ANSI和换行，至多256字符
+index.ts[EU8M]: F:启动终端模型、状态锁、核心与扩展，协调TTY或管道输入、绘制、复制、保存和退出清理 | R:code:projects/terminal/controller.ts,code:projects/terminal/storage.ts,code:projects/terminal/input.ts,code:projects/terminal/clipboard.ts | A:startTerminal,SCWC_TERMINAL_STATE_FILE,SCWC_CMD_PLUGIN_DIR | S:管道等核心和插件就绪后消费，全局next答案可越过窗口忙碌门禁；EOF只关输入；失败仍留终端供重试；TTY启用CSI-u，退出恢复键盘、鼠标和备用屏模式并释放锁
+input.ts[CN6S]: F:从分片UTF8解码键盘、组合修饰键、鼠标拖动和括号粘贴，支持CSI-u及传统方向序列 | R:code:projects/terminal/controller.ts | A:InputDecoder,Key | S:修饰位合并Shift、Alt、Ctrl和Meta，忽略键释放；ESC片段等35ms；Option的ESC b/f映射方向；粘贴整体交付，鼠标坐标零基
+model.test.ts[TU6M]: F:验证窗口身份、草稿历史与字素编辑、typed next重试取消、恢复、有界输出及自适应底栏主题尺寸 | R:code:projects/terminal/model.ts,code:projects/terminal/render.ts,code:projects/terminal/storage.ts | A:Vitest终端模型与渲染用例 | S:恢复不重跑任务；迟到输出不能进入复用编号的新窗；极小尺寸保持帧行数和中文显示宽度
+model.ts[DU8L]: F:维护终端窗口、正文及全局草稿历史、字素编辑和补全，以及有界输出与临时交互会话 | R:code:projects/terminal/protocol.ts,code:projects/terminal/storage.ts,code:projects/terminal/global.ts,code:projects/server/common/interaction.ts | A:TerminalModel,WindowState,CommandPanel,Mode,next,sanitizeOutput | S:UUID不复用而编号可复用，关窗迟到日志进输出窗；128窗，输出各限1万行及10MiB；历史末项恢复草稿；补全仅预览，Space或Enter提交；全局输出跨命令保留，Esc丢弃且不持久化；名称去ANSI和换行，至多256字符
 package.json[FV4T]: F:声明私有ESM终端工作区及Node启动和Vitest测试脚本 | R:code:projects/terminal/index.ts | A:scripts.start,scripts.test | S:依赖沿用根工作区声明
 peer.test.ts[TN6T]: F:验证终端IPC输出溢出归属、突发顺序、完成事件顺序及旧会话拒绝 | R:code:projects/terminal/peer.ts | A:Vitest会话与消息交付用例 | S:首次超大输出即须给原窗口截断标记，不能等待后续事件才补发
 peer.ts[CN8M]: F:实现终端v1会话RPC、顺序事件队列、有界发送及断连清理 | R:code:projects/terminal/protocol.ts,code:projects/server/command/ipc.ts | A:Peer | S:hello建立sessionId，旧会话结果丢弃；消息1MiB、请求64、发送128，事件32MiB或16384条；输出溢出归原窗，完成事件不得越过输出
-protocol.ts[FN7T]: F:定义终端v1会话消息、命令清单、结构化输出和执行状态 | R:code:projects/terminal/peer.ts,code:projects/terminal/controller.ts | A:Packet,CommandInfo,OutputEvent,ExecutionEvent,TERMINAL_PROTOCOL_VERSION | S:command.returned与command.finished分离，background表示函数已返回但关联任务未完成
-render.ts[PU7L]: F:绘制深色固定宽标签、模式菜单、透明输出及可滚动候选和全局输出悬浮底栏 | R:code:projects/terminal/model.ts,code:projects/terminal/controller.ts | A:Renderer,frame,paint,scroll,scrollPanel,panelAt | S:底栏覆盖正文，至少5行但半屏与极小终端上限优先；主输出用逻辑行列锚保持位置；所有背景配显式前景并恢复ANSI重置后的主题颜色
-smoke.ts[TU7M]: F:用真实SEA核心及终端扩展验证并发日志、next输入、替换和强停确认、重启与持久化 | R:code:projects/terminal/controller.ts,code:projects/terminal/core.ts,code:projects/terminal/storage.ts | A:smokeTerminal | S:非Windows另以真实PTY验证键鼠及TTY恢复；Windows子进程SIGTERM检查终止信号；恢复任务不重放，强停须中断宿主相关执行
-storage.test.ts[TD6T]: F:验证原子状态锁、备份恢复、损坏保留，以及名称背景持久化和全局底栏不保存 | R:code:projects/terminal/storage.ts,code:projects/terminal/model.ts | A:Vitest终端原子持久化用例 | S:恢复后保存不得把损坏主文件覆盖到健康备份
-storage.ts[PD8M]: F:锁定并原子保存终端窗口、名称和背景偏好，恢复有界状态并保留备份和损坏副本 | R:code:projects/terminal/model.ts | A:StateStore,restoreState | S:锁按PID和token归属，仅本token释放；不保存窗口待答或全局底栏，旧忙任务标中断不重跑；坏主文件不能成为新备份；旧格式默认透明，输出窗不恢复自定义名
+protocol.ts[FN7T]: F:定义终端v1会话消息、带系统身份和作用域的命令清单、结构化输出与执行状态 | R:code:projects/terminal/peer.ts,code:projects/terminal/controller.ts | A:Packet,CommandInfo,OutputEvent,ExecutionEvent,TERMINAL_PROTOCOL_VERSION | S:command.returned与command.finished分离，background表示函数已返回但关联任务未完成
+render.ts[PU7L]: F:绘制共享分隔符标签、正文提示符、固定底栏主题和可滚动候选输出，并计算拖选与复制文本 | R:code:projects/terminal/model.ts,code:projects/terminal/controller.ts | A:Renderer,frame,paint,scroll,scrollPanel,selectedText | S:底栏最多5行，半屏与小尺寸上限优先；正文输入避开候选覆盖；软换行复制不加换行，任何半格覆盖计整字素；仅左侧状态块底色随模式变化
+smoke.ts[TU7M]: F:用真实SEA核心及终端扩展验证并发日志、next输入、替换强停、冲突裁决、重启持久化及正文输入 | R:code:projects/terminal/controller.ts,code:projects/terminal/core.ts,code:projects/terminal/storage.ts | A:smokeTerminal | S:程序调用显式裁决scwc前缀；管道和PTY先回答启动冲突；非Windows验证TTY恢复，Windows检查SIGTERM信号；恢复不重放，强停中断相关执行
+storage.test.ts[TD6T]: F:验证原子状态锁、备份恢复、损坏保留，名称背景与全局历史持久化和临时底栏不保存 | R:code:projects/terminal/storage.ts,code:projects/terminal/model.ts | A:Vitest终端原子持久化用例 | S:恢复后保存不得把损坏主文件覆盖到健康备份
+storage.ts[PD8M]: F:原子保存终端窗口、全局草稿历史、名称和背景偏好，恢复有界状态并保留备份及损坏副本 | R:code:projects/terminal/model.ts | A:StateStore,restoreState | S:锁按PID和token归属，仅本token释放；不保存待答输入或全局底栏，旧忙任务标中断不重跑；坏主文件不成为新备份；旧格式默认透明，输出窗不恢复自定义名
 vitest.config.ts[FQ3T]: F:提供终端工作区Vitest基础配置 | R:code:projects/terminal/package.json | A:defineConfig | S:-
-global.ts[FU6T]: F:集中定义全局命令名称、参数用法、说明、别名及插件不可占用的保留名 | R:code:projects/terminal/model.ts,code:projects/terminal/controller.ts,code:projects/terminal/plugins/load.ts | A:globalCommands,reservedCommands | S:-
-
-===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/terminal/plugins/===
-host.ts[RE7S]: F:在终端扩展子进程安装SDK，注册并执行命令，回传输出、任务、输入及核心子调用 | R:code:projects/terminal/plugins/types.ts,code:projects/terminal/peer.ts,code:projects/server/common/tasks.ts | A:hello,execute,cancel,unload | S:终端扩展使用apiVersion1，不能套服务插件v2；invokeCore以任务句柄等待真实子执行；父IPC断开自毁子树
-load.ts[AE8M]: F:加载隔离终端扩展，处理命令冲突、输出任务、next输入、取消和宿主卸载 | R:code:projects/terminal/plugins/host.ts,code:projects/terminal/controller.ts,code:projects/server/common/tasks.ts,code:projects/terminal/global.ts | A:TerminalPlugins | S:保留名统一来自全局清单，冲突加插件前缀且后注册核心可迫使改名；强停按忙碌owner杀整棵宿主进程树，失效宿主的全部命令移除
-types.ts[FE7T]: F:声明终端扩展v1生命周期、命令注册和带输入任务及核心调用的执行上下文 | R:code:projects/terminal/plugins/host.ts,code:projects/server/types/task.d.ts | A:TerminalPlugin,TerminalCommand,TerminalCommandContext | S:终端契约独立于服务插件v2；invokeCore等待子命令实际完成，不能直接执行生命周期命令
+global.ts[FU6T]: F:声明全局命令用法、描述与别名的统一元数据类型，维护内建清单和插件保留名 | R:code:projects/terminal/model.ts,code:projects/terminal/controller.ts,code:projects/terminal/plugin/load.ts | A:GlobalCommandInfo,globalCommands,reservedCommands | S:-
+clipboard.ts[IU5T]: F:将终端选择文本写入平台剪贴板，依次尝试原生工具并回退OSC52 | R:code:projects/terminal/index.ts,code:projects/terminal/controller.ts | A:copyText | S:OSC52是否真正写入由终端策略决定，发送序列不等同成功确认
+editing.test.ts[TU6M]: F:验证正文提示符、双历史草稿、输入快捷键优先级、字素选中复制、临时底栏和修饰键解码 | R:code:projects/terminal/controller.ts,code:projects/terminal/model.ts,code:projects/terminal/render.ts,code:projects/terminal/input.ts | A:Vitest终端编辑与选择用例 | S:复制用回调验证，不依赖宿主剪贴板；覆盖半格宽字符、软换行和极小尺寸
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/terminal/plugins/template/===
-index.ts[TE4T]: F:提供终端扩展模板，演示typed next输入、错误元组和可取消后台任务 | R:code:projects/terminal/plugins/types.ts | A:ask,later | S:后台句柄需在正常计时结束和abort分支均end
+index.ts[TE4T]: F:按SCWCTerminal全局类型提供终端插件模板，演示typed next、错误元组与可取消后台任务 | R:code:projects/terminal/plugins/plugin-env.d.ts | A:ask,later | S:后台句柄须在结束及abort分支均end
 package.json[FE3T]: F:声明终端扩展模板的ESM入口并默认禁用 | R:code:projects/terminal/plugins/template/index.ts | A:main,enabled | S:enabled=false避免模板示例随核心默认执行
+tsconfig.json[FQ5T]: F:为终端插件模板配置严格ESNext检查并通过include加载独立公共类型声明 | R:code:projects/terminal/plugins/template/index.ts,code:projects/terminal/plugins/plugin-env.d.ts | A:compilerOptions,include | S:复制插件到自定义目录时，须携带相邻声明或修改include到现有声明路径
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/user-script/===
 .gitignore[FR3T]: F:忽略用户脚本依赖、构建输出、日志及本机编辑器文件 | R:code:projects/user-script/vite.config.ts | A:Git忽略规则 | S:-
@@ -1236,5 +1234,21 @@ index.ts[LU7T]: F:维护插件页面工具对象，按父页面配置消息或lo
 fetch.ts[IN7T]: F:查询当前插件safeId并绑定API请求、媒体资源URL及WebSocket连接创建 | R:code:projects/server/router/web/api/index.ts,code:projects/server/router/web/api/load.ts,code:projects/server/router/web/websocket.ts | A:createFetch,TFetch,TResource,TWebSocket | S:从pathname第4段取插件目录，实际请求使用页面同源地址而非config host；API强制Bearer，媒体URL不带TOKEN，WebSocket以查询token鉴权
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/public/lib/===
-scwcutils.iife.mv0qr297.js[LU3L]: F:分发含浏览器配置、通知及插件请求和资源初始化的ESM工具构建产物 | R:code:projects/webUtils/lib/index.ts,code:projects/server/router/web/page/index.ts | A:default工具对象 | S:虽然文件名含iife但末尾为ESM导出；页面路由按文件名36进制时间戳选最新库并注入普通script
-scwcutils.iife.mv0qr2as.js[LU4M]: F:以UMD封装分发浏览器插件工具，响应配置消息或load事件初始化请求、资源与WebSocket | R:code:projects/webUtils/lib/index.ts,code:projects/server/router/web/page/index.ts | A:window.scwcutils,fetch,resource,websocket | S:初始化前fetch仅警告、resource为空、websocket抛错；配置消息可再次初始化同一工具对象
+scwcutils.iife.muz2nwq1.js[LU3L]: F:分发浏览器配置、通知和插件HTTP、资源及WebSocket初始化的ESM构建库 | R:code:projects/webUtils/lib/index.ts,code:projects/server/router/web/page/index.ts | A:default工具对象 | S:虽名含iife，末尾仍是ESM导出，须按模块加载
+scwcutils.iife.muz2nwqe.js[LU4M]: F:以UMD导出浏览器插件工具，通过配置消息或页面load初始化请求、资源和WebSocket | R:code:projects/webUtils/lib/index.ts,code:projects/server/router/web/page/index.ts | A:window.scwcutils,fetch,resource,websocket | S:消息不验origin；未初始化时WebSocket抛错
+
+===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/terminal/plugins/scwc/===
+index.ts[AE7T]: F:按SCWCTerminal契约将核心发现清单中的系统命令注册为终端全局命令并转发执行 | R:code:projects/terminal/plugins/plugin-env.d.ts,code:projects/server/utils/command.ts,code:projects/terminal/plugin/load.ts | A:default终端插件,onLoad | S:exit和restart留给生命周期，help改名core-help；加载器仍裁决同名核心命令；反斜杠置于引号片段间保留Windows路径
+package.json[FE3T]: F:声明默认启用的SCWC终端插件ESM包和源码入口 | R:code:projects/terminal/plugins/scwc/index.ts | A:name,main,enabled | S:-
+tsconfig.json[FQ5T]: F:为独立scwc终端插件配置严格ESNext类型检查并显式引入公共声明 | R:code:projects/terminal/plugins/scwc/index.ts,code:projects/terminal/plugins/plugin-env.d.ts | A:compilerOptions,include | S:仅检查本插件和相邻声明，独立于终端项目配置；声明路径随插件部署位置配置
+
+===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/terminal/plugin/===
+conflicts.test.ts[TE6S]: F:用隔离子进程验证系统及多插件逐对冲突裁决、整插件放弃、前缀执行、后注册核心命令和键盘答案重试 | R:code:projects/terminal/plugin/load.ts,code:projects/terminal/controller.ts | A:Vitest命令冲突用例 | S:已加前缀仍比较其他原始名配对；放弃后跳过该插件全部剩余冲突；未裁决不发布命令，无交互不自动选择
+global.test.ts[TE6S]: F:验证scwc及外部全局扩展经前缀裁决后的核心转发、临时输出、typed next重试取消和后台完成 | R:code:projects/terminal/controller.ts,code:projects/terminal/plugin/load.ts,code:projects/terminal/plugins/scwc/index.ts | A:Vitest隔离全局插件用例 | S:终端插件用真实子进程，核心用假IPC事件；Windows路径完整转发，Esc后无句柄的晚到日志也丢弃
+host.ts[RE7S]: F:在终端扩展子进程安装共享SDK，按SCWCTerminal契约注册执行命令，回传任务输入、日志和核心子调用 | R:code:projects/terminal/plugins/plugin-env.d.ts,code:projects/terminal/plugins/scwc/index.ts,code:projects/terminal/peer.ts,code:projects/server/common/tasks.ts | A:hello,execute,cancel,unload | S:终端使用apiVersion1，不能套服务v2；SEA内嵌scwc，源码按入口加载；invokeCore持任务句柄等真实子执行；父IPC断开自毁子树
+load.ts[AE8L]: F:串行发现隔离终端插件，逐对裁决系统及插件命令冲突，发布命令清单并桥接任务输入、取消和卸载 | R:code:projects/terminal/plugin/host.ts,code:projects/terminal/plugin/types.d.ts,code:projects/terminal/controller.ts,code:projects/terminal/global.ts,code:projects/server/common/tasks.ts | A:TerminalPlugins,load,list,has,reconcile | S:比较原始名，既有前缀不跳过其他配对；未裁决的新命令不发布，无交互不猜选项；系统冲突只加插件前缀或放弃插件，插件冲突可前缀双方或保留整插件；放弃后卸载并移出比较；scwc先加载，后注册核心命令也须裁决
+types.d.ts[FE6T]: F:声明宿主内部加载状态、命令冲突参与者和裁决选项，隔离进程句柄与对外插件契约 | R:code:projects/terminal/plugin/load.ts,code:projects/terminal/controller.ts,code:projects/terminal/peer.ts | A:Loaded,CommandConflict,ConflictChoice | S:prefixed只记录原始命令名；published与discarded分别控制命令发布和后续配对资格
+
+===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/terminal/plugins/===
+plugin-env.d.ts[FE7T]: F:声明独立SCWCTerminal全局插件类型，包括命令、生命周期、调用身份、任务日志和typed next输入 | R:code:projects/terminal/plugin/host.ts,code:projects/terminal/plugins/scwc/index.ts,code:projects/terminal/plugins/template/index.ts | A:SCWCTerminal.Plugin,SCWCTerminal.Command,SCWCTerminal.CommandContext,SCWCTerminal.LoadContext | S:声明自包含，不导入SCWC或宿主源码；仅提供类型，插件须自行在tsconfig引用，不能当运行时SDK导入
+

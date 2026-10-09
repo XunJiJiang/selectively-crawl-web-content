@@ -1,5 +1,3 @@
-import type { TerminalPlugin } from '../types.ts';
-
 export default {
   apiVersion: 1,
   onLoad({ registerCommand }) {
@@ -39,4 +37,4 @@ export default {
       },
     });
   },
-} satisfies TerminalPlugin;
+} satisfies SCWCTerminal.Plugin;

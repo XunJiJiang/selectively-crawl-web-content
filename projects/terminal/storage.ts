@@ -79,6 +79,7 @@ export class StateStore {
       version: 1,
       activeId: model.activeId,
       globalDraft: model.globalDraft,
+      globalHistory: model.globalHistory,
       transparentBackground: model.transparentBackground,
       windows: model.windows.map(({ input: _input, ...window }) => window),
     });
@@ -206,6 +207,11 @@ export function restoreState(value: unknown): TerminalModel {
       ? value.globalDraft.slice(0, 65536)
       : '';
   model.globalCursor = model.globalDraft.length;
+  model.globalHistory =
+    'globalHistory' in value && Array.isArray(value.globalHistory)
+      ? value.globalHistory.filter((item): item is string => typeof item === 'string').slice(-1000)
+      : [];
+  model.globalHistoryCursor = model.globalHistory.length;
   model.transparentBackground = !(
     'transparentBackground' in value && value.transparentBackground === false
   );

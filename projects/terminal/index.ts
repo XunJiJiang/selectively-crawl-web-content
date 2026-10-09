@@ -9,6 +9,7 @@ import { TerminalController } from './controller.ts';
 import { TerminalModel } from './model.ts';
 import { StateStore } from './storage.ts';
 import { InputDecoder } from './input.ts';
+import { copyText } from './clipboard.ts';
 
 export async function startTerminal(args: string[] = process.argv.slice(2)) {
   const parsed = parseStartupArgs(args);
@@ -29,6 +30,7 @@ export async function startTerminal(args: string[] = process.argv.slice(2)) {
   });
   const controller = new TerminalController(model, core);
   const tty = Boolean(process.stdin.isTTY && process.stdout.isTTY && process.env.TERM !== 'dumb');
+  controller.onCopy = (text) => copyText(text, process.stdout);
   let dirty = false;
   let stopped = false;
   let paintTimer: NodeJS.Timeout | undefined;
@@ -100,7 +102,7 @@ export async function startTerminal(args: string[] = process.argv.slice(2)) {
     }
   };
   if (tty) {
-    process.stdout.write('\x1b[?1049h\x1b[?25l\x1b[?1003h\x1b[?1006h\x1b[?2004h');
+    process.stdout.write('\x1b[?1049h\x1b[>1u\x1b[?25l\x1b[?1003h\x1b[?1006h\x1b[?2004h');
     process.stdin.setRawMode(true);
     process.stdin.resume();
     process.stdin.on('data', data);
@@ -134,7 +136,7 @@ export async function startTerminal(args: string[] = process.argv.slice(2)) {
     process.stdout.off('resize', paint);
     if (tty) {
       process.stdin.setRawMode(false);
-      process.stdout.write('\x1b[?1003l\x1b[?1006l\x1b[?2004l\x1b[?25h\x1b[?1049l');
+      process.stdout.write('\x1b[?1003l\x1b[?1006l\x1b[?2004l\x1b[<u\x1b[?25h\x1b[?1049l');
       process.stdin.pause();
     }
     try {

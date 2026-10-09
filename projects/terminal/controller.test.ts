@@ -119,7 +119,7 @@ describe('terminal input routing', () => {
       });
     }
     await controller.key({ name: 'text', sequence: 'B' });
-    await controller.key({ name: 'tab', sequence: '\t', shift: true });
+    model.switch(first.id);
     await controller.key({ name: 'text', sequence: 'A' });
     expect(first.input?.draft).toBe('A');
     expect(second.input?.draft).toBe('B');
@@ -171,12 +171,12 @@ describe('terminal input routing', () => {
     const controller = new TerminalController(model, new CoreConnection({ args: [] }));
     const original = model.windows[1];
     model.switch(original.id);
-    model.mode = 'command';
+    model.mode = 'normal';
     model.setInput('original', 8);
     await controller.global('new');
     await controller.key({ name: 'text', sequence: 'i' });
-    expect(model.mode).toBe('command');
-    expect(model.active.draft).toBe('');
+    expect(model.mode).toBe('normal');
+    expect(model.active.draft).toBe('i');
     expect(original.draft).toBe('original');
     await controller.global('s 1');
     expect(model.active.draft).toBe('original');
@@ -191,7 +191,7 @@ describe('terminal input routing', () => {
     expect(model.windows).toHaveLength(3);
     expect(model.mode).toBe('normal');
     expect(model.globalDraft).toBe('');
-    await controller.key({ name: 'text', sequence: 'n' });
+    expect(model.active.draft).toBe('');
     expect(model.windows).toHaveLength(3);
     await controller.key({ name: 'text', sequence: ':' });
     expect(model.mode).toBe('global');
@@ -248,7 +248,7 @@ describe('terminal input routing', () => {
     await controller.key({
       name: 'mouse',
       sequence: '',
-      mouse: { row: 15, column: 2, button: 64, release: false },
+      mouse: { row: 20, column: 2, button: 64, release: false },
     });
     expect(model.panel?.scroll).toBe(4);
     await controller.key({ name: 'text', sequence: 'new' });

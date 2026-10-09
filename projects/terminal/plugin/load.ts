@@ -12,51 +12,74 @@ import { reservedCommands } from '../global.ts';
 import type { InputRequest, InvocationIdentity, TaskSnapshot } from '../../server/types/task.d.ts';
 import type { OutputEvent, CommandInfo } from '../protocol.ts';
 
-interface Loaded {
-  id: string;
-  owner: string;
-  peer: Peer;
-  child: ChildProcess;
-  closed: Promise<unknown>;
-  commands: CommandInfo[];
-}
+import type { Loaded, CommandConflict, ConflictChoice } from './types.d.ts';
+
 export class TerminalPlugins extends EventEmitter {
   readonly registry = new TaskRegistry();
   private loaded: Loaded[] = [];
   private commands = new Map<string, { plugin: Loaded; name: string }>();
   private outputId: string | null = null;
+  private coreCommands: CommandInfo[] = [];
+  private mutation = Promise.resolve();
+  private decisions = new Set<string>();
+  resolveConflict?: (conflict: CommandConflict) => Promise<ConflictChoice>;
   invokeCore?: (command: string, identity: InvocationIdentity) => Promise<void>;
   nextInput?: (request: InputRequest, signal: AbortSignal) => Promise<string>;
-  async load(directory: string, outputId: string, coreCommands: CommandInfo[]) {
+  load(directory: string, outputId: string, coreCommands: CommandInfo[]) {
+    this.coreCommands = coreCommands;
+    return this.enqueue(() => this.loadDirectory(directory, outputId));
+  }
+  private enqueue(action: () => Promise<void>) {
+    const work = this.mutation.then(action);
+    this.mutation = work.catch(() => undefined);
+    return work;
+  }
+  private async loadDirectory(directory: string, outputId: string) {
     this.outputId = outputId;
-    let entries;
+    let entries: { name: string; isDirectory(): boolean }[];
     try {
       entries = await fs.readdir(directory, { withFileTypes: true });
     } catch (error) {
       if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
-        return;
+        entries = [];
+      } else {
+        throw error;
       }
-      throw error;
     }
+    // The bundled system adapter uses the same isolated host and registration contract.
+    entries = [
+      { name: 'scwc', isDirectory: () => true },
+      ...entries
+        .filter((entry) => entry.name !== 'scwc')
+        .sort((first, second) => first.name.localeCompare(second.name)),
+    ];
     for (const entry of entries) {
-      if (!entry.isDirectory()) {
+      if (
+        !entry.isDirectory() ||
+        this.loaded.some((plugin) => plugin.id === entry.name && !plugin.discarded)
+      ) {
         continue;
       }
       let child: ChildProcess | undefined;
       try {
-        const pkg = JSON.parse(
-          await fs.readFile(path.join(directory, entry.name, 'package.json'), 'utf8'),
-        );
+        const builtin = entry.name === 'scwc';
+        const pluginDirectory = builtin
+          ? path.join(ROOT, 'projects/terminal/plugins/scwc')
+          : path.join(directory, entry.name);
+        const pkg =
+          builtin && isPackaged
+            ? { main: 'index.ts' }
+            : JSON.parse(await fs.readFile(path.join(pluginDirectory, 'package.json'), 'utf8'));
         if (pkg.enabled === false) {
           continue;
         }
-        if (typeof pkg.main !== 'string') {
+        if (!builtin && typeof pkg.main !== 'string') {
           throw new Error('终端插件缺少 main');
         }
         const owner = `terminal-plugin:${randomUUID()}`;
         const host = isPackaged
           ? path.join(SERVER_ROOT, 'terminal-host.cjs')
-          : path.join(ROOT, 'projects/terminal/plugins/host.ts');
+          : path.join(ROOT, 'projects/terminal/plugin/host.ts');
         child = fork(host, isPackaged ? ['--scwc-terminal-plugin-host'] : [], {
           env: colorEnvironment(),
           stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
@@ -81,6 +104,10 @@ export class TerminalPlugins extends EventEmitter {
               input.abort();
             }
             this.registry.removeOwner(owner);
+            const plugin = this.loaded.find((item) => item.owner === owner);
+            if (plugin) {
+              plugin.discarded = true;
+            }
             this.commands.forEach((item, key) => {
               if (item.plugin.owner === owner) {
                 this.commands.delete(key);
@@ -156,38 +183,38 @@ export class TerminalPlugins extends EventEmitter {
           return this.invokeCore(args.command, args.identity);
         };
         const infos = await peer.call<CommandInfo[]>('hello', {
-          entry: path.resolve(directory, entry.name, pkg.main),
+          entry: builtin && isPackaged ? undefined : path.resolve(pluginDirectory, pkg.main),
           pluginId: entry.name,
           outputId,
+          commands: this.coreCommands,
         });
-        const loaded = {
+        const loaded: Loaded = {
           id: entry.name,
           owner,
           peer,
           child: processChild,
           closed,
           commands: infos,
+          prefixed: new Set(),
+          discarded: false,
+          published: false,
         };
         this.loaded.push(loaded);
-        for (const info of infos) {
-          let name = info.name;
+        try {
           if (
-            reservedCommands.includes(name) ||
-            this.commands.has(name) ||
-            coreCommands.some((item) => item.name === name)
+            !(await this.resolveSystemConflicts(loaded)) ||
+            !(await this.resolvePluginConflicts(loaded))
           ) {
-            const previous = this.commands.get(name);
-            if (previous) {
-              this.commands.delete(name);
-              this.commands.set(`${previous.plugin.id}:${previous.name}`, previous);
-            }
-            name = `${entry.name}:${name}`;
-            this.emit('output', {
-              windowId: outputId,
-              text: `终端命令 ${info.name} 重名，使用 ${name}`,
-            });
+            continue;
           }
-          this.commands.set(name, { plugin: loaded, name: info.name });
+          if (loaded.discarded || loaded.child.exitCode !== null) {
+            continue;
+          }
+          loaded.published = true;
+          this.rebuild();
+        } catch (error) {
+          await this.discard(loaded);
+          throw error;
         }
       } catch (error) {
         child?.kill('SIGKILL');
@@ -198,26 +225,167 @@ export class TerminalPlugins extends EventEmitter {
       }
     }
   }
-  list() {
-    return [...this.commands].map(([name, item]) => ({
-      name,
-      description: item.plugin.commands.find((info) => info.name === item.name)?.description,
-    }));
+  list(scope: 'command' | 'global' = 'command') {
+    return [...this.commands]
+      .map(([name, item]) => ({
+        ...item.plugin.commands.find((info) => info.name === item.name),
+        name,
+        usage: item.plugin.commands
+          .find((info) => info.name === item.name)
+          ?.usage?.replace(/^\S+/, name),
+      }))
+      .filter((item) => (item.scope ?? 'command') === scope);
   }
   reconcile(coreCommands: CommandInfo[]) {
-    for (const [name, entry] of [...this.commands]) {
-      if (!name.includes(':') && coreCommands.some((command) => command.name === name)) {
-        this.commands.delete(name);
-        this.commands.set(`${entry.plugin.id}:${entry.name}`, entry);
-        this.emit('output', {
-          windowId: this.outputId,
-          text: `核心命令 ${name} 已注册，终端插件命令改为 ${entry.plugin.id}:${entry.name}`,
+    this.coreCommands = coreCommands;
+    return this.enqueue(async () => {
+      for (const plugin of [...this.loaded]) {
+        if (plugin.published && !plugin.discarded) {
+          try {
+            await this.resolveSystemConflicts(plugin);
+          } catch (error) {
+            await this.discard(plugin);
+            throw error;
+          }
+        }
+      }
+      this.rebuild();
+    });
+  }
+  private async decision(conflict: CommandConflict) {
+    if (!this.resolveConflict) {
+      throw new Error(
+        `命令 ${conflict.name} 冲突，需要交互裁决后才能加载插件 ${conflict.second.id}`,
+      );
+    }
+    const choice = await this.resolveConflict(conflict);
+    if (!['a', 'b', 'c'].includes(choice) || (conflict.first.kind !== 'plugin' && choice === 'c')) {
+      throw new Error('无效的命令冲突裁决');
+    }
+    return choice;
+  }
+  private async resolveSystemConflicts(plugin: Loaded) {
+    const systems = [
+      ...reservedCommands.map((name) => ({ name, kind: 'terminal' as const, id: '终端内建命令' })),
+      ...this.coreCommands.map(({ name }) => ({ name, kind: 'core' as const, id: 'SCWC核心服务' })),
+    ];
+    for (const command of plugin.commands) {
+      for (const system of systems.filter((item) => item.name === command.name)) {
+        if (plugin.discarded) {
+          return false;
+        }
+        const key = `${plugin.owner}:${system.kind}:${command.name}`;
+        if (this.decisions.has(key)) {
+          continue;
+        }
+        const choice = await this.decision({
+          name: command.name,
+          first: system,
+          second: { kind: 'plugin', id: plugin.id },
         });
+        if (plugin.discarded) {
+          return false;
+        }
+        if (choice === 'b') {
+          await this.discard(plugin);
+          return false;
+        }
+        plugin.prefixed.add(command.name);
+        this.decisions.add(key);
+        this.notice(
+          `命令 ${command.name} 已裁决：插件 ${plugin.id} 使用 ${plugin.id}:${command.name}`,
+        );
       }
     }
+    return !plugin.discarded;
   }
-  has(name: string) {
-    return this.commands.has(name);
+  private async resolvePluginConflicts(plugin: Loaded) {
+    for (const first of [...this.loaded]) {
+      if (first === plugin || !first.published || first.discarded) {
+        continue;
+      }
+      for (const command of plugin.commands) {
+        if (plugin.discarded) {
+          return false;
+        }
+        if (first.discarded) {
+          break;
+        }
+        if (!first.commands.some((item) => item.name === command.name)) {
+          continue;
+        }
+        const key = `${first.owner}:${plugin.owner}:${command.name}`;
+        if (this.decisions.has(key)) {
+          continue;
+        }
+        const choice = await this.decision({
+          name: command.name,
+          first: { kind: 'plugin', id: first.id },
+          second: { kind: 'plugin', id: plugin.id },
+        });
+        if (plugin.discarded) {
+          return false;
+        }
+        if (first.discarded) {
+          break;
+        }
+        this.decisions.add(key);
+        if (choice === 'b') {
+          await this.discard(plugin);
+          return false;
+        }
+        if (choice === 'c') {
+          await this.discard(first);
+          break;
+        }
+        first.prefixed.add(command.name);
+        plugin.prefixed.add(command.name);
+        this.notice(
+          `命令 ${command.name} 已裁决：使用 ${first.id}:${command.name} 和 ${plugin.id}:${command.name}`,
+        );
+      }
+    }
+    return !plugin.discarded;
+  }
+  private notice(text: string) {
+    this.emit('output', { windowId: this.outputId, text });
+  }
+  private rebuild() {
+    this.commands.clear();
+    for (const plugin of this.loaded) {
+      if (!plugin.published || plugin.discarded) {
+        continue;
+      }
+      for (const command of plugin.commands) {
+        const name = plugin.prefixed.has(command.name)
+          ? `${plugin.id}:${command.name}`
+          : command.name;
+        this.commands.set(name, { plugin, name: command.name });
+      }
+    }
+    this.emit('commands');
+  }
+  private async discard(plugin: Loaded) {
+    if (plugin.discarded) {
+      return;
+    }
+    plugin.discarded = true;
+    this.rebuild();
+    try {
+      await plugin.peer.call('unload', undefined, 2000);
+    } catch {
+      /* Stop an unresponsive host below. */
+    }
+    await this.kill(plugin);
+    this.loaded = this.loaded.filter((item) => item !== plugin);
+    this.notice(`已放弃加载插件 ${plugin.id}，其全部命令已移除`);
+  }
+  has(name: string, scope: 'command' | 'global' = 'command') {
+    const item = this.commands.get(name);
+    return Boolean(
+      item &&
+      (item.plugin.commands.find((info) => info.name === item.name)?.scope ?? 'command') === scope,
+    );
   }
   async execute(name: string, args: string[], identity: InvocationIdentity) {
     const command = this.commands.get(name);

@@ -4,6 +4,9 @@ export interface CommandInfo {
   name: string;
   description?: string;
   subCommands?: string[];
+  system?: boolean;
+  scope?: 'command' | 'global';
+  usage?: string;
 }
 export type Packet =
   | { version: 1; sessionId: string; kind: 'call'; id: string; method: string; args: unknown }

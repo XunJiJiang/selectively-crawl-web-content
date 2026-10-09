@@ -46,7 +46,7 @@ describe('terminal windows and input', () => {
   it('restores drafts after history traversal and edits complete graphemes', () => {
     const model = new TerminalModel();
     model.switch(model.windows[1].id);
-    model.mode = 'command';
+    model.mode = 'normal';
     model.record(model.active, 'first');
     model.active.draft = '未提交';
     model.history(-1);
@@ -158,17 +158,17 @@ describe('terminal windows and input', () => {
     model.mode = 'global';
     model.globalDraft = 'rename ';
     let frame = renderer.frame(model, 0);
-    expect(renderer.panelAt(18)).toBe(true);
-    expect(renderer.panelAt(17)).toBe(false);
+    expect(renderer.panelAt(20)).toBe(true);
+    expect(renderer.panelAt(19)).toBe(false);
     expect(renderer.hits.filter((hit) => hit.id).map((hit) => hit.to - hit.from)).toEqual([
-      26, 26, 26,
+      25, 25, 26,
     ]);
     const panel = model.beginPanel('help');
     model.writePanel(Array.from({ length: 50 }, (_, index) => `output ${index}`).join('\n'));
     model.finishPanel(panel);
     frame = renderer.frame(model, 0);
-    expect(renderer.panelAt(11)).toBe(true);
-    expect(renderer.panelAt(10)).toBe(false);
+    expect(renderer.panelAt(18)).toBe(true);
+    expect(renderer.panelAt(17)).toBe(false);
     expect(frame).toContain('\x1b[38;2;');
     expect(frame).toContain('\x1b[48;2;');
     expect(frame).not.toContain('\x1b[7m');

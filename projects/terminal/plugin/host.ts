@@ -7,7 +7,8 @@ import { setInputHandler, remoteInput } from '../../server/common/interaction.ts
 import { outputColorLevel } from '../../server/common/color.ts';
 import { registerPluginSdk } from '../../server/plugin/sdk/register.ts';
 import type { InvocationIdentity, PluginLogger } from '../../server/types/task.d.ts';
-import type { TerminalPlugin, TerminalCommand } from './types.ts';
+import scwcPlugin from '../plugins/scwc/index.ts';
+import type { CommandInfo } from '../protocol.ts';
 
 const peer = new Peer((packet, callback) => {
   if (process.send && process.connected) {
@@ -21,10 +22,10 @@ const registry = new TaskRegistry();
 setInputHandler((request, signal) => remoteInput(peer, request, signal));
 const processScope = registry.create('terminal-plugin', undefined, true);
 registry.on('snapshot', (value) => peer.event('task', value));
-let plugin: TerminalPlugin | undefined;
+let plugin: SCWCTerminal.Plugin | undefined;
 let pluginId = 'terminal-plugin';
 let outputId: string | null = null;
-const commands = new Map<string, TerminalCommand>();
+const commands = new Map<string, SCWCTerminal.Command>();
 function logger(identity?: InvocationIdentity): PluginLogger {
   const method =
     (level: string) =>
@@ -61,12 +62,15 @@ peer.onCall = async (method, value) => {
     name: string;
     args: string[];
     executionId?: string;
+    commands?: CommandInfo[];
   };
   if (method === 'hello') {
     pluginId = args.pluginId;
     outputId = args.outputId;
     registerPluginSdk();
-    plugin = (await import(pathToFileURL(args.entry).href)).default as TerminalPlugin;
+    plugin = args.entry
+      ? ((await import(pathToFileURL(args.entry).href)).default as SCWCTerminal.Plugin)
+      : scwcPlugin;
     if (
       !plugin ||
       typeof plugin.onLoad !== 'function' ||
@@ -75,17 +79,27 @@ peer.onCall = async (method, value) => {
       throw new Error('无效终端插件契约');
     }
     await plugin.onLoad({
+      coreCommands: args.commands ?? [],
       tasks: processScope.reporter,
       logger: logger(),
       signal: processScope.controller.signal,
       registerCommand: (command) => {
-        if (!/^[\w-]+$/.test(command.name) || commands.has(command.name)) {
+        if (
+          !/^[\w-]+$/.test(command.name) ||
+          commands.has(command.name) ||
+          (command.scope !== undefined && !['command', 'global'].includes(command.scope))
+        ) {
           throw new Error('终端插件命令重名或格式错误');
         }
         commands.set(command.name, command);
       },
     });
-    return [...commands.values()].map(({ name, description }) => ({ name, description }));
+    return [...commands.values()].map(({ name, description, scope, usage }) => ({
+      name,
+      description,
+      scope,
+      usage,
+    }));
   }
   if (method === 'cancel') {
     registry.cancel(args.executionId);

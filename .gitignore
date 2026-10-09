@@ -188,6 +188,11 @@ projects/server/plugins/*
 !projects/server/plugins/plugin-env.d.ts
 !projects/server/plugins/template
 
+projects/terminal/plugins/*
+!projects/terminal/plugins/README.md
+!projects/terminal/plugins/plugin-env.d.ts
+!projects/terminal/plugins/template
+
 data/
 resource/
 

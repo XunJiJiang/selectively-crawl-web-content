@@ -26,6 +26,7 @@ const commandRegistry = new Map<
     options: TCommandOption[];
     exampleUsage?: string;
     pluginId: string;
+    system: boolean;
     available?: () => boolean;
   }
 >();
@@ -165,6 +166,7 @@ export function registerCommand (
     exampleUsage,
     available,
     pluginId: pluginId.toString(),
+    system: pluginId === SYSTEM_SYMBOL,
   });
   commandEvents.emit('change', getCommands());
 }
@@ -222,6 +224,7 @@ export function getCommands () {
   return [...commandRegistry].map(([name, value]) => ({
     name,
     description: value.description,
+    system: value.system,
     subCommands: value.subCommands.map((item) => item.name),
   }));
 }

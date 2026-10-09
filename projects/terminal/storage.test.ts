@@ -14,12 +14,14 @@ describe('atomic terminal persistence', () => {
       const model = new TerminalModel();
       model.rename(model.windows[1], 'saved title');
       model.transparentBackground = false;
+      model.recordGlobal('server info');
       model.beginPanel('help');
       model.writePanel('transient global output');
       await store.save(model);
       const restored = await store.load();
       expect(restored.title(restored.windows[1])).toBe('saved title');
       expect(restored.transparentBackground).toBe(false);
+      expect(restored.globalHistory).toEqual(['server info']);
       expect(restored.panel).toBeUndefined();
       expect(await fs.readFile(store.filename, 'utf8')).not.toContain('transient global output');
     } finally {

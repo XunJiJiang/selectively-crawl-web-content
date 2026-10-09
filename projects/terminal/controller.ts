@@ -1,9 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { TerminalModel, sanitizeOutput } from './model.ts';
 import { Renderer } from './render.ts';
-import { globalCommands } from './global.ts';
 import { CoreConnection } from './core.ts';
-import { TerminalPlugins } from './plugins/load.ts';
+import { TerminalPlugins } from './plugin/load.ts';
 import { splitCommand } from '../server/utils/command.ts';
 import { InvocationInputError } from '../server/common/interaction.ts';
 import { colorLogText } from '../server/common/color.ts';
@@ -15,6 +14,7 @@ import type {
   InvocationIdentity,
 } from '../server/types/task.d.ts';
 import type { Key } from './input.ts';
+import type { CommandConflict, ConflictChoice } from './plugin/types.d.ts';
 
 export class TerminalController {
   readonly model: TerminalModel;
@@ -41,16 +41,20 @@ export class TerminalController {
   private inputEnded = false;
   private interaction?: Promise<void>;
   private coreConfirmation?: TerminalModel['panel'];
+  private panelExecutions = new Set<string>();
+  private discardedPanelExecutions = new Set<string>();
+  private globalExecutionId?: string;
   onChange?: () => void;
   onOutput?: (text: string) => void;
   onExit?: () => Promise<void>;
+  onCopy?: (text: string) => Promise<void>;
   constructor(model: TerminalModel, core: CoreConnection) {
     this.model = model;
     this.core = core;
     core.on('output', (value: OutputEvent) => this.output(value));
     core.on('commands', (commands: CommandInfo[]) => {
       this.commands = commands;
-      this.plugins.reconcile(commands);
+      void this.plugins.reconcile(commands).catch((error) => this.error(error));
       this.changed();
     });
     core.on('ready', (value: { port: number; commands: CommandInfo[] }) => {
@@ -142,11 +146,32 @@ export class TerminalController {
         }
       }
     });
+    this.plugins.on('commands', () => this.changed());
+    this.plugins.resolveConflict = (conflict) => this.resolvePluginConflict(conflict);
     this.plugins.on('output', (value: OutputEvent) => this.output(value));
     this.plugins.on('task', () => this.updateTerminalExecutions());
     this.plugins.on('failure', () => this.updateTerminalExecutions());
     this.plugins.nextInput = (request, signal) =>
       new Promise((resolve, reject) => {
+        if (this.panelExecutions.has(request.identity.executionId)) {
+          const abort = () => this.model.cancelPanelInput();
+          if (signal.aborted) {
+            reject(new InvocationInputError('cancelled', '输入已取消'));
+            return;
+          }
+          signal.addEventListener('abort', abort, { once: true });
+          void this.model.next(request.message).then(([error, value]) => {
+            signal.removeEventListener('abort', abort);
+            if (error) {
+              reject(error);
+            } else {
+              resolve(value ?? '');
+            }
+            this.changed();
+          });
+          this.changed();
+          return;
+        }
         const abort = () => {
           const window = this.model.byId(request.identity.windowId ?? '');
           if (window?.input?.id === request.id) {
@@ -190,6 +215,9 @@ export class TerminalController {
         throw new Error('终端插件子命令不能直接退出或重启核心');
       }
       const executionId = randomUUID();
+      if (this.panelExecutions.has(parent.executionId)) {
+        this.panelExecutions.add(executionId);
+      }
       const accepted = await this.core.call<{ control?: boolean }>('command.execute', {
         command,
         windowId: parent.windowId,
@@ -213,12 +241,71 @@ export class TerminalController {
     await this.core.start(this.model.output.id);
   }
   private changed() {
+    this.model.commands = [...this.commands, ...this.plugins.list()];
+    this.model.globalExtensions = this.plugins.list('global').map((item) => ({
+      name: item.name,
+      description: item.description ?? '',
+      usage: item.usage ?? item.name,
+    }));
     this.onChange?.();
+  }
+  private async resolvePluginConflict(conflict: CommandConflict): Promise<ConflictChoice> {
+    if (this.model.panel?.running) {
+      await this.interaction;
+    }
+    let choice: ConflictChoice | undefined;
+    const work = this.interact(`命令冲突 ${conflict.name}`, async () => {
+      const plugins = conflict.first.kind === 'plugin';
+      const prompt =
+        `命令 "${conflict.name}" 冲突：${conflict.first.id} 与插件 ${conflict.second.id}\n` +
+        (plugins
+          ? `:a 为双方冲突命令添加前缀\n:b 保留第一个 ${conflict.first.id}，放弃第二个插件\n:c 保留第二个 ${conflict.second.id}，卸载第一个插件及其全部命令`
+          : `:a 为插件冲突命令添加前缀（${conflict.second.id}:${conflict.name}）\n:b 放弃加载插件 ${conflict.second.id}`);
+      let text = prompt;
+      for (;;) {
+        const [error, answer] = await this.model.next(text);
+        if (error) {
+          throw error;
+        }
+        if (
+          answer.trim() === ':a' ||
+          answer.trim() === ':b' ||
+          (plugins && answer.trim() === ':c')
+        ) {
+          choice = answer.trim().slice(1) as ConflictChoice;
+          return;
+        }
+        text = `请输入 ${plugins ? ':a、:b 或 :c' : ':a 或 :b'} 后按 Enter\n${prompt}`;
+      }
+    });
+    await work;
+    await this.interaction;
+    if (!choice) {
+      throw new Error('插件命令冲突未裁决，已取消加载');
+    }
+    return choice;
   }
   private askInput(
     request: InputRequest,
     answer: (value?: string, error?: InputFailure) => Promise<unknown>,
   ) {
+    if (this.panelExecutions.has(request.identity.executionId)) {
+      void this.model.next(request.message).then(async ([error, value]) => {
+        await answer(
+          value,
+          error
+            ? error.code === 'busy'
+              ? 'busy'
+              : error.code === 'cancelled'
+                ? 'cancelled'
+                : 'eof'
+            : undefined,
+        ).catch((failure) => this.error(failure));
+        this.changed();
+      });
+      this.changed();
+      return;
+    }
     const window = this.model.byId(request.identity.windowId ?? '');
     if (!window || this.inputEnded) {
       void answer(undefined, 'eof').catch((error) => this.error(error));
@@ -236,9 +323,6 @@ export class TerminalController {
         await answer(value, error);
       },
     };
-    if (window.id === this.model.activeId && this.model.mode === 'normal') {
-      this.model.mode = 'command';
-    }
     this.output({
       windowId: window.id,
       executionId: request.identity.executionId,
@@ -288,7 +372,14 @@ export class TerminalController {
     this.output({ windowId: this.model.output.id, text: this.model.message });
   }
   output(value: OutputEvent) {
+    if (value.executionId && this.discardedPanelExecutions.has(value.executionId)) {
+      return;
+    }
     const text = colorLogText(value.text, value.level);
+    if (value.executionId && this.panelExecutions.has(value.executionId) && this.model.panel) {
+      this.panelOutput(text);
+      return;
+    }
     this.model.append({ ...value, text });
     this.onOutput?.(sanitizeOutput(text));
     this.changed();
@@ -361,6 +452,7 @@ export class TerminalController {
       return;
     }
     const parts = await this.validate(command);
+    this.model.append({ windowId, text: `> ${command}` });
     const executionId = randomUUID();
     if (this.plugins.has(parts[0])) {
       const event: ExecutionEvent = { command, windowId, executionId, status: 'running' };
@@ -449,6 +541,18 @@ export class TerminalController {
     this.onOutput?.(sanitizeOutput(text));
     this.changed();
   }
+  private retirePanelExecutions() {
+    for (const id of this.panelExecutions) {
+      this.discardedPanelExecutions.add(id);
+    }
+    this.panelExecutions.clear();
+    while (this.discardedPanelExecutions.size > 4096) {
+      const id = this.discardedPanelExecutions.keys().next().value;
+      if (id) {
+        this.discardedPanelExecutions.delete(id);
+      }
+    }
+  }
   private async interact(command: string, action: () => Promise<void>) {
     if (this.model.panel?.running) {
       throw new Error('全局命令仍在执行或等待输入');
@@ -458,6 +562,9 @@ export class TerminalController {
       .catch((error) => this.panelOutput(error instanceof Error ? error.message : String(error)))
       .finally(() => {
         this.model.finishPanel(panel);
+        if (!this.model.panel) {
+          this.retirePanelExecutions();
+        }
         this.changed();
       });
     this.interaction = work;
@@ -492,6 +599,7 @@ export class TerminalController {
     this.changed();
   }
   async global(raw: string) {
+    this.model.recordGlobal(raw.replace(/^:/, '').trim());
     await this.interact(raw.replace(/^:/, ''), () => this.executeGlobal(raw));
   }
   private async executeGlobal(raw: string) {
@@ -592,14 +700,14 @@ export class TerminalController {
     } else if (name === 'help') {
       count(0);
       this.panelOutput(
-        '全局命令（[] 必填，<> 选填；含空格的参数请加引号）\n' +
-          globalCommands
+        '全局命令（含空格的参数请加引号）\n' +
+          this.model.globalCommands
             .map(
               (item) =>
                 `:${item.usage}${item.aliases?.length ? ` (${item.aliases.map((alias) => ':' + alias).join('/')})` : ''}  ${item.description}`,
             )
             .join('\n') +
-          '\nnormal：Esc 回到底部 · Enter/i 输入 · Tab/Shift+Tab 切换标签\n全局输入：Tab/Shift+Tab 补全 · Enter 执行 · 空格确认补全并输入参数\n底栏输出：↑/↓ 或鼠标滚轮滚动 · 完成后 Esc 关闭\n可执行命令：\n' +
+          '\n命令标签：直接输入 · ↑/↓ 历史（含草稿） · Enter 执行\n空输入：: 全局命令 · Tab/Shift+Tab 切换标签 · ←/→ 滚动标签栏\n输入：Tab/Shift+Tab 补全 · Shift+←/→ 选中 · Ctrl/Cmd+←/→ 按空格分词跳转 · Alt/Option+←/→ 头尾跳转（可加 Shift 选中）\n拖动选中输出 · Ctrl/Cmd+C 复制选中项 · Esc 取消选中或关闭底栏\n底栏输出：↑/↓ 或鼠标滚轮滚动 · : 继续输入 · Esc 丢弃\n可执行命令：\n' +
           [...this.commands, ...this.plugins.list()]
             .map((item) => `${item.name} ${item.description ?? ''}`)
             .join('\n'),
@@ -637,6 +745,16 @@ export class TerminalController {
         this.model.active.historyDraft = '';
       }
       clear();
+    } else if (this.plugins.has(name, 'global')) {
+      const executionId = randomUUID();
+      this.globalExecutionId = executionId;
+      this.panelExecutions.add(executionId);
+      try {
+        await this.plugins.execute(name, args, { windowId: randomUUID(), executionId });
+        await this.plugins.registry.waitIdle(executionId, 24 * 60 * 60 * 1000);
+      } finally {
+        this.globalExecutionId = undefined;
+      }
     } else {
       throw new Error(`未知全局命令：${name ?? ''}`);
     }
@@ -712,9 +830,11 @@ export class TerminalController {
     }
   }
   async key(key: Key) {
+    const copying = key.name === 'c' && (key.ctrl || key.meta);
     if (
       this.pending &&
       !this.model.panel?.input &&
+      !copying &&
       !['mouse', 'up', 'down', 'escape'].includes(key.name)
     ) {
       return;
@@ -726,8 +846,20 @@ export class TerminalController {
     let success =
       key.name !== 'unknown' && !(key.mouse && (key.mouse.release || key.mouse.button & 32));
     try {
-      if (key.mouse) {
+      const selected = this.renderer.selectedText(this.model);
+      if (!key.mouse && !copying && this.model.editing) {
+        this.renderer.clearOutputSelection();
+      }
+      if (copying && selected) {
+        if (!this.onCopy) {
+          throw new Error('剪贴板不可用');
+        }
+        await this.onCopy(selected);
+        this.renderer.clearSelection(this.model);
+      } else if (key.mouse) {
         this.mouse(key);
+      } else if (copying && key.meta) {
+        success = false;
       } else if (this.model.panel?.input && key.name === 'enter') {
         this.pending = true;
         await this.answerPanel(this.model.text);
@@ -738,31 +870,43 @@ export class TerminalController {
         this.model.cancelPanelInput();
         await this.interaction;
       } else if (key.name === 'escape') {
+        this.renderer.clearSelection(this.model);
         if (this.model.mode === 'normal') {
           this.model.active.anchor = undefined;
           this.model.active.scroll = 0;
         } else if (!this.model.panel?.running) {
           this.model.panel = undefined;
+          this.retirePanelExecutions();
           this.model.completionPreview = false;
           this.model.mode = 'normal';
         }
       } else if (this.model.mode === 'global-output') {
-        success = key.name === 'up' || key.name === 'down';
-        if (success) {
+        if (!this.model.panel?.running && key.sequence === ':') {
+          this.model.enterGlobal();
+        } else if (
+          !this.model.panel?.running &&
+          this.model.active.kind === 'output' &&
+          /^[：﹕꞉∶︰]$/u.test(key.sequence)
+        ) {
+          throw new Error('请输入英文半角冒号 ":" 进入全局命令');
+        } else if (key.name === 'up' || key.name === 'down') {
           this.renderer.scrollPanel(this.model, key.name === 'up' ? 1 : -1);
+        } else if (copying && this.globalExecutionId) {
+          this.pending = true;
+          await Promise.all([
+            this.plugins.cancel(this.globalExecutionId),
+            this.core.peer
+              ? this.core.call('command.cancel', { executionId: this.globalExecutionId })
+              : Promise.resolve(),
+          ]);
+        } else {
+          success = false;
         }
-      } else if (key.name === 'tab') {
-        if (this.model.mode === 'global') {
-          this.model.completeGlobal(key.shift ? -1 : 1);
-        } else if (!this.model.panel?.input) {
-          this.model.tab(key.shift ? -1 : 1);
-          this.renderer.reveal();
-        }
-      } else if (key.name === 'c' && key.ctrl) {
+      } else if (copying) {
         if (this.model.active.input) {
           this.pending = true;
           await this.cancelInput();
-        } else if (this.model.mode === 'command' || this.model.mode === 'global') {
+        } else if (this.model.editing && (this.model.text || this.model.mode === 'global')) {
           this.model.setInput('', 0);
         } else if (this.model.active.task) {
           this.pending = true;
@@ -772,77 +916,103 @@ export class TerminalController {
           this.pending = true;
           await this.lifecycle(false);
         }
+      } else if (key.name === 'tab') {
+        if (this.model.mode === 'global' || (this.model.editing && this.model.text)) {
+          this.model.completeGlobal(key.shift ? -1 : 1);
+        } else if (!this.model.panel?.input) {
+          this.model.tab(key.shift ? -1 : 1);
+          this.renderer.reveal();
+          this.renderer.clearSelection(this.model);
+        }
       } else if (key.name === 'paste') {
         const text = sanitizeOutput(key.sequence).replace(/\n/g, ' ');
-        if (this.model.mode === 'normal') {
-          if (text.startsWith(':')) {
-            this.model.panel = undefined;
-          }
-          this.model.mode = text.startsWith(':')
-            ? 'global'
-            : this.model.active.kind === 'command'
-              ? 'command'
-              : 'normal';
+        if (this.canEnterGlobal() && text.startsWith(':')) {
+          this.model.enterGlobal();
+          this.model.edit(text.slice(1));
+        } else if (this.model.editing) {
+          this.model.edit(text);
+        } else if (/^[：﹕꞉∶︰]/u.test(text)) {
+          throw new Error('请输入英文半角冒号 ":" 进入全局命令');
         }
-        if (this.model.mode !== 'normal') {
-          this.model.edit(
-            this.model.mode === 'global' && text.startsWith(':') ? text.slice(1) : text,
-          );
-        }
-      } else if (this.model.mode === 'normal') {
-        if (key.sequence === ':') {
-          this.model.panel = undefined;
-          this.model.mode = 'global';
-          this.model.completionPreview = false;
-          this.model.completionIndex = 0;
-        } else if (
-          (key.name === 'enter' || key.sequence === 'i') &&
-          this.model.active.kind === 'command'
-        ) {
-          this.model.mode = 'command';
-        } else if (key.name === 'up' || key.name === 'down') {
-          this.renderer.scroll(this.model, key.name === 'up' ? 1 : -1);
-        } else if (key.name === 'left' || key.name === 'right') {
-          this.scrollTabs(key.name === 'left' ? -1 : 1);
-        }
-      } else {
+      } else if (this.canEnterGlobal() && key.sequence === ':') {
+        this.model.enterGlobal();
+      } else if (
+        this.model.mode === 'normal' &&
+        this.model.active.kind !== 'command' &&
+        !this.model.active.input &&
+        /^[：﹕꞉∶︰]$/u.test(key.sequence)
+      ) {
+        throw new Error('请输入英文半角冒号 ":" 进入全局命令');
+      } else if (this.model.editing) {
         if (key.name === 'enter') {
           this.pending = true;
+          this.model.commitGlobalCompletion();
           if (this.model.mode === 'global') {
-            this.model.commitGlobalCompletion();
             await this.global(this.model.globalDraft);
           } else if (this.model.active.input) {
             await this.answerInput(this.model.text);
           } else if (this.model.active.draft.trim()) {
             const window = this.model.active;
             await this.execute(window.id, window.draft);
-            window.draft = '';
-            window.cursor = 0;
+            this.model.setInput('', 0);
           }
         } else if (key.name === 'up' || key.name === 'down') {
-          if (this.model.panel) {
+          if (this.model.panel?.input) {
             this.renderer.scrollPanel(this.model, key.name === 'up' ? 1 : -1);
-          } else if (this.model.mode === 'command' && !this.model.active.input) {
+          } else if (this.model.mode === 'global' || !this.model.active.input) {
             this.model.history(key.name === 'up' ? -1 : 1);
           } else {
             this.renderer.scroll(this.model, key.name === 'up' ? 1 : -1);
           }
         } else if (key.name === 'left' || key.name === 'right') {
-          if (!key.ctrl) {
-            this.model.move(key.name === 'left' ? -1 : 1, key.shift);
+          if (
+            !this.model.text &&
+            !key.shift &&
+            !key.ctrl &&
+            !key.meta &&
+            !key.alt &&
+            this.model.mode === 'normal'
+          ) {
+            this.scrollTabs(key.name === 'left' ? -1 : 1);
+          } else {
+            this.model.move(
+              key.name === 'left' ? -1 : 1,
+              key.shift,
+              key.alt ? 'edge' : key.ctrl || key.meta ? 'word' : 'grapheme',
+            );
           }
         } else if (key.name === 'backspace' || key.name === 'delete') {
           this.model.edit('', key.name);
         } else if (key.name === 'home' || key.name === 'end') {
-          this.model.setInput(this.model.text, key.name === 'home' ? 0 : this.model.text.length);
-        } else if (key.name === 'text' && !key.ctrl && !/[\x00-\x1f\x7f]/.test(key.sequence)) {
-          if (this.model.text.length < 65536) {
-            if (this.model.mode === 'global' && key.sequence === ' ') {
-              this.model.commitGlobalCompletion();
-            }
-            this.model.edit(key.sequence);
+          this.model.move(key.name === 'home' ? -1 : 1, key.shift, 'edge');
+        } else if (key.name === 'pageup' || key.name === 'pagedown') {
+          this.renderer.scroll(
+            this.model,
+            (key.name === 'pageup' ? 1 : -1) * Math.max(1, this.renderer.height - 2),
+          );
+        } else if (
+          key.name === 'text' &&
+          !key.ctrl &&
+          !key.meta &&
+          !/[\x00-\x1f\x7f]/.test(key.sequence) &&
+          this.model.text.length < 65536
+        ) {
+          if (key.sequence === ' ') {
+            this.model.commitGlobalCompletion();
           }
+          this.model.edit(key.sequence);
         }
+        if (
+          this.model.mode === 'normal' &&
+          ['text', 'paste', 'backspace', 'delete', 'up', 'down', 'enter'].includes(key.name)
+        ) {
+          this.model.active.anchor = undefined;
+          this.model.active.scroll = 0;
+        }
+      } else if (key.name === 'up' || key.name === 'down') {
+        this.renderer.scroll(this.model, key.name === 'up' ? 1 : -1);
+      } else if (key.name === 'left' || key.name === 'right') {
+        this.scrollTabs(key.name === 'left' ? -1 : 1);
       }
     } catch (error) {
       success = false;
@@ -855,12 +1025,33 @@ export class TerminalController {
       this.changed();
     }
   }
+  private canEnterGlobal() {
+    return (
+      this.model.mode === 'normal' &&
+      !this.model.active.input &&
+      (this.model.active.kind !== 'command' || !this.model.active.draft)
+    );
+  }
   private scrollTabs(direction: number, columns = false) {
     this.renderer.scrollTabs(this.model, direction, columns);
   }
   private mouse(key: Key) {
     const mouse = key.mouse;
-    if (!mouse || mouse.release) {
+    if (!mouse) {
+      return;
+    }
+    if (
+      this.renderer.dragSelection(
+        this.model,
+        mouse.column,
+        mouse.row,
+        mouse.release,
+        Boolean(mouse.button & 32),
+      )
+    ) {
+      return;
+    }
+    if (mouse.release) {
       return;
     }
     if (mouse.button & 64) {
@@ -882,6 +1073,8 @@ export class TerminalController {
       if (hit?.arrow) {
         this.scrollTabs(hit.arrow);
       }
+    } else if ((mouse.button & 3) === 0 && !(mouse.button & 32)) {
+      this.renderer.beginSelection(this.model, mouse.column, mouse.row);
     }
   }
   async line(line: string) {

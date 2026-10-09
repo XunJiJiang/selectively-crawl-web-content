@@ -1,4 +1,10 @@
-export const globalCommands = [
+export interface GlobalCommandInfo {
+  name: string;
+  usage: string;
+  description: string;
+  aliases?: string[];
+}
+export const globalCommands: GlobalCommandInfo[] = [
   { name: 'cancel', usage: 'cancel <tab id>', description: '取消任务' },
   { name: 'clear', usage: 'clear <output|history|all>', description: '清除当前标签输出或历史' },
   { name: 'close', usage: 'close [tab id]', description: '关闭指定标签', aliases: ['c'] },
