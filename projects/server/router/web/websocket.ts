@@ -65,6 +65,18 @@ export class PluginWebSocketRegistry {
     }
   }
 
+  unregister(safeId: string): void {
+    for (const [key, channel] of this.channels) {
+      if (channel.plugin.safeId !== safeId) {
+        continue;
+      }
+      this.channels.delete(key);
+      for (const client of channel.clients) {
+        client.terminate();
+      }
+    }
+  }
+
   attach(httpServer: Server): void {
     httpServer.on('upgrade', (request, socket, head) => {
       void this.handleUpgrade(request, socket, head);

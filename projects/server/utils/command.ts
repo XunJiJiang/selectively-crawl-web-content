@@ -8,6 +8,7 @@ import { currentIdentity, invocationStorage, taskRegistry } from '../common/task
 import type { InvocationContext } from '../types/task.d.ts';
 import type { TLogger } from '../types/log.d.ts';
 import type { TCommandExecute, TCommandOption, TSubCommand } from '../types/command.d.ts';
+import type { CompletionRequest, CompletionResult } from '../../terminal/protocol.ts';
 
 /**
  * 命令字典
@@ -26,6 +27,7 @@ const commandRegistry = new Map<
     options: TCommandOption[];
     exampleUsage?: string;
     pluginId: string;
+    originalName: string;
     system: boolean;
     available?: () => boolean;
   }
@@ -46,7 +48,7 @@ const pluginCommandMap = new Map<string, string>();
 const commandPluginMap = new Map<string, string[]>();
 
 /** 检查命令有没有非法字符 */
-function isValidCommandName (name: string) {
+function isValidCommandName(name: string) {
   return /^[a-zA-Z0-9-_]+$/.test(name);
 }
 
@@ -56,7 +58,7 @@ const reservedCommands = new Set<string>();
 export const SYSTEM_SYMBOL = Symbol('system');
 
 export class CommandError extends Error {
-  constructor (message: string, needPrintOriginal = true) {
+  constructor(message: string, needPrintOriginal = true) {
     super(message);
     this.name = 'CommandError';
     this.needPrintOriginal = needPrintOriginal;
@@ -89,7 +91,7 @@ export type TRegisterCommand = (
  * @param exampleUsage 示例用法
  * @throws {Error} 如果命令名称非法或多次注册命令
  */
-export function registerCommand (
+export function registerCommand(
   log: TLogger,
   commandName: string,
   execute: TCommandExecute,
@@ -100,6 +102,7 @@ export function registerCommand (
   exampleUsage?: string,
   available?: () => boolean,
 ) {
+  const originalName = commandName;
   if (reservedCommands.has(commandName) && pluginId !== SYSTEM_SYMBOL) {
     throw new CommandError(`命令名称 ${commandName} 为系统预留命令`, false);
   } else if (pluginId === SYSTEM_SYMBOL && !reservedCommands.has(commandName)) {
@@ -151,8 +154,8 @@ export function registerCommand (
   const existingPluginIdsNotVoid = existingPluginIds ?? [];
   // 记录当前插件占用该命令
   existingPluginIdsNotVoid.push(pluginId.toString());
-  if (!reservedCommands.has(commandName)) {
-    commandPluginMap.set(commandName, existingPluginIdsNotVoid);
+  if (pluginId !== SYSTEM_SYMBOL) {
+    commandPluginMap.set(originalName, existingPluginIdsNotVoid);
     // 更新命令插件映射
     pluginCommandMap.set(pluginId.toString(), commandName);
   }
@@ -166,9 +169,79 @@ export function registerCommand (
     exampleUsage,
     available,
     pluginId: pluginId.toString(),
+    originalName,
     system: pluginId === SYSTEM_SYMBOL,
   });
   commandEvents.emit('change', getCommands());
+}
+
+export function unregisterPluginCommand(pluginId: string) {
+  const name = pluginCommandMap.get(pluginId);
+  const definition = name ? commandRegistry.get(name) : undefined;
+  if (!name || !definition || definition.system) {
+    return;
+  }
+  commandRegistry.delete(name);
+  pluginCommandMap.delete(pluginId);
+  const remaining = (commandPluginMap.get(definition.originalName) ?? []).filter(
+    (id) => id !== pluginId,
+  );
+  if (remaining.length) {
+    commandPluginMap.set(definition.originalName, remaining);
+    if (remaining.length === 1) {
+      const survivor = pluginCommandMap.get(remaining[0]);
+      const value = survivor ? commandRegistry.get(survivor) : undefined;
+      if (survivor && value) {
+        commandRegistry.delete(survivor);
+        commandRegistry.set(definition.originalName, value);
+        pluginCommandMap.set(remaining[0], definition.originalName);
+      }
+    }
+  } else {
+    commandPluginMap.delete(definition.originalName);
+  }
+  commandEvents.emit('change', getCommands());
+}
+
+/** The registry currently supplies names and descriptions for two command levels. */
+export function completeCommand({ command, cursor }: CompletionRequest): CompletionResult {
+  cursor = Math.max(0, Math.min(command.length, cursor));
+  let from = cursor;
+  let to = cursor;
+  while (from > 0 && !/\s/.test(command[from - 1])) {
+    from--;
+  }
+  while (to < command.length && !/\s/.test(command[to])) {
+    to++;
+  }
+  const prefix = command.slice(from, cursor);
+  let parents: string[];
+  try {
+    parents = splitCommand(command.slice(0, from));
+  } catch {
+    return { from, to, items: [] };
+  }
+  const definitions = [...commandRegistry].filter(
+    ([, value]) => !value.available || value.available(),
+  );
+  const positional = parents
+    .slice(1)
+    .filter(
+      (part, index, parts) =>
+        part !== '--' && (parts.slice(0, index).includes('--') || !part.startsWith('-')),
+    );
+  const candidates = !parents.length
+    ? definitions.map(([name, value]) => ({ name, description: value.description }))
+    : positional.length === 0
+      ? (definitions.find(([name]) => name === parents[0])?.[1].subCommands ?? [])
+      : [];
+  return {
+    from,
+    to,
+    items: candidates
+      .filter((item) => item.name.startsWith(prefix))
+      .map(({ name, description }) => ({ name, description, insertText: name })),
+  };
 }
 
 /**
@@ -177,7 +250,7 @@ export function registerCommand (
  * @param rawCommand 原始命令字符串
  * @returns 拆分后的命令数组
  */
-export function splitCommand (rawCommand: string): string[] {
+export function splitCommand(rawCommand: string): string[] {
   const parts: string[] = [];
   let token = '';
   let quote = '';
@@ -220,7 +293,7 @@ export function splitCommand (rawCommand: string): string[] {
  * 只执行一个回调, 优先级: 子命令 > 主命令
  * @param originCommand 原始命令字符串
  */
-export function getCommands () {
+export function getCommands() {
   return [...commandRegistry].map(([name, value]) => ({
     name,
     description: value.description,
@@ -229,7 +302,7 @@ export function getCommands () {
   }));
 }
 
-function prepareCommand (raw: string) {
+function prepareCommand(raw: string) {
   const parts = splitCommand(raw);
   if (!parts.length) {
     throw new CommandError('未提供命令', false);
@@ -299,12 +372,12 @@ function prepareCommand (raw: string) {
     warnings,
   };
 }
-export function validateCommand (command: string) {
+export function validateCommand(command: string) {
   const prepared = prepareCommand(command);
   return { name: prepared.parts[0], pluginId: prepared.definition.pluginId };
 }
 
-export async function parseAndRunCommands (command: string, supplied?: InvocationContext) {
+export async function parseAndRunCommands(command: string, supplied?: InvocationContext) {
   const prepared = prepareCommand(command);
   const scope = supplied ? undefined : taskRegistry.create('core', currentIdentity());
   const context = supplied ?? scope?.context;
@@ -326,7 +399,7 @@ export async function parseAndRunCommands (command: string, supplied?: Invocatio
 }
 
 /** 打印 help */
-export function printHelp (log: TLogger) {
+export function printHelp(log: TLogger) {
   log.info('可用命令列表:');
   for (const [commandName, commandDef] of commandRegistry.entries()) {
     log.info(`- ${commandName}${commandDef.description ? `: ${commandDef.description}` : ''}`);
@@ -338,7 +411,7 @@ export function printHelp (log: TLogger) {
  * 打印指定命令的 help
  * @param commandName 命令名称 [pluginId:]commandName
  */
-export function printCommandHelp (commandName: string) {
+export function printCommandHelp(commandName: string) {
   const commandDef = commandRegistry.get(commandName);
   if (!commandDef) {
     throw new CommandError(`未知命令: ${commandName}`, false);
@@ -356,7 +429,8 @@ export function printCommandHelp (commandName: string) {
     log.info('选项:');
     commandDef.options.forEach((opt) => {
       log.info(
-        `  --${opt.name}${opt.alias ? ` (-${opt.alias})` : ''}${opt.required ? ' [必填]' : ''}${opt.defaultValue !== undefined ? ` [默认值: ${opt.defaultValue}]` : ''
+        `  --${opt.name}${opt.alias ? ` (-${opt.alias})` : ''}${opt.required ? ' [必填]' : ''}${
+          opt.defaultValue !== undefined ? ` [默认值: ${opt.defaultValue}]` : ''
         } - ${opt.description ?? '无描述'}`,
       );
     });

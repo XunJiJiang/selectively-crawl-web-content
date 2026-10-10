@@ -5,6 +5,9 @@ vi.mock('../plugin/load.ts', () => ({
   plugins: [{ pluginId: 'page', pluginDir: '/plugins/page' }],
   inactivePlugins: [],
   configuredPluginDirectory: async () => '/plugins',
+  enablePlugin: vi.fn(),
+  disablePlugin: vi.fn(),
+  reloadPlugin: vi.fn(),
 }));
 vi.mock('../common/env.ts', () => ({ TOKEN: '', ACTIVE_PORT: 3200, HOST: 'http://localhost' }));
 vi.mock('../plugin/web/build.ts', () => ({ buildPluginWeb: vi.fn(async () => undefined) }));

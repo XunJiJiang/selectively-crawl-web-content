@@ -57,16 +57,29 @@ declare namespace SCWCTerminal {
     write(text: string): void;
     invokeCore(command: string): Promise<void>;
   }
+  /** Full input without the global ':' prompt, with a UTF-16 cursor offset. */
+  export interface CompletionRequest {
+    command: string;
+    cursor: number;
+  }
+  export interface CompletionResult {
+    from: number;
+    to: number;
+    items: { name: string; insertText: string; description?: string }[];
+  }
   export interface Command {
     name: string;
     description: string;
     /** Omitted scope registers an ordinary command; global uses the transient footer. */
     scope?: 'command' | 'global';
     usage?: string;
+    /** Returns replacements at any command depth; completion never executes a command. */
+    complete?(request: CompletionRequest): CompletionResult | Promise<CompletionResult>;
     execute(context: CommandContext): void | Promise<void>;
   }
   export interface LoadContext {
     coreCommands: readonly CommandInfo[];
+    completeCore(request: CompletionRequest): Promise<CompletionResult>;
     tasks: TaskReporter;
     registerCommand(command: Command): void;
     logger: Logger;

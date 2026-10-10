@@ -25,6 +25,7 @@ vi.mock('../../utils/log.ts', () => ({
 vi.mock('../../utils/command.ts', async (importOriginal) => ({
   splitCommand: (await importOriginal<typeof import('../../utils/command.ts')>()).splitCommand,
   registerCommand: vi.fn(),
+  unregisterPluginCommand: vi.fn(),
   CommandError: class extends Error {},
 }));
 vi.mock('../../common/env.ts', () => ({ TOKEN: '' }));
@@ -90,6 +91,11 @@ export default defineConfig({root:path.join(import.meta.dirname,'web'),build:{ou
       );
     }
     await loadPlugins(root);
+    expect(
+      inactivePlugins
+        .filter((plugin) => plugin.pluginId === 'built')
+        .map((plugin) => plugin.reason),
+    ).toEqual([]);
     expect(plugins.map((plugin) => plugin.pluginId)).toEqual(['built']);
     expect(fs.existsSync(path.join(root, 'built/web/dist/index.html'))).toBe(true);
     expect(fs.existsSync(path.join(root, 'built/started.txt'))).toBe(true);

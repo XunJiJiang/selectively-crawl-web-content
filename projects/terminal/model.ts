@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { ExecutionEvent, OutputEvent, CommandInfo } from './protocol.ts';
+import type { ExecutionEvent, OutputEvent, CommandInfo, CompletionResult } from './protocol.ts';
 import type {
   InputConstructor,
   InputFailure,
@@ -85,6 +85,7 @@ export class TerminalModel {
   pluginPreferences: PluginPreferences = {};
   completionIndex = 0;
   completionPreview = false;
+  private serviceCompletion?: { key: string; result: CompletionResult };
   panel?: CommandPanel;
   transparentBackground = true;
   message = '';
@@ -483,6 +484,9 @@ export class TerminalModel {
     );
   }
   get candidates() {
+    if (this.serviceCompletion && this.serviceCompletion.key === this.completionKey) {
+      return this.serviceCompletion.result.items;
+    }
     return this.mode === 'global'
       ? this.globalCandidates
       : this.mode === 'normal' &&
@@ -493,7 +497,72 @@ export class TerminalModel {
         ? this.commands.filter((command) => command.name.startsWith(this.text))
         : [];
   }
+  get completionKey() {
+    if (
+      this.panel?.input ||
+      this.active.input ||
+      !(this.mode === 'global' || (this.mode === 'normal' && this.active.kind === 'command'))
+    ) {
+      return undefined;
+    }
+    return JSON.stringify([this.mode, this.activeId, this.text, this.cursor]);
+  }
+  clearServiceCompletion() {
+    this.serviceCompletion = undefined;
+    this.completionPreview = false;
+    this.completionIndex = 0;
+  }
+  setServiceCompletion(key: string, result: CompletionResult) {
+    if (
+      key !== this.completionKey ||
+      !result ||
+      !Number.isInteger(result.from) ||
+      !Number.isInteger(result.to) ||
+      result.from < 0 ||
+      result.from > this.cursor ||
+      result.to < this.cursor ||
+      result.to > this.text.length ||
+      !Array.isArray(result.items)
+    ) {
+      return;
+    }
+    this.serviceCompletion = {
+      key,
+      result: {
+        ...result,
+        items: result.items
+          .slice(0, 512)
+          .filter(
+            (item) =>
+              typeof item.name === 'string' &&
+              typeof item.insertText === 'string' &&
+              (item.description === undefined || typeof item.description === 'string') &&
+              !/[\x00-\x1f\x7f]/.test(item.insertText),
+          ),
+      },
+    };
+    this.completionIndex = Math.min(this.completionIndex, Math.max(0, this.candidates.length - 1));
+  }
+  private get selectedCompletion() {
+    return this.serviceCompletion && this.serviceCompletion.key === this.completionKey
+      ? this.serviceCompletion.result.items[this.completionIndex]
+      : undefined;
+  }
+  get displayCursor() {
+    const item = this.selectedCompletion;
+    const completion = this.serviceCompletion;
+    return this.completionPreview
+      ? item && completion
+        ? completion.result.from + item.insertText.length
+        : this.displayText.length
+      : this.cursor;
+  }
   get displayText() {
+    const item = this.selectedCompletion;
+    if (this.completionPreview && item && this.serviceCompletion) {
+      const { from, to } = this.serviceCompletion.result;
+      return this.text.slice(0, from) + item.insertText + this.text.slice(to);
+    }
     return this.completionPreview
       ? (this.candidates[this.completionIndex]?.name ?? this.text)
       : this.text;
@@ -512,7 +581,7 @@ export class TerminalModel {
   }
   commitGlobalCompletion() {
     if (this.completionPreview) {
-      this.setInput(this.displayText, this.displayText.length);
+      this.setInput(this.displayText, this.displayCursor);
       this.completionPreview = false;
     }
   }

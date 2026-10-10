@@ -523,11 +523,7 @@ export class Renderer {
     const inline = window.kind === 'command' || Boolean(window.input);
     const inlineActive = inline && model.mode === 'normal';
     const text = inlineActive ? model.displayText : (window.input?.draft ?? window.draft);
-    const cursor = inlineActive
-      ? model.completionPreview
-        ? text.length
-        : model.cursor
-      : (window.input?.cursor ?? window.cursor);
+    const cursor = inlineActive ? model.displayCursor : (window.input?.cursor ?? window.cursor);
     const allRows = inline
       ? [...rows, { text: '', line: window.lineOffset + window.lines.length, offset: 0 }]
       : rows;
@@ -587,7 +583,7 @@ export class Renderer {
       const raw = model.displayText;
       const input = this.input(
         raw,
-        model.completionPreview ? raw.length : model.cursor,
+        model.displayCursor,
         model.completionPreview ? undefined : model.selection,
         state + (model.mode === 'global' ? ':' : ''),
         this.height - 1,

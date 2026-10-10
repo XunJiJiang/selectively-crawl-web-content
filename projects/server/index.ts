@@ -1,4 +1,3 @@
-import path from 'node:path';
 import type { Server } from 'node:http';
 import { cancelStdinInput, listenProcessStdin, registerDefaultCommands } from './command/index.ts';
 import { createCoreBridge } from './command/ipc.ts';
@@ -7,9 +6,8 @@ import {
   configuredPluginDirectory,
   initCacheErrorHandler,
   loadPlugins,
-  plugins,
+  unloadPlugins,
 } from './plugin/load.ts';
-import { createLogger } from './utils/log.ts';
 import cacheController from './utils/cache.ts';
 import { cancelPluginWebBuilds } from './plugin/web/build.ts';
 import { HOST, PORT, PORT_SEARCH_RANGE, ACTIVE_PORT, setListeningPort } from './common/env.ts';
@@ -28,16 +26,7 @@ async function main() {
     cancelPluginWebBuilds();
     server?.close();
     await pluginLoading.catch(() => undefined);
-    for (const plugin of plugins) {
-      try {
-        await plugin.handler?.onUnload?.(
-          createLogger(`plugin:${plugin.name}`, path.relative(process.cwd(), plugin.entry)),
-          { isRestart: restart },
-        );
-      } catch (error) {
-        plugin.logger.error('插件卸载失败', error);
-      }
-    }
+    await unloadPlugins(restart);
     if (!restart) {
       await cacheController.clearAll(serverLogger);
     }

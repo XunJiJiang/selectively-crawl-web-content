@@ -19,7 +19,9 @@ describe('global terminal extensions', () => {
     await fs.writeFile(
       path.join(plugin, 'index.ts'),
       `export default {onLoad({registerCommand}) {
-      registerCommand({name: 'ask-global', scope: 'global', usage: 'ask-global', description: 'global input', async execute(context) {
+      registerCommand({name: 'ask-global', scope: 'global', usage: 'ask-global', description: 'global input', complete(request) {
+        return {from: request.command.lastIndexOf(' ') + 1, to: request.cursor, items: [{name: 'leaf', insertText: 'leaf', description: 'deep dynamic command'}]};
+      }, async execute(context) {
         context.write('before prompt');
         const [error, value] = await context.next('number?', Number);
         context.write(error ? 'cancelled:' + error.code : 'answer:' + value);
@@ -46,6 +48,15 @@ describe('global terminal extensions', () => {
       { name: 'business', system: false },
     ];
     const call = vi.spyOn(core, 'call').mockImplementation(async (method, value) => {
+      if (method === 'command.complete') {
+        const request = value as { command: string; cursor: number };
+        expect(request.command).toBe('plugin re');
+        return {
+          from: 7,
+          to: request.cursor,
+          items: [{ name: 'reload', insertText: 'reload', description: '重载插件' }],
+        } as never;
+      }
       if (method === 'command.execute') {
         const event = value as { command: string; windowId: string; executionId: string };
         core.emit('command.started', { ...event, status: 'running' });
@@ -64,6 +75,17 @@ describe('global terminal extensions', () => {
       expect(controller.plugins.has('local')).toBe(true);
       expect(controller.plugins.has('ask-global')).toBe(false);
       expect(model.globalExtensions.map((item) => item.name)).not.toContain('business');
+      model.enterGlobal();
+      model.setInput('scwc:plugin re', 14);
+      await controller.key({ name: 'tab', sequence: '\t' });
+      expect(model.displayText).toBe('scwc:plugin reload');
+      expect(model.candidates[0]?.description).toBe('重载插件');
+      expect(call).toHaveBeenCalledWith('command.complete', { command: 'plugin re', cursor: 9 });
+      model.setInput('ask-global branch twig ', 23);
+      await controller.key({ name: 'tab', sequence: '\t' });
+      expect(model.displayText).toBe('ask-global branch twig leaf');
+      expect(model.candidates[0]?.description).toBe('deep dynamic command');
+      await controller.key({ name: 'escape', sequence: '\x1b' });
       model.output.lines = [];
       model.output.bytes = 0;
       await controller.global('scwc:plugin ps');

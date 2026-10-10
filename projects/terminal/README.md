@@ -132,3 +132,11 @@ bun run test:core-executable
 ```
 
 最后一项使用临时部署、独立 Redis 和测试插件；需 redis-server 和 Python 3。非 Windows 上还运行真实 PTY 的全屏、鼠标、输入、确认、resize 和退出恢复验证。当前已在 macOS 验证；Windows/Linux 的终端编码与显示仍需在对应平台人工验收。
+
+## 动态命令提示与核心插件管理
+
+命令窗口与全局命令均支持动态补全。输入发生变化后，终端向拥有该命令的服务发送完整 `command` 与 UTF-16 `cursor`；返回 `from`、`to` 替换范围和 `items`（`name`、`insertText`、可选 `description`）。终端不限制命令层级，当前核心注册表提供主命令和二级子命令，子命令说明来自插件注册配置。Tab / Shift+Tab 预览，空格或 Enter 接受；在行中补全时保留后面的参数。新的输入、光标位置、窗口或服务命令清单使旧响应失效。
+
+终端插件可在注册命令时提供 `complete(request)` 异步回调，返回同样的补全结果。`onLoad` 的 `completeCore(request)` 可查询挂载核心的最新提示；内置 scwc 插件通过这个接口转发系统命令提示，冲突前缀由加载器转换。提示请求不执行命令，也不创建业务任务。
+
+核心命令窗口可执行 `plugin enable <插件目录名>`、`plugin disable <插件目录名>`、`plugin reload <插件目录名>`。全局底栏通过 scwc 插件执行对应命令；采用默认冲突前缀时，例如 `:scwc:plugin reload <插件目录名>`。`plugin ls` 输出目录标识供命令使用。enable/disable 原子写回插件 `package.json` 的 `enabled`，核心重启后保留；启用失败不会保存成功的启用状态。重载只作用于已加载插件，卸载旧宿主时传入 `isRestart=true`，禁用时传入 `false`。插件命令、API、资源路由、WebSocket 通道和连接随卸载移除，重载使用新宿主和新的 safeId。

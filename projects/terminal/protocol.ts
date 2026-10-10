@@ -8,6 +8,16 @@ export interface CommandInfo {
   scope?: 'command' | 'global';
   usage?: string;
 }
+/** Input excludes the terminal's global ':' prompt. Offsets are UTF-16 indices. */
+export interface CompletionRequest {
+  command: string;
+  cursor: number;
+}
+export interface CompletionResult {
+  from: number;
+  to: number;
+  items: { name: string; insertText: string; description?: string }[];
+}
 export type Packet =
   | { version: 1; sessionId: string; kind: 'call'; id: string; method: string; args: unknown }
   | { version: 1; sessionId: string; kind: 'result'; id: string; value?: unknown; error?: string }

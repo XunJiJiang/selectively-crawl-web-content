@@ -272,6 +272,7 @@ async function dispatch(method: string, args: unknown, id: string): Promise<unkn
   }
   if (method === 'unload') {
     stopping = true;
+    tasks.cancel();
     // Existing asynchronous invocations must finish before their runtime is disposed.
     while (activeCalls > 0) {
       await new Promise((resolve) => setTimeout(resolve, 10));

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { Peer } from '../../terminal/peer.ts';
 import {
   getCommands,
+  completeCommand,
   commandEvents,
   parseAndRunCommands,
   validateCommand,
@@ -191,6 +192,12 @@ export function createCoreBridge(shutdown: (restart: boolean) => Promise<void>) 
     }
     if (method === 'command.validate') {
       return validateCommand(String(data.command ?? ''));
+    }
+    if (method === 'command.complete') {
+      if (typeof data.command !== 'string' || !Number.isInteger(data.cursor)) {
+        throw new Error('无效的命令补全请求');
+      }
+      return completeCommand({ command: data.command, cursor: data.cursor as number });
     }
     if (method === 'command.execute') {
       if (stopping) {

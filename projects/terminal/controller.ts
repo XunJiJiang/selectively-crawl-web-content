@@ -6,7 +6,7 @@ import { TerminalPlugins } from './plugin/load.ts';
 import { splitCommand } from '../server/utils/command.ts';
 import { InvocationInputError } from '../server/common/interaction.ts';
 import { colorLogText } from '../server/common/color.ts';
-import type { CommandInfo, ExecutionEvent, OutputEvent } from './protocol.ts';
+import type { CommandInfo, ExecutionEvent, OutputEvent, CompletionResult } from './protocol.ts';
 import type {
   InputFailure,
   InputRequest,
@@ -44,6 +44,10 @@ export class TerminalController {
   private panelExecutions = new Set<string>();
   private discardedPanelExecutions = new Set<string>();
   private globalExecutionId?: string;
+  private completionKey?: string;
+  private completionTimer?: NodeJS.Timeout;
+  private completionVersion = 0;
+  private completionWork?: Promise<void>;
   onChange?: () => void;
   onOutput?: (text: string) => void;
   onExit?: () => Promise<void>;
@@ -54,11 +58,13 @@ export class TerminalController {
     this.core = core;
     core.on('output', (value: OutputEvent) => this.output(value));
     core.on('commands', (commands: CommandInfo[]) => {
+      this.invalidateCompletion();
       this.commands = commands;
       void this.plugins.reconcile(commands).catch((error) => this.error(error));
       this.changed();
     });
     core.on('ready', (value: { port: number; commands: CommandInfo[] }) => {
+      this.invalidateCompletion();
       this.ready = true;
       this.commands = value.commands;
       this.model.message = `服务端口 ${value.port}`;
@@ -116,6 +122,7 @@ export class TerminalController {
     });
     core.on('failure', (error) => this.error(error));
     core.on('closed', () => {
+      this.invalidateCompletion();
       this.ready = false;
       this.coreTasks = [];
       for (const event of this.activeCoreExecutions.values()) {
@@ -147,7 +154,10 @@ export class TerminalController {
         }
       }
     });
-    this.plugins.on('commands', () => this.changed());
+    this.plugins.on('commands', () => {
+      this.invalidateCompletion();
+      this.changed();
+    });
     this.plugins.on('preferences', () => this.changed());
     this.plugins.resolveConflict = (conflict) => this.resolvePluginConflict(conflict);
     this.plugins.on('output', (value: OutputEvent) => this.output(value));
@@ -236,6 +246,7 @@ export class TerminalController {
         throw new Error(event.error ?? `核心子命令 ${event.status}`);
       }
     };
+    this.plugins.completeCore = (request) => this.core.call('command.complete', request);
   }
   async start() {
     this.expectedStop = false;
@@ -249,7 +260,58 @@ export class TerminalController {
       description: item.description ?? '',
       usage: item.usage ?? item.name,
     }));
+    this.scheduleCompletion();
     this.onChange?.();
+  }
+  private invalidateCompletion() {
+    this.completionVersion++;
+    this.completionKey = undefined;
+    this.completionWork = undefined;
+    clearTimeout(this.completionTimer);
+    this.model.clearServiceCompletion();
+  }
+  private scheduleCompletion() {
+    const key = this.model.completionKey;
+    if (key === this.completionKey) {
+      return;
+    }
+    this.invalidateCompletion();
+    this.completionKey = key;
+    // First words use the live command manifest; subsequent words query the owning service.
+    if (!key || !/\s/.test(this.model.text.trimStart())) {
+      return;
+    }
+    this.completionTimer = setTimeout(() => void this.refreshCompletion(), 60);
+  }
+  private refreshCompletion() {
+    clearTimeout(this.completionTimer);
+    if (this.completionWork) {
+      return this.completionWork;
+    }
+    const key = this.model.completionKey;
+    if (!key || !/\s/.test(this.model.text.trimStart())) {
+      return Promise.resolve();
+    }
+    const version = this.completionVersion;
+    const request = { command: this.model.text, cursor: this.model.cursor };
+    const name = request.command.trimStart().split(/\s/)[0];
+    const scope = this.model.mode === 'global' ? 'global' : 'command';
+    this.completionWork = (async () => {
+      try {
+        const result = this.plugins.has(name, scope)
+          ? await this.plugins.complete(name, request)
+          : scope === 'command' && this.ready
+            ? await this.core.call<CompletionResult>('command.complete', request)
+            : { from: request.cursor, to: request.cursor, items: [] };
+        if (version === this.completionVersion && key === this.model.completionKey) {
+          this.model.setServiceCompletion(key, result);
+          this.onChange?.();
+        }
+      } catch {
+        // Completion is optional; a disconnected or slow service must not disrupt editing.
+      }
+    })();
+    return this.completionWork;
   }
   private async resolvePluginConflict(conflict: CommandConflict): Promise<ConflictChoice> {
     if (this.inputEnded) {
@@ -961,6 +1023,8 @@ export class TerminalController {
         }
       } else if (key.name === 'tab') {
         if (this.model.mode === 'global' || (this.model.editing && this.model.text)) {
+          this.scheduleCompletion();
+          await this.refreshCompletion();
           this.model.completeGlobal(key.shift ? -1 : 1);
         } else if (!this.model.panel?.input) {
           this.model.tab(key.shift ? -1 : 1);
@@ -1147,6 +1211,8 @@ export class TerminalController {
     this.changed();
   }
   async dispose() {
+    clearTimeout(this.completionTimer);
+    this.invalidateCompletion();
     this.closing = true;
     clearTimeout(this.retryTimer);
     this.model.cancelPanelInput('closed');

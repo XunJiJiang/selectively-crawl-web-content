@@ -10,7 +10,7 @@ import { inputReply } from '../../server/common/interaction.ts';
 import { colorEnvironment } from '../../server/common/color.ts';
 import { reservedCommands } from '../global.ts';
 import type { InputRequest, InvocationIdentity, TaskSnapshot } from '../../server/types/task.d.ts';
-import type { OutputEvent, CommandInfo } from '../protocol.ts';
+import type { OutputEvent, CommandInfo, CompletionRequest, CompletionResult } from '../protocol.ts';
 
 import type { Loaded, CommandConflict, ConflictChoice, PluginPreferences } from './types.d.ts';
 
@@ -24,6 +24,7 @@ export class TerminalPlugins extends EventEmitter {
   preferences: PluginPreferences = {};
   resolveConflict?: (conflict: CommandConflict) => Promise<ConflictChoice>;
   invokeCore?: (command: string, identity: InvocationIdentity) => Promise<void>;
+  completeCore?: (request: CompletionRequest) => Promise<CompletionResult>;
   nextInput?: (request: InputRequest, signal: AbortSignal) => Promise<string>;
   load(directory: string, outputId: string, coreCommands: CommandInfo[]) {
     this.coreCommands = coreCommands;
@@ -159,6 +160,9 @@ export class TerminalPlugins extends EventEmitter {
           }
         };
         peer.onCall = async (method, value) => {
+          if (method === 'completeCore' && this.completeCore) {
+            return this.completeCore(value as CompletionRequest);
+          }
           const nextInput = this.nextInput;
           if (method === 'input.next' && nextInput) {
             const request = value as InputRequest;
@@ -515,6 +519,30 @@ export class TerminalPlugins extends EventEmitter {
       item &&
       (item.plugin.commands.find((info) => info.name === item.name)?.scope ?? 'command') === scope,
     );
+  }
+  async complete(name: string, request: CompletionRequest): Promise<CompletionResult> {
+    const item = this.commands.get(name);
+    if (!item) {
+      return { from: request.cursor, to: request.cursor, items: [] };
+    }
+    // Restore the host's registered name, including when conflict resolution added a prefix.
+    const start = request.command.search(/\S/);
+    const delta = name.length - item.name.length;
+    const result = await item.plugin.peer.call<CompletionResult>(
+      'complete',
+      {
+        name: item.name,
+        request: {
+          command:
+            request.command.slice(0, start) +
+            item.name +
+            request.command.slice(start + name.length),
+          cursor: request.cursor - delta,
+        },
+      },
+      2500,
+    );
+    return { ...result, from: result.from + delta, to: result.to + delta };
   }
   async execute(name: string, args: string[], identity: InvocationIdentity) {
     const command = this.commands.get(name);

@@ -8,7 +8,7 @@ import { outputColorLevel } from '../../server/common/color.ts';
 import { registerPluginSdk } from '../../server/plugin/sdk/register.ts';
 import type { InvocationIdentity, PluginLogger } from '../../server/types/task.d.ts';
 import scwcPlugin from '../plugins/scwc/index.ts';
-import type { CommandInfo } from '../protocol.ts';
+import type { CommandInfo, CompletionRequest } from '../protocol.ts';
 
 const peer = new Peer((packet, callback) => {
   if (process.send && process.connected) {
@@ -65,6 +65,7 @@ peer.onCall = async (method, value) => {
     args: string[];
     executionId?: string;
     commands?: CommandInfo[];
+    request: CompletionRequest;
   };
   if (method === 'hello') {
     pluginId = args.pluginId;
@@ -91,6 +92,7 @@ peer.onCall = async (method, value) => {
     pluginId = plugin.id ?? args.pluginId;
     await plugin.onLoad({
       coreCommands: args.commands ?? [],
+      completeCore: (request) => peer.call('completeCore', request, 2000),
       tasks: processScope.reporter,
       logger: logger(),
       signal: processScope.controller.signal,
@@ -127,6 +129,15 @@ peer.onCall = async (method, value) => {
     registry.cancel();
     await plugin?.onUnload?.();
     return;
+  }
+  if (method === 'complete') {
+    return (
+      commands.get(args.name)?.complete?.(args.request) ?? {
+        from: args.request.cursor,
+        to: args.request.cursor,
+        items: [],
+      }
+    );
   }
   if (method !== 'execute') {
     throw new Error('未知终端插件请求');

@@ -3,18 +3,29 @@ import { PluginProcessError } from '../../../plugin/process/protocol.ts';
 
 /** /web/api/plugin */
 const router = Router();
+const apiRouters = new Map<string, ReturnType<typeof Router>>();
+router.use('/:safeId', (req, res, next) => {
+  const pluginRouter = apiRouters.get(req.params.safeId);
+  if (pluginRouter) {
+    pluginRouter(req, res, next);
+  } else {
+    next();
+  }
+});
 
 export function registerPluginApi(plugin: SCWC.IPluginMeta) {
   const pluginApi = plugin.handler?.ui?.api;
   if (!pluginApi) {
     return;
   }
+  const pluginRouter = Router();
+  apiRouters.set(plugin.safeId, pluginRouter);
   const addApi: SCWC.THostedPluginAddApi = (...apis) => {
     apis.forEach((api) => {
       // api.path 是否以 / 开头
       const slash = api.path.startsWith('/') ? '' : '/';
-      const fullPath = `/${plugin.safeId}${slash}${api.path}`;
-      router[api.method.toLowerCase() as 'get' | 'post' | 'put' | 'delete'](
+      const fullPath = `${slash}${api.path}`;
+      pluginRouter[api.method.toLowerCase() as 'get' | 'post' | 'put' | 'delete'](
         fullPath,
         async (req, res) => {
           try {
@@ -51,16 +62,32 @@ export default router;
  * application's bearer header. Resource handlers must validate a short-lived plugin ticket.
  */
 export const pluginResourceRouter = Router();
+const resourceRouters = new Map<string, ReturnType<typeof Router>>();
+pluginResourceRouter.use('/:safeId', (req, res, next) => {
+  const pluginRouter = resourceRouters.get(req.params.safeId);
+  if (pluginRouter) {
+    pluginRouter(req, res, next);
+  } else {
+    next();
+  }
+});
+
+export function unregisterPluginRoutes(safeId: string) {
+  apiRouters.delete(safeId);
+  resourceRouters.delete(safeId);
+}
 
 export function registerPluginResources(plugin: SCWC.IPluginMeta) {
   const resources = plugin.handler?.ui?.resources;
   if (!resources || resources.length === 0) {
     return;
   }
+  const pluginRouter = Router();
+  resourceRouters.set(plugin.safeId, pluginRouter);
   for (const resource of resources) {
     const slash = resource.path.startsWith('/') ? '' : '/';
-    const fullPath = `/${plugin.safeId}${slash}${resource.path}`;
-    pluginResourceRouter.get(fullPath, async (req, res) => {
+    const fullPath = `${slash}${resource.path}`;
+    pluginRouter.get(fullPath, async (req, res) => {
       try {
         await resource.handler(req.query, { req, res });
       } catch (error) {

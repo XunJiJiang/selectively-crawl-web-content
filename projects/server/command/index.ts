@@ -1,5 +1,12 @@
 import readline from 'node:readline';
-import { configuredPluginDirectory, inactivePlugins, plugins } from '../plugin/load.ts';
+import {
+  configuredPluginDirectory,
+  inactivePlugins,
+  plugins,
+  enablePlugin,
+  disablePlugin,
+  reloadPlugin,
+} from '../plugin/load.ts';
 import path from 'node:path';
 import { buildPluginWeb } from '../plugin/web/build.ts';
 import { pluginLogger } from '../plugin/log.ts';
@@ -94,8 +101,31 @@ export function registerDefaultCommands(serverLogger: SCWC.TLogger) {
       pluginLogger.info('');
     },
     SYSTEM_SYMBOL,
-    '列出所有已加载的插件',
+    '管理核心服务插件',
     [
+      ...(
+        [
+          ['enable', '启用插件并保存启用状态', enablePlugin],
+          ['disable', '禁用插件并保存禁用状态', disablePlugin],
+          ['reload', '重载已加载插件', reloadPlugin],
+        ] as const
+      ).map(([name, description, action]) => ({
+        name,
+        description,
+        exampleUsage: `plugin ${name} <插件目录名>`,
+        execute: async (
+          logger: SCWC.TLogger,
+          _options: unknown,
+          _unused: unknown,
+          origin: string[],
+        ) => {
+          if (origin.length !== 3) {
+            throw new CommandError(`用法：plugin ${name} <插件目录名>`, false);
+          }
+          await action(origin[2]);
+          logger.info(`插件 ${origin[2]} ${name} 完成`);
+        },
+      })),
       {
         name: 'build-web',
         description: '使用内置 Vite 重建指定插件页面',
@@ -117,12 +147,12 @@ export function registerDefaultCommands(serverLogger: SCWC.TLogger) {
           pluginLogger.info('所有插件列表:');
           for (const plugin of plugins) {
             pluginLogger.info(
-              `- ${plugin.name}[${plugin.runtime?.status ?? 'enabled'}] (跟踪网址: ${plugin.linkWith.join(', ') ?? '无'})${plugin.runtime ? ` (process pid=${plugin.runtime.pid ?? '-'}${plugin.runtime.reason ? `: ${plugin.runtime.reason}` : ''})` : ''}`,
+              `- ${plugin.name} (目录: ${plugin.pluginId})[${plugin.runtime?.status ?? 'enabled'}] (跟踪网址: ${plugin.linkWith.join(', ') ?? '无'})${plugin.runtime ? ` (process pid=${plugin.runtime.pid ?? '-'}${plugin.runtime.reason ? `: ${plugin.runtime.reason}` : ''})` : ''}`,
             );
           }
           for (const plugin of inactivePlugins) {
             pluginLogger.info(
-              `- ${plugin.name}[disabled] (原因: ${plugin.reason}) (跟踪网址: ${plugin.linkWith.join(', ') ?? '无'})${plugin.runtime ? ` (process pid=${plugin.runtime.pid ?? '-'}${plugin.runtime.reason ? `: ${plugin.runtime.reason}` : ''})` : ''}`,
+              `- ${plugin.name} (目录: ${plugin.pluginId})[disabled] (原因: ${plugin.reason}) (跟踪网址: ${plugin.linkWith.join(', ') ?? '无'})${plugin.runtime ? ` (process pid=${plugin.runtime.pid ?? '-'}${plugin.runtime.reason ? `: ${plugin.runtime.reason}` : ''})` : ''}`,
             );
           }
         },
@@ -138,7 +168,7 @@ export function registerDefaultCommands(serverLogger: SCWC.TLogger) {
           }
           for (const plugin of plugins) {
             pluginLogger.info(
-              `- ${plugin.name}[${plugin.runtime?.status ?? 'enabled'}] (跟踪网址: ${plugin.linkWith.join(', ') ?? '无'})${plugin.runtime ? ` (process pid=${plugin.runtime.pid ?? '-'}${plugin.runtime.reason ? `: ${plugin.runtime.reason}` : ''})` : ''}`,
+              `- ${plugin.name} (目录: ${plugin.pluginId})[${plugin.runtime?.status ?? 'enabled'}] (跟踪网址: ${plugin.linkWith.join(', ') ?? '无'})${plugin.runtime ? ` (process pid=${plugin.runtime.pid ?? '-'}${plugin.runtime.reason ? `: ${plugin.runtime.reason}` : ''})` : ''}`,
             );
           }
           if (inactivePlugins.length === 0) {
@@ -148,7 +178,7 @@ export function registerDefaultCommands(serverLogger: SCWC.TLogger) {
           }
           for (const plugin of inactivePlugins) {
             pluginLogger.info(
-              `- ${plugin.name}[disabled] (原因: ${plugin.reason}) (跟踪网址: ${plugin.linkWith.join(', ') ?? '无'})${plugin.runtime ? ` (process pid=${plugin.runtime.pid ?? '-'}${plugin.runtime.reason ? `: ${plugin.runtime.reason}` : ''})` : ''}`,
+              `- ${plugin.name} (目录: ${plugin.pluginId})[disabled] (原因: ${plugin.reason}) (跟踪网址: ${plugin.linkWith.join(', ') ?? '无'})${plugin.runtime ? ` (process pid=${plugin.runtime.pid ?? '-'}${plugin.runtime.reason ? `: ${plugin.runtime.reason}` : ''})` : ''}`,
             );
           }
         },

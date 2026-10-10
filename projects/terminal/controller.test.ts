@@ -3,6 +3,42 @@ import { TerminalController } from './controller.ts';
 import { CoreConnection } from './core.ts';
 import { TerminalModel } from './model.ts';
 describe('terminal input routing', () => {
+  it('requests nested completions while editing, rejects stale responses, and replaces only the selected token', async () => {
+    const model = new TerminalModel();
+    model.switch(model.windows[1].id);
+    const core = new CoreConnection({ args: [] });
+    const controller = new TerminalController(model, core);
+    const first = Promise.withResolvers<unknown>();
+    const call = vi.spyOn(core, 'call').mockImplementation(async (_method, value) => {
+      const request = value as { command: string; cursor: number };
+      if (request.command === 'asmr l') {
+        return (await first.promise) as never;
+      }
+      return {
+        from: 5,
+        to: 7,
+        items: [{ name: 'list', insertText: 'list', description: '作品列表' }],
+      } as never;
+    });
+    core.emit('ready', { port: 3200, commands: [{ name: 'asmr' }] });
+    await controller.key({ name: 'text', sequence: 'asmr l' });
+    await vi.waitFor(() =>
+      expect(call).toHaveBeenCalledWith('command.complete', { command: 'asmr l', cursor: 6 }),
+    );
+    await controller.key({ name: 'text', sequence: 'i' });
+    await vi.waitFor(() => expect(model.candidates[0]?.description).toBe('作品列表'));
+    first.resolve({ from: 5, to: 6, items: [{ name: 'late', insertText: 'late' }] });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(model.candidates[0]?.name).toBe('list');
+    model.setInput('asmr li argument', 7);
+    await controller.key({ name: 'tab', sequence: '\t' });
+    expect(model.displayText).toBe('asmr list argument');
+    expect(model.displayCursor).toBe(9);
+    model.commitGlobalCompletion();
+    expect(model.text).toBe('asmr list argument');
+    expect(model.cursor).toBe(9);
+    await controller.dispose();
+  });
   it('renders structured core and plugin colors, including existing ANSI output', () => {
     vi.stubEnv('FORCE_COLOR', '1');
     try {
