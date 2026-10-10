@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import stringWidth from 'string-width';
 import { TerminalModel } from './model.ts';
 import { Renderer } from './render.ts';
@@ -6,6 +6,68 @@ import { InputDecoder } from './input.ts';
 import { restoreState } from './storage.ts';
 
 describe('terminal windows and input', () => {
+  it('coalesces continuous repaint requests and never paints faster than 60 fps', () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] });
+    const renderer = new Renderer();
+    try {
+      const model = new TerminalModel();
+      const output = {} as NodeJS.WriteStream;
+      const times: number[] = [];
+      vi.spyOn(renderer, 'paint').mockImplementation(() => {
+        times.push(performance.now());
+      });
+      for (let i = 0; i < 1000; i++) {
+        renderer.schedulePaint(model, output);
+        vi.advanceTimersByTime(1);
+      }
+      expect(times.length).toBeGreaterThanOrEqual(58);
+      expect(times.length).toBeLessThanOrEqual(60);
+      expect(times.slice(1).every((time, i) => time - times[i] >= 1000 / 60)).toBe(true);
+      renderer.schedulePaint(model, output);
+      renderer.cancelPaint();
+      const count = times.length;
+      vi.advanceTimersByTime(100);
+      expect(times).toHaveLength(count);
+    } finally {
+      renderer.cancelPaint();
+      vi.useRealTimers();
+      vi.restoreAllMocks();
+    }
+  });
+  it('renders one colored restored-history row between saved and new output without copying it', () => {
+    const original = new TerminalModel();
+    original.append({ windowId: original.output.id, text: 'old output' });
+    original.append({ windowId: original.windows[1].id, text: 'old command output' });
+    const model = restoreState({ version: 1, windows: original.windows });
+    model.append({ windowId: model.output.id, text: 'new output' });
+    const renderer = new Renderer();
+    const plain = (text: string) => text.replace(/\x1b\[[\d;?]*[A-Za-z]/g, '');
+    const frame = renderer.frame(model, 0);
+    const rows = plain(frame).split('\r\n');
+    expect(rows[1].trim()).toBe('old output');
+    expect(rows[2].trimEnd()).toBe('    还原的历史记录');
+    expect(rows[3].trim()).toBe('new output');
+    expect(frame).toContain('\x1b[38;2;0;0;0m\x1b[48;2;240;240;240m    ');
+    expect(frame).toContain('\x1b[48;2;173;216;230m还原的历史记录 ');
+    renderer.beginSelection(model, 0, 1);
+    renderer.dragSelection(model, 10, 3, true, false);
+    expect(renderer.selectedText(model)).toBe('old output\nnew output');
+    model.switch(model.windows[1].id);
+    const commandRows = plain(renderer.frame(model, 0)).split('\r\n');
+    expect(commandRows[1].trim()).toBe('old command output');
+    expect(commandRows[2].trim()).toBe('还原的历史记录');
+    expect(commandRows[3].trim()).toBe('>');
+    for (const width of [1, 4, 11, 80]) {
+      renderer.width = width;
+      const compact = plain(renderer.frame(model, 0)).split('\r\n');
+      expect(compact).toHaveLength(renderer.height);
+      expect(compact.every((row) => stringWidth(row) <= width)).toBe(true);
+      expect(compact.filter((row) => row.trim() === '>')).toHaveLength(1);
+    }
+    model.switch(model.newWindow().id);
+    expect(renderer.frame(model, 0)).not.toContain('还原的历史记录');
+    expect(model.output.lines).toEqual(['old output', 'new output']);
+  });
   it('finishes successful tasks without appending a success marker', () => {
     const model = new TerminalModel();
     const window = model.windows[1];

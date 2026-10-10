@@ -6,6 +6,31 @@ import { StateStore } from './storage.ts';
 import { TerminalModel } from './model.ts';
 
 describe('atomic terminal persistence', () => {
+  it('marks restored output without persisting display markers or their runtime boundary', async () => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'scwc-restored-output-'));
+    const store = new StateStore(path.join(directory, 'state.json'));
+    try {
+      const model = new TerminalModel();
+      model.append({ windowId: model.output.id, text: 'old output' });
+      model.append({ windowId: model.windows[1].id, text: 'old command output' });
+      const empty = model.newWindow();
+      model.record(empty, 'history without output');
+      await store.save(model);
+      const restored = await store.load();
+      expect(restored.output.restoredHistoryEnd).toBe(1);
+      expect(restored.windows[1].restoredHistoryEnd).toBe(1);
+      expect(restored.windows[2].restoredHistoryEnd).toBeUndefined();
+      restored.append({ windowId: restored.output.id, text: 'new output' });
+      await store.save(restored);
+      const saved = await fs.readFile(store.filename, 'utf8');
+      expect(saved).not.toContain('还原的历史记录');
+      expect(saved).not.toContain('restoredHistoryEnd');
+      expect(JSON.parse(saved).windows[0].lines).toEqual(['old output', 'new output']);
+      expect((await store.load()).output.restoredHistoryEnd).toBe(2);
+    } finally {
+      await fs.rm(directory, { recursive: true, force: true });
+    }
+  });
   it('persists names and background preferences without saving global panel output', async () => {
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'scwc-state-test-'));
     const store = new StateStore(path.join(directory, 'state.json'));

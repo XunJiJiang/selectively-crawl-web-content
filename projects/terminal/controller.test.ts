@@ -2,7 +2,112 @@ import { describe, expect, it, vi } from 'vitest';
 import { TerminalController } from './controller.ts';
 import { CoreConnection } from './core.ts';
 import { TerminalModel } from './model.ts';
+import { restoreState } from './storage.ts';
+import { InputDecoder } from './input.ts';
 describe('terminal input routing', () => {
+  it.each([0.5, 1.5, 2])(
+    'scales reported wheel distance by speed %s without losing fractional rows',
+    async (speed) => {
+      const model = new TerminalModel();
+      model.append({
+        windowId: model.output.id,
+        text: Array.from({ length: 40 }, (_, i) => `row ${i}`).join('\n'),
+      });
+      const controller = new TerminalController(model, new CoreConnection({ args: [] }));
+      controller.scrollSpeed = speed;
+      controller.renderer.height = 8;
+      controller.renderer.frame(model, 0);
+      const work: Promise<void>[] = [];
+      const decoder = new InputDecoder((key) => work.push(controller.key(key)));
+      const packets = '\x1b[<64;3;3M'.repeat(4);
+      decoder.feed(packets.slice(0, 8));
+      decoder.feed(packets.slice(8));
+      await Promise.all(work);
+      expect(model.output.scroll).toBe(4 * speed);
+      decoder.feed('\x1b[<65;3;3M'.repeat(4));
+      await Promise.all(work);
+      expect(model.output.scroll).toBe(0);
+      expect(model.output.anchor).toBeUndefined();
+      decoder.dispose();
+      await controller.dispose();
+    },
+  );
+  it('does not transfer fractional wheel distance from the body to the panel', async () => {
+    const model = new TerminalModel();
+    model.append({
+      windowId: model.output.id,
+      text: Array.from({ length: 40 }, (_, i) => `row ${i}`).join('\n'),
+    });
+    const controller = new TerminalController(model, new CoreConnection({ args: [] }));
+    controller.scrollSpeed = 0.5;
+    controller.renderer.frame(model, 0);
+    const wheel = (row: number) =>
+      controller.key({
+        name: 'mouse',
+        sequence: '',
+        mouse: { row, column: 2, button: 64, release: false },
+      });
+    await wheel(2);
+    expect(model.output.scroll).toBe(0);
+    const panel = model.beginPanel('help');
+    model.writePanel(Array.from({ length: 30 }, (_, i) => `help ${i}`).join('\n'));
+    model.finishPanel(panel);
+    controller.renderer.frame(model, 0);
+    await wheel(20);
+    expect(panel.scroll).toBe(0);
+    await wheel(20);
+    expect(panel.scroll).toBe(1);
+    expect(model.output.scroll).toBe(0);
+    await controller.dispose();
+  });
+  it('scrolls output one row per wheel event and accumulates bursts before repainting', async () => {
+    const model = new TerminalModel();
+    model.append({
+      windowId: model.output.id,
+      text: Array.from({ length: 40 }, (_, i) => `row ${i}`).join('\n'),
+    });
+    const controller = new TerminalController(model, new CoreConnection({ args: [] }));
+    controller.scrollSpeed = 1;
+    controller.renderer.height = 8;
+    controller.renderer.frame(model, 0);
+    const wheel = (button: number) =>
+      controller.key({
+        name: 'mouse',
+        sequence: '',
+        mouse: { row: 2, column: 2, button, release: false },
+      });
+    await wheel(64);
+    expect(model.output.scroll).toBe(1);
+    await wheel(64);
+    expect(model.output.scroll).toBe(2);
+    await wheel(65);
+    expect(model.output.scroll).toBe(1);
+    expect(controller.renderer.frame(model, 0)).toContain('row 33');
+    for (let i = 0; i < 40; i++) {
+      await wheel(64);
+    }
+    expect(model.output.anchor?.line).toBe(0);
+    await wheel(65);
+    expect(model.output.anchor?.line).toBe(1);
+    for (let i = 0; i < 40; i++) {
+      await wheel(65);
+    }
+    expect(model.output.scroll).toBe(0);
+    expect(model.output.anchor).toBeUndefined();
+    await controller.dispose();
+  });
+  it('removes the restored-history marker when clearing output so it cannot reappear', async () => {
+    const original = new TerminalModel();
+    original.append({ windowId: original.windows[1].id, text: 'old one\nold two' });
+    const model = restoreState({ version: 1, windows: original.windows });
+    model.switch(model.windows[1].id);
+    const controller = new TerminalController(model, new CoreConnection({ args: [] }));
+    await controller.global('clear output');
+    expect(model.active.restoredHistoryEnd).toBeUndefined();
+    model.append({ windowId: model.activeId, text: 'new one\nnew two\nnew three' });
+    expect(controller.renderer.frame(model, 0)).not.toContain('还原的历史记录');
+    await controller.dispose();
+  });
   it('requests nested completions while editing, rejects stale responses, and replaces only the selected token', async () => {
     const model = new TerminalModel();
     model.switch(model.windows[1].id);
@@ -286,7 +391,7 @@ describe('terminal input routing', () => {
       sequence: '',
       mouse: { row: 20, column: 2, button: 64, release: false },
     });
-    expect(model.panel?.scroll).toBe(4);
+    expect(model.panel?.scroll).toBe(3);
     await controller.key({ name: 'text', sequence: 'new' });
     await controller.key({ name: 'enter', sequence: '\r' });
     expect(model.windows).toHaveLength(2);

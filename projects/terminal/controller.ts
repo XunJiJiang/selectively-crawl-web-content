@@ -16,6 +16,10 @@ import type {
 import type { Key } from './input.ts';
 import type { CommandConflict, ConflictChoice } from './plugin/types.d.ts';
 
+// 每个终端上报的滚动单位对应的行数；越大越快，可设为 0.5、1.5 等小数。
+// SGR 鼠标协议没有原始像素距离，滚动距离由收到的滚轮事件数量表示。
+const SCROLL_SPEED = 1;
+
 export class TerminalController {
   readonly model: TerminalModel;
   readonly renderer = new Renderer();
@@ -23,6 +27,9 @@ export class TerminalController {
   readonly plugins = new TerminalPlugins();
   commands: CommandInfo[] = [];
   ready = false;
+  scrollSpeed = SCROLL_SPEED;
+  private wheelRemainder = 0;
+  private wheelTarget?: TerminalModel['active'] | TerminalModel['panel'];
   private coreTasks: TaskSnapshot[] = [];
   private terminalExecutions = new Map<
     string,
@@ -52,7 +59,7 @@ export class TerminalController {
   onOutput?: (text: string) => void;
   onExit?: () => Promise<void>;
   onCopy?: (text: string) => Promise<void>;
-  constructor(model: TerminalModel, core: CoreConnection) {
+  constructor (model: TerminalModel, core: CoreConnection) {
     this.model = model;
     this.plugins.preferences = model.pluginPreferences;
     this.core = core;
@@ -248,12 +255,12 @@ export class TerminalController {
     };
     this.plugins.completeCore = (request) => this.core.call('command.complete', request);
   }
-  async start() {
+  async start () {
     this.expectedStop = false;
     this.lastStart = Date.now();
     await this.core.start(this.model.output.id);
   }
-  private changed() {
+  private changed () {
     this.model.commands = [...this.commands, ...this.plugins.list()];
     this.model.globalExtensions = this.plugins.list('global').map((item) => ({
       name: item.name,
@@ -263,14 +270,14 @@ export class TerminalController {
     this.scheduleCompletion();
     this.onChange?.();
   }
-  private invalidateCompletion() {
+  private invalidateCompletion () {
     this.completionVersion++;
     this.completionKey = undefined;
     this.completionWork = undefined;
     clearTimeout(this.completionTimer);
     this.model.clearServiceCompletion();
   }
-  private scheduleCompletion() {
+  private scheduleCompletion () {
     const key = this.model.completionKey;
     if (key === this.completionKey) {
       return;
@@ -283,7 +290,7 @@ export class TerminalController {
     }
     this.completionTimer = setTimeout(() => void this.refreshCompletion(), 60);
   }
-  private refreshCompletion() {
+  private refreshCompletion () {
     clearTimeout(this.completionTimer);
     if (this.completionWork) {
       return this.completionWork;
@@ -313,7 +320,7 @@ export class TerminalController {
     })();
     return this.completionWork;
   }
-  private async resolvePluginConflict(conflict: CommandConflict): Promise<ConflictChoice> {
+  private async resolvePluginConflict (conflict: CommandConflict): Promise<ConflictChoice> {
     if (this.inputEnded) {
       throw new InvocationInputError('closed', '输入流已关闭');
     }
@@ -337,7 +344,7 @@ export class TerminalController {
             ? ['a', 'b', 'c']
             : ['a', 'b'];
         let text = prompt;
-        for (;;) {
+        for (; ;) {
           const [error, answer] = await this.model.nextChoice(text);
           if (error) {
             throw error;
@@ -354,7 +361,7 @@ export class TerminalController {
             choice === 'a' ? ['second'] : choice === 'b' ? ['first'] : ['first', 'second'];
           for (const participant of participants) {
             let message = `为${participant === 'first' ? '第一个' : '第二个'}插件 ${conflict[participant].label} 输入新简短标识`;
-            for (;;) {
+            for (; ;) {
               const [error, value] = await this.model.next(message);
               if (error) {
                 throw error;
@@ -380,7 +387,7 @@ export class TerminalController {
     }
     return choice;
   }
-  private askInput(
+  private askInput (
     request: InputRequest,
     answer: (value?: string, error?: InputFailure) => Promise<unknown>,
   ) {
@@ -424,7 +431,7 @@ export class TerminalController {
       text: request.message,
     });
   }
-  async endInput() {
+  async endInput () {
     if (this.inputEnded) {
       return;
     }
@@ -441,7 +448,7 @@ export class TerminalController {
     );
     this.changed();
   }
-  private async answerInput(value: string) {
+  private async answerInput (value: string) {
     const window = this.model.active;
     const input = window.input;
     if (!input) {
@@ -451,7 +458,7 @@ export class TerminalController {
     await input.answer(value);
     this.changed();
   }
-  async cancelInput() {
+  async cancelInput () {
     const window = this.model.active;
     const input = window.input;
     if (!input) {
@@ -462,11 +469,11 @@ export class TerminalController {
     this.changed();
     return true;
   }
-  private error(error: unknown) {
+  private error (error: unknown) {
     this.model.message = error instanceof Error ? error.message : String(error);
     this.output({ windowId: this.model.output.id, text: this.model.message });
   }
-  output(value: OutputEvent) {
+  output (value: OutputEvent) {
     if (value.executionId && this.discardedPanelExecutions.has(value.executionId)) {
       return;
     }
@@ -479,7 +486,7 @@ export class TerminalController {
     this.onOutput?.(sanitizeOutput(text));
     this.changed();
   }
-  private execution(event: ExecutionEvent, done: boolean) {
+  private execution (event: ExecutionEvent, done: boolean) {
     if (event.executionId && event.windowId) {
       // Child executions share output but never replace the parent window's title.
       const parent = this.model.byId(event.windowId)?.task;
@@ -500,7 +507,7 @@ export class TerminalController {
     }
     this.changed();
   }
-  private updateTerminalExecutions() {
+  private updateTerminalExecutions () {
     for (const [id, execution] of this.terminalExecutions) {
       if (!execution.returned || this.plugins.registry.busy(id)) {
         continue;
@@ -524,7 +531,7 @@ export class TerminalController {
     }
     this.changed();
   }
-  private async validate(command: string) {
+  private async validate (command: string) {
     const parts = splitCommand(command);
     if (!parts.length) {
       throw new Error('未提供命令');
@@ -534,7 +541,7 @@ export class TerminalController {
     }
     return parts;
   }
-  private async execute(windowId: string, command: string) {
+  private async execute (windowId: string, command: string) {
     const window = this.model.byId(windowId);
     if (!window || window.kind === 'output') {
       throw new Error('输出窗口不能执行命令');
@@ -587,7 +594,7 @@ export class TerminalController {
     }
     this.changed();
   }
-  private async cancel(executionId: string, force = false): Promise<boolean> {
+  private async cancel (executionId: string, force = false): Promise<boolean> {
     const window = this.model.windows.find((item) => item.task?.executionId === executionId);
     if (window?.task) {
       window.task.status = 'cancelling';
@@ -601,12 +608,12 @@ export class TerminalController {
     const [core, terminal] = await Promise.all([
       this.core.peer
         ? this.core
-            .call<{ cancelled: boolean; needsForce?: boolean }>(
-              'command.cancel',
-              { executionId, force },
-              5000,
-            )
-            .catch(() => ({ cancelled: false, needsForce: true }))
+          .call<{ cancelled: boolean; needsForce?: boolean }>(
+            'command.cancel',
+            { executionId, force },
+            5000,
+          )
+          .catch(() => ({ cancelled: false, needsForce: true }))
         : Promise.resolve({ cancelled: true }),
       this.plugins.cancel(executionId, force),
     ]);
@@ -618,7 +625,7 @@ export class TerminalController {
     }
     return false;
   }
-  private async cancelThen(executionId: string, action: () => Promise<void> | void) {
+  private async cancelThen (executionId: string, action: () => Promise<void> | void) {
     if (await this.cancel(executionId)) {
       await action();
       return;
@@ -631,12 +638,12 @@ export class TerminalController {
     }
     this.changed();
   }
-  private panelOutput(text: string) {
+  private panelOutput (text: string) {
     this.model.writePanel(text);
     this.onOutput?.(sanitizeOutput(text));
     this.changed();
   }
-  private retirePanelExecutions() {
+  private retirePanelExecutions () {
     for (const id of this.panelExecutions) {
       this.discardedPanelExecutions.add(id);
     }
@@ -648,7 +655,7 @@ export class TerminalController {
       }
     }
   }
-  private async interact(command: string, action: () => Promise<void>) {
+  private async interact (command: string, action: () => Promise<void>) {
     if (this.model.panel?.running) {
       throw new Error('全局命令仍在执行或等待输入');
     }
@@ -667,9 +674,9 @@ export class TerminalController {
     // Yield at each next() so keyboard and piped answers can advance the same command.
     await Promise.race([work, panel.step.promise]);
   }
-  private async confirm(text: string) {
+  private async confirm (text: string) {
     let prompt = text;
-    for (;;) {
+    for (; ;) {
       const [error, answer] = await this.model.nextChoice(
         `${prompt}\n输入 :y 确认 / :n 取消，然后按 Enter`,
       );
@@ -683,7 +690,7 @@ export class TerminalController {
       prompt = `请输入 :y 或 :n\n${text}`;
     }
   }
-  private async answerPanel(value: string) {
+  private async answerPanel (value: string) {
     const panel = this.model.panel;
     if (!panel?.input) {
       return;
@@ -693,11 +700,11 @@ export class TerminalController {
     await Promise.race([this.interaction ?? Promise.resolve(), panel.step.promise]);
     this.changed();
   }
-  async global(raw: string) {
+  async global (raw: string) {
     this.model.recordGlobal(raw.replace(/^:/, '').trim());
     await this.interact(raw.replace(/^:/, ''), () => this.executeGlobal(raw));
   }
-  private async executeGlobal(raw: string) {
+  private async executeGlobal (raw: string) {
     const text = raw.replace(/^:/, '').trim();
     const [name, ...args] = splitCommand(text);
     const count = (min: number, max = min) => {
@@ -796,16 +803,16 @@ export class TerminalController {
       count(0);
       this.panelOutput(
         '全局命令（含空格的参数请加引号）\n' +
-          this.model.globalCommands
-            .map(
-              (item) =>
-                `:${item.usage}${item.aliases?.length ? ` (${item.aliases.map((alias) => ':' + alias).join('/')})` : ''}  ${item.description}`,
-            )
-            .join('\n') +
-          '\n命令标签：直接输入 · ↑/↓ 历史（含草稿） · Enter 执行\n空输入：: 全局命令 · Tab/Shift+Tab 切换标签 · ←/→ 滚动标签栏\n输入：Tab/Shift+Tab 补全 · Shift+←/→ 选中 · Ctrl/Cmd+←/→ 按空格分词跳转 · Alt/Option+←/→ 头尾跳转（可加 Shift 选中）\n拖动选中输出 · Ctrl/Cmd+C 复制选中项 · Esc 取消选中或关闭底栏\n底栏输出：↑/↓ 或鼠标滚轮滚动 · : 继续输入 · Esc 丢弃\n可执行命令：\n' +
-          [...this.commands, ...this.plugins.list()]
-            .map((item) => `${item.name} ${item.description ?? ''}`)
-            .join('\n'),
+        this.model.globalCommands
+          .map(
+            (item) =>
+              `:${item.usage}${item.aliases?.length ? ` (${item.aliases.map((alias) => ':' + alias).join('/')})` : ''}  ${item.description}`,
+          )
+          .join('\n') +
+        '\n命令标签：直接输入 · ↑/↓ 历史（含草稿） · Enter 执行\n空输入：: 全局命令 · Tab/Shift+Tab 切换标签 · ←/→ 滚动标签栏\n输入：Tab/Shift+Tab 补全 · Shift+←/→ 选中 · Ctrl/Cmd+←/→ 按空格分词跳转 · Alt/Option+←/→ 头尾跳转（可加 Shift 选中）\n拖动选中输出 · Ctrl/Cmd+C 复制选中项 · Esc 取消选中或关闭底栏\n底栏输出：↑/↓ 或鼠标滚轮滚动 · : 继续输入 · Esc 丢弃\n可执行命令：\n' +
+        [...this.commands, ...this.plugins.list()]
+          .map((item) => `${item.name} ${item.description ?? ''}`)
+          .join('\n'),
       );
       clear();
     } else if (name === 'rename') {
@@ -833,6 +840,7 @@ export class TerminalController {
         this.model.active.bytes = 0;
         this.model.active.scroll = 0;
         this.model.active.anchor = undefined;
+        this.model.active.restoredHistoryEnd = undefined;
       }
       if (target !== 'output') {
         this.model.active.history = [];
@@ -855,7 +863,7 @@ export class TerminalController {
     }
     this.changed();
   }
-  async lifecycle(restart: boolean, confirmed = false, force = false) {
+  async lifecycle (restart: boolean, confirmed = false, force = false) {
     if (!this.model.panel?.running) {
       await this.interact(restart ? 'restart' : 'q', () =>
         this.lifecycle(restart, confirmed, force),
@@ -867,8 +875,8 @@ export class TerminalController {
     }
     const tasks = this.core.peer
       ? await this.core
-          .call<TaskSnapshot[]>('tasks.snapshot', undefined, 1000)
-          .catch(() => this.coreTasks)
+        .call<TaskSnapshot[]>('tasks.snapshot', undefined, 1000)
+        .catch(() => this.coreTasks)
       : [];
     if (
       !confirmed &&
@@ -886,8 +894,8 @@ export class TerminalController {
       this.plugins.cancel(undefined, force),
       this.core.peer
         ? this.core
-            .call<{ cancelled: boolean }>('command.cancel', { force }, 5000)
-            .catch(() => ({ cancelled: false }))
+          .call<{ cancelled: boolean }>('command.cancel', { force }, 5000)
+          .catch(() => ({ cancelled: false }))
         : Promise.resolve({ cancelled: true }),
     ]);
     if ((!local || !cancelled.cancelled) && !force) {
@@ -924,7 +932,7 @@ export class TerminalController {
       await this.onExit?.();
     }
   }
-  async key(key: Key) {
+  async key (key: Key) {
     const copying = key.name === 'c' && (key.ctrl || key.meta);
     if (
       this.pending &&
@@ -1132,17 +1140,17 @@ export class TerminalController {
       this.changed();
     }
   }
-  private canEnterGlobal() {
+  private canEnterGlobal () {
     return (
       this.model.mode === 'normal' &&
       !this.model.active.input &&
       (this.model.active.kind !== 'command' || !this.model.active.draft)
     );
   }
-  private scrollTabs(direction: number, columns = false) {
+  private scrollTabs (direction: number, columns = false) {
     this.renderer.scrollTabs(this.model, direction, columns);
   }
-  private mouse(key: Key) {
+  private mouse (key: Key) {
     const mouse = key.mouse;
     if (!mouse) {
       return;
@@ -1162,10 +1170,25 @@ export class TerminalController {
       return;
     }
     if (mouse.button & 64) {
-      const amount = mouse.button & 1 ? -3 : 3;
+      const distance = mouse.button & 1 ? -1 : 1;
       if (mouse.row === 0) {
-        this.scrollTabs(-amount, true);
-      } else if (this.renderer.panelAt(mouse.row) && this.model.panel) {
+        this.scrollTabs(-distance * 3, true);
+        this.wheelTarget = undefined;
+        this.wheelRemainder = 0;
+        return;
+      }
+      const panel = this.renderer.panelAt(mouse.row) ? this.model.panel : undefined;
+      const target = panel ?? this.model.active;
+      // Keep sub-row distances within their own window or panel.
+      const rows =
+        (this.wheelTarget === target ? this.wheelRemainder : 0) + distance * this.scrollSpeed;
+      const amount = Math.trunc(rows);
+      this.wheelRemainder = rows - amount;
+      this.wheelTarget = target;
+      if (!amount) {
+        return;
+      }
+      if (panel) {
         this.renderer.scrollPanel(this.model, amount);
       } else {
         this.renderer.scroll(this.model, amount);
@@ -1184,7 +1207,7 @@ export class TerminalController {
       this.renderer.beginSelection(this.model, mouse.column, mouse.row);
     }
   }
-  async line(line: string) {
+  async line (line: string) {
     const notice = this.model.message;
     try {
       if (this.model.panel?.input) {
@@ -1210,7 +1233,7 @@ export class TerminalController {
     }
     this.changed();
   }
-  async dispose() {
+  async dispose () {
     clearTimeout(this.completionTimer);
     this.invalidateCompletion();
     this.closing = true;

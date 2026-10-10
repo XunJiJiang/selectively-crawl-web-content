@@ -21,6 +21,8 @@ export interface WindowState {
   lines: string[];
   bytes: number;
   lineOffset: number;
+  /** Display-only boundary between restored output and this session's output. */
+  restoredHistoryEnd?: number;
   anchor?: { line: number; offset: number };
   scroll: number;
   history: string[];

@@ -82,7 +82,9 @@ export class StateStore {
       globalHistory: model.globalHistory,
       pluginPreferences: model.pluginPreferences,
       transparentBackground: model.transparentBackground,
-      windows: model.windows.map(({ input: _input, ...window }) => window),
+      windows: model.windows.map(
+        ({ input: _input, restoredHistoryEnd: _restoredHistoryEnd, ...window }) => window,
+      ),
     });
     this.writing = this.writing
       .catch(() => undefined)
@@ -186,6 +188,9 @@ export function restoreState(value: unknown): TerminalModel {
       historyDraft: typeof entry.historyDraft === 'string' ? entry.historyDraft : '',
       scroll: Math.max(0, Math.min(lines.length, Number(entry.scroll) || 0)),
     };
+    if (lines.length) {
+      window.restoredHistoryEnd = window.lineOffset + lines.length;
+    }
     if (
       entry.anchor &&
       Number.isInteger(entry.anchor.line) &&

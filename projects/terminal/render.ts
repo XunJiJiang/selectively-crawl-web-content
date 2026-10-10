@@ -4,6 +4,7 @@ import type { TerminalModel, WindowState } from './model.ts';
 import { sanitizeOutput } from './model.ts';
 
 const spinner = [...'⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'];
+const FRAME_INTERVAL_MS = 1000 / 60;
 const colors = {
   text: '226;232;240',
   muted: '148;163;184',
@@ -15,6 +16,8 @@ const colors = {
   normal: '30;58;95',
   global: '76;29;149',
   confirmation: '120;53;15',
+  restoredPadding: '240;240;240',
+  restoredLabel: '173;216;230',
 };
 interface Hit {
   from: number;
@@ -26,6 +29,7 @@ interface Row {
   text: string;
   line: number;
   offset: number;
+  displayOnly?: boolean;
 }
 export class Renderer {
   width = 80;
@@ -43,6 +47,8 @@ export class Renderer {
     { width: number; bytes: number; count: number; rows: Row[] }
   >();
   private last = '';
+  private paintTimer?: NodeJS.Timeout;
+  private lastPaintAt = -Infinity;
   private regions = new Map<string, Row[]>();
   private cells = new Map<number, { region: string; index: number }>();
   private inputHit?: { row: number; prefix: number; offset: number; text: string };
@@ -180,6 +186,8 @@ export class Renderer {
   scroll(model: TerminalModel, amount: number) {
     const maximum = Math.max(0, this.scrollRows.length - this.viewHeight);
     const start = Math.max(0, Math.min(maximum, this.viewStart - amount));
+    // Accumulate wheel events even when the next frame has not been painted yet.
+    this.viewStart = start;
     if (start === maximum) {
       model.active.anchor = undefined;
       model.active.scroll = 0;
@@ -274,6 +282,9 @@ export class Renderer {
           continue;
         }
         const row = rows[index];
+        if (row.displayOnly) {
+          continue;
+        }
         const { plain, start, end } = this.bounds(row.text, range.from, range.to);
         if (previous && row.line !== previous.line) {
           text += '\n';
@@ -519,6 +530,22 @@ export class Renderer {
         rows,
       });
     }
+    const restoredEnd = window.restoredHistoryEnd;
+    if (
+      restoredEnd !== undefined &&
+      restoredEnd > window.lineOffset &&
+      restoredEnd <= window.lineOffset + window.lines.length
+    ) {
+      const boundary = rows.findIndex((row) => row.line >= restoredEnd);
+      rows = [...rows];
+      rows.splice(boundary < 0 ? rows.length : boundary, 0, {
+        text: '    还原的历史记录 ',
+        line: restoredEnd,
+        // Sort before the next real output row when restoring a scrolling anchor.
+        offset: -1,
+        displayOnly: true,
+      });
+    }
     this.regions.set(region, rows);
     const inline = window.kind === 'command' || Boolean(window.input);
     const inlineActive = inline && model.mode === 'normal';
@@ -561,6 +588,13 @@ export class Renderer {
             caret = { row: screenRow, column: input.column };
           }
           return this.style(this.fit(input.text, this.width), colors.text, background);
+        }
+        if (row.displayOnly) {
+          return this.fit(
+            this.style('    ', '0;0;0', colors.restoredPadding) +
+              this.style('还原的历史记录 ', '0;0;0', colors.restoredLabel),
+            this.width,
+          );
         }
         this.cells.set(screenRow, { region, index: sourceIndex });
         return this.style(
@@ -653,6 +687,24 @@ export class Renderer {
     return text
       .split('\n')
       .flatMap((line, index) => this.wrapRows(line, index).map((row) => row.text));
+  }
+  schedulePaint(model: TerminalModel, output: NodeJS.WriteStream) {
+    if (this.paintTimer) {
+      return;
+    }
+    const delay = Math.max(
+      0,
+      Math.ceil(FRAME_INTERVAL_MS - (performance.now() - this.lastPaintAt)),
+    );
+    this.paintTimer = setTimeout(() => {
+      this.paintTimer = undefined;
+      this.lastPaintAt = performance.now();
+      this.paint(model, output);
+    }, delay);
+  }
+  cancelPaint() {
+    clearTimeout(this.paintTimer);
+    this.paintTimer = undefined;
   }
   paint(model: TerminalModel, output: NodeJS.WriteStream) {
     this.width = Math.max(1, output.columns || 80);

@@ -33,7 +33,6 @@ export async function startTerminal(args: string[] = process.argv.slice(2)) {
   controller.onCopy = (text) => copyText(text, process.stdout);
   let dirty = false;
   let stopped = false;
-  let paintTimer: NodeJS.Timeout | undefined;
   const stop = Promise.withResolvers<void>();
   const decoder = new InputDecoder((key) => {
     void controller.key(key);
@@ -41,17 +40,12 @@ export async function startTerminal(args: string[] = process.argv.slice(2)) {
   const data = (chunk: Buffer) => decoder.feed(chunk);
   const paint = () => {
     if (tty) {
-      controller.renderer.paint(model, process.stdout);
+      controller.renderer.schedulePaint(model, process.stdout);
     }
   };
   controller.onChange = () => {
     dirty = true;
-    if (!paintTimer) {
-      paintTimer = setTimeout(() => {
-        paintTimer = undefined;
-        paint();
-      }, 16);
-    }
+    paint();
   };
   controller.onOutput = (text) => {
     if (!tty) {
@@ -129,7 +123,7 @@ export async function startTerminal(args: string[] = process.argv.slice(2)) {
     stopped = true;
     clearInterval(animate);
     clearInterval(persist);
-    clearTimeout(paintTimer);
+    controller.renderer.cancelPaint();
     decoder.dispose();
     reader?.close();
     process.stdin.off('data', data);

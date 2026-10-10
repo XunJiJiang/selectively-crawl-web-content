@@ -1,7 +1,7 @@
 {
   "version": 1,
   "created_at": "2026-10-08T13:03:04Z",
-  "updated_at": "2026-10-10T09:52:13Z",
+  "updated_at": "2026-10-10T10:46:46Z",
   "files": {
     ".gitattributes": {
       "role": "index",
@@ -53,9 +53,9 @@
     },
     "aoci.code.txt": {
       "role": "index",
-      "sha256": "f91138f3e212142be8315266b833115bdf88e564621d6ef0efd286f4a45e1b70",
-      "size": 176134,
-      "normalized_sha256": "f91138f3e212142be8315266b833115bdf88e564621d6ef0efd286f4a45e1b70"
+      "sha256": "eaa3d9649d72045f2b438508d952f549713ad361b48134d251136382101d443c",
+      "size": 176713,
+      "normalized_sha256": "eaa3d9649d72045f2b438508d952f549713ad361b48134d251136382101d443c"
     },
     "aoci.meta.txt": {
       "role": "index",
@@ -131,9 +131,9 @@
     },
     "docs/待办设计.md": {
       "role": "observe",
-      "sha256": "2445d8495995db60f1b4e5d289a90b3bf8bc7c4edfe727b497b292805ce5bd49",
-      "size": 328,
-      "normalized_sha256": "2445d8495995db60f1b4e5d289a90b3bf8bc7c4edfe727b497b292805ce5bd49"
+      "sha256": "2521efecff31c5b94c6fda72b475a1a39cc0eedc1464c7f7c7b30f6a3d3dac66",
+      "size": 15,
+      "normalized_sha256": "2521efecff31c5b94c6fda72b475a1a39cc0eedc1464c7f7c7b30f6a3d3dac66"
     },
     "docs/核心部署.md": {
       "role": "observe",
@@ -514,6 +514,18 @@
       "normalized_sha256": "c28b48b0eb5a632c2bcbc84f8f27a9dde692fb8229b4a5f388bc9e369460d2c8"
     },
     "projects/server/public/lib/scwcutils.iife.mv26gsgh.js": {
+      "role": "index",
+      "sha256": "47c661ff9fa7ed8d7d6102ee800c187e36925d71c7aca6ba050a009bb8f401e3",
+      "size": 40832,
+      "normalized_sha256": "47c661ff9fa7ed8d7d6102ee800c187e36925d71c7aca6ba050a009bb8f401e3"
+    },
+    "projects/server/public/lib/scwcutils.iife.mv2860av.js": {
+      "role": "index",
+      "sha256": "c28b48b0eb5a632c2bcbc84f8f27a9dde692fb8229b4a5f388bc9e369460d2c8",
+      "size": 52376,
+      "normalized_sha256": "c28b48b0eb5a632c2bcbc84f8f27a9dde692fb8229b4a5f388bc9e369460d2c8"
+    },
+    "projects/server/public/lib/scwcutils.iife.mv2860ba.js": {
       "role": "index",
       "sha256": "47c661ff9fa7ed8d7d6102ee800c187e36925d71c7aca6ba050a009bb8f401e3",
       "size": 40832,
@@ -6589,15 +6601,15 @@
     },
     "projects/terminal/controller.test.ts": {
       "role": "index",
-      "sha256": "d24037129d8d620ceaa097f1cd0f307b5f0a4a4b580f2cd8b2dff3a78054e730",
-      "size": 15843,
-      "normalized_sha256": "d24037129d8d620ceaa097f1cd0f307b5f0a4a4b580f2cd8b2dff3a78054e730"
+      "sha256": "e055d3250a439b0ce6190baf03c16f325227e31a86ba88aee44cbdbc13a3bac0",
+      "size": 20101,
+      "normalized_sha256": "e055d3250a439b0ce6190baf03c16f325227e31a86ba88aee44cbdbc13a3bac0"
     },
     "projects/terminal/controller.ts": {
       "role": "index",
-      "sha256": "9c8f21d44d1ff15a9c36e30c85c4d58933d371158b41e461a8f593d8d9b031f0",
-      "size": 44608,
-      "normalized_sha256": "9c8f21d44d1ff15a9c36e30c85c4d58933d371158b41e461a8f593d8d9b031f0"
+      "sha256": "abbabacbacddaf274f915ef707e076aa69316b05fd598f67ed246b79efe6556d",
+      "size": 45548,
+      "normalized_sha256": "abbabacbacddaf274f915ef707e076aa69316b05fd598f67ed246b79efe6556d"
     },
     "projects/terminal/core.ts": {
       "role": "index",
@@ -6619,9 +6631,9 @@
     },
     "projects/terminal/index.ts": {
       "role": "index",
-      "sha256": "7fdf6cf1160cc7ddfe77012fe36d2c3c86dccec984652db823498c6e4d7301c8",
-      "size": 6757,
-      "normalized_sha256": "7fdf6cf1160cc7ddfe77012fe36d2c3c86dccec984652db823498c6e4d7301c8"
+      "sha256": "81d8f926d6abb8337c278ee4dc49a61a9495b2e9db138132f2436c2c4d89e99a",
+      "size": 6611,
+      "normalized_sha256": "81d8f926d6abb8337c278ee4dc49a61a9495b2e9db138132f2436c2c4d89e99a"
     },
     "projects/terminal/input.ts": {
       "role": "index",
@@ -6631,15 +6643,15 @@
     },
     "projects/terminal/model.test.ts": {
       "role": "index",
-      "sha256": "f1f3a4692766504a4d2fe844196ddff8e0ecfeec15a76632c3fc2b3c9f01359d",
-      "size": 8352,
-      "normalized_sha256": "f1f3a4692766504a4d2fe844196ddff8e0ecfeec15a76632c3fc2b3c9f01359d"
+      "sha256": "432c947bc5b7160911ae70c276c143aaf0e1187bb909e2d504b1653a806d2937",
+      "size": 11395,
+      "normalized_sha256": "432c947bc5b7160911ae70c276c143aaf0e1187bb909e2d504b1653a806d2937"
     },
     "projects/terminal/model.ts": {
       "role": "index",
-      "sha256": "2d407d4ead8f69ca085ef3d4e69a0bc27087e8eef17bf99d7a013521910c303a",
-      "size": 22498,
-      "normalized_sha256": "2d407d4ead8f69ca085ef3d4e69a0bc27087e8eef17bf99d7a013521910c303a"
+      "sha256": "9ad5cd8ed9a380bd7122663797d4781ff3d0a9c14c37fae3fc3adea60954edae",
+      "size": 22611,
+      "normalized_sha256": "9ad5cd8ed9a380bd7122663797d4781ff3d0a9c14c37fae3fc3adea60954edae"
     },
     "projects/terminal/package.json": {
       "role": "index",
@@ -6775,9 +6787,9 @@
     },
     "projects/terminal/render.ts": {
       "role": "index",
-      "sha256": "503e3280e429282e5f2c8ddb4aab65458aa263d1a6ccbc051dcaf5334444f006",
-      "size": 24387,
-      "normalized_sha256": "503e3280e429282e5f2c8ddb4aab65458aa263d1a6ccbc051dcaf5334444f006"
+      "sha256": "43f21e5902660ad3577df16b458ed38e7fc283b655d210606968fe5ef84b42d7",
+      "size": 26093,
+      "normalized_sha256": "43f21e5902660ad3577df16b458ed38e7fc283b655d210606968fe5ef84b42d7"
     },
     "projects/terminal/smoke.ts": {
       "role": "index",
@@ -6787,15 +6799,15 @@
     },
     "projects/terminal/storage.test.ts": {
       "role": "index",
-      "sha256": "6addef36e60e5eb03561c05fbb4743c5ce77c91e7bb1dbb7e6eba3f1b83005ef",
-      "size": 2476,
-      "normalized_sha256": "6addef36e60e5eb03561c05fbb4743c5ce77c91e7bb1dbb7e6eba3f1b83005ef"
+      "sha256": "058b3c2bbc50cd073c34f0c8c5140b286823ca4ec911bb64ef612e335d59513c",
+      "size": 3842,
+      "normalized_sha256": "058b3c2bbc50cd073c34f0c8c5140b286823ca4ec911bb64ef612e335d59513c"
     },
     "projects/terminal/storage.ts": {
       "role": "index",
-      "sha256": "52fe8b206d1dfa6290fda960c1f3cdcbcf1da4e646e2ef12507980eb5f7e630d",
-      "size": 9032,
-      "normalized_sha256": "52fe8b206d1dfa6290fda960c1f3cdcbcf1da4e646e2ef12507980eb5f7e630d"
+      "sha256": "43624192829a7fcabc7bf28acdec30c612f9dc736a1597fd48266a4a055bfec9",
+      "size": 9188,
+      "normalized_sha256": "43624192829a7fcabc7bf28acdec30c612f9dc736a1597fd48266a4a055bfec9"
     },
     "projects/terminal/vitest.config.ts": {
       "role": "index",
