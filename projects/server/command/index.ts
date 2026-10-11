@@ -184,6 +184,23 @@ export function registerDefaultCommands(serverLogger: SCWC.TLogger) {
         },
       },
     ],
+    [],
+    undefined,
+    undefined,
+    (command, parents, _cache, subCommand, isKey, isValue) => {
+      // These subcommands each accept exactly one directory name, without options.
+      const candidates =
+        parents.length !== 2 || isKey || isValue
+          ? []
+          : subCommand === 'enable'
+            ? inactivePlugins
+            : subCommand === 'disable' || subCommand === 'reload'
+              ? plugins
+              : subCommand === 'build-web'
+                ? plugins.filter((plugin) => Boolean(plugin.handler?.ui?.entry))
+                : [];
+      return { command, commands: candidates.map((plugin) => plugin.pluginId) };
+    },
   );
 }
 

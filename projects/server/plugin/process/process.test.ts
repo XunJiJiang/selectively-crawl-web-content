@@ -8,9 +8,10 @@ import express from 'express';
 import { WebSocket } from 'ws';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PluginProcessClient } from './client.ts';
-import { taskRegistry, invocationStorage } from '../../common/tasks.ts';
+import { taskRegistry, invocationStorage, outputWindowId } from '../../common/tasks.ts';
 import { setInputHandler } from '../../common/interaction.ts';
 import { setLogSink } from '../../utils/log.ts';
+import { createCommandCompletionCache } from '../../utils/commandCompletion.ts';
 import apiRouter, {
   registerPluginApi,
   registerPluginResources,
@@ -175,6 +176,101 @@ afterEach(async () => {
 });
 
 describe('isolated plugin host', () => {
+  it('runs candidate callbacks in the host with a retained cache, output routing and cancellation without command deadlines', async () => {
+    const c = setup({
+      timeout: 100,
+      source: `
+      export default { onRequest() {}, pluginConfig: { command: {
+        execute(_logger, _options, _unused, _origin, context) {
+          const handle = context.tasks.begin('concurrent command');
+          context.signal.addEventListener('abort', () => handle.end(), {once: true});
+        },
+        async complete(raw, parents, cache, sub, isKey, isValue, key, context) {
+          const previous = cache.get('requests');
+          cache.set('requests', (previous?.value ?? 0) + 1);
+          console.log('candidate-cache:' + cache.get('requests').value);
+          process.stdout.write('candidate-raw-out');
+          process.stderr.write(Buffer.from('candidate-raw-error'));
+          if (raw.endsWith('wait')) {
+            console.log('candidate-waiting');
+            await new Promise(resolve => context.signal.addEventListener('abort', () => {
+              console.log('candidate-aborted'); resolve();
+            }, {once: true}));
+          } else {
+            await new Promise(resolve => setTimeout(resolve, 150));
+          }
+          return {command: raw, commands: [String(cache.get('requests').value), sub, key ?? 'plain']};
+        }
+      } } };
+    `,
+    });
+    const events: { windowId: string | null; text: string }[] = [];
+    setLogSink((event) => events.push(event));
+    const handler = await c.client.start();
+    const background = taskRegistry.create('test', {
+      executionId: 'completion-background',
+      windowId: 'command-output',
+    });
+    await invocationStorage.run(background.context, () =>
+      must(handler.pluginConfig?.command?.execute)(
+        c.logger,
+        [],
+        [],
+        ['fixture'],
+        background.context,
+      ),
+    );
+    background.finish();
+    await expect
+      .poll(() => taskRegistry.list().some((item) => item.owner === c.client.owner && item.busy))
+      .toBe(true);
+    const previousTasks = taskRegistry
+      .list()
+      .filter((item) => item.owner === c.client.owner && item.identity)
+      .map((item) => item.id);
+    const complete = must(handler.pluginConfig?.command?.complete);
+    const cache = createCommandCompletionCache();
+    const request = (raw: string, signal = new AbortController().signal) =>
+      complete(raw, ['fixture', 'build'], cache, 'build', true, true, 'mode', {
+        signal,
+        logger: c.logger,
+      });
+    expect(await request('fixture build --mode=')).toMatchObject({
+      commands: ['1', 'build', 'mode'],
+    });
+    expect(await request('fixture build --mode=d')).toMatchObject({
+      commands: ['2', 'build', 'mode'],
+    });
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        windowId: outputWindowId,
+        text: expect.stringContaining('candidate-raw-out'),
+      }),
+    );
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        windowId: outputWindowId,
+        text: expect.stringContaining('candidate-raw-error'),
+      }),
+    );
+    const controller = new AbortController();
+    const pending = request('fixture build wait', controller.signal);
+    const rejected = expect(pending).rejects.toThrow();
+    await expect
+      .poll(() => events.some((event) => event.text.includes('candidate-waiting')))
+      .toBe(true);
+    controller.abort();
+    await rejected;
+    await expect
+      .poll(() => events.some((event) => event.text.includes('candidate-aborted')))
+      .toBe(true);
+    expect(
+      taskRegistry
+        .list()
+        .filter((item) => item.owner === c.client.owner && item.identity)
+        .map((item) => item.id),
+    ).toEqual(previousTasks);
+  });
   it('preserves burst and long output from both invocation and saved onLoad loggers', async () => {
     const c = setup({
       source: `

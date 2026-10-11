@@ -88,9 +88,9 @@ describe('core plugin runtime lifecycle', () => {
       expect(enabled()).toBe(true);
       expect(events()).toEqual(['load']);
       const first = requireActive();
-      expect(completeCommand({ command: 'life-command l', cursor: 14 }).items[0]?.description).toBe(
-        'list description',
-      );
+      expect(
+        (await completeCommand({ command: 'life-command l', cursor: 14 })).items[0]?.description,
+      ).toBe('list description');
       expect((await fetch(`${base}/api/${first.safeId}/value`)).status).toBe(200);
       expect(await (await fetch(`${base}/resources/${first.safeId}/text`)).text()).toBe('list');
       const connection = new WebSocket(
@@ -114,7 +114,9 @@ describe('core plugin runtime lifecycle', () => {
       expect((await fetch(`${base}/resources/${first.safeId}/text`)).status).toBe(404);
       expect((await (await fetch(`${base}/api/${second.safeId}/value`)).json()).data).toBe('fresh');
       expect(
-        completeCommand({ command: 'life-command ', cursor: 13 }).items.map((item) => item.name),
+        (await completeCommand({ command: 'life-command ', cursor: 13 })).items.map(
+          (item) => item.name,
+        ),
       ).toEqual(['fresh']);
       fs.writeFileSync(
         sourceFile,

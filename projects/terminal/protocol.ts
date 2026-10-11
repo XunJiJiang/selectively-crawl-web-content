@@ -12,8 +12,14 @@ export interface CommandInfo {
 export interface CompletionRequest {
   command: string;
   cursor: number;
+  /** Identifies a cancellable request and the input window that owns it. */
+  id?: string;
+  windowId?: string;
 }
 export interface CompletionResult {
+  /** Echo of the exact input, before any preview or replacement. */
+  command?: string;
+  inline?: boolean;
   from: number;
   to: number;
   items: { name: string; insertText: string; description?: string }[];

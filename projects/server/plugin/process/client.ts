@@ -5,7 +5,7 @@ import { RpcPeer } from './rpc.ts';
 import { PluginProcessError, type Manifest } from './protocol.ts';
 import { requestData, sendResource } from './resource.ts';
 import { isPackaged, PLUGIN_HOST } from '../../common/paths.ts';
-import { currentIdentity, taskRegistry } from '../../common/tasks.ts';
+import { currentIdentity, taskRegistry, outputWindowId } from '../../common/tasks.ts';
 import { inputReply, readInput } from '../../common/interaction.ts';
 import { colorEnvironment } from '../../common/color.ts';
 import { publishLog, type LogLevel } from '../../utils/log.ts';
@@ -519,6 +519,34 @@ export class PluginProcessClient {
         command: command
           ? {
               ...command,
+              complete: command.complete
+                ? async (raw, parents, _cache, sub, isKey, isValue, key, context) => {
+                    const id = randomUUID();
+                    const identity = {
+                      ...currentIdentity(),
+                      executionId: id,
+                      windowId: outputWindowId,
+                    };
+                    this.identities.set(id, identity);
+                    const cancel = () => this.peer.event('completion.cancel', { id });
+                    context.signal.addEventListener('abort', cancel, { once: true });
+                    try {
+                      return await this.peer.call(
+                        'command.complete',
+                        {
+                          values: [raw, parents, sub, isKey, isValue, key],
+                          identity,
+                        },
+                        0,
+                        id,
+                        context.signal,
+                      );
+                    } finally {
+                      context.signal.removeEventListener('abort', cancel);
+                      this.identities.delete(id);
+                    }
+                  }
+                : undefined,
               execute: async (_logger, options, unusedArgs, originArgs) => {
                 await this.call('command', { index: -1, args: [options, unusedArgs, originArgs] });
               },

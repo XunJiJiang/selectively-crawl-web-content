@@ -67,7 +67,16 @@ export class RpcPeer {
     }
   }
 
-  call<T>(method: string, args: unknown, timeoutMs: number, id: string = randomUUID()): Promise<T> {
+  call<T>(
+    method: string,
+    args: unknown,
+    timeoutMs: number,
+    id: string = randomUUID(),
+    signal?: AbortSignal,
+  ): Promise<T> {
+    if (signal?.aborted) {
+      return Promise.reject(signal.reason);
+    }
     if (this.closed) {
       return Promise.reject(new PluginProcessError('插件通信已关闭'));
     }
@@ -75,14 +84,27 @@ export class RpcPeer {
       return Promise.reject(new PluginProcessError('插件请求队列已满', 429, 'PLUGIN_BUSY'));
     }
     return new Promise<T>((resolve, reject) => {
+      const cleanup = () => signal?.removeEventListener('abort', abort);
+      const abort = () => {
+        this.pending.delete(id);
+        clearTimeout(pending.timer);
+        pending.reject(signal?.reason ?? new Error('插件请求已取消'));
+      };
       const pending: Pending = {
-        resolve: (value) => resolve(value as T),
-        reject,
+        resolve: (value) => {
+          cleanup();
+          resolve(value as T);
+        },
+        reject: (error) => {
+          cleanup();
+          reject(error);
+        },
         remaining: timeoutMs,
         deadline: 0,
         pauses: 0,
       };
       this.pending.set(id, pending);
+      signal?.addEventListener('abort', abort, { once: true });
       this.armTimeout(id, pending);
       void this.send({ version: 2, kind: 'call', id, method, args }).catch((error) => {
         const pending = this.pending.get(id);
@@ -91,7 +113,7 @@ export class RpcPeer {
         }
         this.pending.delete(id);
         clearTimeout(pending.timer);
-        reject(error);
+        pending.reject(error);
       });
     });
   }

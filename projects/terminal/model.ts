@@ -11,6 +11,7 @@ import type {
 import { InvocationInputError, formatInput, inputFormat } from '../server/common/interaction.ts';
 import { globalCommands, type GlobalCommandInfo } from './global.ts';
 import type { PluginPreferences } from './plugin/types.d.ts';
+import { completionInput } from './completion.ts';
 
 export type Mode = 'normal' | 'global' | 'global-output' | 'confirmation';
 export interface WindowState {
@@ -75,7 +76,21 @@ export function sanitizeOutput(text: string) {
 export class TerminalModel {
   windows: WindowState[] = [];
   activeId = '';
-  mode: Mode = 'normal';
+  private currentMode: Mode = 'normal';
+  get mode(): Mode {
+    return this.currentMode;
+  }
+  set mode(value: Mode) {
+    if (this.currentMode === 'global' && value !== 'global') {
+      this.globalDraft = '';
+      this.globalCursor = 0;
+      this.globalSelection = undefined;
+      this.globalHistoryDraft = '';
+      this.globalHistoryCursor = this.globalHistory.length;
+      this.clearServiceCompletion();
+    }
+    this.currentMode = value;
+  }
   globalDraft = '';
   globalCursor = 0;
   globalSelection?: number;
@@ -87,7 +102,12 @@ export class TerminalModel {
   pluginPreferences: PluginPreferences = {};
   completionIndex = 0;
   completionPreview = false;
-  private serviceCompletion?: { key: string; result: CompletionResult };
+  private serviceCompletion?: {
+    key: string;
+    result: CompletionResult;
+    owner?: string;
+    stem?: string;
+  };
   panel?: CommandPanel;
   transparentBackground = true;
   message = '';
@@ -486,8 +506,11 @@ export class TerminalModel {
     );
   }
   get candidates() {
-    if (this.serviceCompletion && this.serviceCompletion.key === this.completionKey) {
-      return this.serviceCompletion.result.items;
+    if (this.currentCompletion) {
+      const items = this.currentCompletion.result.items;
+      return this.inlineCompletionOpen
+        ? items.filter((item) => item.insertText.startsWith(this.completionInput.prefix))
+        : items;
     }
     return this.mode === 'global'
       ? this.globalCandidates
@@ -509,6 +532,34 @@ export class TerminalModel {
     }
     return JSON.stringify([this.mode, this.activeId, this.text, this.cursor]);
   }
+  get completionInput() {
+    return completionInput(this.text, this.cursor);
+  }
+  private get completionOwner() {
+    return JSON.stringify([this.mode, this.activeId]);
+  }
+  get inlineCompletionOpen() {
+    const input = this.completionInput;
+    return Boolean(
+      this.completionKey &&
+      input.deep &&
+      input.eligible &&
+      this.serviceCompletion?.result.inline &&
+      this.serviceCompletion.owner === this.completionOwner &&
+      this.serviceCompletion.stem === input.stem,
+    );
+  }
+  retainInlineCompletion() {
+    if (this.serviceCompletion?.result.inline && !this.inlineCompletionOpen) {
+      this.clearServiceCompletion();
+    }
+  }
+  private get currentCompletion() {
+    return this.serviceCompletion &&
+      (this.serviceCompletion.key === this.completionKey || this.inlineCompletionOpen)
+      ? this.serviceCompletion
+      : undefined;
+  }
   clearServiceCompletion() {
     this.serviceCompletion = undefined;
     this.completionPreview = false;
@@ -521,19 +572,23 @@ export class TerminalModel {
       !Number.isInteger(result.from) ||
       !Number.isInteger(result.to) ||
       result.from < 0 ||
-      result.from > this.cursor ||
-      result.to < this.cursor ||
+      (!result.inline && result.from > this.cursor) ||
+      (!result.inline && result.to < this.cursor) ||
+      result.from > result.to ||
       result.to > this.text.length ||
+      (result.inline && result.command !== this.text) ||
       !Array.isArray(result.items)
     ) {
       return;
     }
     this.serviceCompletion = {
       key,
+      owner: this.completionOwner,
+      stem: this.text.slice(0, result.from),
       result: {
         ...result,
         items: result.items
-          .slice(0, 512)
+          .slice(0, result.inline ? result.items.length : 512)
           .filter(
             (item) =>
               typeof item.name === 'string' &&
@@ -546,13 +601,13 @@ export class TerminalModel {
     this.completionIndex = Math.min(this.completionIndex, Math.max(0, this.candidates.length - 1));
   }
   private get selectedCompletion() {
-    return this.serviceCompletion && this.serviceCompletion.key === this.completionKey
-      ? this.serviceCompletion.result.items[this.completionIndex]
+    return this.currentCompletion
+      ? (this.candidates[this.completionIndex] as CompletionResult['items'][number] | undefined)
       : undefined;
   }
   get displayCursor() {
     const item = this.selectedCompletion;
-    const completion = this.serviceCompletion;
+    const completion = this.currentCompletion;
     return this.completionPreview
       ? item && completion
         ? completion.result.from + item.insertText.length
@@ -561,8 +616,10 @@ export class TerminalModel {
   }
   get displayText() {
     const item = this.selectedCompletion;
-    if (this.completionPreview && item && this.serviceCompletion) {
-      const { from, to } = this.serviceCompletion.result;
+    if (this.completionPreview && item && this.currentCompletion) {
+      const { from, to } = this.inlineCompletionOpen
+        ? this.completionInput
+        : this.currentCompletion.result;
       return this.text.slice(0, from) + item.insertText + this.text.slice(to);
     }
     return this.completionPreview
@@ -581,9 +638,9 @@ export class TerminalModel {
         : 0;
     this.completionPreview = true;
   }
-  commitGlobalCompletion() {
+  commitGlobalCompletion(moveToEnd = false) {
     if (this.completionPreview) {
-      this.setInput(this.displayText, this.displayCursor);
+      this.setInput(this.displayText, moveToEnd ? this.displayText.length : this.displayCursor);
       this.completionPreview = false;
     }
   }

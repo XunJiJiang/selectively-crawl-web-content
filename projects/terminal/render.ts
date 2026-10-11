@@ -378,27 +378,75 @@ export class Renderer {
       ? ` :${model.panel.command} · ${model.panel.input ? '等待输入' : model.panel.running ? '执行中' : '↑/↓ 滚动 · : 继续 · Esc 关闭'}`
       : ' 命令候选 · Tab / Shift+Tab';
     const candidates = model.candidates;
-    if (model.mode === 'global' || candidates.length) {
+    let candidateRow = model.completionIndex;
+    if (model.mode === 'global' || candidates.length || model.inlineCompletionOpen) {
       heading = ' 命令候选 · Tab / Shift+Tab';
-      if (candidates.length) {
+      if (model.inlineCompletionOpen && candidates.length) {
+        const rows: string[] = [];
+        let row = '';
+        let used = 0;
+        candidates.forEach((command, index) => {
+          const name = sanitizeOutput(command.name).replace(/\n/g, ' ');
+          const width = stringWidth(name);
+          if (used && used + 1 + width > this.width) {
+            rows.push(row);
+            row = '';
+            used = 0;
+          }
+          if (index === model.completionIndex) {
+            candidateRow = rows.length;
+          }
+          const selected = model.completionPreview && index === model.completionIndex;
+          if (width > this.width) {
+            rows.push(
+              ...this.wrap(name).map((part) =>
+                this.style(
+                  part,
+                  selected ? colors.accent : colors.text,
+                  selected ? colors.selected : colors.panel,
+                ),
+              ),
+            );
+          } else {
+            row +=
+              (used ? ' ' : '') +
+              this.style(
+                name,
+                selected ? colors.accent : colors.text,
+                selected ? colors.selected : colors.panel,
+              );
+            used += (used ? 1 : 0) + width;
+          }
+        });
+        if (row) {
+          rows.push(row);
+        }
+        content.push(...rows.map((text) => ({ text })));
+      } else if (candidates.length) {
         candidates.forEach((command, index) =>
           content.push({
             text: this.style(
               this.fit(
-                ` ${index === model.completionIndex ? '›' : ' '} ${model.mode === 'global' ? ':' : ''}${command.name}  ${command.description ?? ''}`,
+                ` ${model.completionPreview && index === model.completionIndex ? '›' : ' '} ${model.mode === 'global' ? ':' : ''}${command.name}  ${command.description ?? ''}`,
                 this.width,
               ),
-              index === model.completionIndex ? colors.accent : colors.text,
-              index === model.completionIndex ? colors.selected : colors.panel,
+              model.completionPreview && index === model.completionIndex
+                ? colors.accent
+                : colors.text,
+              model.completionPreview && index === model.completionIndex
+                ? colors.selected
+                : colors.panel,
             ),
           }),
         );
       } else {
         content.push(
           ...this.wrap(
-            model.globalHint
-              ? `:${model.globalHint.usage}\n${model.globalHint.description}`
-              : '没有匹配的全局命令',
+            model.inlineCompletionOpen
+              ? '没有匹配的命令候选'
+              : model.globalHint
+                ? `:${model.globalHint.usage}\n${model.globalHint.description}`
+                : '没有匹配的全局命令',
           ).map((text) => ({ text })),
         );
       }
@@ -419,7 +467,7 @@ export class Renderer {
     const visible = this.panelHeight - 1;
     let start = Math.max(0, content.length - visible - (model.panel?.scroll ?? 0));
     if (candidates.length) {
-      start = Math.max(0, output.length + model.completionIndex - visible + 1);
+      start = Math.max(0, output.length + candidateRow - visible + 1);
     }
     if (model.panel) {
       model.panel.scroll = Math.min(model.panel.scroll, Math.max(0, content.length - visible));
@@ -429,7 +477,7 @@ export class Renderer {
       const retained = Math.min(2, Math.max(0, visible - 1), output.length);
       const outputEnd = Math.max(retained, output.length - (model.panel?.scroll ?? 0));
       const candidateRows = visible - retained;
-      const candidateStart = output.length + Math.max(0, model.completionIndex - candidateRows + 1);
+      const candidateStart = output.length + Math.max(0, candidateRow - candidateRows + 1);
       visibleRows = [
         ...content.slice(outputEnd - retained, outputEnd),
         ...content.slice(candidateStart, candidateStart + candidateRows),

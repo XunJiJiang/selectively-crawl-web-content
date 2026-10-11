@@ -41,20 +41,46 @@ export class Peer {
       }
     });
   }
-  call<T = unknown>(method: string, args?: unknown, timeout = 10000): Promise<T> {
+  call<T = unknown>(
+    method: string,
+    args?: unknown,
+    timeout = 10000,
+    signal?: AbortSignal,
+  ): Promise<T> {
+    if (signal?.aborted) {
+      return Promise.reject(signal.reason);
+    }
     if (this.closed || this.pending.size >= 64) {
       return Promise.reject(new Error('终端通信不可用'));
     }
     const id = randomUUID();
     return new Promise<T>((resolve, reject) => {
+      const cleanup = () => signal?.removeEventListener('abort', abort);
+      const fail = (error: Error) => {
+        cleanup();
+        reject(error);
+      };
+      const abort = () => {
+        clearTimeout(timer);
+        this.pending.delete(id);
+        fail(signal?.reason ?? new Error('终端请求已取消'));
+      };
       const timer =
         timeout > 0
           ? setTimeout(() => {
               this.pending.delete(id);
-              reject(new Error(`终端请求超时：${method}`));
+              fail(new Error(`终端请求超时：${method}`));
             }, timeout)
           : undefined;
-      this.pending.set(id, { resolve: (value) => resolve(value as T), reject, timer });
+      this.pending.set(id, {
+        resolve: (value) => {
+          cleanup();
+          resolve(value as T);
+        },
+        reject: fail,
+        timer,
+      });
+      signal?.addEventListener('abort', abort, { once: true });
       void this.send({
         version: 1,
         sessionId: this.sessionId,
@@ -65,7 +91,7 @@ export class Peer {
       }).catch((error) => {
         clearTimeout(timer);
         this.pending.delete(id);
-        reject(error);
+        fail(error);
       });
     });
   }

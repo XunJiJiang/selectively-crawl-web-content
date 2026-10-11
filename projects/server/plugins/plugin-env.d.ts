@@ -67,6 +67,8 @@ namespace SCWC {
   export type TCommandExecute = import('../types/command.d.ts').TCommandExecute;
   export type TCommandOption = import('../types/command.d.ts').TCommandOption;
   export type TSubCommand = import('../types/command.d.ts').TSubCommand;
+  export type TCommandComplete = import('../types/command.d.ts').TCommandComplete;
+  export type CommandCompletionCache = import('../types/command.d.ts').CommandCompletionCache;
 
   export interface TDataItem {
     label: string;
@@ -276,6 +278,7 @@ namespace SCWC {
         subCommands?: TSubCommand[];
         options?: TCommandOption[];
         exampleUsage?: string;
+        complete?: TCommandComplete;
       };
       scripts?: {
         title: string;

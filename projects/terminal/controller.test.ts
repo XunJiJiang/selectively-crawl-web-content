@@ -128,19 +128,24 @@ describe('terminal input routing', () => {
     core.emit('ready', { port: 3200, commands: [{ name: 'asmr' }] });
     await controller.key({ name: 'text', sequence: 'asmr l' });
     await vi.waitFor(() =>
-      expect(call).toHaveBeenCalledWith('command.complete', { command: 'asmr l', cursor: 6 }),
+      expect(call).toHaveBeenCalledWith(
+        'command.complete',
+        expect.objectContaining({ command: 'asmr l', cursor: 6 }),
+        0,
+        expect.any(AbortSignal),
+      ),
     );
     await controller.key({ name: 'text', sequence: 'i' });
     await vi.waitFor(() => expect(model.candidates[0]?.description).toBe('作品列表'));
     first.resolve({ from: 5, to: 6, items: [{ name: 'late', insertText: 'late' }] });
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(model.candidates[0]?.name).toBe('list');
-    model.setInput('asmr li argument', 7);
+    model.setInput('asmr li', 7);
     await controller.key({ name: 'tab', sequence: '\t' });
-    expect(model.displayText).toBe('asmr list argument');
+    expect(model.displayText).toBe('asmr list');
     expect(model.displayCursor).toBe(9);
     model.commitGlobalCompletion();
-    expect(model.text).toBe('asmr list argument');
+    expect(model.text).toBe('asmr list');
     expect(model.cursor).toBe(9);
     await controller.dispose();
   });
@@ -269,18 +274,36 @@ describe('terminal input routing', () => {
     expect(second.input).toBeUndefined();
     await controller.dispose();
   });
-  it('keeps global colon literals and restores the global draft after Escape', async () => {
+  it('keeps global colon literals but discards global drafts on Escape while preserving command drafts', async () => {
     const model = new TerminalModel();
     const controller = new TerminalController(model, new CoreConnection({ args: [] }));
+    const window = model.windows[1];
+    window.draft = 'saved command';
+    window.cursor = window.draft.length;
+    model.recordGlobal('help');
     await controller.key({ name: 'text', sequence: ':' });
     for (const character of 'run 1 fetch https://x') {
       await controller.key({ name: 'text', sequence: character });
     }
     expect(model.globalDraft).toBe('run 1 fetch https://x');
+    await controller.key({ name: 'up', sequence: '\x1b[A' });
+    expect(model.globalHistoryDraft).toBe('run 1 fetch https://x');
     await controller.key({ name: 'escape', sequence: '\x1b' });
+    expect(model.globalDraft).toBe('');
+    expect(model.globalCursor).toBe(0);
+    expect(model.globalSelection).toBeUndefined();
+    expect(model.globalHistoryDraft).toBe('');
+    expect(model.globalHistoryCursor).toBe(model.globalHistory.length);
+    expect(window.draft).toBe('saved command');
+    expect(window.cursor).toBe(window.draft.length);
     await controller.key({ name: 'text', sequence: ':' });
-    expect(model.globalDraft).toBe('run 1 fetch https://x');
+    expect(model.globalDraft).toBe('');
     expect(model.mode).toBe('global');
+    await controller.key({ name: 'down', sequence: '\x1b[B' });
+    expect(model.text).toBe('');
+    await controller.key({ name: 'up', sequence: '\x1b[A' });
+    expect(model.text).toBe('help');
+    await controller.dispose();
   });
   it('keeps confirmations until an explicit valid answer and Enter', async () => {
     const model = new TerminalModel();
@@ -391,7 +414,7 @@ describe('terminal input routing', () => {
       sequence: '',
       mouse: { row: 20, column: 2, button: 64, release: false },
     });
-    expect(model.panel?.scroll).toBe(3);
+    expect(model.panel?.scroll).toBe(2);
     await controller.key({ name: 'text', sequence: 'new' });
     await controller.key({ name: 'enter', sequence: '\r' });
     expect(model.windows).toHaveLength(2);

@@ -22,5 +22,33 @@ export interface TSubCommand {
   exampleUsage?: string;
   execute: TCommandExecute;
 }
+
+export interface CommandCompletionCacheEntry<T = unknown> {
+  value: T;
+  /** Unix milliseconds, updated by each set. Providers decide when to refresh. */
+  updatedAt: number;
+}
+/** One cache per registered first-level command, retained until it is unregistered. */
+export interface CommandCompletionCache {
+  get<T = unknown>(key: string): CommandCompletionCacheEntry<T> | undefined;
+  set<T>(key: string, value: T): CommandCompletionCacheEntry<T>;
+  delete(key: string): boolean;
+  clear(): void;
+}
+export interface CommandCompletionContext {
+  signal: AbortSignal;
+  logger: TLogger;
+}
+/** Return every valid word/value at this position; the terminal performs prefix filtering. */
+export type TCommandComplete = (
+  command: string,
+  parents: string[],
+  cache: CommandCompletionCache,
+  subCommand: string,
+  isKey: boolean,
+  isValue: boolean,
+  key: string | undefined,
+  context: CommandCompletionContext,
+) => { command: string; commands: string[] } | Promise<{ command: string; commands: string[] }>;
 import type { InvocationContext, PluginLogger } from './task.d.ts';
 import type { TLogger } from './log.d.ts';

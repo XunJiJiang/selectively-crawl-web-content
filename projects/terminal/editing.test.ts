@@ -90,7 +90,9 @@ describe('inline command editing', () => {
     expect(model.text).toBe('run 1 half');
     await controller.key({ name: 'escape', sequence: '\x1b' });
     await controller.key({ name: 'text', sequence: ':' });
-    expect(model.text).toBe('run 1 half');
+    expect(model.text).toBe('');
+    await controller.key({ name: 'down', sequence: '' });
+    expect(model.text).toBe('');
   });
   it.each(['normal', 'global'] as const)(
     'supports word, edge and grapheme selection in %s input',

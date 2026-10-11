@@ -92,14 +92,19 @@ export class CoreConnection extends EventEmitter {
       this.starting = false;
     }
   }
-  call<T = unknown>(method: string, args?: unknown, timeout?: number): Promise<T> {
+  call<T = unknown>(
+    method: string,
+    args?: unknown,
+    timeout?: number,
+    signal?: AbortSignal,
+  ): Promise<T> {
     if (method === 'confirmation.answer' && this.starting) {
       this.startupTimer = setTimeout(() => this.ready?.reject(new Error('核心启动超时')), 45000);
     }
     if (!this.peer) {
       return Promise.reject(new Error('核心尚未就绪'));
     }
-    return this.peer.call<T>(method, args, timeout);
+    return this.peer.call<T>(method, args, timeout, signal);
   }
   async kill() {
     const child = this.child;

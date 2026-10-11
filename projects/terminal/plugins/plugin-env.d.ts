@@ -61,8 +61,12 @@ declare namespace SCWCTerminal {
   export interface CompletionRequest {
     command: string;
     cursor: number;
+    id?: string;
+    windowId?: string;
   }
   export interface CompletionResult {
+    command?: string;
+    inline?: boolean;
     from: number;
     to: number;
     items: { name: string; insertText: string; description?: string }[];
@@ -73,8 +77,11 @@ declare namespace SCWCTerminal {
     /** Omitted scope registers an ordinary command; global uses the transient footer. */
     scope?: 'command' | 'global';
     usage?: string;
-    /** Returns replacements at any command depth; completion never executes a command. */
-    complete?(request: CompletionRequest): CompletionResult | Promise<CompletionResult>;
+    /** Return all words/values at this depth and echo request.command. Respect cancellation. */
+    complete?(
+      request: CompletionRequest,
+      context: { signal: AbortSignal },
+    ): CompletionResult | Promise<CompletionResult>;
     execute(context: CommandContext): void | Promise<void>;
   }
   export interface LoadContext {

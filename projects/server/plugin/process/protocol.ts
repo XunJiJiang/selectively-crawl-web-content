@@ -9,6 +9,7 @@ export interface Manifest {
   command?: {
     description?: string;
     exampleUsage?: string;
+    complete?: boolean;
     options?: SCWC.TCommandOption[];
     subCommands?: Omit<SCWC.TSubCommand, 'execute'>[];
   };

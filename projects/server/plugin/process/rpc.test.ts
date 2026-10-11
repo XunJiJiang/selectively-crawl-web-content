@@ -3,6 +3,28 @@ import { RpcPeer } from './rpc.ts';
 import { MAX_PENDING_CALLS } from './protocol.ts';
 
 describe('bounded plugin RPC', () => {
+  it('frees cancelled completion slots while preserving deadline-free requests', async () => {
+    vi.useFakeTimers();
+    const peer = new RpcPeer((_packet, callback) => callback(null));
+    try {
+      for (let i = 0; i < 70; i++) {
+        const controller = new AbortController();
+        const work = peer.call('command.complete', {}, 0, `completion-${i}`, controller.signal);
+        let settled = false;
+        const result = work.catch((error) => {
+          settled = true;
+          return error;
+        });
+        await vi.advanceTimersByTimeAsync(3600000);
+        expect(settled).toBe(false);
+        controller.abort();
+        expect(await result).toBeInstanceOf(Error);
+      }
+    } finally {
+      peer.close();
+      vi.useRealTimers();
+    }
+  });
   it('reports an oversized log without silently dropping the first event', async () => {
     const logs: unknown[] = [];
     const receiver = new RpcPeer((_packet, callback) => callback(null));
@@ -23,11 +45,15 @@ describe('bounded plugin RPC', () => {
     const texts: string[] = [];
     const peer = new RpcPeer((packet, callback) => {
       setImmediate(() => {
-        if (packet.kind === 'event') texts.push((packet.data as { text: string }).text);
+        if (packet.kind === 'event') {
+          texts.push((packet.data as { text: string }).text);
+        }
         callback(null);
       });
     });
-    for (let i = 0; i < 500; i++) peer.event('log', { text: String(i) });
+    for (let i = 0; i < 500; i++) {
+      peer.event('log', { text: String(i) });
+    }
     await peer.drainEvents();
     expect(texts).toEqual(Array.from({ length: 500 }, (_, i) => String(i)));
     peer.close();

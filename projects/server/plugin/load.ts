@@ -439,6 +439,7 @@ async function activatePlugin(plugin: SCWC.IPluginMeta): Promise<boolean> {
             commandConfig.options,
             commandConfig.exampleUsage,
             () => !plugin.runtime || ['ready', 'unresponsive'].includes(plugin.runtime.status),
+            commandConfig.complete,
           );
         } catch (e) {
           if (e instanceof CommandError) {

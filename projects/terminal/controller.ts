@@ -6,7 +6,13 @@ import { TerminalPlugins } from './plugin/load.ts';
 import { splitCommand } from '../server/utils/command.ts';
 import { InvocationInputError } from '../server/common/interaction.ts';
 import { colorLogText } from '../server/common/color.ts';
-import type { CommandInfo, ExecutionEvent, OutputEvent, CompletionResult } from './protocol.ts';
+import type {
+  CommandInfo,
+  ExecutionEvent,
+  OutputEvent,
+  CompletionResult,
+  CompletionRequest,
+} from './protocol.ts';
 import type {
   InputFailure,
   InputRequest,
@@ -55,11 +61,13 @@ export class TerminalController {
   private completionTimer?: NodeJS.Timeout;
   private completionVersion = 0;
   private completionWork?: Promise<void>;
+  private completionAbort?: AbortController;
+  private lastCompletionTab?: { key: string; time: number };
   onChange?: () => void;
   onOutput?: (text: string) => void;
   onExit?: () => Promise<void>;
   onCopy?: (text: string) => Promise<void>;
-  constructor (model: TerminalModel, core: CoreConnection) {
+  constructor(model: TerminalModel, core: CoreConnection) {
     this.model = model;
     this.plugins.preferences = model.pluginPreferences;
     this.core = core;
@@ -253,14 +261,14 @@ export class TerminalController {
         throw new Error(event.error ?? `核心子命令 ${event.status}`);
       }
     };
-    this.plugins.completeCore = (request) => this.core.call('command.complete', request);
+    this.plugins.completeCore = (request, signal) => this.requestCoreCompletion(request, signal);
   }
-  async start () {
+  async start() {
     this.expectedStop = false;
     this.lastStart = Date.now();
     await this.core.start(this.model.output.id);
   }
-  private changed () {
+  private changed() {
     this.model.commands = [...this.commands, ...this.plugins.list()];
     this.model.globalExtensions = this.plugins.list('global').map((item) => ({
       name: item.name,
@@ -270,27 +278,46 @@ export class TerminalController {
     this.scheduleCompletion();
     this.onChange?.();
   }
-  private invalidateCompletion () {
+  private invalidateCompletion(retainInline = false) {
+    this.completionAbort?.abort();
+    this.completionAbort = undefined;
     this.completionVersion++;
     this.completionKey = undefined;
     this.completionWork = undefined;
     clearTimeout(this.completionTimer);
-    this.model.clearServiceCompletion();
+    if (!retainInline) {
+      this.model.clearServiceCompletion();
+    } else {
+      this.model.retainInlineCompletion();
+    }
   }
-  private scheduleCompletion () {
+  private async requestCoreCompletion(request: CompletionRequest, signal?: AbortSignal) {
+    const cancel = () => this.core.peer?.event('completion.cancel', { id: request.id });
+    signal?.addEventListener('abort', cancel, { once: true });
+    try {
+      return await this.core.call<CompletionResult>('command.complete', request, 0, signal);
+    } finally {
+      signal?.removeEventListener('abort', cancel);
+    }
+  }
+  private scheduleCompletion() {
     const key = this.model.completionKey;
     if (key === this.completionKey) {
       return;
     }
-    this.invalidateCompletion();
+    this.lastCompletionTab = undefined;
+    this.invalidateCompletion(this.model.inlineCompletionOpen);
     this.completionKey = key;
+    if (this.model.completionInput.deep) {
+      return;
+    }
     // First words use the live command manifest; subsequent words query the owning service.
     if (!key || !/\s/.test(this.model.text.trimStart())) {
       return;
     }
     this.completionTimer = setTimeout(() => void this.refreshCompletion(), 60);
   }
-  private refreshCompletion () {
+  private refreshCompletion(deep = false) {
     clearTimeout(this.completionTimer);
     if (this.completionWork) {
       return this.completionWork;
@@ -299,28 +326,65 @@ export class TerminalController {
     if (!key || !/\s/.test(this.model.text.trimStart())) {
       return Promise.resolve();
     }
+    const input = this.model.completionInput;
+    if (input.deep && (!deep || !input.eligible)) {
+      return Promise.resolve();
+    }
+    if (!deep && this.model.candidates.length) {
+      return Promise.resolve();
+    }
     const version = this.completionVersion;
-    const request = { command: this.model.text, cursor: this.model.cursor };
+    const request = {
+      command: this.model.text,
+      cursor: this.model.cursor,
+      id: randomUUID(),
+      windowId: this.model.activeId,
+    };
+    const controller = new AbortController();
+    this.completionAbort = controller;
     const name = request.command.trimStart().split(/\s/)[0];
     const scope = this.model.mode === 'global' ? 'global' : 'command';
     this.completionWork = (async () => {
       try {
         const result = this.plugins.has(name, scope)
-          ? await this.plugins.complete(name, request)
+          ? await this.plugins.complete(name, request, controller.signal)
           : scope === 'command' && this.ready
-            ? await this.core.call<CompletionResult>('command.complete', request)
+            ? await this.requestCoreCompletion(request, controller.signal)
             : { from: request.cursor, to: request.cursor, items: [] };
-        if (version === this.completionVersion && key === this.model.completionKey) {
-          this.model.setServiceCompletion(key, result);
+        if (
+          version === this.completionVersion &&
+          key === this.model.completionKey &&
+          (result.command === request.command || (!deep && result.command === undefined))
+        ) {
+          if (deep && !result.items.length) {
+            this.model.clearServiceCompletion();
+          } else {
+            this.model.setServiceCompletion(
+              key,
+              deep
+                ? {
+                    ...result,
+                    inline: true,
+                    from: input.from,
+                    to: input.to,
+                  }
+                : result,
+            );
+          }
           this.onChange?.();
         }
       } catch {
-        // Completion is optional; a disconnected or slow service must not disrupt editing.
+        // Cancellation or a disconnected provider must not disrupt editing.
+      } finally {
+        if (version === this.completionVersion) {
+          this.completionWork = undefined;
+          this.completionAbort = undefined;
+        }
       }
     })();
     return this.completionWork;
   }
-  private async resolvePluginConflict (conflict: CommandConflict): Promise<ConflictChoice> {
+  private async resolvePluginConflict(conflict: CommandConflict): Promise<ConflictChoice> {
     if (this.inputEnded) {
       throw new InvocationInputError('closed', '输入流已关闭');
     }
@@ -344,7 +408,7 @@ export class TerminalController {
             ? ['a', 'b', 'c']
             : ['a', 'b'];
         let text = prompt;
-        for (; ;) {
+        for (;;) {
           const [error, answer] = await this.model.nextChoice(text);
           if (error) {
             throw error;
@@ -361,7 +425,7 @@ export class TerminalController {
             choice === 'a' ? ['second'] : choice === 'b' ? ['first'] : ['first', 'second'];
           for (const participant of participants) {
             let message = `为${participant === 'first' ? '第一个' : '第二个'}插件 ${conflict[participant].label} 输入新简短标识`;
-            for (; ;) {
+            for (;;) {
               const [error, value] = await this.model.next(message);
               if (error) {
                 throw error;
@@ -387,7 +451,7 @@ export class TerminalController {
     }
     return choice;
   }
-  private askInput (
+  private askInput(
     request: InputRequest,
     answer: (value?: string, error?: InputFailure) => Promise<unknown>,
   ) {
@@ -431,7 +495,7 @@ export class TerminalController {
       text: request.message,
     });
   }
-  async endInput () {
+  async endInput() {
     if (this.inputEnded) {
       return;
     }
@@ -448,7 +512,7 @@ export class TerminalController {
     );
     this.changed();
   }
-  private async answerInput (value: string) {
+  private async answerInput(value: string) {
     const window = this.model.active;
     const input = window.input;
     if (!input) {
@@ -458,7 +522,7 @@ export class TerminalController {
     await input.answer(value);
     this.changed();
   }
-  async cancelInput () {
+  async cancelInput() {
     const window = this.model.active;
     const input = window.input;
     if (!input) {
@@ -469,11 +533,11 @@ export class TerminalController {
     this.changed();
     return true;
   }
-  private error (error: unknown) {
+  private error(error: unknown) {
     this.model.message = error instanceof Error ? error.message : String(error);
     this.output({ windowId: this.model.output.id, text: this.model.message });
   }
-  output (value: OutputEvent) {
+  output(value: OutputEvent) {
     if (value.executionId && this.discardedPanelExecutions.has(value.executionId)) {
       return;
     }
@@ -486,7 +550,7 @@ export class TerminalController {
     this.onOutput?.(sanitizeOutput(text));
     this.changed();
   }
-  private execution (event: ExecutionEvent, done: boolean) {
+  private execution(event: ExecutionEvent, done: boolean) {
     if (event.executionId && event.windowId) {
       // Child executions share output but never replace the parent window's title.
       const parent = this.model.byId(event.windowId)?.task;
@@ -507,7 +571,7 @@ export class TerminalController {
     }
     this.changed();
   }
-  private updateTerminalExecutions () {
+  private updateTerminalExecutions() {
     for (const [id, execution] of this.terminalExecutions) {
       if (!execution.returned || this.plugins.registry.busy(id)) {
         continue;
@@ -531,7 +595,7 @@ export class TerminalController {
     }
     this.changed();
   }
-  private async validate (command: string) {
+  private async validate(command: string) {
     const parts = splitCommand(command);
     if (!parts.length) {
       throw new Error('未提供命令');
@@ -541,7 +605,8 @@ export class TerminalController {
     }
     return parts;
   }
-  private async execute (windowId: string, command: string) {
+  private async execute(windowId: string, command: string) {
+    this.invalidateCompletion();
     const window = this.model.byId(windowId);
     if (!window || window.kind === 'output') {
       throw new Error('输出窗口不能执行命令');
@@ -594,7 +659,7 @@ export class TerminalController {
     }
     this.changed();
   }
-  private async cancel (executionId: string, force = false): Promise<boolean> {
+  private async cancel(executionId: string, force = false): Promise<boolean> {
     const window = this.model.windows.find((item) => item.task?.executionId === executionId);
     if (window?.task) {
       window.task.status = 'cancelling';
@@ -608,12 +673,12 @@ export class TerminalController {
     const [core, terminal] = await Promise.all([
       this.core.peer
         ? this.core
-          .call<{ cancelled: boolean; needsForce?: boolean }>(
-            'command.cancel',
-            { executionId, force },
-            5000,
-          )
-          .catch(() => ({ cancelled: false, needsForce: true }))
+            .call<{ cancelled: boolean; needsForce?: boolean }>(
+              'command.cancel',
+              { executionId, force },
+              5000,
+            )
+            .catch(() => ({ cancelled: false, needsForce: true }))
         : Promise.resolve({ cancelled: true }),
       this.plugins.cancel(executionId, force),
     ]);
@@ -625,7 +690,7 @@ export class TerminalController {
     }
     return false;
   }
-  private async cancelThen (executionId: string, action: () => Promise<void> | void) {
+  private async cancelThen(executionId: string, action: () => Promise<void> | void) {
     if (await this.cancel(executionId)) {
       await action();
       return;
@@ -638,12 +703,12 @@ export class TerminalController {
     }
     this.changed();
   }
-  private panelOutput (text: string) {
+  private panelOutput(text: string) {
     this.model.writePanel(text);
     this.onOutput?.(sanitizeOutput(text));
     this.changed();
   }
-  private retirePanelExecutions () {
+  private retirePanelExecutions() {
     for (const id of this.panelExecutions) {
       this.discardedPanelExecutions.add(id);
     }
@@ -655,7 +720,7 @@ export class TerminalController {
       }
     }
   }
-  private async interact (command: string, action: () => Promise<void>) {
+  private async interact(command: string, action: () => Promise<void>) {
     if (this.model.panel?.running) {
       throw new Error('全局命令仍在执行或等待输入');
     }
@@ -674,9 +739,9 @@ export class TerminalController {
     // Yield at each next() so keyboard and piped answers can advance the same command.
     await Promise.race([work, panel.step.promise]);
   }
-  private async confirm (text: string) {
+  private async confirm(text: string) {
     let prompt = text;
-    for (; ;) {
+    for (;;) {
       const [error, answer] = await this.model.nextChoice(
         `${prompt}\n输入 :y 确认 / :n 取消，然后按 Enter`,
       );
@@ -690,7 +755,7 @@ export class TerminalController {
       prompt = `请输入 :y 或 :n\n${text}`;
     }
   }
-  private async answerPanel (value: string) {
+  private async answerPanel(value: string) {
     const panel = this.model.panel;
     if (!panel?.input) {
       return;
@@ -700,11 +765,12 @@ export class TerminalController {
     await Promise.race([this.interaction ?? Promise.resolve(), panel.step.promise]);
     this.changed();
   }
-  async global (raw: string) {
+  async global(raw: string) {
+    this.invalidateCompletion();
     this.model.recordGlobal(raw.replace(/^:/, '').trim());
     await this.interact(raw.replace(/^:/, ''), () => this.executeGlobal(raw));
   }
-  private async executeGlobal (raw: string) {
+  private async executeGlobal(raw: string) {
     const text = raw.replace(/^:/, '').trim();
     const [name, ...args] = splitCommand(text);
     const count = (min: number, max = min) => {
@@ -803,16 +869,16 @@ export class TerminalController {
       count(0);
       this.panelOutput(
         '全局命令（含空格的参数请加引号）\n' +
-        this.model.globalCommands
-          .map(
-            (item) =>
-              `:${item.usage}${item.aliases?.length ? ` (${item.aliases.map((alias) => ':' + alias).join('/')})` : ''}  ${item.description}`,
-          )
-          .join('\n') +
-        '\n命令标签：直接输入 · ↑/↓ 历史（含草稿） · Enter 执行\n空输入：: 全局命令 · Tab/Shift+Tab 切换标签 · ←/→ 滚动标签栏\n输入：Tab/Shift+Tab 补全 · Shift+←/→ 选中 · Ctrl/Cmd+←/→ 按空格分词跳转 · Alt/Option+←/→ 头尾跳转（可加 Shift 选中）\n拖动选中输出 · Ctrl/Cmd+C 复制选中项 · Esc 取消选中或关闭底栏\n底栏输出：↑/↓ 或鼠标滚轮滚动 · : 继续输入 · Esc 丢弃\n可执行命令：\n' +
-        [...this.commands, ...this.plugins.list()]
-          .map((item) => `${item.name} ${item.description ?? ''}`)
-          .join('\n'),
+          this.model.globalCommands
+            .map(
+              (item) =>
+                `:${item.usage}${item.aliases?.length ? ` (${item.aliases.map((alias) => ':' + alias).join('/')})` : ''}  ${item.description}`,
+            )
+            .join('\n') +
+          '\n命令标签：直接输入 · ↑/↓ 历史（含草稿） · Enter 执行\n空输入：: 全局命令 · Tab/Shift+Tab 切换标签 · ←/→ 滚动标签栏\n输入：Tab/Shift+Tab 补全 · Shift+←/→ 选中 · Ctrl/Cmd+←/→ 按空格分词跳转 · Alt/Option+←/→ 头尾跳转（可加 Shift 选中）\n拖动选中输出 · Ctrl/Cmd+C 复制选中项 · Esc 取消选中或关闭底栏\n底栏输出：↑/↓ 或鼠标滚轮滚动 · : 继续输入 · Esc 丢弃\n可执行命令：\n' +
+          [...this.commands, ...this.plugins.list()]
+            .map((item) => `${item.name} ${item.description ?? ''}`)
+            .join('\n'),
       );
       clear();
     } else if (name === 'rename') {
@@ -863,7 +929,7 @@ export class TerminalController {
     }
     this.changed();
   }
-  async lifecycle (restart: boolean, confirmed = false, force = false) {
+  async lifecycle(restart: boolean, confirmed = false, force = false) {
     if (!this.model.panel?.running) {
       await this.interact(restart ? 'restart' : 'q', () =>
         this.lifecycle(restart, confirmed, force),
@@ -875,8 +941,8 @@ export class TerminalController {
     }
     const tasks = this.core.peer
       ? await this.core
-        .call<TaskSnapshot[]>('tasks.snapshot', undefined, 1000)
-        .catch(() => this.coreTasks)
+          .call<TaskSnapshot[]>('tasks.snapshot', undefined, 1000)
+          .catch(() => this.coreTasks)
       : [];
     if (
       !confirmed &&
@@ -894,8 +960,8 @@ export class TerminalController {
       this.plugins.cancel(undefined, force),
       this.core.peer
         ? this.core
-          .call<{ cancelled: boolean }>('command.cancel', { force }, 5000)
-          .catch(() => ({ cancelled: false }))
+            .call<{ cancelled: boolean }>('command.cancel', { force }, 5000)
+            .catch(() => ({ cancelled: false }))
         : Promise.resolve({ cancelled: true }),
     ]);
     if ((!local || !cancelled.cancelled) && !force) {
@@ -932,7 +998,7 @@ export class TerminalController {
       await this.onExit?.();
     }
   }
-  async key (key: Key) {
+  async key(key: Key) {
     const copying = key.name === 'c' && (key.ctrl || key.meta);
     if (
       this.pending &&
@@ -943,6 +1009,7 @@ export class TerminalController {
       return;
     }
     if (key.name !== 'tab') {
+      this.lastCompletionTab = undefined;
       this.model.clearBoundary();
     }
     const notice = this.model.message;
@@ -973,6 +1040,7 @@ export class TerminalController {
         this.model.cancelPanelInput();
         await this.interaction;
       } else if (key.name === 'escape') {
+        this.invalidateCompletion();
         this.renderer.clearSelection(this.model);
         if (this.model.mode === 'normal') {
           this.model.active.anchor = undefined;
@@ -983,6 +1051,8 @@ export class TerminalController {
           this.model.completionPreview = false;
           this.model.mode = 'normal';
         }
+      } else if (key.name === 'backspace' && this.model.completionPreview) {
+        this.model.completionPreview = false;
       } else if (
         key.name === 'backspace' &&
         this.model.mode === 'global' &&
@@ -1032,8 +1102,34 @@ export class TerminalController {
       } else if (key.name === 'tab') {
         if (this.model.mode === 'global' || (this.model.editing && this.model.text)) {
           this.scheduleCompletion();
-          await this.refreshCompletion();
-          this.model.completeGlobal(key.shift ? -1 : 1);
+          const input = this.model.completionInput;
+          if (input.deep) {
+            if (input.eligible) {
+              if (this.model.inlineCompletionOpen) {
+                this.model.completeGlobal(key.shift ? -1 : 1);
+              } else {
+                const completionKey = this.model.completionKey;
+                if (!completionKey) {
+                  return;
+                }
+                const time = performance.now();
+                if (
+                  this.lastCompletionTab?.key === completionKey &&
+                  time - this.lastCompletionTab.time <= 400
+                ) {
+                  this.lastCompletionTab = undefined;
+                  this.invalidateCompletion();
+                  this.completionKey = completionKey;
+                  void this.refreshCompletion(true);
+                } else {
+                  this.lastCompletionTab = { key: completionKey, time };
+                }
+              }
+            }
+          } else {
+            await this.refreshCompletion();
+            this.model.completeGlobal(key.shift ? -1 : 1);
+          }
         } else if (!this.model.panel?.input) {
           this.model.tab(key.shift ? -1 : 1);
           this.renderer.reveal();
@@ -1061,7 +1157,8 @@ export class TerminalController {
       } else if (this.model.editing) {
         if (key.name === 'enter') {
           this.pending = true;
-          this.model.commitGlobalCompletion();
+          this.model.commitGlobalCompletion(true);
+          this.invalidateCompletion();
           if (this.model.mode === 'global') {
             await this.global(this.model.globalDraft);
           } else if (this.model.active.input) {
@@ -1112,8 +1209,14 @@ export class TerminalController {
           !/[\x00-\x1f\x7f]/.test(key.sequence) &&
           this.model.text.length < 65536
         ) {
-          if (key.sequence === ' ') {
-            this.model.commitGlobalCompletion();
+          if (
+            key.sequence === ' ' ||
+            (key.sequence === '=' &&
+              this.model.completionPreview &&
+              this.model.displayText.split(' ').at(-1)?.startsWith('-'))
+          ) {
+            this.model.commitGlobalCompletion(true);
+            this.invalidateCompletion();
           }
           this.model.edit(key.sequence);
         }
@@ -1140,17 +1243,17 @@ export class TerminalController {
       this.changed();
     }
   }
-  private canEnterGlobal () {
+  private canEnterGlobal() {
     return (
       this.model.mode === 'normal' &&
       !this.model.active.input &&
       (this.model.active.kind !== 'command' || !this.model.active.draft)
     );
   }
-  private scrollTabs (direction: number, columns = false) {
+  private scrollTabs(direction: number, columns = false) {
     this.renderer.scrollTabs(this.model, direction, columns);
   }
-  private mouse (key: Key) {
+  private mouse(key: Key) {
     const mouse = key.mouse;
     if (!mouse) {
       return;
@@ -1207,7 +1310,7 @@ export class TerminalController {
       this.renderer.beginSelection(this.model, mouse.column, mouse.row);
     }
   }
-  async line (line: string) {
+  async line(line: string) {
     const notice = this.model.message;
     try {
       if (this.model.panel?.input) {
@@ -1233,7 +1336,7 @@ export class TerminalController {
     }
     this.changed();
   }
-  async dispose () {
+  async dispose() {
     clearTimeout(this.completionTimer);
     this.invalidateCompletion();
     this.closing = true;

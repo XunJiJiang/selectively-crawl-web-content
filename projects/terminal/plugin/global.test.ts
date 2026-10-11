@@ -35,6 +35,19 @@ describe('global terminal extensions', () => {
         const handle = context.tasks.begin('later');
         setTimeout(() => {context.write('after return'); handle.end();}, 80);
       }});
+      registerCommand({name: 'wait-hints', scope: 'global', description: 'cancellable hints', complete(request, context) {
+        console.log('hints:waiting');
+        process.stdout.write('hints:raw-output');
+        process.stderr.write(Buffer.from('hints:raw-error'));
+        return new Promise(resolve => context.signal.addEventListener('abort', () => {
+          console.log('hints:cancelled');
+          resolve({command: request.command, from: request.cursor, to: request.cursor, items: [{name: 'late', insertText: 'late'}]});
+        }, {once: true}));
+      }, execute() {throw new Error('completion must not execute');}});
+      registerCommand({name: 'hold-output', description: 'concurrent command', execute(context) {
+        const handle = context.tasks.begin('holding');
+        context.signal.addEventListener('abort', () => handle.end(), {once: true});
+      }});
     }};`,
     );
     const model = new TerminalModel();
@@ -50,6 +63,14 @@ describe('global terminal extensions', () => {
     const call = vi.spyOn(core, 'call').mockImplementation(async (method, value) => {
       if (method === 'command.complete') {
         const request = value as { command: string; cursor: number };
+        if (request.command === 'plugin build-web sc') {
+          return {
+            command: request.command,
+            from: 17,
+            to: request.cursor,
+            items: ['other-ui', 'scwc-ui'].map((name) => ({ name, insertText: name })),
+          } as never;
+        }
         expect(request.command).toBe('plugin re');
         return {
           from: 7,
@@ -80,8 +101,31 @@ describe('global terminal extensions', () => {
       await controller.key({ name: 'tab', sequence: '\t' });
       expect(model.displayText).toBe('scwc:plugin reload');
       expect(model.candidates[0]?.description).toBe('重载插件');
-      expect(call).toHaveBeenCalledWith('command.complete', { command: 'plugin re', cursor: 9 });
+      expect(call).toHaveBeenCalledWith(
+        'command.complete',
+        expect.objectContaining({ command: 'plugin re', cursor: 9 }),
+        0,
+        expect.any(AbortSignal),
+      );
+      const raw = 'scwc:plugin build-web sc';
+      model.setInput(raw, raw.length);
+      await controller.key({ name: 'tab', sequence: '\t' });
+      await controller.key({ name: 'tab', sequence: '\t' });
+      await expect.poll(() => model.inlineCompletionOpen).toBe(true);
+      expect(model.candidates.map((item) => item.name)).toEqual(['scwc-ui']);
+      expect(call).toHaveBeenCalledWith(
+        'command.complete',
+        expect.objectContaining({ command: 'plugin build-web sc', cursor: 19 }),
+        0,
+        expect.any(AbortSignal),
+      );
+      await controller.key({ name: 'tab', sequence: '\t' });
+      expect(model.displayText).toBe('scwc:plugin build-web scwc-ui');
       model.setInput('ask-global branch twig ', 23);
+      await controller.key({ name: 'tab', sequence: '\t' });
+      await controller.key({ name: 'tab', sequence: '\t' });
+      await expect.poll(() => model.candidates.length).toBe(1);
+      expect(model.completionPreview).toBe(false);
       await controller.key({ name: 'tab', sequence: '\t' });
       expect(model.displayText).toBe('ask-global branch twig leaf');
       expect(model.candidates[0]?.description).toBe('deep dynamic command');
@@ -133,6 +177,27 @@ describe('global terminal extensions', () => {
       await new Promise((resolve) => setTimeout(resolve, 150));
       expect(model.panel?.lines.join('\n')).not.toContain('late global output');
       expect(model.windows.every((window) => !window.lines.length)).toBe(true);
+      await controller.global('run 1 hold-output');
+      await expect.poll(() => Boolean(model.windows[1].task)).toBe(true);
+      model.enterGlobal();
+      const waiting = 'wait-hints branch ';
+      model.setInput(waiting, waiting.length);
+      await controller.key({ name: 'tab', sequence: '\t' });
+      await controller.key({ name: 'tab', sequence: '\t' });
+      await expect
+        .poll(() => model.output.lines.some((line) => line.includes('hints:waiting')))
+        .toBe(true);
+      await expect
+        .poll(() => model.output.lines.some((line) => line.includes('hints:raw-output')))
+        .toBe(true);
+      await expect
+        .poll(() => model.output.lines.some((line) => line.includes('hints:raw-error')))
+        .toBe(true);
+      await controller.key({ name: 'text', sequence: 'a' });
+      await expect
+        .poll(() => model.output.lines.some((line) => line.includes('hints:cancelled')))
+        .toBe(true);
+      expect(model.inlineCompletionOpen).toBe(false);
     } finally {
       await controller.plugins.unload();
       await fs.rm(directory, { recursive: true, force: true });

@@ -1,6 +1,9 @@
 import { formatWithOptions } from 'node:util';
 import { pathToFileURL } from 'node:url';
 import { spawn } from 'node:child_process';
+import { AsyncLocalStorage } from 'node:async_hooks';
+import { randomUUID } from 'node:crypto';
+import { abortable, withCompletionOutput } from '../completion.ts';
 import { Peer } from '../peer.ts';
 import { TaskRegistry, invocationStorage } from '../../server/common/tasks.ts';
 import { setInputHandler, remoteInput } from '../../server/common/interaction.ts';
@@ -26,6 +29,13 @@ let plugin: SCWCTerminal.Plugin | undefined;
 let pluginId = 'terminal-plugin';
 let outputId: string | null = null;
 const commands = new Map<string, SCWCTerminal.Command>();
+const completions = new Map<string, AbortController>();
+const completionStorage = new AsyncLocalStorage<{ id: string; signal: AbortSignal }>();
+peer.onEvent = (event, data) => {
+  if (event === 'completion.cancel') {
+    completions.get((data as { id: string }).id)?.abort();
+  }
+};
 function logger(identity?: InvocationIdentity): PluginLogger {
   const method =
     (level: string) =>
@@ -92,7 +102,17 @@ peer.onCall = async (method, value) => {
     pluginId = plugin.id ?? args.pluginId;
     await plugin.onLoad({
       coreCommands: args.commands ?? [],
-      completeCore: (request) => peer.call('completeCore', request, 2000),
+      completeCore: async (request) => {
+        const current = completionStorage.getStore();
+        const id = randomUUID();
+        const cancel = () => peer.event('completeCore.cancel', { id });
+        current?.signal.addEventListener('abort', cancel, { once: true });
+        try {
+          return await peer.call('completeCore', { ...request, id }, 0, current?.signal);
+        } finally {
+          current?.signal.removeEventListener('abort', cancel);
+        }
+      },
       tasks: processScope.reporter,
       logger: logger(),
       signal: processScope.controller.signal,
@@ -126,18 +146,39 @@ peer.onCall = async (method, value) => {
     return;
   }
   if (method === 'unload') {
+    for (const controller of completions.values()) {
+      controller.abort();
+    }
     registry.cancel();
     await plugin?.onUnload?.();
     return;
   }
   if (method === 'complete') {
-    return (
-      commands.get(args.name)?.complete?.(args.request) ?? {
-        from: args.request.cursor,
-        to: args.request.cursor,
-        items: [],
-      }
-    );
+    const id = args.request.id ?? randomUUID();
+    const controller = new AbortController();
+    completions.set(id, controller);
+    try {
+      return await completionStorage.run({ id, signal: controller.signal }, () =>
+        withCompletionOutput(
+          {
+            stdout: logger({ executionId: id, windowId: outputId }).info,
+            stderr: logger({ executionId: id, windowId: outputId }).error,
+          },
+          () =>
+            abortable(
+              commands.get(args.name)?.complete?.(args.request, { signal: controller.signal }) ?? {
+                command: args.request.command,
+                from: args.request.cursor,
+                to: args.request.cursor,
+                items: [],
+              },
+              controller.signal,
+            ),
+        ),
+      );
+    } finally {
+      completions.delete(id);
+    }
   }
   if (method !== 'execute') {
     throw new Error('未知终端插件请求');

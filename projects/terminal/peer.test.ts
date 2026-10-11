@@ -1,7 +1,29 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { Peer } from './peer.ts';
 import type { Packet } from './protocol.ts';
 describe('terminal IPC sessions and status delivery', () => {
+  it('keeps completion requests alive without a deadline and frees cancelled request slots', async () => {
+    vi.useFakeTimers();
+    const peer = new Peer((_packet, callback) => callback(null));
+    try {
+      for (let i = 0; i < 70; i++) {
+        const controller = new AbortController();
+        const work = peer.call('command.complete', {}, 0, controller.signal);
+        let settled = false;
+        const result = work.catch((error) => {
+          settled = true;
+          return error;
+        });
+        await vi.advanceTimersByTimeAsync(3600000);
+        expect(settled).toBe(false);
+        controller.abort();
+        expect(await result).toBeInstanceOf(Error);
+      }
+    } finally {
+      peer.close();
+      vi.useRealTimers();
+    }
+  });
   it('reports oversized output in its original window even with no subsequent events', async () => {
     const outputs: unknown[] = [];
     const receiver = new Peer((_packet, callback) => callback(null));
@@ -33,12 +55,17 @@ describe('terminal IPC sessions and status delivery', () => {
         callback(null);
       });
     });
-    for (let i = 0; i < 600; i++) peer.event('output', { windowId: 'window', text: `line-${i}` });
+    for (let i = 0; i < 600; i++) {
+      peer.event('output', { windowId: 'window', text: `line-${i}` });
+    }
     peer.event('command.finished', { executionId: 'a' });
     await new Promise<void>((resolve) => {
       const poll = () => {
-        if (packets.length === 601) resolve();
-        else setImmediate(poll);
+        if (packets.length === 601) {
+          resolve();
+        } else {
+          setImmediate(poll);
+        }
       };
       poll();
     });

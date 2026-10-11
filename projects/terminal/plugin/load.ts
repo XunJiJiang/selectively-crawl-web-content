@@ -24,7 +24,7 @@ export class TerminalPlugins extends EventEmitter {
   preferences: PluginPreferences = {};
   resolveConflict?: (conflict: CommandConflict) => Promise<ConflictChoice>;
   invokeCore?: (command: string, identity: InvocationIdentity) => Promise<void>;
-  completeCore?: (request: CompletionRequest) => Promise<CompletionResult>;
+  completeCore?: (request: CompletionRequest, signal?: AbortSignal) => Promise<CompletionResult>;
   nextInput?: (request: InputRequest, signal: AbortSignal) => Promise<string>;
   load(directory: string, outputId: string, coreCommands: CommandInfo[]) {
     this.coreCommands = coreCommands;
@@ -109,10 +109,14 @@ export class TerminalPlugins extends EventEmitter {
           }
         });
         const inputs = new Map<string, AbortController>();
+        const coreCompletions = new Map<string, AbortController>();
         processChild.on('message', (message) => peer.receive(message));
         const closed = new Promise((resolve) =>
           processChild.once('close', () => {
             peer.close();
+            for (const controller of coreCompletions.values()) {
+              controller.abort();
+            }
             for (const input of inputs.values()) {
               input.abort();
             }
@@ -148,6 +152,9 @@ export class TerminalPlugins extends EventEmitter {
           });
         }
         peer.onEvent = (event, value) => {
+          if (event === 'completeCore.cancel') {
+            coreCompletions.get((value as { id: string }).id)?.abort();
+          }
           if (event === 'input.cancel') {
             inputs.get((value as { id: string }).id)?.abort();
           }
@@ -161,7 +168,15 @@ export class TerminalPlugins extends EventEmitter {
         };
         peer.onCall = async (method, value) => {
           if (method === 'completeCore' && this.completeCore) {
-            return this.completeCore(value as CompletionRequest);
+            const request = value as CompletionRequest;
+            const controller = new AbortController();
+            const id = request.id ?? randomUUID();
+            coreCompletions.set(id, controller);
+            try {
+              return await this.completeCore({ ...request, id }, controller.signal);
+            } finally {
+              coreCompletions.delete(id);
+            }
           }
           const nextInput = this.nextInput;
           if (method === 'input.next' && nextInput) {
@@ -520,7 +535,11 @@ export class TerminalPlugins extends EventEmitter {
       (item.plugin.commands.find((info) => info.name === item.name)?.scope ?? 'command') === scope,
     );
   }
-  async complete(name: string, request: CompletionRequest): Promise<CompletionResult> {
+  async complete(
+    name: string,
+    request: CompletionRequest,
+    signal?: AbortSignal,
+  ): Promise<CompletionResult> {
     const item = this.commands.get(name);
     if (!item) {
       return { from: request.cursor, to: request.cursor, items: [] };
@@ -528,21 +547,38 @@ export class TerminalPlugins extends EventEmitter {
     // Restore the host's registered name, including when conflict resolution added a prefix.
     const start = request.command.search(/\S/);
     const delta = name.length - item.name.length;
-    const result = await item.plugin.peer.call<CompletionResult>(
-      'complete',
-      {
-        name: item.name,
-        request: {
-          command:
-            request.command.slice(0, start) +
-            item.name +
-            request.command.slice(start + name.length),
-          cursor: request.cursor - delta,
+    const command =
+      request.command.slice(0, start) + item.name + request.command.slice(start + name.length);
+    const id = request.id ?? randomUUID();
+    const cancel = () => item.plugin.peer.event('completion.cancel', { id });
+    signal?.addEventListener('abort', cancel, { once: true });
+    try {
+      const result = await item.plugin.peer.call<CompletionResult>(
+        'complete',
+        {
+          name: item.name,
+          request: {
+            ...request,
+            id,
+            command,
+            cursor: request.cursor - delta,
+          },
         },
-      },
-      2500,
-    );
-    return { ...result, from: result.from + delta, to: result.to + delta };
+        0,
+        signal,
+      );
+      return {
+        ...result,
+        command:
+          result.command === undefined || result.command === command
+            ? request.command
+            : result.command,
+        from: result.from + delta,
+        to: result.to + delta,
+      };
+    } finally {
+      signal?.removeEventListener('abort', cancel);
+    }
   }
   async execute(name: string, args: string[], identity: InvocationIdentity) {
     const command = this.commands.get(name);

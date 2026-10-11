@@ -42,6 +42,19 @@ export function createCoreBridge(shutdown: (restart: boolean) => Promise<void>) 
   >();
   const confirmations = new Map<string, (answer: boolean) => void>();
   const inputs = new Map<string, (value?: string, error?: Error) => void>();
+  const completions = new Map<string, { controller: AbortController; windowId?: string }>();
+  const cancelCompletions = (windowId?: string) => {
+    for (const request of completions.values()) {
+      if (!windowId || request.windowId === windowId) {
+        request.controller.abort();
+      }
+    }
+  };
+  peer.onEvent = (event, data) => {
+    if (event === 'completion.cancel') {
+      completions.get((data as { id: string }).id)?.controller.abort();
+    }
+  };
   setInputHandler(
     (request, signal) =>
       new Promise((resolve, reject) => {
@@ -96,7 +109,10 @@ export function createCoreBridge(shutdown: (restart: boolean) => Promise<void>) 
       }
     }
   });
-  commandEvents.on('change', (commands) => peer.event('commands', commands));
+  commandEvents.on('change', (commands) => {
+    cancelCompletions();
+    peer.event('commands', commands);
+  });
   setLogSink((output) => {
     if (!output.sessionId || output.sessionId === peer.sessionId) {
       peer.event('output', output);
@@ -197,9 +213,23 @@ export function createCoreBridge(shutdown: (restart: boolean) => Promise<void>) 
       if (typeof data.command !== 'string' || !Number.isInteger(data.cursor)) {
         throw new Error('无效的命令补全请求');
       }
-      return completeCommand({ command: data.command, cursor: data.cursor as number });
+      const id = typeof data.id === 'string' ? data.id : randomUUID();
+      const controller = new AbortController();
+      completions.set(id, {
+        controller,
+        windowId: typeof data.windowId === 'string' ? data.windowId : undefined,
+      });
+      try {
+        return await completeCommand(
+          { command: data.command, cursor: data.cursor as number },
+          controller.signal,
+        );
+      } finally {
+        completions.delete(id);
+      }
     }
     if (method === 'command.execute') {
+      cancelCompletions(typeof data.windowId === 'string' ? data.windowId : undefined);
       if (stopping) {
         throw new Error('核心正在停止');
       }
@@ -275,6 +305,7 @@ export function createCoreBridge(shutdown: (restart: boolean) => Promise<void>) 
       );
     }
     if (method === 'lifecycle.exit' || method === 'lifecycle.restart') {
+      cancelCompletions();
       const result = await cancel(undefined, data.force === true);
       if (!result.cancelled) {
         return result;
@@ -290,6 +321,7 @@ export function createCoreBridge(shutdown: (restart: boolean) => Promise<void>) 
     throw new Error(`未知终端请求：${method}`);
   };
   process.once('disconnect', () => {
+    cancelCompletions();
     clearTimeout(timer);
     for (const complete of [...inputs.values()]) {
       complete(undefined, new Error('终端已断开'));

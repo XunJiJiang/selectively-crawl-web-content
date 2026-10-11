@@ -3,7 +3,9 @@ import { formatWithOptions } from 'node:util';
 import { spawn } from 'node:child_process';
 import { createRetryGet, LimitPromise } from '../../utils/axios.ts';
 import { RpcPeer } from './rpc.ts';
-import { TaskRegistry, invocationStorage } from '../../common/tasks.ts';
+import { TaskRegistry, TaskScope, invocationStorage } from '../../common/tasks.ts';
+import { createCommandCompletionCache } from '../../utils/commandCompletion.ts';
+import { abortable, withCompletionOutput } from '../../../terminal/completion.ts';
 import { setInputHandler, remoteInput } from '../../common/interaction.ts';
 import { outputColorLevel } from '../../common/color.ts';
 import { registerPluginSdk } from '../sdk/register.ts';
@@ -26,6 +28,8 @@ const peer = new RpcPeer((message, callback) => {
   process.send(message, callback);
 });
 const tasks = new TaskRegistry();
+const completions = new Map<string, AbortController>();
+const completionCache = createCommandCompletionCache();
 setInputHandler((request, signal) => remoteInput(peer, request, signal));
 const processTasks = tasks.create('host', undefined, true);
 tasks.on('snapshot', (snapshot) => {
@@ -39,6 +43,9 @@ tasks.on('snapshot', (snapshot) => {
   send();
 });
 peer.onEvent = (event, data) => {
+  if (event === 'completion.cancel') {
+    completions.get((data as { id: string }).id)?.abort();
+  }
   if (event === 'cancel') {
     tasks.cancel((data as { executionId?: string })?.executionId);
   }
@@ -225,6 +232,7 @@ async function initialize(args: Initialize): Promise<Manifest> {
           description: command.description,
           options: command.options,
           exampleUsage: command.exampleUsage,
+          complete: typeof command.complete === 'function',
           subCommands: command.subCommands?.map(({ execute: _, ...item }) => item),
         }
       : undefined,
@@ -272,6 +280,9 @@ async function dispatch(method: string, args: unknown, id: string): Promise<unkn
   }
   if (method === 'unload') {
     stopping = true;
+    for (const controller of completions.values()) {
+      controller.abort();
+    }
     tasks.cancel();
     // Existing asynchronous invocations must finish before their runtime is disposed.
     while (activeCalls > 0) {
@@ -467,6 +478,45 @@ async function dispatch(method: string, args: unknown, id: string): Promise<unkn
 }
 
 peer.onCall = async (method, envelope, id) => {
+  if (method === 'command.complete') {
+    const data = envelope as {
+      values: [string, string[], string, boolean, boolean, string | undefined];
+      identity: InvocationIdentity;
+    };
+    const controller = new AbortController();
+    const scope = new TaskScope('completion', id, data.identity, () => {
+      /* Candidate lookups never register business tasks. */
+    });
+    completions.set(id, controller);
+    const [raw, parents, sub, isKey, isValue, key] = data.values;
+    try {
+      if (stopping) {
+        throw new Error('插件正在停止');
+      }
+      return await invocationStorage.run({ ...scope.context, signal: controller.signal }, () =>
+        withCompletionOutput(
+          { stdout: log('info', data.identity), stderr: log('error', data.identity) },
+          () =>
+            abortable(
+              getPlugin().pluginConfig?.command?.complete?.(
+                raw,
+                parents,
+                completionCache,
+                sub,
+                isKey,
+                isValue,
+                key,
+                { signal: controller.signal, logger: scopedLogger(data.identity) },
+              ) ?? { command: raw, commands: [] },
+              controller.signal,
+            ),
+        ),
+      );
+    } finally {
+      completions.delete(id);
+      await peer.drainEvents();
+    }
+  }
   if (['initialize', 'ping', 'unload'].includes(method)) {
     return dispatch(method, envelope, id);
   }

@@ -4,11 +4,25 @@
 
 import { EventEmitter } from 'node:events';
 import { bindLogger } from './log.ts';
-import { currentIdentity, invocationStorage, taskRegistry } from '../common/tasks.ts';
+import {
+  currentIdentity,
+  invocationStorage,
+  taskRegistry,
+  TaskScope,
+  outputWindowId,
+} from '../common/tasks.ts';
 import type { InvocationContext } from '../types/task.d.ts';
 import type { TLogger } from '../types/log.d.ts';
-import type { TCommandExecute, TCommandOption, TSubCommand } from '../types/command.d.ts';
+import type {
+  TCommandExecute,
+  TCommandOption,
+  TSubCommand,
+  TCommandComplete,
+  CommandCompletionCache,
+} from '../types/command.d.ts';
 import type { CompletionRequest, CompletionResult } from '../../terminal/protocol.ts';
+import { completionInput, abortable } from '../../terminal/completion.ts';
+import { createCommandCompletionCache } from './commandCompletion.ts';
 
 /**
  * 命令字典
@@ -30,6 +44,8 @@ const commandRegistry = new Map<
     originalName: string;
     system: boolean;
     available?: () => boolean;
+    complete?: TCommandComplete;
+    completionCache: CommandCompletionCache;
   }
 >();
 
@@ -76,6 +92,7 @@ export type TRegisterCommand = (
   subCommands?: TSubCommand[],
   options?: TCommandOption[],
   exampleUsage?: string,
+  complete?: TCommandComplete,
 ) => void;
 
 /**
@@ -89,6 +106,7 @@ export type TRegisterCommand = (
  * @param subCommands 子命令
  * @param options 命令选项
  * @param exampleUsage 示例用法
+ * @param complete 三级及以上候选加载函数；不传则返回空候选
  * @throws {Error} 如果命令名称非法或多次注册命令
  */
 export function registerCommand(
@@ -101,6 +119,7 @@ export function registerCommand(
   options?: TCommandOption[],
   exampleUsage?: string,
   available?: () => boolean,
+  complete?: TCommandComplete,
 ) {
   const originalName = commandName;
   if (reservedCommands.has(commandName) && pluginId !== SYSTEM_SYMBOL) {
@@ -168,6 +187,8 @@ export function registerCommand(
     options: options ?? [],
     exampleUsage,
     available,
+    complete,
+    completionCache: createCommandCompletionCache(),
     pluginId: pluginId.toString(),
     originalName,
     system: pluginId === SYSTEM_SYMBOL,
@@ -203,9 +224,50 @@ export function unregisterPluginCommand(pluginId: string) {
   commandEvents.emit('change', getCommands());
 }
 
-/** The registry currently supplies names and descriptions for two command levels. */
-export function completeCommand({ command, cursor }: CompletionRequest): CompletionResult {
+/** First two levels use metadata; deeper candidates are supplied by the owning command. */
+export async function completeCommand(
+  { command, cursor }: CompletionRequest,
+  signal = new AbortController().signal,
+): Promise<CompletionResult> {
   cursor = Math.max(0, Math.min(command.length, cursor));
+  const input = completionInput(command, cursor);
+  if (input.deep) {
+    const empty = { command, from: input.from, to: input.to, items: [], inline: true };
+    const definition = commandRegistry.get(input.parents[0]);
+    if (
+      !input.eligible ||
+      !definition?.complete ||
+      (definition.available && !definition.available())
+    ) {
+      return empty;
+    }
+    signal.throwIfAborted();
+    const identity = { ...currentIdentity(), windowId: outputWindowId };
+    const scope = new TaskScope('completion', identity.executionId, identity, () => {
+      /* Candidate lookups never register business tasks. */
+    });
+    const complete = definition.complete;
+    const result = await invocationStorage.run({ ...scope.context, signal }, () =>
+      abortable(
+        complete(
+          command,
+          input.parents,
+          definition.completionCache,
+          input.parents[1],
+          input.isKey,
+          input.isValue,
+          input.key,
+          { signal, logger: bindLogger(definition.log, identity, definition.pluginId) },
+        ),
+        signal,
+      ),
+    );
+    return {
+      ...empty,
+      command: result.command,
+      items: result.commands.map((name) => ({ name, insertText: name })),
+    };
+  }
   let from = cursor;
   let to = cursor;
   while (from > 0 && !/\s/.test(command[from - 1])) {
@@ -219,7 +281,7 @@ export function completeCommand({ command, cursor }: CompletionRequest): Complet
   try {
     parents = splitCommand(command.slice(0, from));
   } catch {
-    return { from, to, items: [] };
+    return { command, from, to, items: [] };
   }
   const definitions = [...commandRegistry].filter(
     ([, value]) => !value.available || value.available(),
@@ -236,6 +298,7 @@ export function completeCommand({ command, cursor }: CompletionRequest): Complet
       ? (definitions.find(([name]) => name === parents[0])?.[1].subCommands ?? [])
       : [];
   return {
+    command,
     from,
     to,
     items: candidates
