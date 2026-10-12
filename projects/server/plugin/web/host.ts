@@ -40,6 +40,18 @@ function inside(directory: string, filename: string): boolean {
   );
 }
 
+/** Resolve aliases even when the final build directory or entry does not exist yet. */
+async function physicalPath(filename: string): Promise<string> {
+  try {
+    return await fs.realpath(filename);
+  } catch (error) {
+    if (!(error instanceof Error) || !('code' in error) || error.code !== 'ENOENT') {
+      throw error;
+    }
+    return path.join(await physicalPath(path.dirname(filename)), path.basename(filename));
+  }
+}
+
 export async function runWebBuild(request: WebBuildRequest): Promise<void> {
   const { build, loadConfigFromFile } = await import('vite');
   const { default: scwcVite } = await import('@scwc/vite-plugin');
@@ -58,12 +70,20 @@ export async function runWebBuild(request: WebBuildRequest): Promise<void> {
     'native',
   );
   const config = loaded?.config ?? {};
-  const root = path.resolve(request.directory, request.options.root ?? config.root ?? '.');
-  const destination = path.resolve(root, request.options.outDir ?? config.build?.outDir ?? 'dist');
-  if (!inside(request.directory, destination) || destination === root) {
+  const directory = await fs.realpath(request.directory);
+  const root = await physicalPath(
+    path.resolve(directory, request.options.root ?? config.root ?? '.'),
+  );
+  const destination = await physicalPath(
+    path.resolve(root, request.options.outDir ?? config.build?.outDir ?? 'dist'),
+  );
+  const expectedEntry = request.expectedEntry
+    ? await physicalPath(path.resolve(request.expectedEntry))
+    : undefined;
+  if (!inside(directory, destination) || destination === root) {
     throw new Error('Vite outDir 必须是插件目录内的独立构建目录，不能覆盖插件根目录或源码根目录');
   }
-  if (request.expectedEntry && !inside(destination, request.expectedEntry)) {
+  if (expectedEntry && !inside(destination, expectedEntry)) {
     throw new Error('插件 ui.entry 不在 Vite outDir 中，请修正入口或构建配置');
   }
   const parent = path.dirname(destination);
@@ -94,8 +114,8 @@ export async function runWebBuild(request: WebBuildRequest): Promise<void> {
         emptyOutDir: true,
       },
     });
-    if (request.expectedEntry) {
-      await fs.access(path.join(staging, path.relative(destination, request.expectedEntry)));
+    if (expectedEntry) {
+      await fs.access(path.join(staging, path.relative(destination, expectedEntry)));
     }
     if (
       await fs.stat(destination).then(

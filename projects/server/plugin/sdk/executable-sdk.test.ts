@@ -12,7 +12,7 @@ import { preparePluginWeb } from '../web/build.ts';
 
 const root = fileURLToPath(new URL('../../../../', import.meta.url));
 const executable = path.join(root, 'dist/core', process.platform === 'win32' ? 'scwc.exe' : 'scwc');
-const sticker = path.join(root, 'projects/server/plugins/scwc-plugin-sticker-management');
+const sticker = path.join(root, 'projects/server/plugins/sticker-management');
 const directories: string[] = [];
 afterEach(async () => {
   await Promise.all(

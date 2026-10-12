@@ -220,6 +220,35 @@ describe('plugin frontend contract', () => {
     expect(() => parseWebBuildScript(undefined, '/plugin')).toThrow('scripts.build:web');
   });
 
+  it('builds through a directory alias while checking the real entry path', async () => {
+    const f = await fixture();
+    const aliases = await fs.mkdtemp(path.join(os.tmpdir(), 'scwc-web-alias-'));
+    roots.push(aliases);
+    const alias = path.join(aliases, 'linked plugin');
+    await fs.symlink(f.directory, alias, process.platform === 'win32' ? 'junction' : 'dir');
+    await buildPluginWeb(alias, logger, { expectedEntry: f.entry });
+    await verifyBrowserOutput(f.entry);
+  }, 30_000);
+
+  it('rejects an output directory whose existing ancestor links outside the plugin', async () => {
+    const f = await fixture();
+    const outside = await fs.mkdtemp(path.join(os.tmpdir(), 'scwc-web-outside-'));
+    roots.push(outside);
+    await fs.writeFile(path.join(outside, 'keep.txt'), 'untouched');
+    await fs.symlink(
+      outside,
+      path.join(f.directory, 'linked output'),
+      process.platform === 'win32' ? 'junction' : 'dir',
+    );
+    await fs.writeFile(
+      path.join(f.directory, 'vite config.ts'),
+      "export default { root: './web', build: { outDir: '../linked output/dist' } };",
+    );
+    await expect(buildPluginWeb(f.directory, logger)).rejects.toThrow('Vite outDir');
+    expect(await fs.readdir(outside)).toEqual(['keep.txt']);
+    expect(await fs.readFile(path.join(outside, 'keep.txt'), 'utf8')).toBe('untouched');
+  });
+
   it('accepts supplied frontend artifacts without requiring a build script', async () => {
     const f = await fixture();
     await fs.mkdir(path.dirname(f.entry));

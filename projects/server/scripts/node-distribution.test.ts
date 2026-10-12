@@ -27,7 +27,7 @@ beforeAll(async () => {
     return;
   }
   temporary = await fs.mkdtemp(path.join(os.tmpdir(), 'scwc-node-release-'));
-  app = path.join(temporary, 'relocated app');
+  app = path.join(await fs.realpath(temporary), 'relocated app');
   unrelated = path.join(temporary, 'unrelated cwd');
   await fs.cp(release, app, { recursive: true });
   await fs.mkdir(unrelated);

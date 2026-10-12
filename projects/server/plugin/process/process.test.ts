@@ -32,6 +32,9 @@ const clients: PluginProcessClient[] = [];
 const servers: Server[] = [];
 const directories: string[] = [];
 const fixture = fileURLToPath(new URL('./fixtures/plugin.ts', import.meta.url));
+const stickerEntry = fileURLToPath(
+  new URL('../../plugins/sticker-management/index.ts', import.meta.url),
+);
 
 function must<T>(value: T | undefined): T {
   if (value === undefined) {
@@ -732,35 +735,35 @@ describe('isolated plugin host', () => {
     },
   );
 
-  it('activates the actual sticker plugin in a temporary data root using its v2 contract', async () => {
-    const entry = fileURLToPath(
-      new URL('../../plugins/scwc-plugin-sticker-management/index.ts', import.meta.url),
-    );
-    const c = setup({ entry });
-    const handler = await c.client.start();
-    expect(handler.name).toBe('sticker-management');
-    const bootstrap = await api(handler, '/api/bootstrap').handler({}, context());
-    expect(bootstrap).toMatchObject({
-      ok: true,
-      data: { systemFolders: { root: expect.any(String) } },
-    });
-    const project = (await api(handler, '/api/editor/projects', 'POST').handler(
-      { name: 'isolated' },
-      context(),
-    )) as { data: { uuid: string } };
-    await api(handler, '/api/editor/projects/:uuid/name').handler(
-      { name: 'renamed' },
-      context({ uuid: project.data.uuid }),
-    );
-    expect(
-      await api(handler, '/api/editor/projects/:uuid', 'GET').handler(
-        {},
+  it.skipIf(!fs.existsSync(stickerEntry))(
+    'activates the actual sticker plugin in a temporary data root using its v2 contract',
+    async () => {
+      const c = setup({ entry: stickerEntry });
+      const handler = await c.client.start();
+      expect(handler.name).toBe('sticker-management');
+      const bootstrap = await api(handler, '/api/bootstrap').handler({}, context());
+      expect(bootstrap).toMatchObject({
+        ok: true,
+        data: { systemFolders: { root: expect.any(String) } },
+      });
+      const project = (await api(handler, '/api/editor/projects', 'POST').handler(
+        { name: 'isolated' },
+        context(),
+      )) as { data: { uuid: string } };
+      await api(handler, '/api/editor/projects/:uuid/name').handler(
+        { name: 'renamed' },
         context({ uuid: project.data.uuid }),
-      ),
-    ).toMatchObject({ data: { name: 'renamed' } });
-    await c.client.stop(false);
-    expect(c.client.info.status).toBe('stopped');
-  });
+      );
+      expect(
+        await api(handler, '/api/editor/projects/:uuid', 'GET').handler(
+          {},
+          context({ uuid: project.data.uuid }),
+        ),
+      ).toMatchObject({ data: { name: 'renamed' } });
+      await c.client.stop(false);
+      expect(c.client.info.status).toBe('stopped');
+    },
+  );
 
   it.skipIf(
     !fs.existsSync(fileURLToPath(new URL('../../plugins/image/index.ts', import.meta.url))),

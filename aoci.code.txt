@@ -2,7 +2,7 @@
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/===
 .gitattributes[FR4T]: F:固定Git文本检出的LF换行并保留自动识别的二进制文件 | R:- | A:* text=auto eol=lf | S:AOCI按原始字节绑定Baseline，跨平台检出必须覆盖autocrlf避免整仓伪漂移
-.gitignore[FR5M]: F:排除依赖、构建产物、环境文件、运行数据与本机Agent配置，保留扩展模板和公共声明 | R:code:projects/server/scripts/build.ts,code:projects/terminal/plugins/scwc/index.ts | A:Git忽略规则 | S:public/web和public/lib为忽略的生成目录；插件默认忽略，内建终端scwc源码和元数据是显式例外
+.gitignore[FR5M]: F:排除依赖、构建产物、环境文件、运行数据和本机Agent配置，保留插件模板与公共声明 | R:code:projects/server/scripts/build.ts,code:projects/terminal/plugins/scwc/index.ts | A:Git忽略规则 | S:public/web和public/lib为生成目录；插件默认忽略，终端scwc整个目录为显式例外
 AGENTS.md[SG7S]: F:规定本仓库AOCI认知加载、证据创作、批次维护与安全停点 | R:- | A:Agent仓库执行合同 | S:上下文压缩后必须重新完整交付Overview再确认；不得用路径或规则生成语义，内部创作批次自动续接
 LICENSE[SZ2T]: F:授予本项目MIT使用和再分发许可并声明免责 | R:- | A:MIT许可文本 | S:复制或实质分发须保留版权和许可声明
 bun.lock[FV5L]: F:锁定Bun工作区包身份、实际依赖解析与完整性信息 | R:code:package.json | A:lockfileVersion,workspaces,packages | S:工作区包通过workspace绑定本地实现，依赖版本升级须同步锁文件
@@ -62,7 +62,7 @@ installed-plugins.test.ts[TE5S]: F:按本机已安装插件验证默认v2独立�
 loader.test.ts[TE6M]: F:验证缺省或部分runtime仍隔离加载、坏插件不阻塞好插件及页面准备先于onLoad | R:code:projects/server/plugin/load.ts,code:projects/server/plugin/web/build.ts | A:Vitest隔离加载用例 | S:构建超startupTimeout仍可完成，证明页面准备暂停计时；禁用及旧协议插件不得执行入口；命令注册由mock隔离
 options.test.ts[TE4T]: F:验证默认process/v2配置、超时覆盖和不合法runtime的拒绝 | R:code:projects/server/plugin/process/options.ts | A:Vitest运行配置用例 | S:-
 options.ts[FE7T]: F:校验插件运行配置并固定独立进程v2协议，保留有界超时覆盖 | R:code:projects/server/types/plugin-process.d.ts | A:resolveProcessOptions | S:省略配置仍选择process/v2，禁止旧协议或同进程模式；超时仅接受100至600000的整数
-process.test.ts[TE7L]: F:通过真实子进程和HTTP验证隔离执行、补全缓存取消与并发输出归属、日志输入和故障清理 | R:code:projects/server/plugin/process/client.ts,code:projects/server/plugin/process/fixtures/plugin.ts,code:projects/server/router/web/api/load.ts,code:projects/server/utils/commandCompletion.ts | A:Vitest隔离插件宿主集成用例 | S:补全超过普通RPC期限仍返回，不增业务任务；同宿主后台命令运行时stdio仍归公共输出；缓存跨请求保留，大文件绕过IPC，父进程强杀清后代
+process.test.ts[TE7L]: F:通过真实子进程和HTTP验证隔离执行、补全取消与输出归属、交互和故障清理 | R:code:projects/server/plugin/process/client.ts,code:projects/server/plugin/process/fixtures/plugin.ts,code:projects/server/router/web/api/load.ts,code:projects/server/utils/commandCompletion.ts | A:Vitest隔离插件宿主集成用例 | S:补全无期限且不建业务任务，stdio归公共窗口；文件不经IPC；父进程消失清子树；贴纸插件不存在时跳过其用例
 protocol.ts[FN8T]: F:定义插件v2信封、manifest、补全能力标记、初始化数据和传输容量常量 | R:code:projects/server/types/plugin-process.d.ts,code:projects/server/plugin/process/rpc.ts | A:PROTOCOL_VERSION,MAX_MESSAGE_BYTES,MAX_PENDING_CALLS,PluginProcessError,remoteError,Message | S:manifest不传函数，complete仅传布尔能力；单消息16MiB、并发64，远端错误消息限8000字符
 resource.ts[IN7T]: F:抽取可跨进程请求元数据，并在核心Express响应文件或普通资源结果 | R:code:projects/server/types/plugin-process.d.ts,code:projects/server/plugin/process/client.ts | A:requestData,sendResource | S:文件必须绝对路径且文件字节不经过IPC，由Express处理Range和背压；已中断传输的结束回调不视为资源错误
 rpc.test.ts[TN6S]: F:验证有界插件RPC、日志顺序、期限暂停、无期限取消和断连清理 | R:code:projects/server/plugin/process/rpc.ts,code:projects/server/plugin/process/protocol.ts | A:Vitest有界RPC用例 | S:伪时钟前进后无期限请求仍等待，连续取消超过64次证明释放槽位；函数及超大值须在IPC发送前失败
@@ -74,7 +74,7 @@ plugin.ts[TE5S]: F:提供可模拟启动失败、阻塞、崩溃、子进程和�
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/plugin/sdk/===
 browser.ts[LE4T]: F:为核心兼容入口重导出浏览器安全的Zod依赖 | R:code:projects/vite-plugin/browser.js | A:z | S:浏览器入口不暴露Node原生或服务端依赖
 dependencies.ts[LE6T]: F:定义插件共享后端依赖导出，包括Axios、Chalk、Zod、SQLite、trash及文件类型探测 | R:code:projects/server/plugin/sdk/register.ts | A:axios,chalk,z,Database,trash,fileType | S:这是显式依赖合同而非全部根依赖；trash动态导入保留原生ESM默认导出和资源相对URL
-executable-sdk.test.ts[TE6S]: F:验证插件移至无核心依赖的外部目录后，在源码与SEA宿主中仍能使用共享SDK、Worker和API | R:code:projects/server/plugin/process/host.ts,code:projects/server/scripts/shared-package-assets.ts,code:projects/server/plugin/web/build.ts | A:Vitest移位插件SDK用例 | S:实际插件或可执行产物缺失时跳过对应模式；测试仅提供插件自有依赖，核心SQLite等必须由SDK提供
+executable-sdk.test.ts[TE6S]: F:验证sticker-management移至无核心依赖的外部目录后，在源码与SEA宿主中仍能使用SDK、Worker和API | R:code:projects/server/plugin/process/host.ts,code:projects/server/scripts/shared-package-assets.ts,code:projects/server/plugin/web/build.ts | A:Vitest移位插件SDK用例 | S:实际插件或可执行产物缺失时跳过对应模式；只提供插件自有依赖，核心SQLite等必须由SDK提供
 modules.d.ts[FE6T]: F:为scwc:deps和scwc:runtime虚拟模块声明原包命名空间及运行时泛型类型 | R:code:projects/server/plugin/sdk/dependencies.ts,code:projects/server/plugin/sdk/runtime.ts | A:scwc:deps,scwc:runtime | S:类型重导出须保留Zod和SQLite命名空间及Axios泛型，不能替换为松散值声明
 register.ts[LE8T]: F:注册Node同步模块解析和加载Hook，将共享依赖与运行时暴露为scwc虚拟模块 | R:code:projects/server/plugin/sdk/dependencies.ts,code:projects/server/plugin/sdk/runtime.ts | A:registerPluginSdk | S:每个宿主或Worker须在动态导入插件前注册；冻结模块存于全局Symbol，幂等注册使ESM与require共享同一依赖实例
 runtime.ts[LE7T]: F:导出插件RPC与错误类型，创建先安装共享SDK再加载插件入口的Worker | R:code:projects/server/plugin/sdk/worker-bootstrap.ts,code:projects/server/plugin/process/rpc.ts | A:createPluginWorker,PluginWorkerOptions,RpcPeer,PluginProcessError | S:只接收file入口；打包模式用父runtime下bootstrap；自定义env仍继承三个部署内部键，父进程不存在的内部键不能由插件注入
@@ -85,9 +85,9 @@ worker-bootstrap.ts[EE6T]: F:读取Worker入口、安装插件SDK，再动态加
 build.ts[AE8S]: F:队列化隔离Vite页面构建、去重同目录请求，准备缺失入口并更新初始HTML快照 | R:code:projects/server/plugin/web/host.ts,code:projects/server/plugin/web/options.ts,code:projects/server/common/paths.ts | A:buildPluginWeb,preparePluginWeb,ensurePluginWeb,cancelPluginWebBuilds | S:所有目录构建串行，同目录共享Promise；5分钟或取消时杀子树；退出后不接新构建，发布路由前刷新旧HTML快照
 cli.ts[EE5T]: F:解析插件目录并启动单次内置页面构建，将失败映射为非零退出 | R:code:projects/server/plugin/web/build.ts,code:projects/server/common/config.ts | A:--build-plugin-web,--directory | S:两种目录参数缺失时立即抛错，构建异常设置exitCode=1
 dependencies.ts[FE5T]: F:定义核心Vite构建器共享包并兼容重导出公开包的浏览器依赖目录 | R:code:projects/vite-plugin/dependencies.js | A:packageName,sharedBrowserPackages,sharedBuildPackages | S:浏览器依赖以公开Vite包为权威，构建共享目录额外包含Vite、Monkey、esbuild及本地Vite插件
-host.ts[OV8S]: F:在隔离进程加载Vite配置与共享构建依赖，暂存构建页面并发布到插件目录 | R:code:projects/server/plugin/web/build.ts,code:projects/vite-plugin/index.js | A:runWebBuild,WebBuildRequest | S:插件自有包优先，仅缺失且在白名单的包回退核心；outDir必须在插件目录内且不等于源码根；先暂存验证入口再换目录，发布失败恢复旧目录
+host.ts[OV8S]: F:在隔离进程加载Vite配置与共享依赖，暂存构建页面并发布到插件目录 | R:code:projects/server/plugin/web/build.ts,code:projects/vite-plugin/index.js | A:runWebBuild,WebBuildRequest | S:插件自有包优先，缺失白名单包才回退；目录、outDir和入口按真实路径校验，未建路径解析现有祖先以消除别名并阻止链接越界；outDir不得等于插件或源码根；验证暂存入口后发布，失败恢复旧目录
 options.ts[FV7T]: F:将声明的vite build脚本解析为有界配置选项和绝对路径 | R:code:projects/server/utils/command.ts,code:projects/server/plugin/web/host.ts | A:parseWebBuildScript,WebBuildOptions,WebBuildRequest | S:不执行shell，只接受vite build及白名单选项；拒绝命令串联与任意脚本，其他构建选项须写入Vite配置
-web-build.test.ts[TV7M]: F:验证独立插件前端构建、共享依赖与Worker装饰器、同目录去重和失败保留原页面 | R:code:projects/server/plugin/web/build.ts,code:projects/server/plugin/web/options.ts,code:projects/vite-plugin/index.js | A:Vitest插件前端合同用例 | S:实际在JSDOM验证Lit属性反射，并检查生成脚本语法；SEA用例要求没有外部Node或核心node_modules
+web-build.test.ts[TV7M]: F:验证插件前端共享依赖、Worker装饰器、构建去重、路径别名与越界保护和失败保留页面 | R:code:projects/server/plugin/web/build.ts,code:projects/server/plugin/web/options.ts,code:projects/vite-plugin/index.js | A:Vitest插件前端合同用例 | S:JSDOM验证Lit属性反射并检查脚本语法；允许目录别名，拒绝outDir祖先链接到插件外；SEA用例无需外部Node或核心node_modules
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/public/resources/arcofont/===
 arcofont.json[RU3L]: F:保存Arco图标字体的字形名称、CSS类名和Unicode编码映射 | R:code:projects/server/public/resources/arcofont/index.css | A:font_family,css_prefix_text,glyphs | S:-
@@ -1023,7 +1023,7 @@ index-BnV2wF9o.css[RU2T]: F:提供生产Web入口的body零边距与Arial默认�
 index-Dh065xvD.js[LU4L]: F:打包生产Web的Lit组件、配置存储和插件页面列表及iframe宿主交互 | R:code:projects/web/src/main.ts,code:projects/web/src/layouts/content.ts | A:app-root,app-content,app-header,app-footer | S:插件iframe加载后通过postMessage传递配置，产物固定引用/web路径
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/public/web/===
-index.html[EU4T]: F:加载生产Web脚本、样式与图标并挂载app-root组件 | R:code:projects/server/public/web/assets/index-Dh065xvD.js,code:projects/server/public/web/assets/index-BnV2wF9o.css | A:生产WebHTML入口 | S:脚本与样式固定使用/web/assets路径
+index.html[EU4T]: F:加载生产Web脚本、样式和图标并挂载app-root组件 | R:code:projects/server/public/web/assets/index-Dh065xvD.js,code:projects/server/public/web/assets/index-BnV2wF9o.css | A:生产WebHTML入口 | S:脚本、样式与图标固定使用/web/assets路径
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/router/===
 index.ts[EN9M]: F:创建Express核心API、任务作用域与鉴权中间件，分派采集到匹配插件并监听可用端口 | R:code:projects/server/router/plugin.ts,code:projects/server/router/web/index.ts,code:projects/server/router/web/websocket.ts,code:projects/server/utils/listen.ts | A:app,listen,/api/metadata/scrape | S:除/web/api外的/web GET跳过鉴权；其余需Origin/Referer与site同hostname，不比较端口协议；空TOKEN仍要求site；采集插件顺序执行，单个失败不中断其他插件
@@ -1060,7 +1060,7 @@ smoke-executable.ts[TV7M]: F:在移位部署中验证SEA端口搜索、相邻环
 build-node.ts[OV8M]: F:构建不内置Node的目录发行包，生成平台启动器、目标元数据和资源清单并原子发布 | R:code:projects/server/scripts/build-runtime.ts,code:projects/server/scripts/node-bootstrap.ts,code:projects/server/scripts/node-runtime.ts | A:buildNodeDistribution,parseNodeBuildArgs,assertNativeBuild | S:只接受本机平台/架构及Node>=25，Linux区分libc；发布前验证实际包内原生资源；失败恢复旧输出，恢复失败保留备份；重新构建替换整个输出，不可原地部署运行数据
 build-runtime.ts[OV8S]: F:为SEA和Node目录包构建核心、终端、宿主、SDK Worker、Web及共享依赖的物理资源树 | R:code:projects/server/scripts/shared-package-assets.ts,code:projects/server/plugin/web/dependencies.ts,code:projects/web/vite.config.ts,code:projects/webUtils/vite.config.ts | A:buildRuntime,BUILD_ROOT,RuntimeAsset | S:七个CJS保留函数名并外置原生及工具包；Web直接写暂存目录，不改仓库public产物；按包依赖层次保留完整文件与Unix权限，manifest区分核心和按需构建资源
 node-bootstrap.ts[EV8T]: F:校验外部Node、加载部署环境并分派目录包的终端、核心、宿主或页面构建入口 | R:code:projects/server/scripts/node-runtime.ts,code:projects/server/common/paths.ts | A:startDirectory,--check-node,--no-terminal,--build-plugin-web | S:检查分支不读.env或核心；显式Node不合规即失败，必要时转交指定Node；默认终端且专用宿主分支优先；引导内部目录不接受.env覆盖
-node-distribution.test.ts[TV6M]: F:在项目外复制实际目录包，验证两种启动模式、共享SDK、原生包、Worker和自动页面构建 | R:code:projects/server/scripts/build-node.ts,code:projects/server/scripts/node-bootstrap.ts,code:projects/server/plugin/sdk/runtime.ts | A:Vitest移位目录发行包集成用例 | S:无本机目录包时跳过；错误cwd环境不得影响部署；外部插件无node_modules，自定义env Worker须保留运行根；全部数据及端口临时
+node-distribution.test.ts[TV6M]: F:在项目外复制真实目录包，验证两种启动模式、SDK、SQLite、Worker、自动页面构建和系统启动器 | R:code:projects/server/scripts/build-node.ts,code:projects/server/scripts/node-bootstrap.ts,code:projects/server/plugin/sdk/runtime.ts | A:Vitest移位目录发行包集成用例 | S:无本机包时跳过；部署根按realpath断言以兼容macOS别名，错误cwd环境不得生效；外部插件无node_modules，自定义env Worker保留运行根
 node-runtime.test.ts[TV6S]: F:验证Node目录包的版本平台兼容、原生构建限制、环境优先级及编译入口的Node路径行为 | R:code:projects/server/scripts/node-runtime.ts,code:projects/server/scripts/node-bootstrap.ts,code:projects/server/scripts/build-node.ts | A:Vitest外部Node合同用例 | S:实际编译start.cjs后验证无核心资源仍可检查Node；显式错误路径不能回退，空文件配置可覆盖进程Node设置
 node-runtime.ts[CR7T]: F:定义目录包目标元数据并检查外部Node兼容性，加载部署目录环境 | R:code:projects/server/scripts/node-bootstrap.ts | A:currentNodeInfo,validateNode,readBuildInfo,loadDirectoryEnvironment | S:要求Node>=25与Node-API>=10并拒绝Bun/Electron；平台架构及Linux libc须匹配；.env优先且保护引导内部字段
 
@@ -1257,10 +1257,6 @@ plugin-env.d.ts[FE7S]: F:声明独立SCWCTerminal契约，包括标识作用域�
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/.github/workflows/===
 build-node-distribution.yml[FV6T]: F:在三个系统的原生Runner安装依赖、构建并测试Node目录包，归档上传下载产物 | R:code:package.json,code:projects/server/scripts/build-node.ts,code:projects/server/scripts/node-distribution.test.ts | A:workflow_dispatch,jobs.build | S:仅手动触发且不发布Release；tar.gz保留shell及原生工具执行权限，架构沿用Runner
 
-===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/public/lib/===
-scwcutils.iife.mv0uzymf.js[LU3L]: F:分发配置存储、通知及插件HTTP资源和WebSocket初始化工具的浏览器ESM库 | R:code:projects/webUtils/lib/index.ts,code:projects/webUtils/lib/utils/fetch.ts | A:default工具对象 | S:名称含iife但实际为ESM导出，不能按普通script加载
-scwcutils.iife.mv0uzyo1.js[LU4M]: F:以UMD提供浏览器配置、通知及按宿主配置初始化的插件HTTP资源和WebSocket工具 | R:code:projects/webUtils/lib/index.ts,code:projects/server/router/web/page/index.ts | A:window.scwcutils,fetch,resource,websocket | S:配置消息不校验origin；初始化前resource为空且WebSocket抛错
-
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/scripts/launchers/===
 start.ps1[EV6T]: F:读取部署Node路径或枚举PATH候选，验证并启动Windows目录包 | R:code:projects/server/scripts/node-bootstrap.ts,code:projects/server/scripts/build-node.ts | A:SCWC_NODE_PATH,start.cjs | S:只解析单行路径不执行.env；显式无效不回退，未指定逐个校验候选；构建器写UTF-8 BOM兼容PS5.1
 start.sh[EV6T]: F:为Linux和macOS从相邻配置或PATH寻找合规Node并转交目录包入口 | R:code:projects/server/scripts/node-bootstrap.ts | A:SCWC_NODE_PATH,probe_node,start.cjs | S:AWK解析路径而不source环境文件；相对路径按部署根，显式无效不回退；扫描PATH跳过旧Node，exec保留信号和退出码
@@ -1268,4 +1264,9 @@ start.sh[EV6T]: F:为Linux和macOS从相邻配置或PATH寻找合规Node并转�
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/terminal/plugins/scwc/===
 index.ts[IE6T]: F:将核心系统命令注册为终端全局扩展，转发执行并代理补全 | R:code:projects/terminal/plugin/host.ts,code:projects/terminal/plugins/plugin-env.d.ts | A:onLoad,quoteArgument | S:不注册exit/restart；参数转义保留Windows末尾反斜杠，补全缺省原文回显；help等保留名仍由统一冲突裁决加前缀
 package.json[FE4T]: F:声明内建scwc终端适配的私有ESM入口并默认启用 | R:code:projects/terminal/plugins/scwc/index.ts | A:main,enabled,type | S:-
+tsconfig.json[FQ4T]: F:为内建scwc终端插件启用严格ESNext无输出检查并加载相邻公共声明 | R:code:projects/terminal/plugins/scwc/index.ts,code:projects/terminal/plugins/plugin-env.d.ts | A:compilerOptions,include | S:依靠include载入SCWCTerminal类型，允许TS扩展名导入
+
+===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/public/lib/===
+scwcutils.iife.mv2860av.js[LU3L]: F:分发浏览器配置、通知及插件HTTP资源和WebSocket初始化工具的ESM库 | R:code:projects/webUtils/lib/index.ts,code:projects/webUtils/lib/utils/fetch.ts | A:default工具对象 | S:名称含iife但实际有ESM导出，不能按普通script加载
+scwcutils.iife.mv2860ba.js[LU4M]: F:以UMD分发浏览器配置、通知和按宿主配置初始化的插件HTTP资源及WebSocket工具 | R:code:projects/webUtils/lib/index.ts,code:projects/server/router/web/page/index.ts | A:window.scwcutils,fetch,resource,websocket | S:消息不校验origin；初始化前resource为空且WebSocket抛错
 

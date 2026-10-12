@@ -401,7 +401,7 @@ busy 由自动调用、主动 `setBusy(true)` 或未结束的 `begin` 句柄共�
 
 [node-bootstrap.ts](../projects/server/scripts/node-bootstrap.ts) 与 [node-runtime.ts](../projects/server/scripts/node-runtime.ts) 校验用户 Node >=25、Node-API >=10、目标平台/架构/libc，加载相邻环境并分派终端/核心/两类宿主/页面构建。start.ps1 用于 Windows（支持 PowerShell 5.1/7），start.sh 用于 Linux/macOS；脚本读取 SCWC_NODE_PATH（.env 优先于进程环境，相对部署目录），未指定时继续扫描 PATH 的合规候选；显式无效路径立即报错，不执行环境文件。直接 node start.cjs 也支持指定 Node 后转交；正常子进程及 createPluginWorker 使用同一 Node/资源目录，自定义 Worker env 仍继承内部部署字段。内建 scwc 终端适配源码作为 Git 例外纳入并编译进宿主。目录包保留同一 SDK/Vite/@scwc/vite-plugin 能力，用户只另装 Node；开发类型仍从源码 SDK 声明提供。
 
-[三系统工作流](../.github/workflows/build-node-distribution.yml) 仅手动触发，各系统原生构建并测试，再归档 tar.gz 保留原生工具执行权限后上传，不发布 Release。本机已验证 Windows 目录包，Linux/macOS 以对应 runner 的实际结果为准。
+[三系统工作流](../.github/workflows/build-node-distribution.yml) 仅手动触发，各系统原生构建并测试，再归档 tar.gz 保留原生工具执行权限后上传，不发布 Release。本机已验证 Windows 和 macOS arm64 目录包；2026-10-12 在 macOS 使用 Node.js 25.8.0 完成搬移部署、终端/核心、SQLite/SDK Worker、自动页面构建及 shell 启动器的回归。Linux 和 macOS x64 仍需对应环境验证。
 
 未提供非空 `TOKEN` 时，服务端会生成随机 UUID 并打印；只有字面字符串 `TOKEN=null` 会将 token 设为空。不要通过留空误以为关闭了鉴权。浏览器默认 token 是空，需要通过脚本设置配置。
 
