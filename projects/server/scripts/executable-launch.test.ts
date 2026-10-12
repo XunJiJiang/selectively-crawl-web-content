@@ -44,7 +44,8 @@ afterAll(async () => {
 
 describe.skipIf(!existsSync(executable))('standalone executable launch mode', () => {
   it.each([
-    { args: [], input: ':new\n:q\n', terminal: true },
+    // The built-in scwc adapter first asks to prefix commands that conflict with the terminal.
+    { args: [], input: ':a\n:new\n:q\n', terminal: true },
     { args: ['--no-terminal'], input: 'exit\n', terminal: false },
   ])(
     'runs the expected mode with $args and exits cleanly',

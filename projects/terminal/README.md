@@ -15,6 +15,8 @@ setup.ts 负责构建准备并启动本工程；终端通过本地 IPC 启动核
 
 ## 使用
 
+不内置 Node 的目录发行包通过 `bun run build:core:windows/linux/macos` 在各对应系统构建；部署机需要 Node >=25。`node start.cjs`、Windows 的 `./start.ps1` 或 Linux/macOS 的 `./start.sh` 默认打开相同终端，`--no-terminal` 直接启动核心。启动器读取相邻 `.env` 的 SCWC_NODE_PATH 或寻找 PATH 中的合规 Node。内建 scwc 全局命令适配会编译进宿主，业务插件与终端插件目录仍为 plugins 和 terminal/plugins。完整命令及平台要求见 [核心部署](../../docs/核心部署.md)。
+
 默认有输出窗口和 cmd1，输出窗口不能关闭。标签尾部数字是当前标签序号，命令参数使用这个序号；内部使用持久化的固定 UUID，关闭并新建窗口不会继承旧日志。
 
 - 命令窗口在最后一段输出的下一行显示高亮 `>` 和光标，直接输入命令。上下键选择本窗历史，末项保留当前草稿；全局命令也有独立历史和草稿。

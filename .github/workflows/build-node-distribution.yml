@@ -1,0 +1,45 @@
+name: Build external Node distributions
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-latest
+            platform: windows
+          - runner: ubuntu-latest
+            platform: linux
+          - runner: macos-latest
+            platform: macos
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '25.x'
+          package-manager-cache: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.3.10'
+      - run: bun install --frozen-lockfile
+      - run: bun run build:core:${{ matrix.platform }}
+      - run: bun run test --run projects/server/scripts/node-runtime.test.ts projects/server/scripts/node-distribution.test.ts projects/server/common/environment.test.ts projects/terminal/plugin/global.test.ts
+      # Preserve executable bits for start.sh and native build tools inside the artifact.
+      - name: Archive distribution
+        shell: bash
+        run: |
+          for directory in dist/core-node/scwc-node-*; do
+            name=$(basename "$directory")
+            tar -czf "dist/core-node/$name.tar.gz" -C dist/core-node "$name"
+          done
+      - uses: actions/upload-artifact@v7
+        with:
+          name: scwc-node-${{ matrix.platform }}
+          path: dist/core-node/scwc-node-*.tar.gz
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 14

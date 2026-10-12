@@ -20,11 +20,14 @@ plugin build-web <插件目录名>
 ```sh
 bun run build:plugin-web --directory <插件目录>
 ./scwc --build-plugin-web <插件目录>
+node start.cjs --build-plugin-web <插件目录>  # Node 目录发行包
 ```
 
 ## 构建工具与依赖
 
 SEA 内置 @scwc/vite-plugin、Vite、vite-plugin-monkey、esbuild，以及它们需要的原始模块和本机原生资源；无需部署机另装 Node/Vite。正常启动只释放核心资源，首次页面构建按需释放工具链/浏览器依赖，后续构建复用。源码模式需安装根工作区依赖（包含构建开发依赖）。额外 Vite 插件、预处理器或私有页面依赖由业务插件提供；核心不自动联网安装包。
+
+Node 目录发行包把相同工具链保存在 runtime/node_modules，直接使用该目录，无需释放到系统临时目录；部署机只需合规 Node >=25。插件无需安装 Vite，@scwc/vite-plugin 的配置导入及页面/Worker 白名单回退与 SEA 一致。
 
 前端共享白名单由 [公共 Vite 包](../../../vite-plugin/README.md) 的 dependencies.js 维护，包含 Lit、@lit/context、@lit-labs 系列、Zod、CodeMirror、Lezer 等。此目录 dependencies.ts 保留兼容导出并维护 sharedBuildPackages，包含公共 Vite 包。页面保留 `import ... from 'lit'` 以及包的正常子路径；构建先按插件位置解析，未找到白名单包时才使用核心目录。Node 配置加载也提供构建包回退，解决外部目录没有 Vite/@scwc/vite-plugin 的情况。插件私有版本优先，core 固定版本只作为回退。
 

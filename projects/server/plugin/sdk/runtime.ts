@@ -17,10 +17,19 @@ export function createPluginWorker(entry: URL, options: PluginWorkerOptions = {}
   const bootstrap = runtimeRoot
     ? path.join(runtimeRoot, 'plugin-worker.cjs')
     : fileURLToPath(new URL('./worker-bootstrap.ts', import.meta.url));
+  const reserved = ['SCWC_APP_DIR', 'SCWC_RUNTIME_ROOT', 'SCWC_DISTRIBUTION_MODE'];
+  const env = Object.fromEntries(
+    Object.entries(options.env ?? process.env).filter(([name]) => !reserved.includes(name)),
+  );
+  for (const name of reserved) {
+    if (process.env[name] !== undefined) {
+      env[name] = process.env[name];
+    }
+  }
   return new Worker(bootstrap, {
     ...options,
     env: {
-      ...(options.env ?? process.env),
+      ...env,
       SCWC_PLUGIN_WORKER_ENTRY: entry.href,
     },
   });

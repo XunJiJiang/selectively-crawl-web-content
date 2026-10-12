@@ -1,0 +1,7 @@
+{
+  "name": "scwc-terminal-system",
+  "private": true,
+  "type": "module",
+  "main": "index.ts",
+  "enabled": true
+}

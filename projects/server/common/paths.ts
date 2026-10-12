@@ -2,15 +2,31 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isSea } from 'node:sea';
 
-export const isPackaged = isSea();
+/** Both distributions use bundled hosts; only SEA embeds the Node executable. */
+const sea = isSea();
+export const isNodeDistribution = !sea && process.env.SCWC_DISTRIBUTION_MODE === 'node';
+export const isPackaged = sea || isNodeDistribution;
 const sourceServerRoot = isPackaged ? '' : fileURLToPath(new URL('../', import.meta.url));
+function distributionDirectory(name: string): string {
+  const directory = process.env[name];
+  if (!directory || !path.isAbsolute(directory)) {
+    throw new Error(`目录版缺少 ${name}，请通过 start.cjs 启动`);
+  }
+  return path.resolve(directory);
+}
 /** 可写部署目录；源码运行时保持以仓库根目录保存缓存。 */
-export const APP_DIR = isPackaged ? path.dirname(process.execPath) : sourceServerRoot;
+export const APP_DIR = isNodeDistribution
+  ? distributionDirectory('SCWC_APP_DIR')
+  : isPackaged
+    ? path.dirname(process.execPath)
+    : sourceServerRoot;
 export const ROOT = isPackaged ? APP_DIR : path.resolve(sourceServerRoot, '../..');
-/** SEA 的只读资源在启动时释放到私有临时目录。 */
-export const SERVER_ROOT = isPackaged
-  ? (process.env.SCWC_RUNTIME_ROOT ?? APP_DIR)
-  : sourceServerRoot;
+/** SEA extracts resources; the Node distribution keeps them beside start.cjs. */
+export const SERVER_ROOT = isNodeDistribution
+  ? distributionDirectory('SCWC_RUNTIME_ROOT')
+  : isPackaged
+    ? (process.env.SCWC_RUNTIME_ROOT ?? APP_DIR)
+    : sourceServerRoot;
 export const ENV_DIR = ROOT;
 export const PLUGIN_HOST = isPackaged
   ? path.join(SERVER_ROOT, 'host.cjs')

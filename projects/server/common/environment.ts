@@ -9,7 +9,12 @@ export function loadEnvironment(directory: string, env: NodeJS.ProcessEnv = proc
   if (!fs.existsSync(filename)) {
     return;
   }
-  Object.assign(env, dotenv.parse(fs.readFileSync(filename)));
+  const values = dotenv.parse(fs.readFileSync(filename));
+  // Bootstrap-owned directories must survive .env loading in child hosts.
+  delete values.SCWC_APP_DIR;
+  delete values.SCWC_RUNTIME_ROOT;
+  delete values.SCWC_DISTRIBUTION_MODE;
+  Object.assign(env, values);
 }
 
 loadEnvironment(ENV_DIR);

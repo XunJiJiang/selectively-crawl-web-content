@@ -12,6 +12,27 @@ afterEach(() => {
 });
 
 describe('environment file priority', () => {
+  it('retains bootstrap directories while still applying public configuration', () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'scwc-env-'));
+    directories.push(directory);
+    fs.writeFileSync(
+      path.join(directory, '.env'),
+      'PORT=4100\nSCWC_APP_DIR=wrong\nSCWC_RUNTIME_ROOT=wrong\nSCWC_DISTRIBUTION_MODE=wrong\n',
+    );
+    const env = {
+      PORT: '4200',
+      SCWC_APP_DIR: '/release',
+      SCWC_RUNTIME_ROOT: '/release/runtime',
+      SCWC_DISTRIBUTION_MODE: 'node',
+    };
+    loadEnvironment(directory, env);
+    expect(env).toEqual({
+      PORT: '4100',
+      SCWC_APP_DIR: '/release',
+      SCWC_RUNTIME_ROOT: '/release/runtime',
+      SCWC_DISTRIBUTION_MODE: 'node',
+    });
+  });
   it('prefers adjacent .env values and retains unspecified environment variables', () => {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'scwc-env-'));
     directories.push(directory);

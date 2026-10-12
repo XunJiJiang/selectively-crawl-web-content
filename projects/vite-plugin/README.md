@@ -35,6 +35,8 @@ Worker 构建使用独立的插件列表，因此存在前端 Worker 时同时�
 
 该包已加入核心 sharedBuildPackages，build:core 通过 shared-package-assets.ts 携带 package.json、运行模块、声明和浏览器适配；与 Vite/esbuild 一起在首次页面构建时释放。部署可执行文件时无需另装此包、Node 或 Vite。
 
+`build:core:windows/linux/macos` 的 Node 目录发行包也携带本插件与相同白名单工具链，位于 runtime/node_modules；通过 start.cjs 使用用户的 Node >=25 启动，无需另装本插件或 Vite。
+
 既有 HTML 不自动重建。更新源码、共享依赖或构建插件后执行 `plugin build-web <插件目录名>`，然后刷新页面。
 
 验证复用 `projects/server/plugin/web/web-build.test.ts`：独立 Vite 的 bundle/native 配置加载、外部目录白名单/私有包、虚拟 SDK、CSS/子路径/Worker、两种装饰器、重复注册与真实 SEA 构建。Vite 升级时核对 transformWithEsbuild 接口及 Oxc 装饰器支持。

@@ -1,6 +1,6 @@
 # SCWC 核心项目地图
 
-> 面向后续参与开发的 AI。核对日期：2026-10-08。
+> 面向后续参与开发的 AI。核对日期：2026-10-12。
 > 本文依据当前源码、类型、脚本和配置整理；README 仅作背景参考。源码变化后，应同步更新相关条目。
 > 范围不包含 `projects/server/plugins/` 下各插件的实现、模板和私有页面，只说明核心如何加载、调用和承载扩展。`projects/server/plugin/`（单数）属于核心。
 
@@ -50,7 +50,7 @@ flowchart LR
     ├── server/
     │   ├── index.ts             服务进程入口与退出生命周期
     │   ├── common/              环境变量、运行模式、系统日志
-    │   ├── scripts/             启动终端、Web / SEA 构建
+    │   ├── scripts/             启动终端、Web / SEA / 三系统 Node 目录发行构建
     │   ├── command/             默认命令、stdin / IPC 调用
     │   ├── plugin/              核心扩展加载器、日志与共享 SDK（单数）
     │   ├── router/              抓取、油猴控件、Web 页面/API/资源/WebSocket
@@ -110,7 +110,7 @@ flowchart LR
 3. 核心等待握手，确认插件目录覆盖后注册命令、绑定 HTTP / WebSocket 并后台加载插件。终端接收 ready、命令目录与状态更新。插件加载期间 HTTP 仍可处理请求。
 4. 直接启动核心时不启用终端 IPC，使用 readline 按行执行命令。多窗口终端的重启保留自身与窗口，只替换核心及业务插件。详见 [终端使用说明](../projects/terminal/README.md)。
 
-[common/paths.ts](../projects/server/common/paths.ts) 区分源码根目录、可执行文件部署目录与 SEA 临时资源目录，核心默认路径不依赖启动 cwd。[common/environment.ts](../projects/server/common/environment.ts) 在消费 Redis 和服务配置前初始化环境。源码模式读取仓库根 `.env`，SEA 模式读取可执行文件同目录 `.env`；文件中的键优先，缺省键沿用进程环境。[common/config.ts](../projects/server/common/config.ts) 提供启动参数、端口和 Redis 配置校验，[common/pluginDirectory.ts](../projects/server/common/pluginDirectory.ts) 处理插件目录优先级与覆盖确认。[common/setupParam.ts](../projects/server/common/setupParam.ts) 使用公共解析器处理 `--key=value` 和 `--key value`，决定 `isDev` / `isProd`。setup.ts 与核心共用该解析器；旧 scripts/parseArgs.ts 已不在启动链。
+[common/paths.ts](../projects/server/common/paths.ts) 区分源码、SEA 与 Node 目录发行模式，核心默认路径不依赖启动 cwd。isPackaged 包含两种发行包；Node 目录模式的 APP_DIR/ROOT 是 start.cjs 同目录，SERVER_ROOT 是其 runtime/；SEA 资源仍从私有临时目录读取。[common/environment.ts](../projects/server/common/environment.ts) 在消费 Redis 和服务配置前初始化环境。源码读取仓库根 `.env`，两种发行包读取部署同目录 `.env`；文件中的键优先，缺省键沿用进程环境。SCWC_APP_DIR、SCWC_RUNTIME_ROOT、SCWC_DISTRIBUTION_MODE 是引导内部字段，不能通过 .env 覆盖。[common/config.ts](../projects/server/common/config.ts) 提供启动参数、端口和 Redis 配置校验，[common/pluginDirectory.ts](../projects/server/common/pluginDirectory.ts) 处理插件目录优先级与覆盖确认。[common/setupParam.ts](../projects/server/common/setupParam.ts) 使用公共解析器处理 `--key=value` 和 `--key value`，决定 `isDev` / `isProd`。setup.ts 与核心共用该解析器；旧 scripts/parseArgs.ts 已不在启动链。
 
 `listen()` 在 `router/index.ts` 内用 `createServer(app)` 建立 HTTP 服务，再挂载 WebSocket upgrade 处理。它返回 Promise，使用 [utils/listen.ts](../projects/server/utils/listen.ts) 直接依次绑定候选端口，只在 EADDRINUSE 时递增，默认最大偏移 20。`PORT_SEARCH_RANGE` / `--port-range` 可调整范围，`--port` 覆盖起始端口。日志和 `server info` 使用最终端口。当前只传入端口进行监听，`HOST` 用于 URL/日志等配置，没有作为监听地址传给 `server.listen()`。
 
@@ -370,6 +370,10 @@ busy 由自动调用、主动 `setBusy(true)` 或未结束的 `begin` 句柄共�
 | `bun run dev:us` | 启动油猴脚本的 Vite/monkey 开发服务 |
 | `bun run build` | `tsc -b` 类型检查，然后依次构建 user-script、web、webutils |
 | `bun run build:core` | Node >= 25.5 构建本机 SEA 可执行文件至 dist/core；包含核心、终端、两类宿主和静态资源 |
+| `bun run build:core:node` | Node >=25 自动按本机平台/架构构建不内置 Node 的目录发行包 |
+| `bun run build:core:windows` | 在 Windows 原生构建至 dist/core-node/scwc-node-windows-<架构> |
+| `bun run build:core:linux` | 在 Linux 原生构建至 dist/core-node/scwc-node-linux-<架构>；musl 另带后缀 |
+| `bun run build:core:macos` | 在 macOS 原生构建至 dist/core-node/scwc-node-macos-<架构> |
 | `bun run build:plugin-web --directory <插件目录>` | 使用核心 Vite 工具链独立构建插件页面 |
 | `bun run test:core-executable` | 构建后验证独立部署，需本机 redis-server；使用独立临时数据、密码与端口 |
 | `bun run prod:server` | 构建准备后启动生产模式多窗口终端 |
@@ -392,6 +396,12 @@ busy 由自动调用、主动 `setBusy(true)` 或未结束的 `begin` 句柄共�
 [scripts/build-executable.ts](../projects/server/scripts/build-executable.ts) 构建本机可执行文件，[sea-bootstrap.ts](../projects/server/scripts/sea-bootstrap.ts) 将内置资源释放到私有临时目录，再加载核心、终端或插件宿主。直接运行 ./scwc / scwc.exe 默认启动多窗口终端；--no-terminal 显式运行普通核心，旧 --terminal 用法兼容。终端 fork 核心时传入 --no-terminal 与 --interaction=ipc，避免递归启动终端。插件/终端插件宿主和独立页面构建的专用分支优先，保持高级 IPC 序列化与外部插件动态导入；产物内置 terminal.cjs / terminal-host.cjs。
 
 服务端 `.env` 变量：`PORT`、`PORT_SEARCH_RANGE`、`HOST`、`TOKEN`、`SCWC_PLUGIN_DIR`，以及 `REDIS_ENABLED`（默认 true；false/0 禁用核心 Redis）、`REDIS_HOST`、`REDIS_PORT`、`REDIS_USER`、`REDIS_PASSWORD`、`REDIS_TIMEOUT`、`REDIS_KEY_PREFIX`。完整配置及目录规则见 [核心部署](核心部署.md) 与 [模板](core.env.example)。
+
+两种发行包共用 [build-runtime.ts](../projects/server/scripts/build-runtime.ts)：在暂存资源目录编译七个 CJS 入口、直接构建 Web/scwcutils 并收集完整共享包树；不改写仓库 public/web/lib 生成目录。Node 目录包由 [build-node.ts](../projects/server/scripts/build-node.ts) 发布到 dist/core-node，提供 start.cjs、目标系统启动器、build-info.json、contents.json、runtime/ 和空插件目录，不携带 Node、真实 .env、业务插件或用户数据。runtime/node_modules 只收集共享原生包、浏览器/构建白名单及传递依赖，保留完整包文件与冲突版本层次，不复制根 node_modules 全量。平台/架构必须等于构建 Node；Linux 同时区分 glibc/musl。先验证打包后的 SQLite/esbuild/Lightning CSS/Rolldown，再用同级暂存和备份发布，失败恢复旧产物。实际运行部署与构建输出分开，重新构建会替换同名输出。
+
+[node-bootstrap.ts](../projects/server/scripts/node-bootstrap.ts) 与 [node-runtime.ts](../projects/server/scripts/node-runtime.ts) 校验用户 Node >=25、Node-API >=10、目标平台/架构/libc，加载相邻环境并分派终端/核心/两类宿主/页面构建。start.ps1 用于 Windows（支持 PowerShell 5.1/7），start.sh 用于 Linux/macOS；脚本读取 SCWC_NODE_PATH（.env 优先于进程环境，相对部署目录），未指定时继续扫描 PATH 的合规候选；显式无效路径立即报错，不执行环境文件。直接 node start.cjs 也支持指定 Node 后转交；正常子进程及 createPluginWorker 使用同一 Node/资源目录，自定义 Worker env 仍继承内部部署字段。内建 scwc 终端适配源码作为 Git 例外纳入并编译进宿主。目录包保留同一 SDK/Vite/@scwc/vite-plugin 能力，用户只另装 Node；开发类型仍从源码 SDK 声明提供。
+
+[三系统工作流](../.github/workflows/build-node-distribution.yml) 仅手动触发，各系统原生构建并测试，再归档 tar.gz 保留原生工具执行权限后上传，不发布 Release。本机已验证 Windows 目录包，Linux/macOS 以对应 runner 的实际结果为准。
 
 未提供非空 `TOKEN` 时，服务端会生成随机 UUID 并打印；只有字面字符串 `TOKEN=null` 会将 token 设为空。不要通过留空误以为关闭了鉴权。浏览器默认 token 是空，需要通过脚本设置配置。
 
@@ -434,6 +444,7 @@ busy 由自动调用、主动 `setBusy(true)` 或未结束的 `begin` 句柄共�
 | `terminal/*.test.ts` | 窗口身份、输入和确认、输出顺序、颜色折行、Ctrl+C 输入取消、状态文件/备份/锁与恢复 |
 | [server/scripts/smoke-executable.ts](../projects/server/scripts/smoke-executable.ts)、[terminal/smoke.ts](../projects/terminal/smoke.ts) | 独立部署、同目录 `.env`、端口递增/耗尽、静态资源、Redis 密码/前缀隔离、插件目录确认、多窗口任务、交互输入、管道/EOF、颜色、取消/强停、重启和真实 PTY |
 | [server/scripts/executable-launch.test.ts](../projects/server/scripts/executable-launch.test.ts) | 真实可执行文件无参数启动终端、创建窗口并退出，以及 --no-terminal 直接启动核心；临时部署/配置、禁用 Redis，需先 build:core |
+| `server/scripts/node-runtime.test.ts` / `node-distribution.test.ts` | Node 版本/平台/libc/路径选择、环境优先级和内部字段保护；真实目录包搬移后默认终端/直接核心、无插件依赖的 SDK/SQLite/自定义 env Worker、Vite/Lit/前端 Worker 及系统启动器；集成项需先构建本机目录包 |
 | [shared/utils/refreshRuleParser.test.ts](../projects/shared/utils/refreshRuleParser.test.ts) | pathname、search、hash 和组合规则解析 |
 
 根 Vitest 注册 server、user-script、web、terminal；会收集服务端公共工具、配置和进程宿主测试，没有收集 shared 的规则测试。installed-plugins 等测试依赖本机安装插件，针对核心可显式指定文件。端口与 WebSocket 测试需要允许本机监听端口。针对核心的命令：
