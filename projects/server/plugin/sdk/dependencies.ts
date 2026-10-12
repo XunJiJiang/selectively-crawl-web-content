@@ -8,3 +8,4 @@ export const trash: typeof import('trash').default = async (...args) =>
   (await import('trash')).default(...args);
 export * as fileType from 'file-type';
 export { fileTypeFromFile, fileTypeFromBuffer, fileTypeFromStream } from 'file-type';
+export * as fflate from 'fflate';

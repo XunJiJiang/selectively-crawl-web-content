@@ -296,17 +296,18 @@ try:
  time.sleep(.15)
  send(b'smoke color\r')
  until('CORE_COLOR_DONE')
- assert b'\x1b[34m[smoke]\x1b[39m' in buffer
- assert b'\x1b[33m[smoke] [warn]\x1b[39m' in buffer
- assert b'\x1b[31m[smoke] [error]\x1b[39m' in buffer
- assert b'\x1b[35mmagenta\x1b[39m' in buffer
- assert b'\x1b[33mtrue\x1b[39m' in buffer
+ # The renderer restores its theme foreground instead of retaining Chalk's 39m reset.
+ assert b'\x1b[34m[smoke]' in buffer
+ assert b'\x1b[33m[smoke] [warn]' in buffer
+ assert b'\x1b[31m[smoke] [error]' in buffer
+ assert b'\x1b[35mmagenta' in buffer
+ assert b'\x1b[33mtrue' in buffer
  assert b'CORE_COLOR_LEVEL:0' not in buffer
  time.sleep(.15)
  send(b'colors\r')
  until('TERMINAL_COLOR_DONE')
- assert b'\x1b[33mTERMINAL_COLOR_WARNING\x1b[39m' in buffer
- assert b'\x1b[31mTERMINAL_COLOR_ERROR\x1b[39m' in buffer
+ assert b'\x1b[33mTERMINAL_COLOR_WARNING' in buffer
+ assert b'\x1b[31mTERMINAL_COLOR_ERROR' in buffer
  assert b'TERMINAL_COLOR_LEVEL:0' not in buffer
  time.sleep(.15)
  buffer=b''

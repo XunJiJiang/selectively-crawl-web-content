@@ -4,7 +4,7 @@ import { randomUUID, createHash } from 'node:crypto';
 import { fork, spawn, type ChildProcess } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import { Peer } from '../peer.ts';
-import { isPackaged, ROOT, SERVER_ROOT } from '../../server/common/paths.ts';
+import { isPackaged, ROOT, APP_DIR, SERVER_ROOT } from '../../server/common/paths.ts';
 import { TaskRegistry } from '../../server/common/tasks.ts';
 import { inputReply } from '../../server/common/interaction.ts';
 import { colorEnvironment } from '../../server/common/color.ts';
@@ -59,7 +59,11 @@ export class TerminalPlugins extends EventEmitter {
         .filter(
           (entry) =>
             path.resolve(directory, entry.name) !==
-            path.join(ROOT, 'projects/terminal/plugins/scwc'),
+              path.join(ROOT, 'projects/terminal/plugins/scwc') &&
+            !(
+              isPackaged &&
+              path.resolve(directory, entry.name) === path.join(APP_DIR, 'terminal/plugins/scwc')
+            ),
         )
         .sort((first, second) => first.name.localeCompare(second.name)),
     ];

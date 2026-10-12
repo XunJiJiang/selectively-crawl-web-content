@@ -358,7 +358,7 @@ busy 由自动调用、主动 `setBusy(true)` 或未结束的 `begin` 句柄共�
 
 - 只供核心使用的根依赖无需进入 SDK。要提供给后端插件时，同步 plugin/sdk/dependencies.ts 的运行时导出与 modules.d.ts 类型；原生/资源型包还需加入 scripts/shared-package-assets.ts 的 sharedExternalPackages。纯 JS 可随 bundle 合并，但根 package.json 声明本身不等于已对插件开放。
 - 浏览器普通包共享由 projects/vite-plugin/dependencies.js 的 sharedBrowserPackages 决定（含 Lit/@lit、CodeMirror/Lezer 等）；plugin/web/dependencies.ts 保留兼容导出并维护 sharedBuildPackages（Vite、vite-plugin-monkey、esbuild、@scwc/vite-plugin）。新增共享包主动加入对应列表，原始包/传递依赖随 SEA 携带；配置与页面的解析回退保持浏览器导出条件，插件私有版本优先。公共 Vite 包在本地与核心构建复用同一份白名单和实现。
-- 版本统一在根 package.json/bun.lock 管理；兼容升级通常不用改 SDK 导出或声明版本数字，安装后声明引用的原包类型会更新，但必须重新检查类型、宿主/Worker/外部目录回归并 build:core。已有页面不会自动重新构建，使用 plugin build-web 或构建 CLI 更新其中嵌入的旧依赖。
+- 版本统一在根 package.json/bun.lock 管理；兼容升级通常不用改 SDK 导出或声明版本数字，安装后声明引用的原包类型会更新，但必须重新检查类型、宿主/Worker/外部目录回归并 build:core:bundled-node。已有页面不会自动重新构建，使用 plugin build-web 或构建 CLI 更新其中嵌入的旧依赖。
 - 主版本、默认/命名导出、子路径或类型泛型变化时，同步 SDK 适配及受影响插件；还要核对浏览器导出条件、Vite 插件兼容性、原生 ABI/平台和资源路径。删除/重命名公共导出需保留兼容别名或约定契约升级；移除根依赖前检查 SDK、前端/工具白名单和外置资源列表，避免破坏其他插件。特殊版本由插件提供私有依赖。
 - 依赖变更后更新本地图、SDK/页面构建 README 和插件开发规范。源码与 SEA、外部插件目录、类型、Worker 都需验证；浏览器变更追加页面构建。源码模式需要根工作区构建依赖；SEA 用户不另装 Node/Vite，额外插件/预处理器及私有依赖不自动联网安装。
 
@@ -369,13 +369,16 @@ busy 由自动调用、主动 `setBusy(true)` 或未结束的 `begin` 句柄共�
 | `bun run dev:web` | 单独启动 Web 的 Vite 开发服务，配置端口 3201 |
 | `bun run dev:us` | 启动油猴脚本的 Vite/monkey 开发服务 |
 | `bun run build` | `tsc -b` 类型检查，然后依次构建 user-script、web、webutils |
-| `bun run build:core` | Node >= 25.5 构建本机 SEA 可执行文件至 dist/core；包含核心、终端、两类宿主和静态资源 |
-| `bun run build:core:node` | Node >=25 自动按本机平台/架构构建不内置 Node 的目录发行包 |
-| `bun run build:core:windows` | 在 Windows 原生构建至 dist/core-node/scwc-node-windows-<架构> |
-| `bun run build:core:linux` | 在 Linux 原生构建至 dist/core-node/scwc-node-linux-<架构>；musl 另带后缀 |
-| `bun run build:core:macos` | 在 macOS 原生构建至 dist/core-node/scwc-node-macos-<架构> |
+| `bun run build:core:bundled-node` | Node >=25.5 构建内置 Node 运行时 ZIP 至 dist/core；名称带系统与架构 |
+| `bun run build:core:external-node` | Node >=25 构建外置 Node 运行时 ZIP；自动选择本机系统与架构 |
+| `bun run build:core:external-node:windows` | 在 Windows 原生构建至 dist/core/scwc-external-node-windows-<架构>.zip |
+| `bun run build:core:external-node:linux` | 在 Linux 原生构建至 dist/core/scwc-external-node-linux-<架构>.zip；musl 另带后缀 |
+| `bun run build:core:external-node:macos` | 在 macOS 原生构建至 dist/core/scwc-external-node-macos-<架构>.zip |
+| `bun run build:core:bundled-node:windows` | 在对应系统原生构建 dist/core/scwc-bundled-node-windows-<架构>.zip |
+| `bun run build:core:bundled-node:linux` | 在对应系统原生构建 dist/core/scwc-bundled-node-linux-<架构>.zip |
+| `bun run build:core:bundled-node:macos` | 在对应系统原生构建 dist/core/scwc-bundled-node-macos-<架构>.zip |
 | `bun run build:plugin-web --directory <插件目录>` | 使用核心 Vite 工具链独立构建插件页面 |
-| `bun run test:core-executable` | 构建后验证独立部署，需本机 redis-server；使用独立临时数据、密码与端口 |
+| `bun run test:core-bundled-node` | 构建后验证独立部署，需本机 redis-server；使用独立临时数据、密码与端口 |
 | `bun run prod:server` | 构建准备后启动生产模式多窗口终端 |
 | `bun run test --run` | 根配置注册的测试项目，运行一次而非 watch |
 | `bun run lint` | Oxlint 检查 |
@@ -391,17 +394,17 @@ busy 由自动调用、主动 `setBusy(true)` 或未结束的 `begin` 句柄共�
 | `web/vite.config.ts` | `projects/server/public/web/`，生产 base 为 `/web/` | 服务端 Web 路由 |
 | `webutils/vite.config.ts` | `projects/server/public/lib/scwcutils.iife.<36进制时间戳>.js` | 核心页面路由注入 |
 
-以上配置均设置 `emptyOutDir: true`。根 build 不打包服务端或各插件页面。build:core 将核心、终端、两类宿主、plugin-worker.cjs、web-build-host.cjs 和 web-build-cli.cjs 合并压缩为 JS 后装入 SEA，并内置 Web/webutils/公共资源/错误模板，不包含业务插件。scripts/shared-package-assets.ts 保留 SQLite、Trash、Vite/插件/esbuild 及前端白名单原包和传递依赖作为 assets（包括本机原生绑定），在私有临时目录恢复目录与 Unix 权限；工具链/浏览器依赖仅在首次构建时释放，后续复用，不拖慢普通插件启动。纯 JS 后端共享依赖仍进入宿主 bundle；前端 Vite 构建使用原始模块及浏览器导出条件。
+以上配置均设置 `emptyOutDir: true`。根 build 不打包服务端或各插件页面。build:core:bundled-node 将核心、终端、两类宿主、plugin-worker.cjs、web-build-host.cjs 和 web-build-cli.cjs 合并压缩为 JS 后装入 SEA，并内置 Web/webutils/公共资源/错误模板，可通过 --core-plugins=none/all/enabled 选择附带业务插件。scripts/shared-package-assets.ts 保留 SQLite、Trash、Vite/插件/esbuild 及前端白名单原包和传递依赖作为 assets（包括本机原生绑定），在私有临时目录恢复目录与 Unix 权限；工具链/浏览器依赖仅在首次构建时释放，后续复用，不拖慢普通插件启动。纯 JS 后端共享依赖仍进入宿主 bundle；前端 Vite 构建使用原始模块及浏览器导出条件。
 
-[scripts/build-executable.ts](../projects/server/scripts/build-executable.ts) 构建本机可执行文件，[sea-bootstrap.ts](../projects/server/scripts/sea-bootstrap.ts) 将内置资源释放到私有临时目录，再加载核心、终端或插件宿主。直接运行 ./scwc / scwc.exe 默认启动多窗口终端；--no-terminal 显式运行普通核心，旧 --terminal 用法兼容。终端 fork 核心时传入 --no-terminal 与 --interaction=ipc，避免递归启动终端。插件/终端插件宿主和独立页面构建的专用分支优先，保持高级 IPC 序列化与外部插件动态导入；产物内置 terminal.cjs / terminal-host.cjs。
+[scripts/build-bundled-node.ts](../projects/server/scripts/build-bundled-node.ts) 构建本机可执行文件，[sea-bootstrap.ts](../projects/server/scripts/sea-bootstrap.ts) 将内置资源释放到私有临时目录，再加载核心、终端或插件宿主。解压 ZIP 后运行 scwc-bundled-node-<系统>-<架构>（Windows 加 .exe）默认启动多窗口终端；--no-terminal 显式运行普通核心，旧 --terminal 用法兼容。终端 fork 核心时传入 --no-terminal 与 --interaction=ipc，避免递归启动终端。插件/终端插件宿主和独立页面构建的专用分支优先，保持高级 IPC 序列化与外部插件动态导入；产物内置 terminal.cjs / terminal-host.cjs。
 
 服务端 `.env` 变量：`PORT`、`PORT_SEARCH_RANGE`、`HOST`、`TOKEN`、`SCWC_PLUGIN_DIR`，以及 `REDIS_ENABLED`（默认 true；false/0 禁用核心 Redis）、`REDIS_HOST`、`REDIS_PORT`、`REDIS_USER`、`REDIS_PASSWORD`、`REDIS_TIMEOUT`、`REDIS_KEY_PREFIX`。完整配置及目录规则见 [核心部署](核心部署.md) 与 [模板](core.env.example)。
 
-两种发行包共用 [build-runtime.ts](../projects/server/scripts/build-runtime.ts)：在暂存资源目录编译七个 CJS 入口、直接构建 Web/scwcutils 并收集完整共享包树；不改写仓库 public/web/lib 生成目录。Node 目录包由 [build-node.ts](../projects/server/scripts/build-node.ts) 发布到 dist/core-node，提供 start.cjs、目标系统启动器、build-info.json、contents.json、runtime/ 和空插件目录，不携带 Node、真实 .env、业务插件或用户数据。runtime/node_modules 只收集共享原生包、浏览器/构建白名单及传递依赖，保留完整包文件与冲突版本层次，不复制根 node_modules 全量。平台/架构必须等于构建 Node；Linux 同时区分 glibc/musl。先验证打包后的 SQLite/esbuild/Lightning CSS/Rolldown，再用同级暂存和备份发布，失败恢复旧产物。实际运行部署与构建输出分开，重新构建会替换同名输出。
+两种发行包共用 [build-runtime.ts](../projects/server/scripts/build-runtime.ts) 的物理资源构建器及 [release-package.ts](../projects/server/scripts/release-package.ts) 的参数解析、插件筛选与 ZIP 流式归档。外置 Node 版由 [build-external-node.ts](../projects/server/scripts/build-external-node.ts) 生成启动器、平台元数据及 runtime；内置 Node 版由 [build-bundled-node.ts](../projects/server/scripts/build-bundled-node.ts) 生成 SEA。最终只有 ZIP 写到 dist/core，临时资源清理；替换失败保留旧 ZIP。两版都支持 --terminal-plugins=true/false 和 --core-plugins=none/all/enabled，默认 false/none，排除示例；enabled 与加载器一样按 package.json enabled !== false 筛选。始终保留两个 plugin-env.d.ts，core.env.example 以默认 .env 入包，不读取真实环境。附带插件按 dependencies 收集私有生产包，排除运行数据、开发依赖和仓库治理资产。fflate 位于根依赖且以 scwc:deps 的 fflate 命名空间供贴纸后端共享，不属于浏览器白名单。ZIP 保存 Unix 权限，ZIP32 超限失败；归档包含清单和许可证。平台/架构需原生匹配，Linux 区分 libc。
 
-[node-bootstrap.ts](../projects/server/scripts/node-bootstrap.ts) 与 [node-runtime.ts](../projects/server/scripts/node-runtime.ts) 校验用户 Node >=25、Node-API >=10、目标平台/架构/libc，加载相邻环境并分派终端/核心/两类宿主/页面构建。start.ps1 用于 Windows（支持 PowerShell 5.1/7），start.sh 用于 Linux/macOS；脚本读取 SCWC_NODE_PATH（.env 优先于进程环境，相对部署目录），未指定时继续扫描 PATH 的合规候选；显式无效路径立即报错，不执行环境文件。直接 node start.cjs 也支持指定 Node 后转交；正常子进程及 createPluginWorker 使用同一 Node/资源目录，自定义 Worker env 仍继承内部部署字段。内建 scwc 终端适配源码作为 Git 例外纳入并编译进宿主。目录包保留同一 SDK/Vite/@scwc/vite-plugin 能力，用户只另装 Node；开发类型仍从源码 SDK 声明提供。
+[external-node-bootstrap.ts](../projects/server/scripts/external-node-bootstrap.ts) 与 [external-node-runtime.ts](../projects/server/scripts/external-node-runtime.ts) 校验用户 Node >=25、Node-API >=10、目标平台/架构/libc，加载相邻环境并分派终端/核心/两类宿主/页面构建。start.ps1 用于 Windows（支持 PowerShell 5.1/7），start.sh 用于 Linux/macOS；脚本读取 SCWC_NODE_PATH（.env 优先于进程环境，相对部署目录），未指定时继续扫描 PATH 的合规候选；显式无效路径立即报错，不执行环境文件。直接 node start.cjs 也支持指定 Node 后转交；正常子进程及 createPluginWorker 使用同一 Node/资源目录，自定义 Worker env 仍继承内部部署字段。内建 scwc 终端适配源码作为 Git 例外纳入并编译进宿主。外置 Node 运行时包保留同一 SDK/Vite/@scwc/vite-plugin 能力，用户只另装 Node；开发类型仍从源码 SDK 声明提供。
 
-[三系统工作流](../.github/workflows/build-node-distribution.yml) 仅手动触发，各系统原生构建并测试，再归档 tar.gz 保留原生工具执行权限后上传，不发布 Release。本机已验证 Windows 和 macOS arm64 目录包；2026-10-12 在 macOS 使用 Node.js 25.8.0 完成搬移部署、终端/核心、SQLite/SDK Worker、自动页面构建及 shell 启动器的回归。Linux 和 macOS x64 仍需对应环境验证。
+[三系统工作流](../.github/workflows/build-core-releases.yml) 仅手动触发，各系统原生构建并测试，从两版 ZIP 解压执行集成验证后上传，不发布 Release。本机已验证 Windows 和 macOS arm64 外置 Node 运行时包；2026-10-12 在 macOS 使用 Node.js 25.8.0 完成搬移部署、终端/核心、SQLite/SDK Worker、自动页面构建及 shell 启动器的回归。Linux 和 macOS x64 仍需对应环境验证。
 
 未提供非空 `TOKEN` 时，服务端会生成随机 UUID 并打印；只有字面字符串 `TOKEN=null` 会将 token 设为空。不要通过留空误以为关闭了鉴权。浏览器默认 token 是空，需要通过脚本设置配置。
 
@@ -439,12 +442,12 @@ busy 由自动调用、主动 `setBusy(true)` 或未结束的 `begin` 句柄共�
 | [server/common/color.test.ts](../projects/server/common/color.test.ts) | 真实终端颜色能力、环境配置、日志级别颜色和自定义 ANSI 保留 |
 | [server/utils/listen.test.ts](../projects/server/utils/listen.test.ts) | 真实端口占用后的绑定、范围耗尽、权限错误不重试 |
 | `server/plugin/process/*.test.ts` | 原生 Node 宿主、默认/省略配置、RPC 边界、突发与长日志、交互输入及超时暂停、插件激活/超时/崩溃/卸载和后代清理；在临时目录启动真实贴纸插件，验证同步阻塞时核心和另一个插件仍可响应，以及媒体 Range/下载与 WebSocket；installed-plugins 测试逐个激活和卸载本机已安装插件，覆盖禁用状态、ASMR 登录/票据、缓存和流式请求 |
-| `server/plugin/sdk/*.test.ts` | 外部目录无共享依赖时的 ESM/CJS、SQLite、Worker、相对导入和类型检查；真实贴纸仅携带私有依赖迁至外部目录，验证源码/SEA 的读写 Worker、bootstrap 与文件夹 API。真实可执行文件项需先 build:core；未安装业务插件时跳过相应集成项 |
+| `server/plugin/sdk/*.test.ts` | 外部目录无共享依赖时的 ESM/CJS、SQLite、Worker、相对导入和类型检查；真实贴纸仅携带私有依赖迁至外部目录，验证源码/SEA 的读写 Worker、bootstrap 与文件夹 API。真实可执行文件项需先 build:core:bundled-node；未安装业务插件时跳过相应集成项 |
 | `server/plugin/web/*.test.ts` | 外部 Vite/Lit/子路径/CSS/前端 Worker、预构建页面、失败保留旧产物、并发合并和真实 SEA 独立构建；loader 测试另验证自动构建先于 onLoad、启动超时暂停和失败清理 |
 | `terminal/*.test.ts` | 窗口身份、输入和确认、输出顺序、颜色折行、Ctrl+C 输入取消、状态文件/备份/锁与恢复 |
-| [server/scripts/smoke-executable.ts](../projects/server/scripts/smoke-executable.ts)、[terminal/smoke.ts](../projects/terminal/smoke.ts) | 独立部署、同目录 `.env`、端口递增/耗尽、静态资源、Redis 密码/前缀隔离、插件目录确认、多窗口任务、交互输入、管道/EOF、颜色、取消/强停、重启和真实 PTY |
-| [server/scripts/executable-launch.test.ts](../projects/server/scripts/executable-launch.test.ts) | 真实可执行文件无参数启动终端、创建窗口并退出，以及 --no-terminal 直接启动核心；临时部署/配置、禁用 Redis，需先 build:core |
-| `server/scripts/node-runtime.test.ts` / `node-distribution.test.ts` | Node 版本/平台/libc/路径选择、环境优先级和内部字段保护；真实目录包搬移后默认终端/直接核心、无插件依赖的 SDK/SQLite/自定义 env Worker、Vite/Lit/前端 Worker 及系统启动器；集成项需先构建本机目录包 |
+| [server/scripts/smoke-bundled-node.ts](../projects/server/scripts/smoke-bundled-node.ts)、[terminal/smoke.ts](../projects/terminal/smoke.ts) | 独立部署、同目录 `.env`、端口递增/耗尽、静态资源、Redis 密码/前缀隔离、插件目录确认、多窗口任务、交互输入、管道/EOF、颜色、取消/强停、重启和真实 PTY |
+| [server/scripts/bundled-node-launch.test.ts](../projects/server/scripts/bundled-node-launch.test.ts) | 真实可执行文件无参数启动终端、创建窗口并退出，以及 --no-terminal 直接启动核心；临时部署/配置、禁用 Redis，需先 build:core:bundled-node |
+| `server/scripts/external-node-runtime.test.ts` / `external-node-distribution.test.ts` | Node 版本/平台/libc/路径选择、环境优先级和内部字段保护；真实外置 Node 运行时包搬移后默认终端/直接核心、无插件依赖的 SDK/SQLite/自定义 env Worker、Vite/Lit/前端 Worker 及系统启动器；集成项需先构建本机 ZIP |
 | [shared/utils/refreshRuleParser.test.ts](../projects/shared/utils/refreshRuleParser.test.ts) | pathname、search、hash 和组合规则解析 |
 
 根 Vitest 注册 server、user-script、web、terminal；会收集服务端公共工具、配置和进程宿主测试，没有收集 shared 的规则测试。installed-plugins 等测试依赖本机安装插件，针对核心可显式指定文件。端口与 WebSocket 测试需要允许本机监听端口。针对核心的命令：
@@ -476,6 +479,6 @@ bunx vitest run --config projects/server/vitest.config.ts projects/shared/utils/
 | 页面 API、资源、WebSocket | `server/router/web/api/load.ts`、`web/websocket.ts` | `plugin/load.ts` 的注册、webutils 封装与类型、通道鉴权 |
 | 缓存、重试、并发、数据保存 | `server/utils/cache.ts`、`axios.ts`、`writeData.ts` | 对应工具类型、onLoad 注入、命名空间及异常路径 |
 | 共享控件、通知、配置或存储格式 | `shared/components/`、`store/config.ts`、`utils/storage.ts` | 所有浏览器使用方、迁移和事件载荷 |
-| 构建产物、开发端口、环境注入 | 根 `package.json`、三个 Vite 配置、`server/scripts/build.ts`、`build-executable.ts`、`sea-bootstrap.ts` | 服务端静态路由、源码/SEA 路径、两类插件宿主、tsconfig 范围、生成目录 |
+| 构建产物、开发端口、环境注入 | 根 `package.json`、三个 Vite 配置、`server/scripts/build.ts`、`build-bundled-node.ts`、`sea-bootstrap.ts` | 服务端静态路由、源码/SEA 路径、两类插件宿主、tsconfig 范围、生成目录 |
 
 开发前先读对应行涉及的调用端与处理端，再确认当前工作区变更。修改公共接口时同时更新运行时校验、类型和调用方；不要把生成目录、旧脚本、未接通的 TODO 或其他插件的内部实现当作核心依据。

@@ -1,18 +1,17 @@
+import { bundledNodeFixture } from './release-test-utils.ts';
 import fs from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import { createServer, type AddressInfo } from 'node:net';
 import { beforeAll, afterAll, describe, expect, it } from 'vitest';
 
-const executable = fileURLToPath(
-  new URL(
-    '../../../dist/core/' + (process.platform === 'win32' ? 'scwc.exe' : 'scwc'),
-    import.meta.url,
-  ),
-);
+const bundled = await bundledNodeFixture(true);
+const executable = bundled?.executable ?? '';
+afterAll(async () => {
+  await bundled?.cleanup();
+});
 let directory: string;
 let deployed: string;
 beforeAll(async () => {
@@ -21,7 +20,7 @@ beforeAll(async () => {
   }
   directory = await fs.mkdtemp(path.join(os.tmpdir(), 'scwc-launch-'));
   deployed = path.join(directory, path.basename(executable));
-  await fs.copyFile(executable, deployed);
+  await fs.cp(path.dirname(executable), directory, { recursive: true });
   if (process.platform !== 'win32') {
     await fs.chmod(deployed, 0o755);
   }

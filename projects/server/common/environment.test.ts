@@ -23,14 +23,14 @@ describe('environment file priority', () => {
       PORT: '4200',
       SCWC_APP_DIR: '/release',
       SCWC_RUNTIME_ROOT: '/release/runtime',
-      SCWC_DISTRIBUTION_MODE: 'node',
+      SCWC_DISTRIBUTION_MODE: 'external-node',
     };
     loadEnvironment(directory, env);
     expect(env).toEqual({
       PORT: '4100',
       SCWC_APP_DIR: '/release',
       SCWC_RUNTIME_ROOT: '/release/runtime',
-      SCWC_DISTRIBUTION_MODE: 'node',
+      SCWC_DISTRIBUTION_MODE: 'external-node',
     });
   });
   it('prefers adjacent .env values and retains unspecified environment variables', () => {

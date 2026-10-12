@@ -5,18 +5,11 @@ import path from 'node:path';
 import { createServer, type AddressInfo } from 'node:net';
 import { spawn, execFileSync, type ChildProcess } from 'node:child_process';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { BUILD_ROOT } from './build-runtime.ts';
-import { currentNodeInfo } from './node-runtime.ts';
+import { releaseArchive } from './release-package.ts';
+import { extractRelease } from './release-test-utils.ts';
 
-const info = currentNodeInfo();
-const label =
-  info.platform === 'win32' ? 'windows' : info.platform === 'darwin' ? 'macos' : 'linux';
-const release = path.join(
-  BUILD_ROOT,
-  'dist/core-node',
-  `scwc-node-${label}-${info.arch}${info.libc === 'musl' ? '-musl' : ''}`,
-);
-const available = existsSync(path.join(release, 'start.cjs'));
+const release = releaseArchive('external-node');
+const available = existsSync(release);
 let temporary: string;
 let app: string;
 let unrelated: string;
@@ -26,10 +19,10 @@ beforeAll(async () => {
   if (!available) {
     return;
   }
-  temporary = await fs.mkdtemp(path.join(os.tmpdir(), 'scwc-node-release-'));
+  temporary = await fs.mkdtemp(path.join(os.tmpdir(), 'scwc-external-node-release-'));
   app = path.join(await fs.realpath(temporary), 'relocated app');
   unrelated = path.join(temporary, 'unrelated cwd');
-  await fs.cp(release, app, { recursive: true });
+  await extractRelease(release, app);
   await fs.mkdir(unrelated);
   await fs.writeFile(path.join(unrelated, '.env'), 'PORT=invalid\nREDIS_ENABLED=invalid\n');
   const server = createServer();
@@ -251,7 +244,7 @@ export default {async onRequest(){},async onLoad(){const db=new Database(':memor
         encoding: 'utf8',
         env: { ...process.env, NODE_OPTIONS: '', SCWC_NODE_PATH: '/wrong/node' },
       }),
-    ).toContain('SCWC Node 目录版');
+    ).toContain('SCWC 外置 Node 运行时版');
     await fs.appendFile(path.join(app, '.env'), '\nSCWC_NODE_PATH="./missing node"\n');
     expect(() =>
       execFileSync(launcher[0], [...launcher[1]], { cwd: unrelated, stdio: 'pipe' }),

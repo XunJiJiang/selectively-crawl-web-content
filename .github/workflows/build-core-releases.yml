@@ -1,4 +1,4 @@
-name: Build external Node distributions
+name: Build SCWC runtime releases
 on:
   workflow_dispatch:
 permissions:
@@ -26,20 +26,14 @@ jobs:
         with:
           bun-version: '1.3.10'
       - run: bun install --frozen-lockfile
-      - run: bun run build:core:${{ matrix.platform }}
-      - run: bun run test --run projects/server/scripts/node-runtime.test.ts projects/server/scripts/node-distribution.test.ts projects/server/common/environment.test.ts projects/terminal/plugin/global.test.ts
-      # Preserve executable bits for start.sh and native build tools inside the artifact.
-      - name: Archive distribution
-        shell: bash
-        run: |
-          for directory in dist/core-node/scwc-node-*; do
-            name=$(basename "$directory")
-            tar -czf "dist/core-node/$name.tar.gz" -C dist/core-node "$name"
-          done
+      - run: bun run build:core:external-node:${{ matrix.platform }}
+      - run: bun run build:core:bundled-node:${{ matrix.platform }}
+      - run: bun run test --run projects/server/scripts/release-package.test.ts projects/server/scripts/external-node-runtime.test.ts projects/server/scripts/external-node-distribution.test.ts projects/server/scripts/bundled-node-launch.test.ts projects/server/common/environment.test.ts projects/terminal/plugin/global.test.ts
+      # Each build already creates a ZIP with executable modes and dotfiles.
       - uses: actions/upload-artifact@v7
         with:
-          name: scwc-node-${{ matrix.platform }}
-          path: dist/core-node/scwc-node-*.tar.gz
+          name: scwc-runtime-releases-${{ matrix.platform }}
+          path: dist/core/scwc-*.zip
           if-no-files-found: error
           include-hidden-files: true
           retention-days: 14

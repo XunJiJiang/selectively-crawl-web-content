@@ -17,7 +17,7 @@ afterEach(async () => {
 });
 
 const pluginSource = `
-import { axios, z, Database, trash, fileTypeFromBuffer } from 'scwc:deps';
+import { axios, z, Database, trash, fileTypeFromBuffer, fflate } from 'scwc:deps';
 import { RpcPeer, createPluginWorker } from 'scwc:runtime';
 import { createRequire } from 'node:module';
 import { local } from './local.mjs';
@@ -34,12 +34,15 @@ export default async function run() {
     worker.once('exit', code => { if (code !== 0) reject(new Error('Worker exited: ' + code)); });
   });
   await worker.terminate();
+  const archiveBytes = await new Promise((resolve, reject) => fflate.zip({ 'async.txt': fflate.strToU8('async ZIP') }, (error, bytes) => error ? reject(error) : resolve(bytes)));
   const require = createRequire(import.meta.url);
   return {
     parsed: z.string().parse('typed'), sqlite: row.value, worker: workerValue,
     axios: typeof axios.create, rpc: typeof RpcPeer, local,
     type: (await fileTypeFromBuffer(Buffer.from('GIF89a'))).ext,
     requireSharesInstance: require('scwc:deps').z === z,
+    asyncArchive: fflate.strFromU8(fflate.unzipSync(archiveBytes)['async.txt']),
+    archive: fflate.strFromU8(fflate.unzipSync(fflate.zipSync({ 'test.txt': fflate.strToU8('shared ZIP') }))['test.txt']),
   };
 }
 `;
@@ -248,6 +251,8 @@ void createPluginWorker(new URL('file:///worker.mjs'), { workerData: parsed });
         local: true,
         type: 'gif',
         requireSharesInstance: true,
+        archive: 'shared ZIP',
+        asyncArchive: 'async ZIP',
       });
       expect(
         await fs.stat(path.join(pluginDirectory, 'node_modules')).catch(() => undefined),

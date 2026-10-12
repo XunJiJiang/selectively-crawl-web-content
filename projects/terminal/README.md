@@ -11,11 +11,11 @@ bun run dev:terminal
 
 setup.ts 负责构建准备并启动本工程；终端通过本地 IPC 启动核心并负责重启。直接运行 `node projects/server/index.ts --mode=dev` 仍使用普通逐行命令输入。
 
-`bun run build:core` 生成同时包含核心与终端的独立可执行文件，构建需要 Node >= 25.5。在部署目录直接运行 `./scwc` 默认打开多窗口终端，`./scwc --no-terminal` 才直接启动核心；旧 `--terminal` 用法仍可用。Windows 对应 `scwc.exe` / `scwc.exe --no-terminal`。终端拉起核心子进程时显式禁用终端模式；插件宿主和独立页面构建仍走各自入口。可执行文件读取同目录 .env，业务插件与终端插件分别放入 plugins 与 terminal/plugins。
+`bun run build:core:bundled-node` 生成内置 Node 运行时 ZIP，构建需要 Node >=25.5。产物为 `dist/core/scwc-bundled-node-<系统>-<架构>.zip`；解压后运行同名可执行文件（Windows 加 `.exe`）默认打开多窗口终端，追加 `--no-terminal` 直接启动核心。可执行文件读取相邻默认 `.env`，插件分别位于 plugins 与 terminal/plugins。可追加 `--terminal-plugins=true`、`--core-plugins=none/all/enabled` 选择附带插件；两份声明始终保留。内建 scwc 命令适配始终编译进宿主，附带源码时不会重复加载。
 
 ## 使用
 
-不内置 Node 的目录发行包通过 `bun run build:core:windows/linux/macos` 在各对应系统构建；部署机需要 Node >=25。`node start.cjs`、Windows 的 `./start.ps1` 或 Linux/macOS 的 `./start.sh` 默认打开相同终端，`--no-terminal` 直接启动核心。启动器读取相邻 `.env` 的 SCWC_NODE_PATH 或寻找 PATH 中的合规 Node。内建 scwc 全局命令适配会编译进宿主，业务插件与终端插件目录仍为 plugins 和 terminal/plugins。完整命令及平台要求见 [核心部署](../../docs/核心部署.md)。
+不内置 Node 的外置 Node 运行时发行包通过 `bun run build:core:external-node:windows/linux/macos` 在各对应系统构建 ZIP 至 dist/core；部署机需要 Node >=25。解压后启动。`node start.cjs`、Windows 的 `./start.ps1` 或 Linux/macOS 的 `./start.sh` 默认打开相同终端，`--no-terminal` 直接启动核心。启动器读取相邻 `.env` 的 SCWC_NODE_PATH 或寻找 PATH 中的合规 Node。内建 scwc 全局命令适配会编译进宿主，业务插件与终端插件目录仍为 plugins 和 terminal/plugins。完整命令及平台要求见 [核心部署](../../docs/核心部署.md)。
 
 默认有输出窗口和 cmd1，输出窗口不能关闭。标签尾部数字是当前标签序号，命令参数使用这个序号；内部使用持久化的固定 UUID，关闭并新建窗口不会继承旧日志。
 
@@ -105,7 +105,7 @@ busy 为“函数未结束 OR setBusy(true) 未解除 OR begin 任务未 end”�
 
 ## 终端命令插件
 
-每个子目录包含 package.json（main、enabled、type: module）和导出 onLoad 的入口，使用独立宿主进程。复制 [template](plugins/template/index.ts) 并在 package.json 中将 enabled 改为 true。公共接口见 [plugin-env.d.ts](plugins/plugin-env.d.ts)，使用全局命名空间 `SCWCTerminal`。每个插件自行配置 tsconfig 引入声明，两个插件提供了配置示例；声明自包含，可以与插件一同复制到外部目录。
+每个子外置 Node 运行时包含 package.json（main、enabled、type: module）和导出 onLoad 的入口，使用独立宿主进程。复制 [template](plugins/template/index.ts) 并在 package.json 中将 enabled 改为 true。公共接口见 [plugin-env.d.ts](plugins/plugin-env.d.ts)，使用全局命名空间 `SCWCTerminal`。每个插件自行配置 tsconfig 引入声明，两个插件提供了配置示例；声明自包含，可以与插件一同复制到外部目录。
 
 入口导出的插件对象可声明 `id: '简短标识'`，省略时使用目录名。标识用于区分插件，也作为需要添加前缀时的命令命名空间；最多 64 个字符，不能包含空白、冒号、路径分隔符或控制字符。
 
@@ -129,8 +129,8 @@ onLoad 接收 coreCommands（核心发现清单）、registerCommand、进程级
 
 ```sh
 bun run test --run projects/terminal/model.test.ts projects/terminal/storage.test.ts projects/server/common/tasks.test.ts
-bun run build:core
-bun run test:core-executable
+bun run build:core:bundled-node
+bun run test:core-bundled-node
 ```
 
 最后一项使用临时部署、独立 Redis 和测试插件；需 redis-server 和 Python 3。非 Windows 上还运行真实 PTY 的全屏、鼠标、输入、确认、resize 和退出恢复验证。当前已在 macOS 验证；Windows/Linux 的终端编码与显示仍需在对应平台人工验收。

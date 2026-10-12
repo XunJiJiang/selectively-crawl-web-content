@@ -33,7 +33,7 @@ Worker 构建使用独立的插件列表，因此存在前端 Worker 时同时�
 
 核心页面构建器自动为页面及 Worker 注入本插件；即使旧插件没有显式配置，也可使用共享能力。构建配置中导入 `@scwc/vite-plugin` 时，核心为外部目录提供该构建包的解析回退。
 
-该包已加入核心 sharedBuildPackages，build:core 通过 shared-package-assets.ts 携带 package.json、运行模块、声明和浏览器适配；与 Vite/esbuild 一起在首次页面构建时释放。部署可执行文件时无需另装此包、Node 或 Vite。
+该包已加入核心 sharedBuildPackages，两种 build:core:bundled-node / build:core:external-node 构建都通过 shared-package-assets.ts 携带 package.json、运行模块、声明和浏览器适配；内置 Node 版与 Vite/esbuild 一起在首次页面构建时释放。部署内置 Node 版时无需另装此包、Node 或 Vite，外置 Node 版只需另装合规 Node。
 
 `build:core:windows/linux/macos` 的 Node 目录发行包也携带本插件与相同白名单工具链，位于 runtime/node_modules；通过 start.cjs 使用用户的 Node >=25 启动，无需另装本插件或 Vite。
 

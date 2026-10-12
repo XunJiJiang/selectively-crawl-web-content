@@ -8,6 +8,7 @@ declare module 'scwc:deps' {
   export * as fileType from 'file-type';
   export { fileTypeFromFile, fileTypeFromBuffer, fileTypeFromStream } from 'file-type';
   export type { FileTypeResult } from 'file-type';
+  export * as fflate from 'fflate';
 }
 
 declare module 'scwc:runtime' {

@@ -1,3 +1,4 @@
+import { bundledNodeFixture } from './release-test-utils.ts';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
@@ -6,7 +7,6 @@ import { createServer, type AddressInfo, type Server } from 'node:net';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { once } from 'node:events';
 import KeyvRedis from '@keyv/redis';
-import { ROOT } from '../common/paths.ts';
 import { smokeTerminal } from '../../terminal/smoke.ts';
 
 const processes = new Set<ChildProcess>();
@@ -93,9 +93,17 @@ async function main() {
   const launch = path.join(temporary, 'unrelated-cwd');
   await fs.mkdir(deployment);
   await fs.mkdir(launch);
-  const filename = process.platform === 'win32' ? 'scwc.exe' : 'scwc';
+  const fixture = await bundledNodeFixture();
+  if (!fixture) {
+    throw new Error('请先运行 build:core:bundled-node');
+  }
+  const filename = path.basename(fixture.executable);
   const executable = path.join(deployment, filename);
-  await fs.copyFile(path.join(ROOT, 'dist/core', filename), executable);
+  try {
+    await fs.copyFile(fixture.executable, executable);
+  } finally {
+    await fixture.cleanup();
+  }
   await fs.writeFile(path.join(launch, '.env'), 'PORT=1\nREDIS_PORT=1\n');
   await plugin(path.join(deployment, 'plugins'), 'default-plugin');
   await plugin(path.join(deployment, 'environment-plugins'), 'environment-plugin');

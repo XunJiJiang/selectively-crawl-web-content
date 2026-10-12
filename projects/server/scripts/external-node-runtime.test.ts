@@ -7,15 +7,15 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   validateNode,
-  loadDirectoryEnvironment,
-  type NodeBuildInfo,
+  loadExternalNodeEnvironment,
+  type ExternalNodeBuildInfo,
   type NodeRuntimeInfo,
-} from './node-runtime.ts';
-import { assertNativeBuild, parseNodeBuildArgs } from './build-node.ts';
+} from './external-node-runtime.ts';
+import { assertNativeBuild, parseReleaseArgs } from './release-package.ts';
 
 const temporary: string[] = [];
-const buildInfo: NodeBuildInfo = {
-  format: 'scwc-node/v1',
+const buildInfo: ExternalNodeBuildInfo = {
+  format: 'scwc-external-node/v1',
   version: '2.0.0',
   platform: 'linux',
   arch: 'x64',
@@ -56,13 +56,15 @@ describe('external Node release contract', () => {
     }
   });
   it('parses platform and architecture but rejects foreign native build targets', () => {
-    expect(parseNodeBuildArgs(['--platform=darwin', '--arch', 'arm64'])).toEqual({
+    expect(parseReleaseArgs(['--platform=darwin', '--arch', 'arm64'])).toEqual({
       platform: 'darwin',
       arch: 'arm64',
+      terminalPlugins: false,
+      corePlugins: 'none',
     });
-    expect(() => parseNodeBuildArgs(['--platform=freebsd'])).toThrow('平台');
-    expect(() => parseNodeBuildArgs(['--arch'])).toThrow('架构');
-    expect(() => parseNodeBuildArgs(['--arbitrary'])).toThrow('不支持');
+    expect(() => parseReleaseArgs(['--platform=freebsd'])).toThrow('平台');
+    expect(() => parseReleaseArgs(['--arch'])).toThrow('需要提供值');
+    expect(() => parseReleaseArgs(['--arbitrary'])).toThrow('不支持');
     expect(() =>
       assertNativeBuild({
         platform: process.platform === 'win32' ? 'linux' : 'win32',
@@ -71,22 +73,22 @@ describe('external Node release contract', () => {
     ).toThrow('不跨平台');
   });
   it('gives adjacent .env precedence including an explicit blank Node setting and protects bootstrap variables', async () => {
-    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'scwc-node-env-'));
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'scwc-external-node-env-'));
     temporary.push(directory);
     await fs.writeFile(
       path.join(directory, '.env'),
       'SCWC_NODE_PATH=\nPORT=4100\nSCWC_APP_DIR=wrong\n',
     );
     const env = { SCWC_NODE_PATH: '/old/node', PORT: '4200', SCWC_APP_DIR: '/release' };
-    loadDirectoryEnvironment(directory, env);
+    loadExternalNodeEnvironment(directory, env);
     expect(env).toEqual({ SCWC_NODE_PATH: '', PORT: '4100', SCWC_APP_DIR: '/release' });
   });
   it('checks a compiled launcher before loading application resources and rejects an invalid configured Node instead of falling back', async () => {
-    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'scwc-node-launcher-'));
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'scwc-external-node-launcher-'));
     temporary.push(directory);
     const filename = path.join(directory, 'start.cjs');
     await build({
-      entryPoints: [fileURLToPath(new URL('./node-bootstrap.ts', import.meta.url))],
+      entryPoints: [fileURLToPath(new URL('./external-node-bootstrap.ts', import.meta.url))],
       outfile: filename,
       bundle: true,
       platform: 'node',

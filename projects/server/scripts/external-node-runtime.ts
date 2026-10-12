@@ -4,8 +4,8 @@ import dotenv from 'dotenv';
 
 export type ReleasePlatform = 'win32' | 'linux' | 'darwin';
 export type ReleaseArch = 'x64' | 'arm64';
-export interface NodeBuildInfo {
-  format: 'scwc-node/v1';
+export interface ExternalNodeBuildInfo {
+  format: 'scwc-external-node/v1';
   version: string;
   platform: ReleasePlatform;
   arch: ReleaseArch;
@@ -41,13 +41,15 @@ export function currentNodeInfo(): NodeRuntimeInfo {
   };
 }
 
-export function validateNode(info: NodeRuntimeInfo, build: NodeBuildInfo): void {
+export function validateNode(info: NodeRuntimeInfo, build: ExternalNodeBuildInfo): void {
   if (
     info.release !== 'node' ||
     info.alternativeRuntime ||
     Number(info.version.split('.')[0]) < build.minimumNodeMajor
   ) {
-    throw new Error(`目录版需要 Node.js ${build.minimumNodeMajor} 或以上，当前为 ${info.version}`);
+    throw new Error(
+      `外置 Node 运行时版需要 Node.js ${build.minimumNodeMajor} 或以上，当前为 ${info.version}`,
+    );
   }
   if (
     info.platform !== build.platform ||
@@ -63,23 +65,23 @@ export function validateNode(info: NodeRuntimeInfo, build: NodeBuildInfo): void 
   }
 }
 
-export function readBuildInfo(directory: string): NodeBuildInfo {
+export function readBuildInfo(directory: string): ExternalNodeBuildInfo {
   const info = JSON.parse(
     fs.readFileSync(path.join(directory, 'build-info.json'), 'utf8'),
-  ) as NodeBuildInfo;
+  ) as ExternalNodeBuildInfo;
   if (
-    info.format !== 'scwc-node/v1' ||
+    info.format !== 'scwc-external-node/v1' ||
     !['win32', 'linux', 'darwin'].includes(info.platform) ||
     !['x64', 'arm64'].includes(info.arch) ||
     info.minimumNodeMajor !== 25 ||
     info.minimumNapi !== 10
   ) {
-    throw new Error('目录版 build-info.json 无效或版本不受支持');
+    throw new Error('外置 Node 运行时版 build-info.json 无效或版本不受支持');
   }
   return info;
 }
 
-export function loadDirectoryEnvironment(directory: string, env: NodeJS.ProcessEnv): void {
+export function loadExternalNodeEnvironment(directory: string, env: NodeJS.ProcessEnv): void {
   const filename = path.join(directory, '.env');
   if (!fs.existsSync(filename)) {
     return;

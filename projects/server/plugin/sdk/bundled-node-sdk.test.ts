@@ -1,17 +1,22 @@
+import { bundledNodeFixture } from '../../scripts/release-test-utils.ts';
 import fs from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fork } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, describe, expect, it } from 'vitest';
 import { RpcPeer } from '../process/rpc.ts';
 import { PluginProcessError } from '../process/protocol.ts';
 import { sharedPackageAssets } from '../../scripts/shared-package-assets.ts';
 import { preparePluginWeb } from '../web/build.ts';
 
 const root = fileURLToPath(new URL('../../../../', import.meta.url));
-const executable = path.join(root, 'dist/core', process.platform === 'win32' ? 'scwc.exe' : 'scwc');
+const bundled = await bundledNodeFixture();
+const executable = bundled?.executable ?? '';
+afterAll(async () => {
+  await bundled?.cleanup();
+});
 const sticker = path.join(root, 'projects/server/plugins/sticker-management');
 const directories: string[] = [];
 afterEach(async () => {
@@ -44,13 +49,13 @@ describe('relocated sticker plugin with shared SDK', () => {
         }
         // Only plugin-owned backend dependencies are provided. Core packages are absent.
         for (const [key, filename] of Object.entries(
-          await sharedPackageAssets(sticker, ['image-dimensions', 'webpinfo', 'fflate']),
+          await sharedPackageAssets(sticker, ['image-dimensions', 'webpinfo']),
         )) {
           const destination = path.join(plugin, key);
           await fs.mkdir(path.dirname(destination), { recursive: true });
           await fs.copyFile(filename, destination);
         }
-        for (const dependency of ['better-sqlite3', 'trash', 'zod', 'file-type']) {
+        for (const dependency of ['better-sqlite3', 'trash', 'zod', 'file-type', 'fflate']) {
           expect(existsSync(path.join(plugin, 'node_modules', dependency))).toBe(false);
         }
         const child = fork(

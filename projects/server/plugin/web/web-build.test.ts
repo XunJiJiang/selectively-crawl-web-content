@@ -1,3 +1,4 @@
+import { bundledNodeFixture } from '../../scripts/release-test-utils.ts';
 import fs from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import os from 'node:os';
@@ -5,7 +6,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 import { buildPluginWeb, ensurePluginWeb } from './build.ts';
 import { parseWebBuildScript } from './options.ts';
 
@@ -21,12 +22,11 @@ const vitePluginDirectory = fileURLToPath(new URL('../../../vite-plugin/', impor
 
 const roots: string[] = [];
 const logger = { info: vi.fn(), pathInfo: vi.fn(), warn: vi.fn(), error: vi.fn() };
-const executable = fileURLToPath(
-  new URL(
-    '../../../../dist/core/' + (process.platform === 'win32' ? 'scwc.exe' : 'scwc'),
-    import.meta.url,
-  ),
-);
+const bundled = await bundledNodeFixture();
+const executable = bundled?.executable ?? '';
+afterAll(async () => {
+  await bundled?.cleanup();
+});
 afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => fs.rm(root, { recursive: true, force: true })));
   vi.clearAllMocks();
