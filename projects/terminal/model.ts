@@ -22,6 +22,8 @@ export interface WindowState {
   lines: string[];
   bytes: number;
   lineOffset: number;
+  /** Absolute output line numbers of submitted command echoes. */
+  commandLines: number[];
   /** Display-only boundary between restored output and this session's output. */
   restoredHistoryEnd?: number;
   anchor?: { line: number; offset: number };
@@ -127,6 +129,7 @@ export class TerminalModel {
       lines: [],
       bytes: 0,
       lineOffset: 0,
+      commandLines: [],
       scroll: 0,
       history: [],
       historyCursor: 0,
@@ -274,7 +277,14 @@ export class TerminalModel {
       window.bytes += Buffer.byteLength('[历史输出已截断]');
       window.lineOffset--;
     }
+    if (truncated) {
+      window.commandLines = window.commandLines.filter((line) => line > window.lineOffset);
+    }
     window.scroll = Math.max(0, Math.min(window.scroll, Math.max(0, window.lines.length - 1)));
+  }
+  echoCommand(window: WindowState, command: string) {
+    window.commandLines.push(window.lineOffset + window.lines.length);
+    this.append({ windowId: window.id, text: `> ${command}` });
   }
   execution(event: ExecutionEvent) {
     const window = this.byId(event.windowId);

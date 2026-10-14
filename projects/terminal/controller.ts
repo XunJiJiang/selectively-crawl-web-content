@@ -619,7 +619,7 @@ export class TerminalController {
       return;
     }
     const parts = await this.validate(command);
-    this.model.append({ windowId, text: `> ${command}` });
+    this.model.echoCommand(window, command);
     const executionId = randomUUID();
     if (this.plugins.has(parts[0])) {
       const event: ExecutionEvent = { command, windowId, executionId, status: 'running' };
@@ -903,6 +903,7 @@ export class TerminalController {
       }
       if (target !== 'history') {
         this.model.active.lines = [];
+        this.model.active.commandLines = [];
         this.model.active.bytes = 0;
         this.model.active.scroll = 0;
         this.model.active.anchor = undefined;
@@ -1307,7 +1308,9 @@ export class TerminalController {
         this.scrollTabs(hit.arrow);
       }
     } else if ((mouse.button & 3) === 0 && !(mouse.button & 32)) {
-      this.renderer.beginSelection(this.model, mouse.column, mouse.row);
+      if (!this.renderer.revealPinnedCommand(this.model, mouse.row)) {
+        this.renderer.beginSelection(this.model, mouse.column, mouse.row);
+      }
     }
   }
   async line(line: string) {

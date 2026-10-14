@@ -52,6 +52,7 @@ export class Renderer {
   private regions = new Map<string, Row[]>();
   private cells = new Map<number, { region: string; index: number }>();
   private inputHit?: { row: number; prefix: number; offset: number; text: string };
+  private pinnedCommand?: { windowId: string; line: number };
   private drag?: { region?: string; index: number; column: number; inputStart?: number };
   private selection?: {
     region: string;
@@ -311,6 +312,27 @@ export class Renderer {
     const { start, end } = this.bounds(hit.text, target, target + 1);
     return upper ? end : start;
   }
+  revealPinnedCommand(model: TerminalModel, row: number) {
+    const pinned = this.pinnedCommand;
+    if (
+      row === 1 &&
+      pinned?.windowId === model.activeId &&
+      model.active.commandLines.includes(pinned.line) &&
+      !this.panelAt(row)
+    ) {
+      this.clearSelection(model);
+      const index = this.scrollRows.findIndex(
+        (source) => source.line === pinned.line && source.offset === 0 && !source.displayOnly,
+      );
+      if (index >= 0) {
+        this.viewStart = index;
+        model.active.anchor = { line: pinned.line, offset: 0 };
+        model.active.scroll = Math.max(0, this.scrollRows.length - this.viewHeight - index);
+      }
+      return true;
+    }
+    return false;
+  }
   beginSelection(model: TerminalModel, column: number, row: number) {
     if (model.completionPreview) {
       model.commitGlobalCompletion();
@@ -540,6 +562,7 @@ export class Renderer {
   frame(model: TerminalModel, tick = Math.floor(Date.now() / 100)): string {
     const window = model.active;
     this.cells.clear();
+    this.pinnedCommand = undefined;
     this.inputHit = undefined;
     this.regions.clear();
     if (!model.panel && this.selection?.region === 'panel') {
@@ -651,6 +674,28 @@ export class Renderer {
           background,
         );
       });
+    const top = allRows[this.viewStart];
+    if (
+      window.kind === 'command' &&
+      this.viewHeight > 1 &&
+      maximum > 0 &&
+      this.viewStart > 0 &&
+      top &&
+      !window.commandLines.includes(top.line)
+    ) {
+      const commandLine = window.commandLines.findLast((line) => line < top.line);
+      if (commandLine !== undefined) {
+        const command = window.lines[commandLine - window.lineOffset];
+        const label =
+          stringWidth(command) > this.width
+            ? sliceAnsi(command, 0, Math.max(0, this.width - 1)) + '…'
+            : command;
+        // Overlay one body row to keep scrolling, selection and caret coordinates stable.
+        body[0] = this.style(this.fit(label, this.width), colors.accent, colors.selected);
+        this.cells.delete(1);
+        this.pinnedCommand = { windowId: window.id, line: commandLine };
+      }
+    }
     while (body.length < Math.max(0, this.height - 2)) {
       body.push(this.style(' '.repeat(this.width), colors.text, background));
     }

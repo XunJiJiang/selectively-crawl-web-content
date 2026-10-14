@@ -161,10 +161,13 @@ export function restoreState(value: unknown): TerminalModel {
         : [];
     const history = strings(entry.history, 1000);
     const draft = typeof entry.draft === 'string' ? entry.draft.slice(0, 65536) : '';
-    const lines = strings(entry.lines, 10000).map(sanitizeOutput);
+    const savedLines = strings(entry.lines, Infinity);
+    const lines = savedLines.slice(-10000).map(sanitizeOutput);
+    let lineOffset = Math.max(0, Number(entry.lineOffset) || 0) + savedLines.length - lines.length;
     let bytes = lines.reduce((sum, line) => sum + Buffer.byteLength(line), 0);
     while (bytes > 10 * 1024 * 1024 && lines.length) {
       bytes -= Buffer.byteLength(lines.shift() ?? '');
+      lineOffset++;
     }
     const window: WindowState = {
       id,
@@ -180,7 +183,8 @@ export function restoreState(value: unknown): TerminalModel {
           : undefined,
       lines,
       bytes,
-      lineOffset: Math.max(0, Number(entry.lineOffset) || 0),
+      lineOffset,
+      commandLines: [],
       draft,
       cursor: Math.min(draft.length, Math.max(0, Number(entry.cursor) || 0)),
       history,
@@ -188,6 +192,24 @@ export function restoreState(value: unknown): TerminalModel {
       historyDraft: typeof entry.historyDraft === 'string' ? entry.historyDraft : '',
       scroll: Math.max(0, Math.min(lines.length, Number(entry.scroll) || 0)),
     };
+    if (window.kind === 'command' && Array.isArray(entry.commandLines)) {
+      window.commandLines = [
+        ...new Set<number>(
+          entry.commandLines.filter(
+            (line: unknown): line is number =>
+              Number.isInteger(line) &&
+              Number(line) >= window.lineOffset &&
+              Number(line) < window.lineOffset + lines.length &&
+              lines[Number(line) - window.lineOffset]?.startsWith('> '),
+          ),
+        ),
+      ].sort((a, b) => a - b);
+    } else if (window.kind === 'command') {
+      // Older state files stored command echoes without their line metadata.
+      window.commandLines = lines.flatMap((line, index) =>
+        line.startsWith('> ') ? [window.lineOffset + index] : [],
+      );
+    }
     if (lines.length) {
       window.restoredHistoryEnd = window.lineOffset + lines.length;
     }
