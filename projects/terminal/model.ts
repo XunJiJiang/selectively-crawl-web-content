@@ -12,6 +12,8 @@ import { InvocationInputError, formatInput, inputFormat } from '../server/common
 import { globalCommands, type GlobalCommandInfo } from './global.ts';
 import type { PluginPreferences } from './plugin/types.d.ts';
 import { completionInput } from './completion.ts';
+import { commandSource } from './command-text.ts';
+import stringWidth from 'string-width';
 
 export type Mode = 'normal' | 'global' | 'global-output' | 'confirmation';
 export interface WindowState {
@@ -32,6 +34,8 @@ export interface WindowState {
   historyCursor: number;
   draft: string;
   historyDraft: string;
+  /** Editing a recalled multiline command locks history until the draft is discarded. */
+  historyLocked?: boolean;
   cursor: number;
   selection?: number;
   task?: ExecutionEvent;
@@ -116,6 +120,7 @@ export class TerminalModel {
   tabOffset = 0;
   private boundary?: { direction: number; time: number };
   private closedNumbers = new Map<string, number | undefined>();
+  private verticalGoal?: { windowId: string; cursor: number; column: number };
   constructor() {
     this.windows.push(this.make('output'));
     this.newWindow();
@@ -280,11 +285,18 @@ export class TerminalModel {
     if (truncated) {
       window.commandLines = window.commandLines.filter((line) => line > window.lineOffset);
     }
-    window.scroll = Math.max(0, Math.min(window.scroll, Math.max(0, window.lines.length - 1)));
+    const inputRows =
+      window.kind === 'command' || window.input
+        ? (window.input?.draft ?? window.draft).split('\n').length
+        : 0;
+    window.scroll = Math.max(
+      0,
+      Math.min(window.scroll, Math.max(0, window.lines.length + inputRows - 1)),
+    );
   }
   echoCommand(window: WindowState, command: string) {
     window.commandLines.push(window.lineOffset + window.lines.length);
-    this.append({ windowId: window.id, text: `> ${command}` });
+    this.append({ windowId: window.id, text: `> ${command.replace(/\n/g, '\n> ')}` });
   }
   execution(event: ExecutionEvent) {
     const window = this.byId(event.windowId);
@@ -318,6 +330,7 @@ export class TerminalModel {
     }
     window.historyCursor = window.history.length;
     window.historyDraft = '';
+    window.historyLocked = false;
   }
   history(direction: number) {
     this.completionPreview = false;
@@ -338,6 +351,21 @@ export class TerminalModel {
       return;
     }
     const window = this.active;
+    if (window.historyLocked) {
+      return;
+    }
+    if (window.draft.includes('\n')) {
+      const pristine =
+        window.historyCursor < window.history.length &&
+        window.draft === window.history[window.historyCursor];
+      const atEdge =
+        direction < 0
+          ? !window.draft.slice(0, window.cursor).includes('\n')
+          : !window.draft.slice(window.cursor).includes('\n');
+      if (!pristine || !atEdge) {
+        return;
+      }
+    }
     if (window.historyCursor === window.history.length) {
       window.historyDraft = window.draft;
     }
@@ -349,8 +377,60 @@ export class TerminalModel {
       window.historyCursor === window.history.length
         ? window.historyDraft
         : window.history[window.historyCursor];
-    window.cursor = window.draft.length;
+    const firstLineEnd = window.draft.indexOf('\n');
+    window.cursor = direction < 0 && firstLineEnd >= 0 ? firstLineEnd : window.draft.length;
     window.selection = undefined;
+    this.verticalGoal = undefined;
+  }
+  get commandInput() {
+    return this.mode === 'normal' && this.active.kind === 'command' && !this.active.input;
+  }
+  clearCommand(remember = false) {
+    if (remember && this.text) {
+      this.record(this.active, this.text);
+    }
+    this.setInput('', 0);
+    const window = this.active;
+    window.historyCursor = window.history.length;
+    window.historyDraft = '';
+    window.historyLocked = false;
+    this.clearServiceCompletion();
+  }
+  vertical(direction: number, selecting = false) {
+    const text = this.text;
+    const start = this.cursor > 0 ? text.lastIndexOf('\n', this.cursor - 1) + 1 : 0;
+    const end = text.indexOf('\n', this.cursor);
+    const boundary = direction < 0 ? start === 0 : end < 0;
+    if (!selecting && (!text.includes('\n') || boundary)) {
+      this.history(direction);
+      return;
+    }
+    if (boundary) {
+      return;
+    }
+    const goal = this.verticalGoal;
+    const column =
+      goal?.windowId === this.activeId && goal.cursor === this.cursor
+        ? goal.column
+        : stringWidth(text.slice(start, this.cursor));
+    const targetStart =
+      direction < 0 ? (start > 1 ? text.lastIndexOf('\n', start - 2) + 1 : 0) : end + 1;
+    const nextEnd = text.indexOf('\n', targetStart);
+    const targetEnd = nextEnd < 0 ? text.length : nextEnd;
+    let cursor = targetStart;
+    let width = 0;
+    for (const item of new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(
+      text.slice(targetStart, targetEnd),
+    )) {
+      width += stringWidth(item.segment);
+      if (width > column) {
+        break;
+      }
+      cursor += item.segment.length;
+    }
+    this.completionPreview = false;
+    this.setInput(text, cursor, selecting ? (this.selection ?? this.cursor) : undefined);
+    this.verticalGoal = { windowId: this.activeId, cursor, column };
   }
   recordGlobal(command: string) {
     if (command && this.globalHistory.at(-1) !== command) {
@@ -402,6 +482,7 @@ export class TerminalModel {
           : this.active.selection;
   }
   setInput(text: string, cursor: number, selection?: number) {
+    this.verticalGoal = undefined;
     if (text !== this.text) {
       this.completionPreview = false;
       this.completionIndex = 0;
@@ -431,6 +512,13 @@ export class TerminalModel {
       this.active.input.cursor = cursor;
       this.active.input.selection = selection;
     } else {
+      if (
+        text !== this.active.draft &&
+        this.active.historyCursor < this.active.history.length &&
+        (this.active.draft.includes('\n') || text.includes('\n'))
+      ) {
+        this.active.historyLocked = true;
+      }
       this.active.draft = text;
       this.active.cursor = cursor;
       this.active.selection = selection;
@@ -479,7 +567,18 @@ export class TerminalModel {
     if (!selecting && this.selection !== undefined && unit === 'grapheme') {
       cursor = direction < 0 ? Math.min(cursor, this.selection) : Math.max(cursor, this.selection);
     } else if (unit === 'edge') {
-      cursor = direction < 0 ? 0 : this.text.length;
+      const end = this.text.indexOf('\n', cursor);
+      cursor = this.commandInput
+        ? direction < 0
+          ? cursor > 0
+            ? this.text.lastIndexOf('\n', cursor - 1) + 1
+            : 0
+          : end < 0
+            ? this.text.length
+            : end
+        : direction < 0
+          ? 0
+          : this.text.length;
     } else if (unit === 'word') {
       if (direction < 0) {
         while (cursor > 0 && /\s/.test(this.text[cursor - 1])) {
@@ -543,7 +642,19 @@ export class TerminalModel {
     return JSON.stringify([this.mode, this.activeId, this.text, this.cursor]);
   }
   get completionInput() {
-    return completionInput(this.text, this.cursor);
+    const source = commandSource(this.text);
+    const input = completionInput(
+      source.command.replace(/\n/g, ' '),
+      source.commandOffsets[this.cursor],
+    );
+    const from = source.sourceOffsets[input.from];
+    return {
+      ...input,
+      start: source.sourceOffsets[input.start],
+      from,
+      to: source.sourceOffsets[input.to],
+      stem: this.text.slice(0, from),
+    };
   }
   private get completionOwner() {
     return JSON.stringify([this.mode, this.activeId]);

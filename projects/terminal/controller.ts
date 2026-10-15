@@ -21,6 +21,7 @@ import type {
 } from '../server/types/task.d.ts';
 import type { Key } from './input.ts';
 import type { CommandConflict, ConflictChoice } from './plugin/types.d.ts';
+import { commandSource } from './command-text.ts';
 
 // 每个终端上报的滚动单位对应的行数；越大越快，可设为 0.5、1.5 等小数。
 // SGR 鼠标协议没有原始像素距离，滚动距离由收到的滚轮事件数量表示。
@@ -334,9 +335,11 @@ export class TerminalController {
       return Promise.resolve();
     }
     const version = this.completionVersion;
+    const original = this.model.text;
+    const source = commandSource(original);
     const request = {
-      command: this.model.text,
-      cursor: this.model.cursor,
+      command: source.command.replace(/\n/g, ' '),
+      cursor: source.commandOffsets[this.model.cursor],
       id: randomUUID(),
       windowId: this.model.activeId,
     };
@@ -364,11 +367,17 @@ export class TerminalController {
               deep
                 ? {
                     ...result,
+                    command: original,
                     inline: true,
                     from: input.from,
                     to: input.to,
                   }
-                : result,
+                : {
+                    ...result,
+                    from: source.sourceOffsets[result.from],
+                    to: source.sourceOffsets[result.to],
+                    command: original,
+                  },
             );
           }
           this.onChange?.();
@@ -614,19 +623,21 @@ export class TerminalController {
     if (window.task) {
       throw new Error('当前窗口有任务，使用 :run 替换或 :new 新建窗口');
     }
+    const original = command;
+    command = commandSource(command).command;
     if (['exit', 'restart'].includes(command.trim())) {
       await this.lifecycle(command.trim() === 'restart');
       return;
     }
     const parts = await this.validate(command);
-    this.model.echoCommand(window, command);
+    this.model.echoCommand(window, original);
     const executionId = randomUUID();
     if (this.plugins.has(parts[0])) {
       const event: ExecutionEvent = { command, windowId, executionId, status: 'running' };
       const record = { event, returned: false, error: undefined as string | undefined };
       this.terminalExecutions.set(executionId, record);
       this.model.execution(event);
-      this.model.record(window, command);
+      this.model.record(window, original);
       const identity: InvocationIdentity = { windowId, executionId };
       void this.plugins
         .execute(parts[0], parts.slice(1), identity)
@@ -655,7 +666,7 @@ export class TerminalController {
         });
         throw error;
       }
-      this.model.record(window, command);
+      this.model.record(window, original);
     }
     this.changed();
   }
@@ -875,7 +886,7 @@ export class TerminalController {
                 `:${item.usage}${item.aliases?.length ? ` (${item.aliases.map((alias) => ':' + alias).join('/')})` : ''}  ${item.description}`,
             )
             .join('\n') +
-          '\n命令标签：直接输入 · ↑/↓ 历史（含草稿） · Enter 执行\n空输入：: 全局命令 · Tab/Shift+Tab 切换标签 · ←/→ 滚动标签栏\n输入：Tab/Shift+Tab 补全 · Shift+←/→ 选中 · Ctrl/Cmd+←/→ 按空格分词跳转 · Alt/Option+←/→ 头尾跳转（可加 Shift 选中）\n拖动选中输出 · Ctrl/Cmd+C 复制选中项 · Esc 取消选中或关闭底栏\n底栏输出：↑/↓ 或鼠标滚轮滚动 · : 继续输入 · Esc 丢弃\n可执行命令：\n' +
+          '\n命令标签：直接输入 · Enter 执行 · 行尾 \\ 后 Enter 续行\n↑/↓：单行切换历史（含草稿），多行移动输入行；未编辑的多行历史可在首/末行继续切换\nCtrl+C / Esc：保存当前命令输入到历史并清空\n空输入：: 全局命令 · Tab/Shift+Tab 切换标签 · ←/→ 滚动标签栏\n输入：Tab/Shift+Tab 补全 · Shift+方向键选中 · Ctrl/Cmd+←/→ 按空格分词跳转 · Alt/Option+←/→ 行首行尾跳转（可加 Shift 选中）\n拖动选中输出 · Ctrl/Cmd+C 复制输出选区 · Cmd+C 复制输入选区\n底栏输出：↑/↓ 或鼠标滚轮滚动 · : 继续输入 · Esc 丢弃\n可执行命令：\n' +
           [...this.commands, ...this.plugins.list()]
             .map((item) => `${item.name} ${item.description ?? ''}`)
             .join('\n'),
@@ -913,6 +924,7 @@ export class TerminalController {
         this.model.active.history = [];
         this.model.active.historyCursor = 0;
         this.model.active.historyDraft = '';
+        this.model.active.historyLocked = false;
       }
       clear();
     } else if (this.plugins.has(name, 'global')) {
@@ -1021,7 +1033,7 @@ export class TerminalController {
       if (!key.mouse && !copying && this.model.editing) {
         this.renderer.clearOutputSelection();
       }
-      if (copying && selected) {
+      if (copying && selected && !(key.ctrl && this.model.commandInput && this.model.text)) {
         if (!this.onCopy) {
           throw new Error('剪贴板不可用');
         }
@@ -1044,9 +1056,16 @@ export class TerminalController {
         this.invalidateCompletion();
         this.renderer.clearSelection(this.model);
         if (this.model.mode === 'normal') {
+          if (this.model.commandInput) {
+            this.model.clearCommand(true);
+            this.renderer.revealInput();
+          }
           this.model.active.anchor = undefined;
           this.model.active.scroll = 0;
         } else if (!this.model.panel?.running) {
+          if (this.model.mode === 'global' && this.model.globalDraft) {
+            this.model.recordGlobal(this.model.globalDraft);
+          }
           this.model.panel = undefined;
           this.retirePanelExecutions();
           this.model.completionPreview = false;
@@ -1090,8 +1109,19 @@ export class TerminalController {
         if (this.model.active.input) {
           this.pending = true;
           await this.cancelInput();
-        } else if (this.model.editing && (this.model.text || this.model.mode === 'global')) {
-          this.model.setInput('', 0);
+        } else if (
+          this.model.editing &&
+          (this.model.text || this.model.mode === 'global' || this.model.active.historyLocked)
+        ) {
+          this.invalidateCompletion();
+          this.renderer.clearSelection(this.model);
+          if (this.model.commandInput) {
+            this.model.clearCommand(true);
+            this.renderer.revealInput();
+          } else {
+            this.model.recordGlobal(this.model.text);
+            this.model.setInput('', 0);
+          }
         } else if (this.model.active.task) {
           this.pending = true;
           const executionId = this.model.active.task.executionId;
@@ -1137,12 +1167,14 @@ export class TerminalController {
           this.renderer.clearSelection(this.model);
         }
       } else if (key.name === 'paste') {
-        const text = sanitizeOutput(key.sequence).replace(/\n/g, ' ');
+        const clean = sanitizeOutput(key.sequence);
+        const text = this.model.commandInput ? clean : clean.replace(/\n/g, ' ');
         if (this.canEnterGlobal() && text.startsWith(':')) {
           this.model.enterGlobal();
           this.model.edit(text.slice(1));
         } else if (this.model.editing) {
           this.model.edit(text);
+          this.renderer.revealInput();
         } else if (/^[：﹕꞉∶︰]/u.test(text)) {
           throw new Error('请输入英文半角冒号 ":" 进入全局命令');
         }
@@ -1157,23 +1189,35 @@ export class TerminalController {
         throw new Error('请输入英文半角冒号 ":" 进入全局命令');
       } else if (this.model.editing) {
         if (key.name === 'enter') {
-          this.pending = true;
-          this.model.commitGlobalCompletion(true);
-          this.invalidateCompletion();
-          if (this.model.mode === 'global') {
-            await this.global(this.model.globalDraft);
-          } else if (this.model.active.input) {
-            await this.answerInput(this.model.text);
-          } else if (this.model.active.draft.trim()) {
-            const window = this.model.active;
-            await this.execute(window.id, window.draft);
-            this.model.setInput('', 0);
+          const text = this.model.displayText;
+          if (this.model.commandInput && text.endsWith('\\')) {
+            this.model.commitGlobalCompletion(true);
+            this.model.setInput(this.model.text, text.length);
+            this.model.edit('\n');
+            this.invalidateCompletion();
+          } else {
+            this.pending = true;
+            this.model.commitGlobalCompletion(true);
+            this.invalidateCompletion();
+            if (this.model.mode === 'global') {
+              await this.global(this.model.globalDraft);
+            } else if (this.model.active.input) {
+              await this.answerInput(this.model.text);
+            } else if (this.model.active.draft.trim()) {
+              const window = this.model.active;
+              await this.execute(window.id, window.draft);
+              this.model.clearCommand();
+            }
           }
         } else if (key.name === 'up' || key.name === 'down') {
           if (this.model.panel?.input) {
             this.renderer.scrollPanel(this.model, key.name === 'up' ? 1 : -1);
           } else if (this.model.mode === 'global' || !this.model.active.input) {
-            this.model.history(key.name === 'up' ? -1 : 1);
+            if (this.model.commandInput) {
+              this.model.vertical(key.name === 'up' ? -1 : 1, key.shift);
+            } else {
+              this.model.history(key.name === 'up' ? -1 : 1);
+            }
           } else {
             this.renderer.scroll(this.model, key.name === 'up' ? 1 : -1);
           }
@@ -1223,10 +1267,25 @@ export class TerminalController {
         }
         if (
           this.model.mode === 'normal' &&
-          ['text', 'paste', 'backspace', 'delete', 'up', 'down', 'enter'].includes(key.name)
+          [
+            'text',
+            'backspace',
+            'delete',
+            'up',
+            'down',
+            'enter',
+            'left',
+            'right',
+            'home',
+            'end',
+          ].includes(key.name)
         ) {
-          this.model.active.anchor = undefined;
-          this.model.active.scroll = 0;
+          if (this.model.commandInput) {
+            this.renderer.revealInput();
+          } else {
+            this.model.active.anchor = undefined;
+            this.model.active.scroll = 0;
+          }
         }
       } else if (key.name === 'up' || key.name === 'down') {
         this.renderer.scroll(this.model, key.name === 'up' ? 1 : -1);

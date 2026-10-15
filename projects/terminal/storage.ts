@@ -190,7 +190,11 @@ export function restoreState(value: unknown): TerminalModel {
       history,
       historyCursor: Math.max(0, Math.min(history.length, Number(entry.historyCursor) || 0)),
       historyDraft: typeof entry.historyDraft === 'string' ? entry.historyDraft : '',
-      scroll: Math.max(0, Math.min(lines.length, Number(entry.scroll) || 0)),
+      historyLocked: entry.historyLocked === true,
+      scroll: Math.max(
+        0,
+        Math.min(lines.length + draft.split('\n').length - 1, Number(entry.scroll) || 0),
+      ),
     };
     if (window.kind === 'command' && Array.isArray(entry.commandLines)) {
       window.commandLines = [

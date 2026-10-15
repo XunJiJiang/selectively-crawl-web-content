@@ -51,9 +51,24 @@ export class Renderer {
   private lastPaintAt = -Infinity;
   private regions = new Map<string, Row[]>();
   private cells = new Map<number, { region: string; index: number }>();
-  private inputHit?: { row: number; prefix: number; offset: number; text: string };
+  private inputHits = new Map<
+    number,
+    { prefix: number; offset: number; text: string; start: number }
+  >();
+  private inputOffsets = new WeakMap<WindowState, number>();
+  private inputReveal = false;
+  private inputVersion = '';
+  private inputVisible = false;
+  private inputOutput = '';
   private pinnedCommand?: { windowId: string; line: number };
-  private drag?: { region?: string; index: number; column: number; inputStart?: number };
+  private drag?: {
+    region?: string;
+    index: number;
+    column: number;
+    inputStart?: number;
+    inputEnd?: number;
+    row?: number;
+  };
   private selection?: {
     region: string;
     start: { index: number; column: number };
@@ -167,6 +182,9 @@ export class Renderer {
   reveal() {
     this.lastActive = '';
   }
+  revealInput() {
+    this.inputReveal = true;
+  }
   scrollTabs(model: TerminalModel, direction: number, columns = false) {
     if (columns) {
       model.tabOffset = Math.max(0, model.tabOffset + direction);
@@ -185,6 +203,7 @@ export class Renderer {
         : (starts.filter((start) => start < model.tabOffset).at(-1) ?? 0);
   }
   scroll(model: TerminalModel, amount: number) {
+    this.inputVisible = false;
     const maximum = Math.max(0, this.scrollRows.length - this.viewHeight);
     const start = Math.max(0, Math.min(maximum, this.viewStart - amount));
     // Accumulate wheel events even when the next frame has not been painted yet.
@@ -303,14 +322,14 @@ export class Renderer {
     }
     return '';
   }
-  private inputIndex(column: number, upper = false) {
-    const hit = this.inputHit;
+  private inputIndex(column: number, row: number, upper = false) {
+    const hit = this.inputHits.get(row);
     if (!hit) {
       return 0;
     }
     const target = Math.max(0, column - hit.prefix + hit.offset);
     const { start, end } = this.bounds(hit.text, target, target + 1);
-    return upper ? end : start;
+    return hit.start + (upper ? end : start);
   }
   revealPinnedCommand(model: TerminalModel, row: number) {
     const pinned = this.pinnedCommand;
@@ -338,10 +357,17 @@ export class Renderer {
       model.commitGlobalCompletion();
     }
     this.clearSelection(model);
-    if (this.inputHit?.row === row && model.editing) {
-      const index = this.inputIndex(column);
-      this.drag = { index: 0, column, inputStart: index };
+    if (this.inputHits.has(row) && model.editing) {
+      const index = this.inputIndex(column, row);
+      this.drag = {
+        index: 0,
+        column,
+        row,
+        inputStart: index,
+        inputEnd: this.inputIndex(column, row, true),
+      };
       model.setInput(model.text, index);
+      this.revealInput();
       return;
     }
     const cell = this.cells.get(row);
@@ -361,12 +387,17 @@ export class Renderer {
       return false;
     }
     if (drag.inputStart !== undefined) {
-      const hit = this.inputHit;
-      if (hit && (column !== drag.column || row !== hit.row)) {
-        const forward = column >= drag.column;
-        const cursor = this.inputIndex(column, forward);
-        const anchor = forward ? drag.inputStart : this.inputIndex(drag.column, true);
+      const nearest = [...this.inputHits.keys()].reduce<number | undefined>(
+        (best, value) =>
+          best === undefined || Math.abs(value - row) < Math.abs(best - row) ? value : best,
+        undefined,
+      );
+      if (nearest !== undefined && (column !== drag.column || row !== drag.row)) {
+        const forward = this.inputIndex(column, nearest) >= drag.inputStart;
+        const cursor = this.inputIndex(column, nearest, forward);
+        const anchor = forward ? drag.inputStart : drag.inputEnd;
         model.setInput(model.text, cursor, anchor);
+        this.revealInput();
       }
     } else if (drag.region) {
       const choices = [...this.cells].filter(([, cell]) => cell.region === drag.region);
@@ -534,10 +565,12 @@ export class Renderer {
     prefix: string,
     row: number,
     active: boolean,
+    sharedOffset?: number,
+    start = 0,
   ) {
     const prefixWidth = stringWidth(prefix);
     const available = Math.max(1, this.width - prefixWidth);
-    const offset = Math.max(0, stringWidth(text.slice(0, cursor)) - available + 1);
+    const offset = sharedOffset ?? Math.max(0, stringWidth(text.slice(0, cursor)) - available + 1);
     let input = sliceAnsi(text, offset, offset + available);
     if (selection !== undefined) {
       const from = stringWidth(text.slice(0, Math.min(selection, cursor)));
@@ -552,7 +585,7 @@ export class Renderer {
         sliceAnsi(text, Math.max(offset, to), offset + available);
     }
     if (active) {
-      this.inputHit = { row, prefix: prefixWidth, offset, text };
+      this.inputHits.set(row, { prefix: prefixWidth, offset, text, start });
     }
     return {
       text: prefix + input,
@@ -563,7 +596,7 @@ export class Renderer {
     const window = model.active;
     this.cells.clear();
     this.pinnedCommand = undefined;
-    this.inputHit = undefined;
+    this.inputHits.clear();
     this.regions.clear();
     if (!model.panel && this.selection?.region === 'panel') {
       this.selection = undefined;
@@ -622,8 +655,40 @@ export class Renderer {
     const inlineActive = inline && model.mode === 'normal';
     const text = inlineActive ? model.displayText : (window.input?.draft ?? window.draft);
     const cursor = inlineActive ? model.displayCursor : (window.input?.cursor ?? window.cursor);
-    const allRows = inline
-      ? [...rows, { text: '', line: window.lineOffset + window.lines.length, offset: 0 }]
+    let inputStart = 0;
+    const inputRows = text.split('\n').map((text) => {
+      const start = inputStart;
+      inputStart += text.length + 1;
+      return { text, start };
+    });
+    const cursorRow = text.slice(0, cursor).split('\n').length - 1;
+    const cursorColumn = stringWidth(
+      inputRows[cursorRow].text.slice(0, cursor - inputRows[cursorRow].start),
+    );
+    const available = Math.max(1, this.width - 2);
+    let inputOffset = this.inputOffsets.get(window) ?? 0;
+    inputOffset = Math.min(
+      inputOffset,
+      inputRows.reduce(
+        (maximum, row) => Math.max(maximum, stringWidth(row.text) - available + 1),
+        0,
+      ),
+    );
+    if (cursorColumn < inputOffset) {
+      inputOffset = cursorColumn;
+    } else if (cursorColumn >= inputOffset + available) {
+      inputOffset = cursorColumn - available + 1;
+    }
+    this.inputOffsets.set(window, inputOffset);
+    const allRows: Row[] = inline
+      ? [
+          ...rows,
+          ...inputRows.map((row, index) => ({
+            text: row.text,
+            line: window.lineOffset + window.lines.length + index,
+            offset: 0,
+          })),
+        ]
       : rows;
     this.viewHeight = Math.max(0, this.height - 2 - (inlineActive ? this.panelHeight : 0));
     const maximum = Math.max(0, allRows.length - this.viewHeight);
@@ -638,6 +703,32 @@ export class Renderer {
         )
       : Math.max(0, maximum - window.scroll);
     this.viewStart = Math.min(maximum, this.viewStart);
+    const version = JSON.stringify([window.id, text, cursor, this.width, this.viewHeight]);
+    const outputVersion = JSON.stringify([window.id, window.bytes, window.lines.length]);
+    const caretIndex = rows.length + cursorRow;
+    if (
+      inlineActive &&
+      this.viewHeight > 0 &&
+      (this.inputReveal ||
+        (inputRows.length > 1 &&
+          (version !== this.inputVersion ||
+            (this.inputVisible && outputVersion !== this.inputOutput))))
+    ) {
+      const margin = Math.min(2, Math.floor((this.viewHeight - 1) / 2));
+      if (caretIndex < this.viewStart + margin) {
+        this.viewStart = caretIndex - margin;
+      } else if (caretIndex >= this.viewStart + this.viewHeight - margin) {
+        this.viewStart = caretIndex - this.viewHeight + margin + 1;
+      }
+      this.viewStart = Math.max(0, Math.min(maximum, this.viewStart));
+      window.anchor = undefined;
+      window.scroll = maximum - this.viewStart;
+    }
+    this.inputVersion = version;
+    this.inputOutput = outputVersion;
+    this.inputVisible =
+      inlineActive && caretIndex >= this.viewStart && caretIndex < this.viewStart + this.viewHeight;
+    this.inputReveal = false;
     this.scrollRows = allRows;
     const background = model.transparentBackground ? undefined : colors.background;
     let caret: { row: number; column: number } | undefined;
@@ -646,16 +737,23 @@ export class Renderer {
       .map((row, index) => {
         const sourceIndex = this.viewStart + index;
         const screenRow = index + 1;
-        if (inline && sourceIndex === rows.length) {
+        if (inline && sourceIndex >= rows.length) {
+          const inputRow = inputRows[sourceIndex - rows.length];
+          const localCursor = Math.max(0, Math.min(inputRow.text.length, cursor - inputRow.start));
+          const selected = inlineActive && !model.completionPreview ? model.selection : undefined;
           const input = this.input(
-            text,
-            cursor,
-            inlineActive && !model.completionPreview ? model.selection : undefined,
+            inputRow.text,
+            localCursor,
+            selected === undefined
+              ? undefined
+              : Math.max(0, Math.min(inputRow.text.length, selected - inputRow.start)),
             this.style(window.input ? '? ' : '> ', colors.accent),
             screenRow,
             inlineActive,
+            inputOffset,
+            inputRow.start,
           );
-          if (inlineActive) {
+          if (inlineActive && sourceIndex === rows.length + cursorRow) {
             caret = { row: screenRow, column: input.column };
           }
           return this.style(this.fit(input.text, this.width), colors.text, background);
@@ -681,6 +779,7 @@ export class Renderer {
       maximum > 0 &&
       this.viewStart > 0 &&
       top &&
+      this.viewStart < rows.length &&
       !window.commandLines.includes(top.line)
     ) {
       const commandLine = window.commandLines.findLast((line) => line < top.line);
@@ -705,7 +804,7 @@ export class Renderer {
       ? ` ${model.message}`
       : model.mode === 'global-output'
         ? ` ${model.panel?.running ? '执行中' : '↑/↓ 滚动 · : 继续 · Esc 关闭'}`
-        : ' : 全局命令 · Tab 切换 · Esc 底部';
+        : ` : 全局命令 · Tab 切换 · Esc ${model.commandInput && model.text ? '保存并清空' : '底部'}`;
     if (model.mode === 'global' || model.mode === 'confirmation') {
       const raw = model.displayText;
       const input = this.input(
@@ -755,8 +854,10 @@ export class Renderer {
     return screen + (caret ? `\x1b[${caret.row + 1};${caret.column}H\x1b[?25h` : '\x1b[?25l');
   }
   private hideCoveredInput() {
-    if (this.inputHit && this.panelAt(this.inputHit.row)) {
-      this.inputHit = undefined;
+    for (const row of this.inputHits.keys()) {
+      if (this.panelAt(row)) {
+        this.inputHits.delete(row);
+      }
     }
   }
   private wrapRows(text: string, line: number): Row[] {
