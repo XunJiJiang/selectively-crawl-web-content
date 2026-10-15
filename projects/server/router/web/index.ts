@@ -5,9 +5,11 @@ import pageRouter from './page/index.ts';
 import { isDev, isProd } from '../../common/setupParam.ts';
 import { SERVER_ROOT } from '../../common/env.ts';
 import { pluginResourceRouter } from './api/load.ts';
+import { localConfig } from './local-config.ts';
 
 /** /web */
 const router = Router();
+router.get('/local-config', localConfig);
 
 /** 当前程序启动文件路径 */
 

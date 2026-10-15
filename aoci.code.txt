@@ -46,7 +46,7 @@ tasks.test.ts[TW6T]: F:验证调用任务的自动及手工忙碌、独立句柄
 tasks.ts[CW8M]: F:以调用身份维护任务作用域、忙碌快照、父子执行关系和取消，并传播异步调用上下文 | R:code:projects/server/common/interaction.ts,code:projects/server/types/task.d.ts | A:TaskScope,TaskRegistry,invocationStorage,currentIdentity,configureTaskIdentity,taskRegistry | S:返回后手工busy或begin句柄仍续命；同一调用只准一个输入；快照revision须递增，宿主移除后迟到状态永久拒收
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/===
-index.ts[EG9T]: F:编排核心启动、终端握手、监听、插件加载与统一生命周期卸载及退出清理 | R:code:projects/server/command/ipc.ts,code:projects/server/plugin/load.ts,code:projects/server/utils/cache.ts | A:main,SIGINT,SIGTERM | S:先监听再异步加载；SIGINT优先取消stdin待答；退出先等待初始加载，再由unloadPlugins等待插件管理操作并卸载；重启保留缓存，普通退出清空
+index.ts[EG9T]: F:编排核心启动、终端握手、监听、插件加载及统一退出清理，输出服务和高亮Web地址 | R:code:projects/server/command/ipc.ts,code:projects/server/plugin/load.ts,code:projects/server/utils/cache.ts,code:projects/server/common/color.ts | A:main,SIGINT,SIGTERM | S:先监听再异步加载；Web链接使用实际端口并遵循终端颜色能力；SIGINT优先取消stdin待答；退出先等待初始加载和插件管理操作，重启保留缓存，普通退出清空
 package.json[FV5T]: F:声明核心服务ESM工作区和通过setup启动开发或生产模式及测试检查脚本 | R:code:package.json,code:projects/server/scripts/setup.ts | A:module,scripts,engines | S:源码运行要求Node24，主要依赖来自仓库根工作区
 vitest.config.ts[FQ5T]: F:为服务工作区测试将scwc虚拟模块指向真实SDK实现 | R:code:projects/server/plugin/sdk/dependencies.ts,code:projects/server/plugin/sdk/runtime.ts | A:defineConfig,resolve.alias | S:虚拟模块别名需与进程内SDK Hook保持同一依赖和运行时合同
 
@@ -1020,10 +1020,11 @@ zoom-out.svg[RU2T]: F:提供放大镜内减号的缩小图标 | R:- | A:SVG图�
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/public/web/assets/===
 index-BnV2wF9o.css[RU2T]: F:提供生产Web入口的body零边距与Arial默认字体样式 | R:code:projects/web/style.css | A:body样式 | S:-
-index-Dh065xvD.js[LU4L]: F:打包生产Web的Lit组件、配置存储和插件页面列表及iframe宿主交互 | R:code:projects/web/src/main.ts,code:projects/web/src/layouts/content.ts | A:app-root,app-content,app-header,app-footer | S:插件iframe加载后通过postMessage传递配置，产物固定引用/web路径
+index-3I-WeE1n.js[LU4L]: F:打包生产Web共享组件与配置存储，加载本机启动配置后动态导入布局模块 | R:code:projects/web/src/main.ts,code:projects/web/src/api/local-config.ts,code:projects/shared/store/config.ts | A:生产Web模块入口,共享模块导出 | S:TOKEN由运行时同源接口获取，失败沿用原配置
+layouts-fiAhmqpe.js[LU4S]: F:打包并注册生产Web根布局、顶栏、插件列表、iframe宿主与页脚组件 | R:code:projects/web/src/layouts/root.ts,code:projects/web/src/layouts/content.ts | A:app-root,app-header,app-content,app-footer | S:iframe仅在load时通过postMessage下发含TOKEN的配置
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/public/web/===
-index.html[EU4T]: F:加载生产Web脚本、样式和图标并挂载app-root组件 | R:code:projects/server/public/web/assets/index-Dh065xvD.js,code:projects/server/public/web/assets/index-BnV2wF9o.css | A:生产WebHTML入口 | S:脚本、样式固定使用/web/assets路径，图标使用相对public路径
+index.html[EU4T]: F:加载生产Web模块、样式和图标并挂载app-root组件 | R:code:projects/server/public/web/assets/index-3I-WeE1n.js,code:projects/server/public/web/assets/index-BnV2wF9o.css | A:生产WebHTML入口 | S:脚本和样式固定使用/web/assets路径，图标使用相对public路径
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/router/===
 index.ts[EN9M]: F:创建Express核心API、任务作用域与鉴权中间件，分派采集到匹配插件并监听可用端口 | R:code:projects/server/router/plugin.ts,code:projects/server/router/web/index.ts,code:projects/server/router/web/websocket.ts,code:projects/server/utils/listen.ts | A:app,listen,/api/metadata/scrape | S:除/web/api外的/web GET跳过鉴权；其余需Origin/Referer与site同hostname，不比较端口协议；空TOKEN仍要求site；采集插件顺序执行，单个失败不中断其他插件
@@ -1037,9 +1038,11 @@ index.ts[EN7T]: F:提供已加载插件safeId查询与有页面插件清单，�
 load.ts[IE8S]: F:按safeId动态挂载或移除插件HTTP API和媒体资源子路由，将宿主错误映射到响应 | R:code:projects/server/plugin/load.ts,code:projects/server/plugin/process/client.ts,code:projects/server/plugin/process/resource.ts,code:projects/server/router/index.ts | A:registerPluginApi,registerPluginResources,unregisterPluginRoutes,pluginResourceRouter | S:每次请求经safeId映射取当前Router，卸载删映射避免旧处理器残留；API包装success/message/data；媒体GET跳过核心Bearer，须由资源处理器校验票据
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/router/web/===
-index.ts[EN7T]: F:挂载Web页面、API和插件资源，在生产服务构建文件，在开发重定向到Vite | R:code:projects/server/router/web/page/index.ts,code:projects/server/router/web/api/index.ts,code:projects/server/common/setupParam.ts | A:/web,/web/assets,/web/api,/web/resource/plugin | S:开发地址硬编码localhost:3201；未知mode不提供生产文件或开发重定向，API及插件页面仍挂载
+index.ts[EN7T]: F:挂载Web页面、启动配置、API和插件资源，在生产服务构建文件，在开发重定向到Vite | R:code:projects/server/router/web/local-config.ts,code:projects/server/router/web/page/index.ts,code:projects/server/router/web/api/index.ts,code:projects/server/common/setupParam.ts | A:/web,/web/local-config,/web/assets,/web/api,/web/resource/plugin | S:开发地址硬编码localhost:3201，启动配置接口仍在核心；未知mode仍挂载API、插件页面与启动配置
 websocket.test.ts[TN5S]: F:验证同名WebSocket通道按safeId隔离消息，并拒绝缺site或token的握手 | R:code:projects/server/router/web/websocket.ts | A:Vitest通道隔离与握手用例 | S:-
 websocket.ts[IN8M]: F:动态注册移除插件WebSocket通道，处理鉴权升级、消息广播和连接清理 | R:code:projects/server/plugin/process/client.ts,code:projects/server/plugin/load.ts,code:projects/server/utils/url.ts,code:projects/server/common/env.ts | A:PluginWebSocketRegistry,pluginWebSocketRegistry | S:查询token鉴权，通道按safeId隔离且拒绝点点路径；unregister移除通道并terminate存量连接；onConnect晚于关闭返回仍清理，真实socket保留在核心
+local-config.test.ts[TS6S]: F:验证本机同源启动配置的TOKEN与实际端口返回，以及来源、域名、端口和远端连接的拒绝 | R:code:projects/server/router/web/local-config.ts | A:Vitest启动配置HTTP及远端地址用例 | S:真实临时HTTP服务验证无Bearer取配置，并断言禁缓存且移除宽松CORS响应头
+local-config.ts[ES8T]: F:校验本机连接与页面来源后返回当前启动TOKEN和实际监听端口 | R:code:projects/server/common/env.ts,code:projects/server/router/web/index.ts | A:localConfig,/web/local-config | S:仅回环启动主机和对端可用；Host及所有已给Origin/Referer须同源，须有来源和专用请求头；禁跨站元数据，移除通配CORS并禁缓存；端口取socket.localPort
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/router/web/page/===
 index.ts[EU8M]: F:服务插件页面与静态资源、注入浏览器工具、支持SPA深链并渲染错误页 | R:code:projects/server/plugin/load.ts,code:projects/server/router/web/page/worry.html,code:projects/webUtils/lib/index.ts | A:/web/page/plugin/:pluginDir,/web/page/lib,/web/page/resources,/web/page/worry/:id | S:工具文件按文件名的36进制时间戳选最新而非mtime；无点的缺失资源按SPA回退；HTML仅替换小写body结束标记，动态页面超时可用宿主旧快照
@@ -1149,7 +1152,7 @@ smoke.ts[TU7M]: F:用真实SEA及终端扩展验证并发任务、输入、强�
 storage.test.ts[TD6T]: F:验证原子持久化、锁与损坏备份恢复，以及有输出标签的临时恢复边界不被保存 | R:code:projects/terminal/storage.ts,code:projects/terminal/model.ts | A:Vitest终端状态保存恢复用例 | S:只有命令历史而无输出不产生提示；保存不含提示文字或边界元数据，下次恢复重新计算；坏主文件不得覆盖健康备份
 storage.ts[PD8M]: F:原子保存窗口、多行历史与编辑锁、回显锚点及插件偏好，恢复有界状态和健康备份 | R:code:projects/terminal/model.ts,code:projects/terminal/plugin/types.d.ts | A:StateStore,restoreState | S:锁按PID和token归属；滚动上限包含输入行；新存档仅信回显锚点，旧存档按> 行迁移；恢复边界在中断提示前计算且不保存，input和全局底栏亦不保存；旧任务不重跑，坏主文件不成为备份；插件裁决限万项并校验摘要
 vitest.config.ts[FQ3T]: F:提供终端工作区Vitest基础配置 | R:code:projects/terminal/package.json | A:defineConfig | S:-
-global.ts[FU6T]: F:声明全局命令用法、描述与别名的统一元数据类型，维护内建清单和插件保留名，提示new的可选标题 | R:code:projects/terminal/model.ts,code:projects/terminal/controller.ts,code:projects/terminal/plugin/load.ts | A:GlobalCommandInfo,globalCommands,reservedCommands | S:exit仅列为插件保留名，全局退出入口是q
+global.ts[FU6T]: F:声明全局命令用法、描述与别名类型，维护内建命令及插件保留名清单 | R:code:projects/terminal/model.ts,code:projects/terminal/controller.ts,code:projects/terminal/plugin/load.ts | A:GlobalCommandInfo,globalCommands,reservedCommands | S:exit仅列为插件保留名，全局退出入口是q；透明背景命令亦占用保留名
 clipboard.ts[IU5T]: F:将终端选择文本写入平台剪贴板，依次尝试原生工具并回退OSC52 | R:code:projects/terminal/index.ts,code:projects/terminal/controller.ts | A:copyText | S:OSC52是否真正写入由终端策略决定，发送序列不等同成功确认
 editing.test.ts[TU6M]: F:验证正文提示符、独立历史与会话草稿、编辑快捷键、字素复制、底栏布局和修饰键解码 | R:code:projects/terminal/controller.ts,code:projects/terminal/model.ts,code:projects/terminal/render.ts,code:projects/terminal/input.ts | A:Vitest终端编辑与选择用例 | S:全局会话内上下键可恢复草稿，退出后再进入及向下导航均为空；命令窗仍恢复草稿；复制用回调验证，覆盖半格字符与软换行
 completion.test.ts[TU6L]: F:验证浅层提示在编辑及跨行导航时原位更新、多行布局稳定，以及深层双Tab补全与取消 | R:code:projects/terminal/controller.ts,code:projects/terminal/model.ts,code:projects/terminal/render.ts | A:Vitest终端补全与提示布局用例 | S:伪IPC断言移动光标等待期间保留候选，相同结果复用数组且不通知，变更结果直接替换；深层匹配置于512项后验证不截断，加载后须再次Tab选中
@@ -1220,6 +1223,8 @@ vite.config.ts[FV7T]: F:配置核心Web应用开发服务、环境注入和生�
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/web/src/api/===
 plugins.ts[IN6T]: F:携带站点和Bearer配置查询核心插件页面清单，将异常归一为失败响应 | R:code:projects/server/router/web/api/index.ts,code:projects/web/src/types/api.d.ts | A:getPluginPages | S:端口去除非数字；异常不向外抛出，调用方需检查success
+local-config.test.ts[TC5T]: F:验证Web本机启动配置加载、三类回环主机、同源端口校验和失败保留手动配置 | R:code:projects/web/src/api/local-config.ts | A:Vitest本机配置加载用例 | S:同时覆盖空TOKEN、网络失败和非本机页面不发请求
+local-config.ts[IC7T]: F:从本机Web页面同源接口加载并校验连接配置，替换过期TOKEN和端口 | R:code:projects/server/router/web/local-config.ts,code:projects/shared/types/config.d.ts | A:loadLocalConfig | S:仅localhost、127段及IPv6回环HTTP页面请求；禁重定向和跨源，3秒超时；返回origin须一致，空TOKEN合法，失败沿用原配置并保留其他设置
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/web/src/layouts/===
 content.css[CU3T]: F:定义150像素插件侧栏、全高主区、隐藏侧栏和无边框iframe布局 | R:code:projects/web/src/layouts/content.ts | A:#root-content,.root-aside,.root-main,.plugin-iframe | S:-
@@ -1233,7 +1238,8 @@ root.css[CU3T]: F:定义Web根宿主满视口高度的纵向弹性布局 | R:cod
 root.ts[AU6T]: F:组合Web顶栏、插件内容和页脚，并统一控制侧栏展开状态 | R:code:projects/web/src/layouts/header.ts,code:projects/web/src/layouts/content.ts,code:projects/web/src/layouts/footer.ts | A:app-root | S:侧栏默认展开，状态仅保留在当前根实例，不持久化
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/web/src/===
-main.ts[EU6T]: F:注册共享控件与Web应用布局的模块入口 | R:code:projects/shared/components/index.ts,code:projects/web/src/layouts/index.ts | A:Web模块入口 | S:实际app-root挂载节点来自HTML，此入口只做注册
+main.ts[EU6T]: F:注册共享组件，加载并持久化本机启动配置后动态注册Web应用布局 | R:code:projects/shared/store/config.ts,code:projects/web/src/api/local-config.ts,code:projects/web/src/layouts/index.ts | A:Web模块入口,main | S:布局导入必须晚于配置更新，确保组件首次API请求携带当前TOKEN和端口
+main.test.ts[TC5T]: F:验证Web入口先加载并保存启动TOKEN，再以新端口和TOKEN发送首次插件列表请求 | R:code:projects/web/src/main.ts,code:projects/web/src/api/plugins.ts | A:VitestWeb初始化顺序用例 | S:布局模块替身调用真实getPluginPages以检查Authorization和目标端口
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/web/src/types/===
 api.d.ts[FN5T]: F:声明带目录名和插件ID的页面清单及标准API响应类型 | R:code:projects/shared/types/api.d.ts,code:projects/web/src/api/plugins.ts | A:TPluginPagesResult,TPluginPagesResponse | S:-

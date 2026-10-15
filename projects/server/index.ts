@@ -13,6 +13,8 @@ import { cancelPluginWebBuilds } from './plugin/web/build.ts';
 import { HOST, PORT, PORT_SEARCH_RANGE, ACTIVE_PORT, setListeningPort } from './common/env.ts';
 import { parsedArgs } from './common/setupParam.ts';
 import { serverLogger } from './common/logger.ts';
+import { Chalk } from 'chalk';
+import { outputColorLevel } from './common/color.ts';
 
 async function main() {
   let exiting = false;
@@ -62,6 +64,8 @@ async function main() {
         serverLogger.info(`起始端口 ${PORT} 被占用，已使用端口 ${actualPort}`);
       }
       serverLogger.info('服务启动', `${HOST}:${actualPort}`);
+      const palette = new Chalk({ level: outputColorLevel() });
+      serverLogger.info('Web 页面', palette.bgCyan.black(` ${HOST}:${actualPort}/web `));
     },
     PORT_SEARCH_RANGE,
   );
