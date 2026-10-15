@@ -12,7 +12,7 @@ import { InvocationInputError, formatInput, inputFormat } from '../server/common
 import { globalCommands, type GlobalCommandInfo } from './global.ts';
 import type { PluginPreferences } from './plugin/types.d.ts';
 import { completionInput } from './completion.ts';
-import { commandSource } from './command-text.ts';
+import { completionSource } from './command-text.ts';
 import stringWidth from 'string-width';
 
 export type Mode = 'normal' | 'global' | 'global-output' | 'confirmation';
@@ -113,6 +113,7 @@ export class TerminalModel {
     result: CompletionResult;
     owner?: string;
     stem?: string;
+    sourceText: string;
   };
   panel?: CommandPanel;
   transparentBackground = true;
@@ -535,8 +536,15 @@ export class TerminalModel {
       start = Math.min(start, this.selection);
       end = Math.max(end, this.selection);
     } else if (remove === 'backspace') {
+      if (this.commandInput && this.text[start - 1] === '\\' && this.text[start] === '\n') {
+        this.setInput(this.text, start - 1);
+        return;
+      }
       start = this.previous(start);
     } else if (remove === 'delete') {
+      if (this.commandInput && this.text[start] === '\\' && this.text[start + 1] === '\n') {
+        return;
+      }
       end = this.nextBoundary(end);
     }
     start = Math.max(prefix.length, start);
@@ -626,10 +634,16 @@ export class TerminalModel {
       : this.mode === 'normal' &&
           this.active.kind === 'command' &&
           !this.active.input &&
-          this.text &&
-          !/\s/.test(this.text)
-        ? this.commands.filter((command) => command.name.startsWith(this.text))
+          this.commandText &&
+          !/\s/.test(this.commandText)
+        ? this.commands.filter((command) => command.name.startsWith(this.commandText))
         : [];
+  }
+  get commandText() {
+    return this.completionSource.command;
+  }
+  get completionSource() {
+    return completionSource(this.text, this.cursor, this.commandInput);
   }
   get completionKey() {
     if (
@@ -642,19 +656,28 @@ export class TerminalModel {
     return JSON.stringify([this.mode, this.activeId, this.text, this.cursor]);
   }
   get completionInput() {
-    const source = commandSource(this.text);
-    const input = completionInput(
-      source.command.replace(/\n/g, ' '),
-      source.commandOffsets[this.cursor],
-    );
-    const from = source.sourceOffsets[input.from];
+    const source = this.completionSource;
+    const input = completionInput(source.command, source.cursor);
+    const { from, to } = source.range(input.from, input.to);
     return {
       ...input,
-      start: source.sourceOffsets[input.start],
+      start: source.range(input.start, input.start).from,
       from,
-      to: source.sourceOffsets[input.to],
-      stem: this.text.slice(0, from),
+      to,
+      stem: input.stem,
     };
+  }
+  private get shallowCompletionInput() {
+    const source = this.completionSource;
+    let from = source.cursor;
+    let to = source.cursor;
+    while (from > 0 && !/\s/.test(source.command[from - 1])) {
+      from--;
+    }
+    while (to < source.command.length && !/\s/.test(source.command[to])) {
+      to++;
+    }
+    return { ...source.range(from, to), stem: source.command.slice(0, from) };
   }
   private get completionOwner() {
     return JSON.stringify([this.mode, this.activeId]);
@@ -670,14 +693,28 @@ export class TerminalModel {
       this.serviceCompletion.stem === input.stem,
     );
   }
-  retainInlineCompletion() {
-    if (this.serviceCompletion?.result.inline && !this.inlineCompletionOpen) {
+  private get shallowCompletionOpen() {
+    return Boolean(
+      this.completionKey &&
+      !this.completionInput.deep &&
+      this.serviceCompletion &&
+      !this.serviceCompletion.result.inline &&
+      this.serviceCompletion.owner === this.completionOwner &&
+      (this.serviceCompletion.sourceText === this.text ||
+        this.serviceCompletion.stem === this.shallowCompletionInput.stem),
+    );
+  }
+  retainServiceCompletion() {
+    if (!this.inlineCompletionOpen && !this.shallowCompletionOpen) {
       this.clearServiceCompletion();
     }
   }
+  get hasCurrentCompletion() {
+    return this.serviceCompletion?.key === this.completionKey && Boolean(this.completionKey);
+  }
   private get currentCompletion() {
     return this.serviceCompletion &&
-      (this.serviceCompletion.key === this.completionKey || this.inlineCompletionOpen)
+      (this.hasCurrentCompletion || this.inlineCompletionOpen || this.shallowCompletionOpen)
       ? this.serviceCompletion
       : undefined;
   }
@@ -687,65 +724,101 @@ export class TerminalModel {
     this.completionIndex = 0;
   }
   setServiceCompletion(key: string, result: CompletionResult) {
+    const source = this.completionSource;
     if (
       key !== this.completionKey ||
       !result ||
       !Number.isInteger(result.from) ||
       !Number.isInteger(result.to) ||
       result.from < 0 ||
-      (!result.inline && result.from > this.cursor) ||
-      (!result.inline && result.to < this.cursor) ||
+      (!result.inline && source.commandOffsets[result.from] > source.cursor) ||
+      (!result.inline && source.commandOffsets[result.to] < source.cursor) ||
       result.from > result.to ||
       result.to > this.text.length ||
       (result.inline && result.command !== this.text) ||
       !Array.isArray(result.items)
     ) {
-      return;
+      return false;
     }
+    const items = result.items
+      .slice(0, result.inline ? result.items.length : 512)
+      .filter(
+        (item) =>
+          typeof item.name === 'string' &&
+          typeof item.insertText === 'string' &&
+          (item.description === undefined || typeof item.description === 'string') &&
+          !/[\x00-\x1f\x7f]/.test(item.insertText),
+      );
+    const previous = this.currentCompletion?.result;
+    const unchanged =
+      previous !== undefined &&
+      previous.inline === result.inline &&
+      previous.items.length === items.length &&
+      previous.items.every(
+        (item, index) =>
+          item.name === items[index].name &&
+          item.insertText === items[index].insertText &&
+          item.description === items[index].description,
+      );
     this.serviceCompletion = {
       key,
       owner: this.completionOwner,
-      stem: this.text.slice(0, result.from),
+      stem: source.command.slice(0, source.commandOffsets[result.from]),
+      sourceText: this.text,
       result: {
         ...result,
-        items: result.items
-          .slice(0, result.inline ? result.items.length : 512)
-          .filter(
-            (item) =>
-              typeof item.name === 'string' &&
-              typeof item.insertText === 'string' &&
-              (item.description === undefined || typeof item.description === 'string') &&
-              !/[\x00-\x1f\x7f]/.test(item.insertText),
-          ),
+        items: unchanged ? previous.items : items,
       },
     };
     this.completionIndex = Math.min(this.completionIndex, Math.max(0, this.candidates.length - 1));
+    return !unchanged;
   }
   private get selectedCompletion() {
     return this.currentCompletion
       ? (this.candidates[this.completionIndex] as CompletionResult['items'][number] | undefined)
       : undefined;
   }
-  get displayCursor() {
+  private get completionReplacement() {
     const item = this.selectedCompletion;
     const completion = this.currentCompletion;
-    return this.completionPreview
-      ? item && completion
-        ? completion.result.from + item.insertText.length
-        : this.displayText.length
-      : this.cursor;
+    if (item && completion) {
+      const range = this.inlineCompletionOpen
+        ? this.completionInput
+        : this.hasCurrentCompletion
+          ? completion.result
+          : this.shallowCompletionInput;
+      return { from: range.from, to: range.to, text: item.insertText };
+    }
+    const candidate = this.candidates[this.completionIndex];
+    if (candidate) {
+      const source = this.completionSource;
+      return { ...source.range(0, source.command.length), text: candidate.name };
+    }
+    return undefined;
+  }
+  get displayCursor() {
+    const replacement = this.completionPreview ? this.completionReplacement : undefined;
+    return replacement ? replacement.from + replacement.text.length : this.cursor;
   }
   get displayText() {
-    const item = this.selectedCompletion;
-    if (this.completionPreview && item && this.currentCompletion) {
-      const { from, to } = this.inlineCompletionOpen
-        ? this.completionInput
-        : this.currentCompletion.result;
-      return this.text.slice(0, from) + item.insertText + this.text.slice(to);
-    }
-    return this.completionPreview
-      ? (this.candidates[this.completionIndex]?.name ?? this.text)
+    const replacement = this.completionPreview ? this.completionReplacement : undefined;
+    return replacement
+      ? this.text.slice(0, replacement.from) + replacement.text + this.text.slice(replacement.to)
       : this.text;
+  }
+  prepareCompletion() {
+    const source = this.completionSource;
+    const sourceCursor =
+      this.commandInput &&
+      this.text.includes('\\\n') &&
+      source.command &&
+      !/\s/.test(source.command)
+        ? source.range(0, source.command.length).to
+        : source.sourceCursor;
+    if (sourceCursor !== this.cursor) {
+      this.completionPreview = false;
+      this.setInput(this.text, sourceCursor);
+    }
   }
   completeGlobal(direction: number) {
     const count = this.candidates.length;
@@ -761,7 +834,12 @@ export class TerminalModel {
   }
   commitGlobalCompletion(moveToEnd = false) {
     if (this.completionPreview) {
-      this.setInput(this.displayText, moveToEnd ? this.displayText.length : this.displayCursor);
+      const source = this.completionSource;
+      const trailingContinuations = source.range(0, source.command.length).to < this.text.length;
+      this.setInput(
+        this.displayText,
+        moveToEnd && !trailingContinuations ? this.displayText.length : this.displayCursor,
+      );
       this.completionPreview = false;
     }
   }

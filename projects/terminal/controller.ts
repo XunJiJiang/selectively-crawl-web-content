@@ -279,17 +279,17 @@ export class TerminalController {
     this.scheduleCompletion();
     this.onChange?.();
   }
-  private invalidateCompletion(retainInline = false) {
+  private invalidateCompletion(retain = false) {
     this.completionAbort?.abort();
     this.completionAbort = undefined;
     this.completionVersion++;
     this.completionKey = undefined;
     this.completionWork = undefined;
     clearTimeout(this.completionTimer);
-    if (!retainInline) {
+    if (!retain) {
       this.model.clearServiceCompletion();
     } else {
-      this.model.retainInlineCompletion();
+      this.model.retainServiceCompletion();
     }
   }
   private async requestCoreCompletion(request: CompletionRequest, signal?: AbortSignal) {
@@ -307,13 +307,13 @@ export class TerminalController {
       return;
     }
     this.lastCompletionTab = undefined;
-    this.invalidateCompletion(this.model.inlineCompletionOpen);
+    this.invalidateCompletion(true);
     this.completionKey = key;
     if (this.model.completionInput.deep) {
       return;
     }
     // First words use the live command manifest; subsequent words query the owning service.
-    if (!key || !/\s/.test(this.model.text.trimStart())) {
+    if (!key || !/\s/.test(this.model.commandText.trimStart())) {
       return;
     }
     this.completionTimer = setTimeout(() => void this.refreshCompletion(), 60);
@@ -324,22 +324,22 @@ export class TerminalController {
       return this.completionWork;
     }
     const key = this.model.completionKey;
-    if (!key || !/\s/.test(this.model.text.trimStart())) {
+    if (!key || !/\s/.test(this.model.commandText.trimStart())) {
       return Promise.resolve();
     }
     const input = this.model.completionInput;
     if (input.deep && (!deep || !input.eligible)) {
       return Promise.resolve();
     }
-    if (!deep && this.model.candidates.length) {
+    if (!deep && this.model.hasCurrentCompletion) {
       return Promise.resolve();
     }
     const version = this.completionVersion;
     const original = this.model.text;
-    const source = commandSource(original);
+    const source = this.model.completionSource;
     const request = {
-      command: source.command.replace(/\n/g, ' '),
-      cursor: source.commandOffsets[this.model.cursor],
+      command: source.command,
+      cursor: source.cursor,
       id: randomUUID(),
       windowId: this.model.activeId,
     };
@@ -359,10 +359,11 @@ export class TerminalController {
           key === this.model.completionKey &&
           (result.command === request.command || (!deep && result.command === undefined))
         ) {
+          let changed = true;
           if (deep && !result.items.length) {
             this.model.clearServiceCompletion();
           } else {
-            this.model.setServiceCompletion(
+            changed = this.model.setServiceCompletion(
               key,
               deep
                 ? {
@@ -374,13 +375,14 @@ export class TerminalController {
                   }
                 : {
                     ...result,
-                    from: source.sourceOffsets[result.from],
-                    to: source.sourceOffsets[result.to],
+                    ...source.range(result.from, result.to),
                     command: original,
                   },
             );
           }
-          this.onChange?.();
+          if (changed) {
+            this.onChange?.();
+          }
         }
       } catch {
         // Cancellation or a disconnected provider must not disrupt editing.
@@ -1132,6 +1134,7 @@ export class TerminalController {
         }
       } else if (key.name === 'tab') {
         if (this.model.mode === 'global' || (this.model.editing && this.model.text)) {
+          this.model.prepareCompletion();
           this.scheduleCompletion();
           const input = this.model.completionInput;
           if (input.deep) {
@@ -1160,6 +1163,9 @@ export class TerminalController {
           } else {
             await this.refreshCompletion();
             this.model.completeGlobal(key.shift ? -1 : 1);
+          }
+          if (this.model.commandInput) {
+            this.renderer.revealInput();
           }
         } else if (!this.model.panel?.input) {
           this.model.tab(key.shift ? -1 : 1);

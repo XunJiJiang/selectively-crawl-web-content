@@ -1,7 +1,7 @@
 {
   "version": 1,
   "created_at": "2026-10-08T13:03:04Z",
-  "updated_at": "2026-10-15T03:20:00Z",
+  "updated_at": "2026-10-15T07:26:08Z",
   "files": {
     ".gitattributes": {
       "role": "index",
@@ -65,9 +65,9 @@
     },
     "aoci.code.txt": {
       "role": "index",
-      "sha256": "dcd575ea2d7778e882f6ff12917b33befe63ffd34a4ca69d838e0be59d0b8f99",
-      "size": 185853,
-      "normalized_sha256": "dcd575ea2d7778e882f6ff12917b33befe63ffd34a4ca69d838e0be59d0b8f99"
+      "sha256": "b13042fb46bec52814b494a020d28e58555a4a55c63e39b3cc35e1a8cd4d74da",
+      "size": 186122,
+      "normalized_sha256": "b13042fb46bec52814b494a020d28e58555a4a55c63e39b3cc35e1a8cd4d74da"
     },
     "aoci.meta.txt": {
       "role": "index",
@@ -125,9 +125,9 @@
     },
     "docs/待办设计.md": {
       "role": "observe",
-      "sha256": "1eb0dfe3a58b986522882266f2e0757302965d491260d033eb1dcecc18d14993",
-      "size": 6587,
-      "normalized_sha256": "1eb0dfe3a58b986522882266f2e0757302965d491260d033eb1dcecc18d14993"
+      "sha256": "0a7f80366cfb2b0ddf0da11d84afbcfa43556d9f2ad6d1ee7f9144ba9e48559f",
+      "size": 5038,
+      "normalized_sha256": "0a7f80366cfb2b0ddf0da11d84afbcfa43556d9f2ad6d1ee7f9144ba9e48559f"
     },
     "docs/核心部署.md": {
       "role": "observe",
@@ -6733,15 +6733,15 @@
     },
     "projects/terminal/command-text.ts": {
       "role": "index",
-      "sha256": "05bad19ead77f8cb4729cbb32ec14e3509841de9f3d54aaca512da957ea184d1",
-      "size": 656,
-      "normalized_sha256": "05bad19ead77f8cb4729cbb32ec14e3509841de9f3d54aaca512da957ea184d1"
+      "sha256": "37478afe4338e22bf2d0428381e7f15603858026c36a5bc8c81d1112a108447d",
+      "size": 1875,
+      "normalized_sha256": "37478afe4338e22bf2d0428381e7f15603858026c36a5bc8c81d1112a108447d"
     },
     "projects/terminal/completion.test.ts": {
       "role": "index",
-      "sha256": "de0e2bcfb11c36d58c6dc29c43de360f6bad6bb57f45aa29bfe7af8ec37f8a53",
-      "size": 9961,
-      "normalized_sha256": "de0e2bcfb11c36d58c6dc29c43de360f6bad6bb57f45aa29bfe7af8ec37f8a53"
+      "sha256": "b057da16d70e7a3de7cff5aafab93f64597d97545cead31c091fee6120f0c662",
+      "size": 22660,
+      "normalized_sha256": "b057da16d70e7a3de7cff5aafab93f64597d97545cead31c091fee6120f0c662"
     },
     "projects/terminal/completion.ts": {
       "role": "index",
@@ -6757,9 +6757,9 @@
     },
     "projects/terminal/controller.ts": {
       "role": "index",
-      "sha256": "97246d4994d37d2fa52d9ed3b0a6245fbea1b12c3309cd511efc77adaa60e557",
-      "size": 51465,
-      "normalized_sha256": "97246d4994d37d2fa52d9ed3b0a6245fbea1b12c3309cd511efc77adaa60e557"
+      "sha256": "e34432555364d833a52bef153e9ad35844fd5affc397f9d00929842b2f6b4d0b",
+      "size": 51559,
+      "normalized_sha256": "e34432555364d833a52bef153e9ad35844fd5affc397f9d00929842b2f6b4d0b"
     },
     "projects/terminal/core.ts": {
       "role": "index",
@@ -6799,15 +6799,15 @@
     },
     "projects/terminal/model.ts": {
       "role": "index",
-      "sha256": "50e32c9708c5dcec6e94e765718dca987494039ee98bb9d7aaa8c0ee4da748c1",
-      "size": 28763,
-      "normalized_sha256": "50e32c9708c5dcec6e94e765718dca987494039ee98bb9d7aaa8c0ee4da748c1"
+      "sha256": "ad0a8867959dec262c74e363f4145f24a5980fc967f9d42a944c747debb61cb0",
+      "size": 31707,
+      "normalized_sha256": "ad0a8867959dec262c74e363f4145f24a5980fc967f9d42a944c747debb61cb0"
     },
     "projects/terminal/multiline.test.ts": {
       "role": "index",
-      "sha256": "ddb6afa0dc63c45a00081bc4404afd07794d5605da22c3d92d39bbd2b37ab15b",
-      "size": 15487,
-      "normalized_sha256": "ddb6afa0dc63c45a00081bc4404afd07794d5605da22c3d92d39bbd2b37ab15b"
+      "sha256": "2a57c211bc42de4ce0b6350a458711400317f9de148ecfbb467f9efea7963dd0",
+      "size": 21529,
+      "normalized_sha256": "2a57c211bc42de4ce0b6350a458711400317f9de148ecfbb467f9efea7963dd0"
     },
     "projects/terminal/package.json": {
       "role": "index",
@@ -6943,9 +6943,9 @@
     },
     "projects/terminal/render.ts": {
       "role": "index",
-      "sha256": "1520c05c6461a3bb8e1acd32868f87bc1ee8bd2f125d648cdfa91f7bff9f485c",
-      "size": 33108,
-      "normalized_sha256": "1520c05c6461a3bb8e1acd32868f87bc1ee8bd2f125d648cdfa91f7bff9f485c"
+      "sha256": "333b0f70c2edfeae1a9de04e3cb94fbcd266ad7d8c0e595e425975729891d391",
+      "size": 34360,
+      "normalized_sha256": "333b0f70c2edfeae1a9de04e3cb94fbcd266ad7d8c0e595e425975729891d391"
     },
     "projects/terminal/scroll-command.test.ts": {
       "role": "index",

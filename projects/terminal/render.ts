@@ -690,37 +690,65 @@ export class Renderer {
           })),
         ]
       : rows;
-    this.viewHeight = Math.max(0, this.height - 2 - (inlineActive ? this.panelHeight : 0));
-    const maximum = Math.max(0, allRows.length - this.viewHeight);
-    const anchor = window.anchor;
-    this.viewStart = anchor
-      ? Math.max(
-          0,
-          allRows.findIndex(
-            (row) =>
-              row.line >= anchor.line && (row.line > anchor.line || row.offset >= anchor.offset),
-          ),
-        )
-      : Math.max(0, maximum - window.scroll);
-    this.viewStart = Math.min(maximum, this.viewStart);
-    const version = JSON.stringify([window.id, text, cursor, this.width, this.viewHeight]);
     const outputVersion = JSON.stringify([window.id, window.bytes, window.lines.length]);
     const caretIndex = rows.length + cursorRow;
-    if (
-      inlineActive &&
-      this.viewHeight > 0 &&
-      (this.inputReveal ||
-        (inputRows.length > 1 &&
-          (version !== this.inputVersion ||
-            (this.inputVisible && outputVersion !== this.inputOutput))))
-    ) {
-      const margin = Math.min(2, Math.floor((this.viewHeight - 1) / 2));
-      if (caretIndex < this.viewStart + margin) {
-        this.viewStart = caretIndex - margin;
-      } else if (caretIndex >= this.viewStart + this.viewHeight - margin) {
-        this.viewStart = caretIndex - this.viewHeight + margin + 1;
+    const viewport = (height: number) => {
+      const maximum = Math.max(0, allRows.length - height);
+      const anchor = window.anchor;
+      let start = anchor
+        ? Math.max(
+            0,
+            allRows.findIndex(
+              (row) =>
+                row.line >= anchor.line && (row.line > anchor.line || row.offset >= anchor.offset),
+            ),
+          )
+        : Math.max(0, maximum - window.scroll);
+      start = Math.min(maximum, start);
+      const version = JSON.stringify([window.id, text, cursor, this.width, height]);
+      const reveal =
+        inlineActive &&
+        height > 0 &&
+        (this.inputReveal ||
+          (inputRows.length > 1 &&
+            (version !== this.inputVersion ||
+              (this.inputVisible && outputVersion !== this.inputOutput))));
+      if (reveal) {
+        const margin = Math.min(2, Math.floor((height - 1) / 2));
+        if (caretIndex < start + margin) {
+          start = caretIndex - margin;
+        } else if (caretIndex >= start + height - margin) {
+          start = caretIndex - height + margin + 1;
+        }
+        start = Math.max(0, Math.min(maximum, start));
       }
-      this.viewStart = Math.max(0, Math.min(maximum, this.viewStart));
+      return { start, maximum, version, reveal };
+    };
+    const commandHints = model.commandInput && panel.length > 0;
+    this.viewHeight = Math.max(0, this.height - 2);
+    let layout = viewport(this.viewHeight);
+    let bodyTop = 1;
+    const originalPanelFrom = this.panelFrom;
+    if (commandHints) {
+      // Overlay output above the editor without moving it. When that space is too
+      // small, dock below the tabs and give the remaining viewport to the editor.
+      const inputTop = rows.length - layout.start + 1;
+      if (inputTop > this.viewHeight) {
+        panel.length = 0;
+        this.panelHeight = 0;
+        this.panelFrom = Infinity;
+      } else if (inputTop - 1 >= this.panelHeight) {
+        this.panelFrom = inputTop - this.panelHeight;
+      } else {
+        this.panelFrom = 1;
+        bodyTop += this.panelHeight;
+        this.viewHeight -= this.panelHeight;
+        layout = viewport(this.viewHeight);
+      }
+    }
+    this.viewStart = layout.start;
+    const { maximum, version } = layout;
+    if (layout.reveal) {
       window.anchor = undefined;
       window.scroll = maximum - this.viewStart;
     }
@@ -736,7 +764,7 @@ export class Renderer {
       .slice(this.viewStart, this.viewStart + this.viewHeight)
       .map((row, index) => {
         const sourceIndex = this.viewStart + index;
-        const screenRow = index + 1;
+        const screenRow = index + bodyTop;
         if (inline && sourceIndex >= rows.length) {
           const inputRow = inputRows[sourceIndex - rows.length];
           const localCursor = Math.max(0, Math.min(inputRow.text.length, cursor - inputRow.start));
@@ -772,9 +800,15 @@ export class Renderer {
           background,
         );
       });
+    body.unshift(
+      ...Array.from({ length: bodyTop - 1 }, () =>
+        this.style(' '.repeat(this.width), colors.text, background),
+      ),
+    );
     const top = allRows[this.viewStart];
     if (
       window.kind === 'command' &&
+      bodyTop === 1 &&
       this.viewHeight > 1 &&
       maximum > 0 &&
       this.viewStart > 0 &&
@@ -833,15 +867,18 @@ export class Renderer {
     if (panel.length) {
       for (let row = this.panelFrom; row < this.panelFrom + panel.length; row++) {
         this.cells.delete(row);
-        const cell = panelCells.get(row);
+        const cell = panelCells.get(row - this.panelFrom + originalPanelFrom);
         if (cell) {
           this.cells.set(row, cell);
         }
       }
       lines.splice(this.panelFrom, panel.length, ...panel);
+      this.hideCoveredInput();
+      if (this.panelAt(1)) {
+        this.pinnedCommand = undefined;
+      }
       if (caret && this.panelAt(caret.row)) {
         caret = undefined;
-        this.hideCoveredInput();
       }
     }
     if (this.height === 1) {

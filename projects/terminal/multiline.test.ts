@@ -47,6 +47,157 @@ function caret(controller: TerminalController) {
 }
 
 describe('multiline command input and history', () => {
+  it('protects non-final continuation backslashes from adjacent Backspace and Delete', async () => {
+    const { model, controller } = setup();
+    const text = 'cmd \\\nC:\\path\\\n\\\nlast\\';
+    for (let index = 0; index < text.length; index++) {
+      if (text[index] !== '\\' || text[index + 1] !== '\n') {
+        continue;
+      }
+      model.setInput(text, index + 1);
+      await press(controller, 'backspace');
+      expect(model.text).toBe(text);
+      expect(model.cursor).toBe(index);
+      await press(controller, 'delete');
+      expect(model.text).toBe(text);
+      expect(model.cursor).toBe(index);
+    }
+    model.setInput(text, text.length);
+    await press(controller, 'backspace');
+    expect(model.text).toBe(text.slice(0, -1));
+    model.setInput(text, text.length - 1);
+    await press(controller, 'delete');
+    expect(model.text).toBe(text.slice(0, -1));
+    const pathSlash = text.indexOf('C:') + 2;
+    model.setInput(text, pathSlash);
+    await press(controller, 'delete');
+    expect(model.text).toBe(text.slice(0, pathSlash) + text.slice(pathSlash + 1));
+  });
+
+  it('keeps ordinary input answers editable when they contain a backslash before a newline', async () => {
+    const { model, core, controller } = setup();
+    core.emit('input.request', {
+      id: 'answer',
+      identity: { windowId: model.activeId, executionId: 'execution' },
+      message: 'value?',
+      type: 'string',
+    });
+    model.setInput('a\\\nb', 2);
+    await press(controller, 'backspace');
+    expect(model.text).toBe('a\nb');
+    model.setInput('a\\\nb', 1);
+    await press(controller, 'delete');
+    expect(model.text).toBe('a\nb');
+  });
+
+  it.each(['plugin\\\n\\\n\\\n', 'pl\\\n\\\n\\\n'])(
+    'preserves trailing continuation rows when completing the first word in %j',
+    async (text) => {
+      const { model, core, controller, call } = setup();
+      core.emit('ready', { port: 3200, commands: [{ name: 'plugin' }] });
+      const end = text.indexOf('\\');
+      for (let cursor = 0; cursor <= text.length; cursor++) {
+        model.clearServiceCompletion();
+        model.setInput(text, cursor);
+        await press(controller, 'tab');
+        expect(model.text).toBe(text);
+        expect(model.displayText).toBe('plugin' + text.slice(end));
+        expect(model.cursor).toBe(end);
+        expect(model.displayCursor).toBe(6);
+        expect(model.candidates.map((item) => item.name)).toEqual(['plugin']);
+        model.commitGlobalCompletion();
+        expect(model.text).toBe('plugin' + text.slice(end));
+        expect(model.cursor).toBe(6);
+      }
+      model.setInput(text, text.length);
+      await press(controller, 'tab');
+      await type(controller, ' ');
+      expect(model.text).toBe('plugin ' + text.slice(end));
+      expect(model.cursor).toBe(7);
+      expect(call).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['plugin \\\n\\\n', 'plugin \\\n\\\n\\'])(
+    'completes an empty second word on any continuation row in %j',
+    async (text) => {
+      const { model, core, controller, call } = setup();
+      core.emit('ready', { port: 3200, commands: [{ name: 'plugin' }] });
+      call.mockImplementation(async (method, value) => {
+        if (method !== 'command.complete') {
+          return undefined as never;
+        }
+        const request = value as CompletionRequest;
+        expect(request.command).toBe('plugin ');
+        expect(request.cursor).toBe(7);
+        return {
+          command: request.command,
+          from: 7,
+          to: 7,
+          items: [{ name: 'list', insertText: 'list' }],
+        } as never;
+      });
+      for (let cursor = 7; cursor <= text.length; cursor++) {
+        model.clearServiceCompletion();
+        model.setInput(text, cursor);
+        await press(controller, 'tab');
+        const expectedCursor = text[cursor - 1] === '\\' ? cursor - 1 : cursor;
+        expect(model.text).toBe(text);
+        expect(model.cursor).toBe(expectedCursor);
+        const expected = text.slice(0, expectedCursor) + 'list' + text.slice(expectedCursor);
+        expect(model.displayText).toBe(expected);
+        expect(model.displayCursor).toBe(expectedCursor + 4);
+        model.commitGlobalCompletion();
+        expect(model.text).toBe(expected);
+        expect(model.cursor).toBe(expectedCursor + 4);
+      }
+    },
+  );
+
+  it('preserves empty continuation rows after a nonempty second word when completing from a later row', async () => {
+    const { model, core, controller, call } = setup();
+    core.emit('ready', { port: 3200, commands: [{ name: 'plugin' }] });
+    const text = 'plugin li\\\n\\\n';
+    call.mockImplementation(async (_method, value) => {
+      const request = value as CompletionRequest;
+      expect(request.command).toBe('plugin li');
+      return {
+        command: request.command,
+        from: 7,
+        to: 9,
+        items: [{ name: 'list', insertText: 'list' }],
+      } as never;
+    });
+    model.setInput(text, text.length);
+    await press(controller, 'tab');
+    expect(model.displayText).toBe('plugin list\\\n\\\n');
+    expect(model.displayCursor).toBe(11);
+    await type(controller, ' ');
+    expect(model.text).toBe('plugin list \\\n\\\n');
+    expect(model.cursor).toBe(12);
+    await type(controller, 'x');
+    expect(model.text).toBe('plugin list x\\\n\\\n');
+  });
+
+  it('keeps a trailing backslash literal in global command arguments', async () => {
+    const { model, controller } = setup();
+    model.enterGlobal();
+    const text = 'cmd C:\\';
+    model.setInput(text, text.length);
+    vi.spyOn(controller.plugins, 'has').mockReturnValue(true);
+    const complete = vi
+      .spyOn(controller.plugins, 'complete')
+      .mockImplementation(async (_name, request) => {
+        expect(request.command).toBe(text);
+        expect(request.cursor).toBe(text.length);
+        return { command: text, from: 4, to: text.length, items: [] };
+      });
+    await press(controller, 'tab');
+    expect(complete).toHaveBeenCalledOnce();
+    expect(model.text).toBe(text);
+    expect(model.cursor).toBe(text.length);
+  });
+
   it('continues on a trailing backslash, executes the joined command once and keeps raw multiline history', async () => {
     const { model, controller, call } = setup();
     await type(controller, 'cmd "hel\\');

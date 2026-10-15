@@ -4,7 +4,9 @@ import { TerminalController } from './controller.ts';
 import { TerminalModel } from './model.ts';
 import { CoreConnection } from './core.ts';
 import { completionInput } from './completion.ts';
-import type { CompletionRequest } from './protocol.ts';
+import { Renderer } from './render.ts';
+import stringWidth from 'string-width';
+import type { CompletionRequest, CompletionResult } from './protocol.ts';
 
 const tab = { name: 'tab', sequence: '\t' } as const;
 function setup(words = ['alpha', 'alpine', 'beta']) {
@@ -34,6 +36,305 @@ function setup(words = ['alpha', 'alpine', 'beta']) {
   };
   return { model, core, controller, call, load };
 }
+
+describe('stable command hints', () => {
+  it.each([
+    { level: 'first', text: 'c\\\nmd a', cursor: 1, direction: 'down', from: 0, to: 3 },
+    { level: 'second', text: 'cmd \\\n\\\n', cursor: 8, direction: 'up', from: 4, to: 4 },
+  ])('retains $level-level service hints while moving between input rows', async (scenario) => {
+    const { model, controller, call } = setup();
+    const items = [
+      {
+        name: scenario.level === 'first' ? 'cmd' : 'alpha',
+        insertText: scenario.level === 'first' ? 'cmd' : 'alpha',
+      },
+    ];
+    const response = (request: CompletionRequest, resultItems = items) => ({
+      command: request.command,
+      from: scenario.from,
+      to: scenario.to,
+      items: resultItems,
+    });
+    call.mockImplementation(
+      async (_method, request) => response(request as CompletionRequest) as never,
+    );
+    try {
+      model.setInput(scenario.text, scenario.cursor);
+      await controller.key(tab);
+      const original = model.candidates;
+      const changed = vi.fn();
+      controller.onChange = changed;
+      for (const direction of [scenario.direction, scenario.direction === 'up' ? 'down' : 'up']) {
+        const pending = Promise.withResolvers<CompletionResult>();
+        let request: CompletionRequest | undefined;
+        call.mockImplementation(async (_method, value) => {
+          request = value as CompletionRequest;
+          return (await pending.promise) as never;
+        });
+        await controller.key({ name: direction, sequence: '' });
+        expect(model.candidates).toBe(original);
+        expect(controller.renderer.frame(model, 0)).toContain(items[0].name);
+        const notifications = changed.mock.calls.length;
+        await vi.waitFor(() => expect(request).toBeDefined());
+        pending.resolve(response(request as CompletionRequest));
+        await vi.waitFor(() => expect(model.hasCurrentCompletion).toBe(true));
+        expect(model.candidates).toBe(original);
+        expect(changed).toHaveBeenCalledTimes(notifications);
+      }
+      const replacement = Promise.withResolvers<CompletionResult>();
+      let request: CompletionRequest | undefined;
+      call.mockImplementation(async (_method, value) => {
+        request = value as CompletionRequest;
+        return (await replacement.promise) as never;
+      });
+      await controller.key({ name: scenario.direction, sequence: '' });
+      expect(model.candidates).toBe(original);
+      await vi.waitFor(() => expect(request).toBeDefined());
+      const notifications = changed.mock.calls.length;
+      replacement.resolve(
+        response(request as CompletionRequest, [{ name: 'new', insertText: 'new' }]),
+      );
+      await vi.waitFor(() => expect(model.candidates[0]?.name).toBe('new'));
+      expect(changed).toHaveBeenCalledTimes(notifications + 1);
+    } finally {
+      await controller.dispose();
+    }
+  });
+
+  it('keeps local first-level hints visible throughout vertical navigation', async () => {
+    const { model, controller, call } = setup();
+    try {
+      const text = 'c\\\nmd\\\n';
+      model.setInput(text, text.length);
+      const hints: string[][] = [];
+      controller.onChange = () => hints.push(model.candidates.map((item) => item.name));
+      for (const direction of ['up', 'up', 'down', 'down']) {
+        await controller.key({ name: direction, sequence: '' });
+        expect(model.candidates.map((item) => item.name)).toEqual(['cmd']);
+        expect(controller.renderer.frame(model, 0)).toContain('命令候选');
+      }
+      expect(hints).toHaveLength(4);
+      expect(hints.every((items) => items.length === 1 && items[0] === 'cmd')).toBe(true);
+      expect(call).not.toHaveBeenCalled();
+    } finally {
+      await controller.dispose();
+    }
+  });
+
+  it('replaces first-level hints directly with second-level hints when moving into another word', async () => {
+    const { model, controller, call } = setup();
+    const pending = Promise.withResolvers<CompletionResult>();
+    try {
+      call.mockImplementation(async (_method, value) => {
+        const request = value as CompletionRequest;
+        if (request.cursor <= 3) {
+          return {
+            command: request.command,
+            from: 0,
+            to: 3,
+            items: [{ name: 'cmd', insertText: 'cmd' }],
+          } as never;
+        }
+        return (await pending.promise) as never;
+      });
+      model.setInput('cmd \\\na', 3);
+      await controller.key(tab);
+      await controller.key({ name: 'down', sequence: '' });
+      expect(model.candidates[0]?.name).toBe('cmd');
+      await vi.waitFor(() => expect(call).toHaveBeenCalledTimes(2));
+      pending.resolve({
+        command: 'cmd a',
+        from: 4,
+        to: 5,
+        items: [{ name: 'alpha', insertText: 'alpha' }],
+      });
+      await vi.waitFor(() => expect(model.candidates[0]?.name).toBe('alpha'));
+      await controller.key(tab);
+      expect(model.displayText).toBe('cmd \\\nalpha');
+    } finally {
+      pending.resolve({ from: 4, to: 5, items: [] });
+      await controller.dispose();
+    }
+  });
+
+  it.each(['normal', 'global'] as const)(
+    'retains second-level hints while editing in %s mode and replaces only changed results',
+    async (mode) => {
+      const { model, controller, call } = setup(['alpha']);
+      if (mode === 'global') {
+        model.enterGlobal();
+        vi.spyOn(controller.plugins, 'has').mockReturnValue(true);
+        vi.spyOn(controller.plugins, 'complete').mockImplementation((_name, request, signal) =>
+          controller.core.call('command.complete', request, 0, signal),
+        );
+      }
+      const changed = vi.fn();
+      controller.onChange = changed;
+      try {
+        await controller.key({ name: 'text', sequence: 'cmd a' });
+        await vi.waitFor(() => expect(model.hasCurrentCompletion).toBe(true));
+        const original = model.candidates;
+        const unchanged = Promise.withResolvers<CompletionResult>();
+        call.mockImplementation(async () => (await unchanged.promise) as never);
+        await controller.key({ name: 'text', sequence: 'l' });
+        expect(model.hasCurrentCompletion).toBe(false);
+        expect(model.candidates).toBe(original);
+        expect(controller.renderer.frame(model)).toContain('alpha');
+        const updates = changed.mock.calls.length;
+        await vi.waitFor(() => expect(call).toHaveBeenCalledTimes(2));
+        unchanged.resolve({
+          command: 'cmd al',
+          from: 4,
+          to: 6,
+          items: [{ name: 'alpha', insertText: 'alpha' }],
+        });
+        await vi.waitFor(() => expect(model.hasCurrentCompletion).toBe(true));
+        expect(model.candidates).toBe(original);
+        expect(changed).toHaveBeenCalledTimes(updates);
+
+        const replacement = Promise.withResolvers<CompletionResult>();
+        call.mockImplementation(async () => (await replacement.promise) as never);
+        await controller.key({ name: 'backspace', sequence: '\x7f' });
+        expect(model.candidates).toBe(original);
+        await vi.waitFor(() => expect(call).toHaveBeenCalledTimes(3));
+        const beforeReplacement = changed.mock.calls.length;
+        replacement.resolve({
+          command: 'cmd a',
+          from: 4,
+          to: 5,
+          items: [{ name: 'alpha', insertText: 'alpha', description: 'updated description' }],
+        });
+        await vi.waitFor(() => expect(model.hasCurrentCompletion).toBe(true));
+        expect(changed).toHaveBeenCalledTimes(beforeReplacement + 1);
+        expect(model.candidates[0]?.description).toBe('updated description');
+        await controller.key(tab);
+        expect(model.displayText).toBe('cmd alpha');
+        expect(model.displayCursor).toBe(9);
+        expect(call).toHaveBeenCalledTimes(3);
+
+        model.setInput('other ', 6);
+        await controller.key({ name: 'unknown', sequence: '' });
+        expect(model.candidates).toEqual([]);
+      } finally {
+        await controller.dispose();
+      }
+    },
+  );
+
+  it('computes first-word hints from a joined multiline command without requesting second-level hints', async () => {
+    const { model, controller, call } = setup();
+    try {
+      const text = 'c\\\nmd';
+      model.setInput(text, text.length);
+      expect(model.candidates.map((item) => item.name)).toEqual(['cmd']);
+      await controller.key(tab);
+      expect(model.displayText).toBe('cmd');
+      expect(call).not.toHaveBeenCalled();
+    } finally {
+      await controller.dispose();
+    }
+  });
+
+  const screen = (renderer: Renderer, model: TerminalModel) =>
+    stripVTControlCharacters(renderer.frame(model, 0)).split('\r\n');
+  const caret = (renderer: Renderer, model: TerminalModel) => {
+    const frame = renderer.frame(model, 0);
+    const position = /\x1b\[(\d+);\d+H\x1b\[\?25h$/.exec(frame);
+    expect(position).not.toBeNull();
+    return Number(position?.[1]) - 1;
+  };
+
+  it('overlays hints above a single-line editor and preserves its row as the list grows or shrinks', () => {
+    const model = new TerminalModel();
+    model.switch(model.windows[1].id);
+    model.commands = ['plugin', 'plug', 'ping'].map((name) => ({ name }));
+    model.append({ windowId: model.activeId, text: Array(30).fill('output').join('\n') });
+    const renderer = new Renderer();
+    renderer.height = 12;
+    const row = caret(renderer, model);
+    for (const text of ['p', 'pl', 'plugin ', 'p', '']) {
+      model.setInput(text, text.length);
+      expect(caret(renderer, model)).toBe(row);
+      const rows = screen(renderer, model);
+      expect(rows[row].trimEnd()).toBe(`> ${text}`.trimEnd());
+      const hint = rows.findIndex((line) => line.includes('命令候选'));
+      if (model.candidates.length) {
+        expect(hint).toBeGreaterThan(0);
+        expect(hint).toBeLessThan(row);
+        expect(renderer.panelAt(row - 1)).toBe(true);
+        expect(renderer.panelAt(row)).toBe(false);
+      }
+    }
+    model.setInput('pl', 2);
+    screen(renderer, model);
+    renderer.beginSelection(model, 2, row);
+    renderer.dragSelection(model, 3, row, true, false);
+    expect(renderer.selectedText(model)).toBe('pl');
+    renderer.scroll(model, 10);
+    expect(screen(renderer, model)).toHaveLength(12);
+    expect(renderer.panelAt(1)).toBe(false);
+  });
+
+  it('keeps every multiline editor row in place when hints fit above it', () => {
+    const model = new TerminalModel();
+    model.switch(model.windows[1].id);
+    model.append({ windowId: model.activeId, text: Array(6).fill('output').join('\n') });
+    const renderer = new Renderer();
+    renderer.height = 16;
+    const text = 'cmd \\\ns';
+    model.setInput(text, text.length);
+    const before = screen(renderer, model);
+    const row = caret(renderer, model);
+    model.setServiceCompletion(model.completionKey ?? '', {
+      command: text,
+      from: 6,
+      to: 7,
+      items: [{ name: 'sub', insertText: 'sub' }],
+    });
+    expect(caret(renderer, model)).toBe(row);
+    const after = screen(renderer, model);
+    expect(after[row - 1]).toBe(before[row - 1]);
+    expect(after[row]).toBe(before[row]);
+    expect(after[row - 2]).toContain('sub');
+    expect(renderer.panelAt(row - 1)).toBe(false);
+  });
+
+  it('docks hints below the tabs when the multiline editor fills the viewport and preserves caret and mouse coordinates', () => {
+    const model = new TerminalModel();
+    model.switch(model.windows[1].id);
+    const renderer = new Renderer();
+    renderer.height = 10;
+    const text = 'cmd \\\nsub \\\n' + 'arg \\\n'.repeat(18) + 'v';
+    model.setInput(text, text.length);
+    model.setServiceCompletion(model.completionKey ?? '', {
+      command: text,
+      from: text.length - 1,
+      to: text.length,
+      inline: true,
+      items: [{ name: 'value', insertText: 'value' }],
+    });
+    const first = screen(renderer, model);
+    expect(first[1]).toContain('命令候选');
+    expect(first[2]).toContain('value');
+    expect(first[3]).toMatch(/^> /);
+    expect(screen(renderer, model)).toEqual(first);
+    const inputRow = caret(renderer, model);
+    renderer.beginSelection(model, 2, inputRow);
+    renderer.dragSelection(model, 2, inputRow, true, true);
+    expect(model.cursor).toBe(text.length - 1);
+    for (const height of [1, 2, 3, 4, 5, 9, 12]) {
+      renderer.width = 9;
+      renderer.height = height;
+      const rows = screen(renderer, model);
+      expect(rows).toHaveLength(height);
+      expect(rows.every((row) => stringWidth(row) <= 9)).toBe(true);
+      if (height >= 3) {
+        expect(caret(renderer, model)).toBeGreaterThanOrEqual(1);
+        expect(caret(renderer, model)).toBeLessThan(height - 1);
+      }
+    }
+  });
+});
 
 describe('deep terminal completion', () => {
   it('filters the complete returned list even when a matching word occurs beyond the old 512-item limit', async () => {
