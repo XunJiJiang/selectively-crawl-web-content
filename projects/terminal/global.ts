@@ -9,7 +9,7 @@ export const globalCommands: GlobalCommandInfo[] = [
   { name: 'clear', usage: 'clear <output|history|all>', description: '清除当前标签输出或历史' },
   { name: 'close', usage: 'close [tab id]', description: '关闭指定标签', aliases: ['c'] },
   { name: 'help', usage: 'help', description: '查看命令和快捷键' },
-  { name: 'new', usage: 'new', description: '新建命令标签' },
+  { name: 'new', usage: 'new <title>', description: '新建命令标签' },
   { name: 'q', usage: 'q', description: '退出终端' },
   { name: 'rename', usage: 'rename [new title] <tab id>', description: '重命名命令标签' },
   { name: 'restart', usage: 'restart', description: '重启核心', aliases: ['r'] },

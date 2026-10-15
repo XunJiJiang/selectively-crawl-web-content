@@ -804,8 +804,8 @@ export class TerminalController {
       this.model.switch(this.model.byIndex(args[0]).id);
       clear();
     } else if (name === 'new') {
-      count(0);
-      this.model.newWindow();
+      count(0, 1);
+      this.model.newWindow(args[0]);
       clear();
     } else if (['w', 'c', 'close'].includes(name)) {
       count(name === 'w' ? 0 : 1);

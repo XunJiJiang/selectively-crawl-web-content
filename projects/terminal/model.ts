@@ -181,7 +181,7 @@ export class TerminalModel {
     }
     window.title = clean;
   }
-  newWindow() {
+  newWindow(title?: string) {
     if (this.windows.length >= 128) {
       throw new Error('窗口数量达到 128 个上限');
     }
@@ -190,6 +190,9 @@ export class TerminalModel {
       number++;
     }
     const window = this.make('command', number);
+    if (title !== undefined) {
+      this.rename(window, title);
+    }
     this.windows.push(window);
     this.switch(window.id);
     return window;

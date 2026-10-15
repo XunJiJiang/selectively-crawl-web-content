@@ -1,7 +1,7 @@
 {
   "version": 1,
   "created_at": "2026-10-08T13:03:04Z",
-  "updated_at": "2026-10-15T07:26:08Z",
+  "updated_at": "2026-10-15T07:47:14Z",
   "files": {
     ".gitattributes": {
       "role": "index",
@@ -65,9 +65,9 @@
     },
     "aoci.code.txt": {
       "role": "index",
-      "sha256": "b13042fb46bec52814b494a020d28e58555a4a55c63e39b3cc35e1a8cd4d74da",
-      "size": 186122,
-      "normalized_sha256": "b13042fb46bec52814b494a020d28e58555a4a55c63e39b3cc35e1a8cd4d74da"
+      "sha256": "5cc56fe8d2e3e786fb2943cb4a10ed2fa8ce0ec4a0df737df6cf5a5969780458",
+      "size": 186370,
+      "normalized_sha256": "5cc56fe8d2e3e786fb2943cb4a10ed2fa8ce0ec4a0df737df6cf5a5969780458"
     },
     "aoci.meta.txt": {
       "role": "index",
@@ -125,9 +125,9 @@
     },
     "docs/待办设计.md": {
       "role": "observe",
-      "sha256": "0a7f80366cfb2b0ddf0da11d84afbcfa43556d9f2ad6d1ee7f9144ba9e48559f",
-      "size": 5038,
-      "normalized_sha256": "0a7f80366cfb2b0ddf0da11d84afbcfa43556d9f2ad6d1ee7f9144ba9e48559f"
+      "sha256": "36129e8429810675858141f91f7b8a937b353aaa3a3be4b8bd5dc8ce0dfed49d",
+      "size": 3577,
+      "normalized_sha256": "36129e8429810675858141f91f7b8a937b353aaa3a3be4b8bd5dc8ce0dfed49d"
     },
     "docs/核心部署.md": {
       "role": "observe",
@@ -137,9 +137,9 @@
     },
     "docs/终端设计方案.md": {
       "role": "observe",
-      "sha256": "70f65ce26b55c364f66cc13888f68caaf20898187c5d480b5af35fb6e46dae32",
-      "size": 32790,
-      "normalized_sha256": "70f65ce26b55c364f66cc13888f68caaf20898187c5d480b5af35fb6e46dae32"
+      "sha256": "d79e7816d789f064be73edda29fcbb3bbd2cb123519fbf3d6f5a56d55b069193",
+      "size": 32853,
+      "normalized_sha256": "d79e7816d789f064be73edda29fcbb3bbd2cb123519fbf3d6f5a56d55b069193"
     },
     "oxfmt.config.ts": {
       "role": "index",
@@ -6757,9 +6757,9 @@
     },
     "projects/terminal/controller.ts": {
       "role": "index",
-      "sha256": "e34432555364d833a52bef153e9ad35844fd5affc397f9d00929842b2f6b4d0b",
-      "size": 51559,
-      "normalized_sha256": "e34432555364d833a52bef153e9ad35844fd5affc397f9d00929842b2f6b4d0b"
+      "sha256": "dca36901454ec3fad21a129f8b30eec4976840191a096e13617ea176a548bc6f",
+      "size": 51569,
+      "normalized_sha256": "dca36901454ec3fad21a129f8b30eec4976840191a096e13617ea176a548bc6f"
     },
     "projects/terminal/core.ts": {
       "role": "index",
@@ -6775,9 +6775,9 @@
     },
     "projects/terminal/global.ts": {
       "role": "index",
-      "sha256": "3039a2818bd6aa053d147eb7438fae48028e4246335b83c46818fdb945efea3c",
-      "size": 1343,
-      "normalized_sha256": "3039a2818bd6aa053d147eb7438fae48028e4246335b83c46818fdb945efea3c"
+      "sha256": "f3c730518e94e9a65574e48ae9c020f98947d03b0fd16380fc40fcb1ce984dc1",
+      "size": 1387,
+      "normalized_sha256": "f3c730518e94e9a65574e48ae9c020f98947d03b0fd16380fc40fcb1ce984dc1"
     },
     "projects/terminal/index.ts": {
       "role": "index",
@@ -6799,9 +6799,9 @@
     },
     "projects/terminal/model.ts": {
       "role": "index",
-      "sha256": "ad0a8867959dec262c74e363f4145f24a5980fc967f9d42a944c747debb61cb0",
-      "size": 31707,
-      "normalized_sha256": "ad0a8867959dec262c74e363f4145f24a5980fc967f9d42a944c747debb61cb0"
+      "sha256": "6c093be38ec6fcd300d289240f8b7349bf506cda3005c9149105c869851b6789",
+      "size": 31792,
+      "normalized_sha256": "6c093be38ec6fcd300d289240f8b7349bf506cda3005c9149105c869851b6789"
     },
     "projects/terminal/multiline.test.ts": {
       "role": "index",
