@@ -1,0 +1,228 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1680" height="1080" viewBox="0 0 1680 1080" font-size="13" role="img" aria-labelledby="title desc">
+  <title id="title">SCWC 插件工作台桌面布局设计</title>
+  <desc id="desc">包含顶栏快速访问、左侧插件列表、中心两个插件页面分组、右侧当前页面属性、底部多终端面板和浏览器导航状态栏。所有数据均为设计示例。</desc>
+  <defs>
+    <style>
+      text {font-family: "Segoe UI", "Microsoft YaHei", sans-serif; fill: #dce1e9}
+      .muted {fill: #929bad} .small {font-size: 11px} .label {font-size: 12px; fill: #aab3c3}
+      .heading {font-size: 15px; font-weight: 600} .strong {font-weight: 600}
+      .accent {fill: #a69bff} .green {fill: #7edbb0} .warn {fill: #efc477}
+      .mono {font-family: Consolas, monospace; font-size: 12px}
+      .stroke {stroke: #647086; stroke-width: 1.5; fill: none; stroke-linecap: round; stroke-linejoin: round}
+    </style>
+    <linearGradient id="canvas" x2="1" y2="1"><stop stop-color="#10131d"/><stop offset="1" stop-color="#1c2030"/></linearGradient>
+    <linearGradient id="art1" x2="1" y2="1"><stop stop-color="#b8b6dc"/><stop offset="1" stop-color="#827ea6"/></linearGradient>
+    <linearGradient id="art2" x2="1" y2="1"><stop stop-color="#edc7a2"/><stop offset="1" stop-color="#b97963"/></linearGradient>
+    <linearGradient id="art3" x2="1" y2="1"><stop stop-color="#9fcdbb"/><stop offset="1" stop-color="#548c87"/></linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%"><feDropShadow dx="0" dy="14" stdDeviation="16" flood-opacity="0.25"/></filter>
+    <clipPath id="appClip"><rect x="40" y="104" width="1600" height="838" rx="12"/></clipPath>
+  </defs>
+  <rect width="1680" height="1080" fill="url(#canvas)"/>
+  <text x="44" y="49" font-size="27" font-weight="600">SCWC 插件工作台</text>
+  <text x="45" y="77" class="muted">界面设计 / 默认深色 / 双页对照布局</text>
+  <text x="1638" y="58" text-anchor="end" class="label">设计示例 · 2026.10.15</text>
+  <rect x="40" y="104" width="1600" height="838" rx="12" fill="#1a1e29" filter="url(#shadow)"/>
+  <g clip-path="url(#appClip)">
+    <!-- 顶栏 -->
+    <rect x="40" y="104" width="1600" height="46" fill="#252a38"/>
+    <path d="M60 121h16m-16 6h16m-16 6h16" class="stroke"/>
+    <rect x="92" y="116" width="23" height="23" rx="6" fill="#8c7cf0"/>
+    <path d="M98 122h10v4h-6v5h6" fill="none" stroke="#fff" stroke-width="1.8"/>
+    <text x="126" y="132" class="strong">SCWC</text>
+    <text x="183" y="132" class="muted small">插件工作台</text>
+    <rect x="555" y="112" width="558" height="30" rx="6" fill="#1b1f2c" stroke="#42495c"/>
+    <circle cx="573" cy="127" r="3" fill="#7edbb0"/>
+    <text x="592" y="132" fill="#c8cdd8">SCWC · 内容整理</text>
+    <rect x="1030" y="117" width="70" height="20" rx="4" fill="#292e3d"/>
+    <text x="1065" y="131" text-anchor="middle" class="small muted">Ctrl ⇧ P</text>
+    <rect x="1506" y="116" width="24" height="23" rx="4" fill="#383c50"/>
+    <path d="M1511 121h14v13h-14zm4 0v13" class="stroke" stroke="#c8c4f2"/>
+    <path d="M1545 121h14v13h-14zm10 0v13M1579 121h14v13h-14zm0 9h14" class="stroke"/>
+    <path d="M1612 121l4 3v6l-4 3-4-3v-6z" class="stroke"/>
+    <!-- 主侧栏 -->
+    <rect x="40" y="150" width="276" height="750" fill="#202431"/>
+    <text x="58" y="179" class="heading">插件页面</text>
+    <text x="293" y="179" text-anchor="end" class="muted">···</text>
+    <rect x="54" y="194" width="247" height="32" rx="5" fill="#171b26" stroke="#3a4152"/>
+    <circle cx="69" cy="208" r="4.5" class="stroke"/><path d="m73 212 4 4" class="stroke"/>
+    <text x="88" y="215" class="muted small">搜索插件、名称或链接</text>
+    <rect x="54" y="239" width="247" height="29" rx="5" fill="#191e2a"/>
+    <rect x="56" y="241" width="57" height="25" rx="4" fill="#3b3555"/>
+    <text x="84" y="258" text-anchor="middle" class="small accent">页面</text>
+    <text x="145" y="258" text-anchor="middle" class="small muted">收藏</text>
+    <text x="204" y="258" text-anchor="middle" class="small muted">历史</text>
+    <text x="267" y="258" text-anchor="middle" class="small muted">管理</text>
+    <text x="58" y="291" class="small muted">已检测到 UI · 4</text>
+    <text x="294" y="291" text-anchor="end" class="small muted">名称 ↑  ▾</text>
+    <!-- 插件卡片 -->
+    <rect x="52" y="306" width="252" height="138" rx="7" fill="#2b2c41" stroke="#7264b5"/>
+    <rect x="65" y="320" width="29" height="29" rx="7" fill="#6f61a1"/>
+    <path d="M73 328h13v12H73zm4 4h1m4 0h1m-6 4h6" stroke="#ded8fa" stroke-width="1.2" fill="none"/>
+    <text x="104" y="332" class="strong">贴纸管理</text>
+    <text x="288" y="332" text-anchor="end" class="accent">★</text>
+    <text x="104" y="348" class="small muted">素材收集、整理与预览</text>
+    <circle cx="69" cy="371" r="3" fill="#7edbb0"/>
+    <text x="80" y="375" class="small green">运行中</text>
+    <text x="137" y="375" class="small muted">PID 12480 · v2.4.0</text>
+    <rect x="65" y="393" width="225" height="32" rx="5" fill="#8d7be5"/>
+    <path d="M259 393v32" stroke="#b0a0f7" stroke-opacity="0.45"/>
+    <text x="159" y="414" text-anchor="middle" fill="#fff" class="strong">打开页面</text>
+    <text x="274" y="413" text-anchor="middle" fill="#fff">⌄</text>
+    <rect x="53" y="456" width="250" height="129" rx="7" fill="#252a37"/>
+    <rect x="66" y="470" width="28" height="28" rx="7" fill="#34574f"/>
+    <text x="80" y="490" text-anchor="middle" class="green">▥</text>
+    <text x="104" y="483" class="strong">内容采集</text>
+    <text x="104" y="500" class="small muted">采集任务与归档</text>
+    <circle cx="69" cy="520" r="3" fill="#7edbb0"/>
+    <text x="80" y="524" class="small green">运行中</text>
+    <text x="137" y="524" class="small muted">UI 尚未构建</text>
+    <rect x="66" y="539" width="224" height="30" rx="5" fill="#343a4a" stroke="#4a5265"/>
+    <path d="M259 539v30" stroke="#4a5265"/>
+    <text x="161" y="559" text-anchor="middle">构建 UI</text><text x="274" y="558" text-anchor="middle">⌄</text>
+    <rect x="53" y="597" width="250" height="125" rx="7" fill="#252a37"/>
+    <rect x="66" y="611" width="28" height="28" rx="7" fill="#3b465d"/>
+    <text x="80" y="631" text-anchor="middle">◫</text>
+    <text x="104" y="623" class="strong">媒体资料库</text>
+    <text x="104" y="640" class="small muted">浏览与管理本地媒体</text>
+    <text x="67" y="665" class="small muted">○ 已禁用 · v1.2.1</text>
+    <rect x="66" y="679" width="224" height="28" rx="5" fill="#343a4a" stroke="#4a5265"/>
+    <path d="M259 679v28" stroke="#4a5265"/>
+    <text x="161" y="698" text-anchor="middle">启用</text><text x="274" y="698" text-anchor="middle">⌄</text>
+    <text x="58" y="754" class="small muted">收藏页面</text>
+    <text x="61" y="783" class="accent">★</text><text x="83" y="783">待整理的贴纸</text>
+    <text x="83" y="800" class="small muted">/inbox?type=animated</text>
+    <text x="61" y="830" class="accent">★</text><text x="83" y="830">常用素材集</text>
+    <text x="58" y="880" class="small muted">页面视图仅展示已确认 UI 的插件</text>
+    <!-- 中央双组 -->
+    <rect x="316" y="150" width="1004" height="536" fill="#141821"/>
+    <rect x="316" y="150" width="580" height="36" fill="#242838"/>
+    <rect x="316" y="150" width="212" height="36" fill="#1b1f2c"/>
+    <rect x="316" y="150" width="212" height="2" fill="#a493f4"/>
+    <text x="331" y="173" class="accent">⌖</text><text x="352" y="173" class="strong">待整理的贴纸</text>
+    <text x="503" y="172" class="small muted">固定</text>
+    <text x="547" y="173" class="muted">最近添加</text><text x="645" y="173" class="muted">×</text>
+    <path d="M851 161h14v14h-14zm7 0v14" class="stroke"/><text x="882" y="172" class="muted">···</text>
+    <rect x="319" y="187" width="574" height="496" fill="#1b1f2b"/>
+    <text x="340" y="220" font-size="20" font-weight="600">收件箱</text>
+    <text x="340" y="244" class="small muted">管理新收集的内容，整理到你的素材集</text>
+    <rect x="340" y="260" width="121" height="28" rx="5" fill="#3b3458"/>
+    <text x="400" y="279" text-anchor="middle" class="accent">全部内容  24</text>
+    <text x="478" y="279" class="muted">动图  8</text><text x="555" y="279" class="muted">静态  16</text>
+    <rect x="744" y="259" width="124" height="29" rx="5" fill="#292f3d" stroke="#3e4758"/>
+    <text x="806" y="279" text-anchor="middle" class="small">最新收集  ⌄</text>
+    <!-- 页面中的素材卡 -->
+    <rect x="340" y="307" width="164" height="151" rx="7" fill="#282d3a" stroke="#8d7be5"/>
+    <rect x="346" y="313" width="152" height="108" rx="5" fill="url(#art1)"/>
+    <circle cx="422" cy="367" r="31" fill="#f4eefb"/><path d="m398 345-6-21 25 12m27 9 8-21-24 12" fill="#f4eefb"/>
+    <circle cx="412" cy="365" r="3" fill="#62556e"/><circle cx="434" cy="365" r="3" fill="#62556e"/>
+    <path d="m419 374 5 4 5-4" stroke="#62556e" stroke-width="2" fill="none"/>
+    <rect x="351" y="318" width="18" height="18" rx="4" fill="#8975df"/><path d="m355 326 3 3 6-7" stroke="white" stroke-width="1.5" fill="none"/>
+    <text x="353" y="443">紫色猫咪</text><text x="491" y="443" text-anchor="end" class="small muted">GIF</text>
+    <rect x="519" y="307" width="164" height="151" rx="7" fill="#282d3a"/>
+    <rect x="525" y="313" width="152" height="108" rx="5" fill="url(#art2)"/>
+    <circle cx="601" cy="367" r="30" fill="#f7e3c4"/><circle cx="590" cy="361" r="3" fill="#826245"/><circle cx="612" cy="361" r="3" fill="#826245"/>
+    <path d="M587 375q14 15 28 0" stroke="#826245" stroke-width="3" fill="none"/>
+    <text x="532" y="443">今天也开心</text><text x="670" y="443" text-anchor="end" class="small muted">PNG</text>
+    <rect x="698" y="307" width="170" height="151" rx="7" fill="#282d3a"/>
+    <rect x="704" y="313" width="158" height="108" rx="5" fill="url(#art3)"/>
+    <path d="M748 382q-9-44 23-38 15-27 30 0 32-4 21 38z" fill="#e5f0d7"/>
+    <circle cx="775" cy="363" r="3" fill="#5d7969"/><circle cx="799" cy="363" r="3" fill="#5d7969"/>
+    <text x="711" y="443">发呆中</text><text x="855" y="443" text-anchor="end" class="small muted">GIF</text>
+    <rect x="340" y="473" width="164" height="130" rx="7" fill="#282d3a"/>
+    <rect x="347" y="480" width="150" height="86" rx="5" fill="#445571"/><path d="m393 543 29-42 29 42z" fill="#bbc8e2"/><circle cx="452" cy="501" r="10" fill="#e1cc99"/>
+    <text x="353" y="588">出发啦</text>
+    <rect x="519" y="473" width="164" height="130" rx="7" fill="#282d3a"/>
+    <rect x="526" y="480" width="150" height="86" rx="5" fill="#685b67"/><path d="M567 540v-24q34-25 68 0v24z" fill="#dac0b5"/><circle cx="600" cy="518" r="16" fill="#edd8cc"/>
+    <text x="532" y="588">午后休息</text>
+    <rect x="698" y="473" width="170" height="130" rx="7" fill="#282d3a"/>
+    <rect x="705" y="480" width="156" height="86" rx="5" fill="#555c4e"/><path d="m750 545 31-53 32 53z" fill="#b8c9a3"/><circle cx="781" cy="522" r="10" fill="#eff2db"/>
+    <text x="711" y="588">一起加油</text>
+    <rect x="340" y="625" width="528" height="37" rx="5" fill="#302d43"/>
+    <text x="354" y="649" class="accent">已选择 1 项</text><text x="666" y="649">添加到素材集</text><text x="805" y="649" class="muted">取消选择</text>
+    <!-- 第二分组 -->
+    <rect x="896" y="150" width="424" height="36" fill="#232736"/>
+    <rect x="899" y="153" width="209" height="33" fill="#1b1f2b"/>
+    <text x="916" y="173" class="green">◈</text><text x="937" y="173">常用素材集</text><text x="1086" y="173" class="muted">×</text>
+    <text x="1298" y="173" class="muted">···</text>
+    <rect x="899" y="187" width="418" height="496" fill="#1b1f2b"/>
+    <text x="920" y="220" font-size="20" font-weight="600">素材集</text>
+    <text x="920" y="244" class="small muted">同一插件 · 独立页面与筛选状态</text>
+    <rect x="920" y="263" width="376" height="31" rx="5" fill="#252b39" stroke="#3b4355"/>
+    <text x="934" y="284" class="muted">搜索素材集…</text>
+    <rect x="920" y="312" width="376" height="88" rx="7" fill="#292e3d"/>
+    <rect x="933" y="325" width="63" height="61" rx="6" fill="#5e546e"/><text x="964" y="363" text-anchor="middle" font-size="25">✦</text>
+    <text x="1012" y="344" class="strong">日常表情</text><text x="1012" y="368" class="small muted">32 项 · 今天更新</text><text x="1272" y="359" class="muted">›</text>
+    <rect x="920" y="412" width="376" height="88" rx="7" fill="#292e3d"/>
+    <rect x="933" y="425" width="63" height="61" rx="6" fill="#4a6462"/><text x="964" y="463" text-anchor="middle" font-size="25">☘</text>
+    <text x="1012" y="444" class="strong">可爱动物</text><text x="1012" y="468" class="small muted">18 项 · 昨天更新</text><text x="1272" y="459" class="muted">›</text>
+    <rect x="920" y="512" width="376" height="88" rx="7" fill="#292e3d"/>
+    <rect x="933" y="525" width="63" height="61" rx="6" fill="#625c48"/><text x="964" y="563" text-anchor="middle" font-size="25">☀</text>
+    <text x="1012" y="544" class="strong">工作常用</text><text x="1012" y="568" class="small muted">24 项 · 3 天前更新</text><text x="1272" y="559" class="muted">›</text>
+    <text x="1109" y="644" text-anchor="middle" class="small muted">拖动标签到边缘，可继续拆分此分组</text>
+    <!-- 辅助侧栏 -->
+    <rect x="1320" y="150" width="320" height="750" fill="#202431"/>
+    <text x="1338" y="179" class="heading">页面属性</text><text x="1617" y="179" class="muted">···</text>
+    <rect x="1336" y="195" width="288" height="61" rx="6" fill="#2c2c41"/>
+    <text x="1348" y="218" class="strong">待整理的贴纸</text>
+    <text x="1348" y="240" class="small muted">分组 1 · 实例 a4e2 · 贴纸管理</text>
+    <text x="1339" y="285" class="strong">概览</text>
+    <text x="1339" y="313" class="muted">页面状态</text><text x="1617" y="313" text-anchor="end" class="green">已就绪</text>
+    <text x="1339" y="340" class="muted">页面路径</text><text x="1617" y="340" text-anchor="end" class="mono">/inbox</text>
+    <text x="1339" y="367" class="muted">访问方式</text><text x="1617" y="367" text-anchor="end">固定 · 已收藏</text>
+    <path d="M1338 386h284" stroke="#363c4c"/>
+    <text x="1339" y="413" class="strong">页面配置</text><text x="1617" y="413" text-anchor="end" class="small accent">重置</text>
+    <text x="1339" y="440" class="muted">每页数量</text><text x="1617" y="440" text-anchor="end" class="small muted">插件共享</text>
+    <rect x="1339" y="451" width="281" height="31" rx="4" fill="#181d28" stroke="#424a5c"/>
+    <text x="1350" y="472">40</text><text x="1606" y="471" text-anchor="end" class="muted">⌃⌄</text>
+    <text x="1339" y="503" class="small muted">global.view.pageSize · 默认 40</text>
+    <text x="1339" y="536" class="muted">排序方式</text><text x="1617" y="536" text-anchor="end" class="small muted">当前资源</text>
+    <rect x="1339" y="548" width="281" height="31" rx="4" fill="#181d28" stroke="#424a5c"/>
+    <text x="1350" y="569">最近收集优先</text><text x="1605" y="568" text-anchor="end" class="muted">⌄</text>
+    <text x="1339" y="612" class="muted">展示已归档内容</text><rect x="1584" y="598" width="34" height="19" rx="9" fill="#8673db"/><circle cx="1608" cy="607.5" r="6" fill="#fff"/>
+    <path d="M1338 636h284" stroke="#363c4c"/>
+    <text x="1339" y="664" class="strong">资源策略</text>
+    <text x="1339" y="694" class="muted">保持运行</text><rect x="1584" y="680" width="34" height="19" rx="9" fill="#454c5c"/><circle cx="1594" cy="689.5" r="6" fill="#b9c1d1"/>
+    <text x="1339" y="720" class="small muted">固定标签仍可休眠，保留可恢复状态</text>
+    <rect x="1338" y="746" width="284" height="71" rx="6" fill="#242a38"/>
+    <text x="1351" y="771" class="small accent">配置已同步</text>
+    <text x="1351" y="794" class="small muted">更改会同步到使用相同键的页面</text>
+    <text x="1339" y="873" class="small muted">属性栏始终对应当前聚焦的页面实例</text>
+    <!-- 底部面板 -->
+    <rect x="316" y="686" width="1004" height="214" fill="#181d27"/>
+    <rect x="316" y="686" width="1004" height="36" fill="#232836"/>
+    <text x="337" y="709" class="muted">输出</text><text x="399" y="709" class="strong">终端</text>
+    <rect x="394" y="719" width="37" height="2" fill="#aa98ff"/>
+    <text x="458" y="709" class="small muted">2 个终端</text>
+    <text x="1182" y="709" class="muted">＋</text><text x="1217" y="709" class="muted">□</text><text x="1252" y="709" class="muted">⌄</text><text x="1289" y="709" class="muted">×</text>
+    <text x="336" y="747" class="mono muted">10:42:08</text><text x="414" y="747" class="mono accent">[plugin:sticker-management]</text><text x="619" y="747" class="mono">正在检查素材索引…</text>
+    <text x="336" y="773" class="mono muted">10:42:09</text><text x="414" y="773" class="mono green">[INFO]</text><text x="475" y="773" class="mono">检查完成，共 74 项；未发现缺失文件</text>
+    <text x="336" y="799" class="mono muted">10:42:09</text><text x="414" y="799" class="mono">任务结束，耗时 1.2s</text>
+    <path d="M334 820h785" stroke="#303849"/>
+    <text x="337" y="848" class="mono accent">❯</text><text x="358" y="848" class="mono">plugin ls</text><rect x="427" y="834" width="1.5" height="17" fill="#d1c4ff"/>
+    <text x="337" y="881" class="small muted">Enter 执行 · Shift+Enter 换行 · ↑↓ 历史 · Tab 补全</text>
+    <rect x="1140" y="722" width="180" height="178" fill="#202534"/>
+    <rect x="1147" y="730" width="165" height="33" rx="4" fill="#38344e"/>
+    <text x="1158" y="751" class="accent">›_</text><text x="1183" y="751">素材检查</text><circle cx="1296" cy="746" r="3" fill="#7edbb0"/>
+    <text x="1158" y="786" class="muted">›_</text><text x="1183" y="786" class="muted">终端 2</text>
+    <text x="1155" y="876" class="small muted">会话与输出自动保存</text>
+    <!-- 分隔线与状态栏 -->
+    <path d="M316 150v750M896 150v536M1320 150v750M316 686h1004" stroke="#3b4253"/>
+    <rect x="40" y="900" width="1600" height="42" fill="#302b48"/>
+    <circle cx="60" cy="921" r="3" fill="#87dfb4"/><text x="72" y="926" class="small green">已连接</text>
+    <path d="M124 909v24" stroke="#57506f"/>
+    <text x="137" y="926" class="small">贴纸管理 · 分组 1</text>
+    <text x="283" y="926" class="small muted">已就绪 · 请求 0</text>
+    <text x="424" y="927" font-size="19">‹</text><text x="453" y="927" font-size="19" fill="#6b657c">›</text><text x="482" y="927" font-size="18">↻</text>
+    <rect x="510" y="907" width="928" height="28" rx="5" fill="#201e31" stroke="#57506d"/>
+    <text x="523" y="926" class="mono muted">localhost:3000/web/page/plugin/sticker-management/inbox?type=animated#recent</text>
+    <text x="1419" y="926" text-anchor="end" class="accent">★</text>
+    <text x="1460" y="926" class="small muted">8 个标签 · 3 休眠</text>
+    <path d="M1589 915q0-6 5-6t5 6v6l3 4h-16l3-4zm3 13h4" fill="none" stroke="#ddd7f0" stroke-width="1.4"/>
+    <circle cx="1603" cy="913" r="7" fill="#a68df2"/><text x="1603" y="916" text-anchor="middle" style="font-size:9px;fill:white">3</text>
+  </g>
+  <rect x="40" y="104" width="1600" height="838" rx="12" fill="none" stroke="#45495c"/>
+  <circle cx="57" cy="983" r="4" fill="#a493f4"/><text x="73" y="988" class="label">每个分组独立标签；移动标签保留页面实例</text>
+  <circle cx="616" cy="983" r="4" fill="#7edbb0"/><text x="632" y="988" class="label">右侧配置跟随当前页面，值由后端持久保存</text>
+  <circle cx="1185" cy="983" r="4" fill="#efc477"/><text x="1201" y="988" class="label">休眠保存状态后卸载，不关闭逻辑标签</text>
+  <text x="44" y="1031" class="small muted">示意图用于说明布局与视觉层级。插件内部业务界面、版本、PID、数据和命令输出均为虚构示例，实际内容由插件提供。</text>
+</svg>
