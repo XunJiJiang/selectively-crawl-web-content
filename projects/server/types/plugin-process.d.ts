@@ -60,7 +60,13 @@ export interface ProcessSocket {
   onClose?: (context: ProcessSocketContext) => void | Promise<void>;
 }
 
-export interface ProcessPluginHandler extends Omit<SCWC.IHostedPluginHandler, 'ui'> {
+export interface ProcessPluginHandler extends Omit<SCWC.IHostedPluginHandler, 'ui' | 'onLoad'> {
+  onLoad?: (
+    logger: import('./task.d.ts').PluginLogger & {
+      workbench: import('./notifications.d.ts').NotificationLogger;
+    },
+    context: SCWC.ILoadContext,
+  ) => void | Promise<void>;
   /** Omitted versions use the default portable v2 contract. */
   apiVersion?: 2;
   ui?: {

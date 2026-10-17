@@ -15,6 +15,8 @@ import { parsedArgs } from './common/setupParam.ts';
 import { serverLogger } from './common/logger.ts';
 import { Chalk } from 'chalk';
 import { outputColorLevel } from './common/color.ts';
+import { getWorkbench, closeWorkbench } from './workbench/runtime.ts';
+import { closeStorage } from './workbench/storage.ts';
 
 async function main() {
   let exiting = false;
@@ -29,10 +31,12 @@ async function main() {
     server?.close();
     await pluginLoading.catch(() => undefined);
     await unloadPlugins(restart);
+    await closeWorkbench();
     if (!restart) {
       await cacheController.clearAll(serverLogger);
     }
     serverLogger.info(restart ? '服务重启' : '服务停止', `${HOST}:${ACTIVE_PORT}`);
+    closeStorage();
     process.exit(0);
   };
   process.on('SIGINT', () => {
@@ -56,6 +60,7 @@ async function main() {
   }
   initCacheErrorHandler(serverLogger);
   registerDefaultCommands(serverLogger);
+  getWorkbench();
   server = await listen(
     PORT,
     (actualPort) => {

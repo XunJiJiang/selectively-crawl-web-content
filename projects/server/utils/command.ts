@@ -361,6 +361,7 @@ export function getCommands() {
     name,
     description: value.description,
     system: value.system,
+    lifecycle: value.system && ['exit', 'restart'].includes(value.originalName),
     subCommands: value.subCommands.map((item) => item.name),
   }));
 }
@@ -437,7 +438,12 @@ function prepareCommand(raw: string) {
 }
 export function validateCommand(command: string) {
   const prepared = prepareCommand(command);
-  return { name: prepared.parts[0], pluginId: prepared.definition.pluginId };
+  return {
+    name: prepared.parts[0],
+    pluginId: prepared.definition.pluginId,
+    system: prepared.definition.system,
+    originalName: prepared.definition.originalName,
+  };
 }
 
 export async function parseAndRunCommands(command: string, supplied?: InvocationContext) {

@@ -6,6 +6,12 @@ export const MAX_PENDING_CALLS = 64;
 
 export interface Manifest {
   name?: string;
+  title?: string;
+  description?: string;
+  configuration?: {
+    definitions: import('../../types/plugin-config.d.ts').ConfigDefinition[];
+    hasValidator: boolean;
+  };
   command?: {
     description?: string;
     exampleUsage?: string;

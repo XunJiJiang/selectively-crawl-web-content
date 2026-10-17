@@ -5,6 +5,8 @@
 
 本文以源码当前行为为准；终端 IPC 单独见 [终端与服务数据交互](./终端与服务数据交互.md)，存储见 [核心数据流与存储](./核心数据流与存储.md)。
 
+新增 `/web/api/workbench` 的目录/Job、工作区/租约、收藏/关闭历史、配置、页面授权、快照、Web终端、通知与事件接入，完整字段和示例见 **[Web 后端接口](Web后端接口.md)**。该前缀采用精确同源管理鉴权与1MiB JSON限制，不适用下文旧接口的 site/hostname 规则；页面 grant 也可受限调用本插件 API。配置库位置与表结构见[数据库](数据库.md)。
+
 ## 1. 地址、通用鉴权与响应
 
 ### 1.1 基础地址
@@ -265,7 +267,7 @@ HTTP 200：
 
 host 不含端口，port 是字符串，来自 `req.socket.localPort`，token 可以为空字符串。拒绝时 HTTP 403：`{ success: false, message: '仅允许本机同源页面加载配置' }`。
 
-响应设置 `Cache-Control: no-store`、`Vary: Origin, Referer, Sec-Fetch-Site` 并移除通配 CORS 来源头。Web 客户端采用同源请求、禁止重定向、3 秒超时；失败保留原配置。开发模式的 Web 入口重定向至 3201 后，与核心 3200 不同源，不能假定会通过这个接口自动获得核心配置。
+响应设置 `Cache-Control: no-store`、`Vary: Origin, Referer, Sec-Fetch-Site` 并移除通配 CORS 来源头。Web 客户端采用同源请求、禁止重定向、3 秒超时；失败保留原配置。开发模式从核心 /web/ 打开，工作台资源代理到回环 Vite，local-config 保持由核心同源处理；直接访问 Vite 仍需手动配置连接。
 
 ## 8. 页面和静态资源
 
@@ -273,9 +275,9 @@ host 不含端口，port 是字符串，来自 `req.socket.localPort`，token �
 
 | 路径 | 当前行为 |
 | --- | --- |
-| `/web`、`/web/`、`/web/index.html` | prod 返回核心 Web 入口；dev 重定向至 `http://localhost:3201/index.html` |
-| `/web/assets/*` | prod 返回构建资源；dev 重定向至 3201 对应资源 |
-| `/web/page/plugin/:pluginDir` | 返回已加载插件页面，注入最新 scwcutils；插件/入口不存在重定向到 worry/404，异常到 worry/500 |
+| `/web`、`/web/`、`/web/index.html` | prod 返回核心 Web 入口；dev 同源代理到回环 Vite /web/ |
+| `/web/assets/*` | prod 返回构建资源；dev 同源代理到 3201 对应资源 |
+| `/web/page/plugin/:pluginDir` | 返回已加载插件页面，在 head 最前注入 scwcutils；未知插件404，UI不可用503并带 data-scwc-error |
 | `/web/page/plugin/:pluginDir/*` | 从页面入口目录提供资源；缺失且末段不含点时按 SPA 深链回退 HTML，缺失文件返回 404 文本 |
 | `/web/page/lib/scwcutils.iife.<标记>.js` | 按文件名中的 36 进制时间戳选择最新库；请求中的标记不锁定版本；没有可用库时 404 |
 | `/web/page/resources/*` | 提供核心公共静态资源；路径分段含 `..` 时 400 `invalid path`，不存在时 404 `not found` |

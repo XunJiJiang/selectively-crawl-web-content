@@ -11,6 +11,7 @@ vi.mock('../plugin/load.ts', () => ({
   enablePlugin: vi.fn(),
   disablePlugin: vi.fn(),
   reloadPlugin: vi.fn(),
+  enqueuePlugin: (_id: string, work: () => Promise<void>) => work(),
 }));
 vi.mock('../common/env.ts', () => ({ TOKEN: '', ACTIVE_PORT: 3200, HOST: 'http://localhost' }));
 vi.mock('../plugin/web/build.ts', () => ({ buildPluginWeb: vi.fn(async () => undefined) }));

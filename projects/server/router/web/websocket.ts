@@ -3,6 +3,7 @@ import { WebSocketServer, type RawData, type WebSocket } from 'ws';
 import { TOKEN } from '../../common/env.ts';
 import { serverLogger } from '../../common/logger.ts';
 import { isSameDomain } from '../../utils/url.ts';
+import { pageSessions } from '../../workbench/page-sessions.ts';
 
 type RegisteredChannel = {
   plugin: SCWC.IPluginMeta;
@@ -83,7 +84,7 @@ export class PluginWebSocketRegistry {
     });
   }
 
-  private async handleUpgrade(
+  async handleUpgrade(
     request: IncomingMessage,
     socket: import('node:stream').Duplex,
     head: Buffer,
@@ -108,7 +109,23 @@ export class PluginWebSocketRegistry {
     if (!site || !isSameDomain(request.headers.origin ?? request.headers.referer ?? '', site)) {
       return reject(socket, 400, 'Bad Request');
     }
-    if (TOKEN && query?.get('token') !== TOKEN) {
+    if (query?.get('ticket')) {
+      try {
+        const ticket = pageSessions.consume(
+          query.get('ticket') ?? '',
+          request.headers.origin ?? '',
+        );
+        if (
+          !ticket.page ||
+          ticket.page.safeId !== channel.plugin.safeId ||
+          ticket.page.pluginId !== channel.plugin.pluginId
+        ) {
+          throw new Error('scope');
+        }
+      } catch {
+        return reject(socket, 401, 'Unauthorized');
+      }
+    } else if (TOKEN && query?.get('token') !== TOKEN) {
       return reject(socket, 401, 'Unauthorized');
     }
     this.server.handleUpgrade(request, socket, head, (client) => {

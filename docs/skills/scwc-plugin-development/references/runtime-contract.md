@@ -2,6 +2,10 @@
 
 这份参考只在需要确认边界行为时读取。它记录当前仓库源码，而不是对未来版本的承诺。
 
+2026-10-18 补充：插件后端 onLoad 的 context.config 已提供持久字符串 CRUD，见[Web 后端接入](../../../Web后端接口.md#5-插件后端配置对象)。get/list/set/update/delete/reset 均异步，subscribe 返回解除订阅函数；写入仅允许 string，JSON、数字和布尔格式由插件负责。命名空间由核心绑定目录 ID，持久库位于运行时 data/scwc/plugin-config.sqlite，不使用 cache，不在卸载时清理。configuration 可提供定义和宿主校验；logger.workbench 提供持久通知，旧 toWeb 保留。
+
+以下页面说明中的旧注入/错误跳转已更新：服务端使用真实路径边界防止链接越界，在 head 最前注入 SDK；未知插件404、UI不可用503，scwc.ui.spa/assetPrefix 可明确声明含点 SPA 路由和资源前缀。构建失败会记录警告并给后端 onLoad 继续启动机会，onLoad 自身失败仍进入 inactivePlugins。
+
 ## 加载与匹配
 
 - `projects/server/plugin/load.ts` 扫描配置的插件目录直接子目录，只处理有 `package.json` 的目录。开发默认仓库 projects/server/plugins，生产默认程序同目录 plugins；SCWC_PLUGIN_DIR 和 --plugin-dir 可覆盖，不要求插件在核心源码目录内。

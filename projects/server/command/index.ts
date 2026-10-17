@@ -6,6 +6,7 @@ import {
   enablePlugin,
   disablePlugin,
   reloadPlugin,
+  enqueuePlugin,
 } from '../plugin/load.ts';
 import path from 'node:path';
 import { buildPluginWeb } from '../plugin/web/build.ts';
@@ -137,7 +138,9 @@ export function registerDefaultCommands(serverLogger: SCWC.TLogger) {
           }
           const plugin = [...plugins, ...inactivePlugins].find((item) => item.pluginId === id);
           const directory = plugin?.pluginDir ?? path.join(await configuredPluginDirectory(), id);
-          await buildPluginWeb(directory, logger, { signal: context.signal });
+          await enqueuePlugin(id, () =>
+            buildPluginWeb(directory, logger, { signal: context.signal }),
+          );
         },
       },
       {

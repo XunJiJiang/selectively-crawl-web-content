@@ -4,9 +4,10 @@ import { invocationStorage, outputWindowId } from '../common/tasks.ts';
 import { outputColorLevel } from '../common/color.ts';
 import type { InvocationIdentity, PluginLogger } from '../types/task.d.ts';
 import type { TLogger } from '../types/log.d.ts';
+import { getNotifications, type NotificationLogger } from '../workbench/notifications.ts';
 
 export type LogLevel = 'info' | 'pathInfo' | 'warn' | 'error';
-type LogSink = (event: {
+export type LogSink = (event: {
   windowId: string | null;
   executionId?: string;
   sessionId?: string;
@@ -15,6 +16,13 @@ type LogSink = (event: {
   text: string;
 }) => void;
 let sink: LogSink | undefined;
+const subscribers = new Set<LogSink>();
+export function subscribeLog(value: LogSink) {
+  subscribers.add(value);
+  return () => {
+    subscribers.delete(value);
+  };
+}
 export function setLogSink(value?: LogSink) {
   sink = value;
 }
@@ -25,19 +33,30 @@ export function publishLog(
   args: unknown[],
   fallback: () => void,
 ) {
-  if (!sink) {
+  if (!sink && !subscribers.size) {
     fallback();
     return;
   }
   const text = formatWithOptions({ colors: outputColorLevel() > 0 }, ...args);
-  sink({
+  const event = {
     windowId: identity?.windowId ?? outputWindowId,
     executionId: identity?.executionId,
     sessionId: identity?.sessionId,
     pluginId,
     level,
     text: `[${pluginId}]${level === 'warn' || level === 'error' ? ` [${level}]` : ''} ${text}`,
-  });
+  };
+  sink?.(event);
+  for (const subscriber of subscribers) {
+    try {
+      subscriber(event);
+    } catch {
+      /* A consumer cannot break command execution. */
+    }
+  }
+  if (!sink) {
+    fallback();
+  }
 }
 export function bindLogger(
   base: TLogger,
@@ -49,6 +68,16 @@ export function bindLogger(
     (...args: unknown[]) =>
       publishLog(identity, pluginId, level, args, () => base[level](...args));
   return Object.freeze({
+    workbench: Object.fromEntries(
+      ['info', 'success', 'warn', 'error'].map((level) => [
+        level,
+        (title: string, options: unknown) => {
+          getNotifications().publish('plugin', pluginId, level, title, options, {
+            executionId: identity.executionId,
+          });
+        },
+      ]),
+    ) as unknown as NotificationLogger,
     pluginId,
     ...identity,
     info: method('info'),

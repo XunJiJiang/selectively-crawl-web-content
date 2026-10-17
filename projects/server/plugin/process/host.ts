@@ -30,6 +30,9 @@ const peer = new RpcPeer((message, callback) => {
 const tasks = new TaskRegistry();
 const completions = new Map<string, AbortController>();
 const completionCache = createCommandCompletionCache();
+const configListeners = new Set<
+  (change: import('../../types/plugin-config.d.ts').ConfigChange) => void
+>();
 setInputHandler((request, signal) => remoteInput(peer, request, signal));
 const processTasks = tasks.create('host', undefined, true);
 tasks.on('snapshot', (snapshot) => {
@@ -43,6 +46,19 @@ tasks.on('snapshot', (snapshot) => {
   send();
 });
 peer.onEvent = (event, data) => {
+  if (event === 'config.changed') {
+    const change = data as import('../../types/plugin-config.d.ts').ConfigChange;
+    for (const listener of configListeners) {
+      try {
+        listener(change);
+      } catch (error) {
+        console.error('配置订阅失败', error);
+      }
+    }
+    void Promise.resolve(plugin?.configuration?.onChange?.(change)).catch((error) =>
+      console.error('配置变更回调失败', error),
+    );
+  }
   if (event === 'completion.cancel') {
     completions.get((data as { id: string }).id)?.abort();
   }
@@ -98,7 +114,28 @@ function log(level: LogLevel, identity?: InvocationIdentity, dynamic = true): SC
   };
 }
 let pluginId = 'plugin';
-let logger: SCWC.PluginLogger = Object.freeze({
+function workbenchLogger(
+  identity?: InvocationIdentity,
+): import('../../workbench/notifications.ts').NotificationLogger {
+  return Object.freeze(
+    Object.fromEntries(
+      ['info', 'success', 'warn', 'error'].map((level) => [
+        level,
+        (title: string, options: unknown = {}) =>
+          peer.event('notification.workbench', {
+            level,
+            title,
+            options,
+            executionId: (identity ?? invocationStorage.getStore())?.executionId,
+          }),
+      ]),
+    ),
+  ) as unknown as import('../../workbench/notifications.ts').NotificationLogger;
+}
+let logger: SCWC.PluginLogger & {
+  workbench: import('../../types/notifications.d.ts').NotificationLogger;
+} = Object.freeze({
+  workbench: workbenchLogger(),
   pluginId,
   windowId: null,
   info: log('info'),
@@ -108,6 +145,7 @@ let logger: SCWC.PluginLogger = Object.freeze({
 });
 function scopedLogger(identity: InvocationIdentity): SCWC.PluginLogger {
   return Object.freeze({
+    workbench: workbenchLogger(identity),
     ...identity,
     pluginId,
     info: log('info', identity),
@@ -132,6 +170,43 @@ const cache: SCWC.IPluginCache = {
   del: (key) => peer.call('cache.del', { key }, 10_000),
   mdel: (keys) => peer.call('cache.mdel', { keys }, 10_000),
 };
+const config: import('../../types/plugin-config.d.ts').PluginConfig = Object.freeze({
+  get: (key: string) => peer.call<string | undefined>('config.get', { key }, 10_000),
+  list: () =>
+    peer.call<import('../../types/plugin-config.d.ts').ConfigSnapshot>('config.list', {}, 10_000),
+  set: (key: string, value: string, options?: { baseRevision?: number }) =>
+    peer.call<import('../../types/plugin-config.d.ts').ConfigSnapshot>(
+      'config.update',
+      { values: { [key]: value }, ...options },
+      10_000,
+    ),
+  update: (values: Record<string, string>, options?: { baseRevision?: number }) =>
+    peer.call<import('../../types/plugin-config.d.ts').ConfigSnapshot>(
+      'config.update',
+      { values, ...options },
+      10_000,
+    ),
+  delete: (key: string, options?: { baseRevision?: number }) =>
+    peer.call<import('../../types/plugin-config.d.ts').ConfigSnapshot>(
+      'config.reset',
+      { keys: [key], ...options },
+      10_000,
+    ),
+  reset: (keys: string[], options?: { baseRevision?: number }) =>
+    peer.call<import('../../types/plugin-config.d.ts').ConfigSnapshot>(
+      'config.reset',
+      { keys, ...options },
+      10_000,
+    ),
+  subscribe: (
+    listener: (change: import('../../types/plugin-config.d.ts').ConfigChange) => void,
+  ) => {
+    configListeners.add(listener);
+    return () => {
+      configListeners.delete(listener);
+    };
+  },
+});
 
 function getPlugin(): ProcessPluginHandler {
   if (!plugin) {
@@ -184,12 +259,24 @@ async function initialize(args: Initialize): Promise<Manifest> {
   }
   plugin = loaded as ProcessPluginHandler;
   if (plugin.ui?.entry) {
-    await peer.call('web.prepare', { entry: plugin.ui.entry }, 300_000);
+    try {
+      await peer.call('web.prepare', { entry: plugin.ui.entry }, 300_000);
+    } catch (error) {
+      logger.warn('页面准备失败，继续启动后端', error);
+    }
+  }
+  if (plugin.configuration?.definitions) {
+    await peer.call(
+      'config.definitions',
+      { definitions: plugin.configuration.definitions },
+      10_000,
+    );
   }
   await plugin.onLoad?.(logger, {
     tasks: processTasks.reporter,
     signal: processTasks.controller.signal,
     cache,
+    config,
     LimitPromise,
     createRetryGet: (factory) =>
       createRetryGet(
@@ -227,6 +314,14 @@ async function initialize(args: Initialize): Promise<Manifest> {
   const command = plugin.pluginConfig?.command;
   return {
     name: plugin.name,
+    title: plugin.title,
+    description: plugin.description,
+    configuration: plugin.configuration
+      ? {
+          definitions: plugin.configuration.definitions ?? [],
+          hasValidator: Boolean(plugin.configuration.normalize || plugin.configuration.validate),
+        }
+      : undefined,
     command: command
       ? {
           description: command.description,
@@ -302,6 +397,16 @@ async function dispatch(method: string, args: unknown, id: string): Promise<unkn
   const invocationLogger = context ? scopedLogger(context) : logger;
   try {
     switch (method) {
+      case 'config.validate': {
+        const values =
+          (await plugin.configuration?.normalize?.(args as Record<string, string>)) ??
+          (args as Record<string, string>);
+        const result = await plugin.configuration?.validate?.(values);
+        if (result !== undefined && result !== true) {
+          throw new Error(String(result));
+        }
+        return values;
+      }
       case 'html':
         return await plugin.ui?.html?.();
       case 'api': {

@@ -18,6 +18,12 @@ import { parsedArgs, isDev } from '../common/setupParam.ts';
 import { pluginDirectorySettings } from '../common/config.ts';
 import { resolvePluginDirectory } from '../common/pluginDirectory.ts';
 import { ensurePluginWeb } from './web/build.ts';
+import { EventEmitter } from 'node:events';
+
+export const pluginLifecycleEvents = new EventEmitter();
+export async function currentPluginDirectory() {
+  return activeDirectory ?? (await configuredPluginDirectory());
+}
 
 export function configuredPluginDirectory(confirm?: () => Promise<boolean>) {
   return resolvePluginDirectory(
@@ -47,11 +53,12 @@ let activeDirectory: string | undefined;
 let shuttingDown = false;
 const mutations = new Map<string, Promise<void>>();
 
-function enqueuePlugin(id: string, action: () => Promise<void>) {
+export function enqueuePlugin(id: string, action: () => Promise<void>) {
   if (shuttingDown) {
     return Promise.reject(new CommandError('核心正在停止', false));
   }
   const work = (mutations.get(id) ?? Promise.resolve()).then(action);
+  void work.finally(() => pluginLifecycleEvents.emit('change', id)).catch(() => undefined);
   const settled = work.catch(() => undefined);
   mutations.set(id, settled);
   void settled.then(() => {
@@ -174,6 +181,19 @@ export function reloadPlugin(id: string) {
         false,
       );
     }
+  });
+}
+
+/** Stop this boot only; package enabled and persistent data are retained. */
+export function onceDisablePlugin(id: string) {
+  validatePluginId(id);
+  return enqueuePlugin(id, async () => {
+    const plugin = plugins.find((p) => p.pluginId === id);
+    if (!plugin) {
+      throw new CommandError('插件未加载', false);
+    }
+    await stopPlugin(plugin, false);
+    inactivePlugins.push({ ...plugin, reason: '插件已临时停止' });
   });
 }
 
@@ -344,7 +364,11 @@ async function loadOne(directory: string, dir: string, forceEnabled = false): Pr
       cache: () => createNamespacedCache(`plugin:${dir}`, logger),
     });
     mod = await processClient.start();
-    await ensurePluginWeb(path.join(directory, dir), entryAbs, mod, logger);
+    try {
+      await ensurePluginWeb(path.join(directory, dir), entryAbs, mod, logger);
+    } catch (error) {
+      logger.warn('插件后端已启动，但页面准备失败', error);
+    }
   } catch (error) {
     await processClient?.stop(true);
     logger.warn(`加载 ${dir} 失败:`, error);

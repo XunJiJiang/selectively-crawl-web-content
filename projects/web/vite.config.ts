@@ -14,7 +14,7 @@ export default defineConfig(({ mode }) => {
       'import.meta.env.HOST': JSON.stringify(env.HOST),
       'import.meta.env.PORT': JSON.stringify(env.PORT),
     },
-    base: mode === 'production' ? '/web/' : '/',
+    base: '/web/',
     root: path.join(__dirname),
     build: {
       rolldownOptions: {
@@ -27,6 +27,8 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       port: 3201,
+      strictPort: true,
+      hmr: { path: '__vite_hmr' },
     },
     test: {
       environment: 'jsdom',

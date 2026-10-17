@@ -1,6 +1,6 @@
 # Web 插件工作台技术契约与后端补充
 
-日期：2026-10-18。状态：拟实施合同。本文的新类型、路由、事件、环境变量均为设计建议；现有实现依据见[主设计文档](Web插件工作台设计方案.md)。只约定功能、数据与交互边界，不规定组件具体尺寸或视觉样式。
+日期：2026-10-18。状态：后端已实施，前端 SDK/工作台 UI 待接入。实际后端的请求字段、错误、配额和实现差异以[Web 后端接入](Web后端接口.md)和[数据库](数据库.md)为准；本文件保留整体设计合同。现有实现依据见[主设计文档](Web插件工作台设计方案.md)。只约定功能、数据与交互边界，不规定组件具体尺寸或视觉样式。
 
 ## 1. 身份、所有权与状态模型
 
@@ -431,7 +431,7 @@ const registration = await scwcutils.search.register({
 
 ### 5.1 存储语义与作用域
 
-独立 SQLite 数据库建议位于 `ENV_DIR/data/plugin-config.sqlite`，可由新增 `SCWC_PLUGIN_CONFIG_DB` 覆盖，相对路径按 ENV_DIR 解析。数据库不能借用 Redis 缓存或现有终端状态，核心/页面关闭不清空。
+独立 SQLite 数据库已实现于运行时 data 目录的 `scwc/plugin-config.sqlite`，默认 `ENV_DIR/data/scwc/plugin-config.sqlite`。`SCWC_DATA_DIR` 可指定运行时 data 目录，相对路径按 ENV_DIR 解析；配置库始终位于其 scwc 子目录。数据库不能借用 Redis 缓存或现有终端状态，核心/页面关闭不清空。
 
 业务值表只存字符串键和值：
 
@@ -507,7 +507,7 @@ format 仅影响显示；normalize 生成候选字符串；validate 返回 true 
 
 前端自定义约束若必须强制生效，应声明 page-required 或 backend-required。安全相关、跨页面一致的业务规则使用 backend-required；页面回执不是恶意客户端防线。
 
-新增插件后端可选 `configuration` 扩展，提供 canonical definitions、normalize/validate 和配置变化订阅。函数留在插件 host，manifest 只传能力及定义 ID；核心以受限 RPC 调用。旧插件无此扩展也能用声明式配置。
+已提供 `onLoad` 的 `context.config` 字符串 CRUD 对象（详见[接口文档](Web后端接口.md#5-插件后端配置对象)），可长期持有，与页面共用持久值和订阅。另有插件后端可选 `configuration` 扩展，提供 canonical definitions、normalize/validate 和配置变化订阅。函数留在插件 host，manifest 只传能力及定义 ID；核心以受限 RPC 调用。旧插件无此扩展也能用声明式配置。
 
 相同插件/键的多个页面必须注册兼容的默认值、codec、规则与 schemaVersion；冲突返回 definition_conflict，不以“最后聚焦页面”悄悄覆盖全局默认值。实例/资源特有条目使用不同 storageKey。默认值变化作为版本化定义更新，不覆盖已有用户值。
 

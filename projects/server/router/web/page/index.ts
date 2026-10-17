@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from 'express';
 import { plugins } from '../../../plugin/load.ts';
 import fs from 'node:fs';
+import { load } from 'cheerio';
 import path from 'node:path';
 import { SERVER_ROOT } from '../../../common/env.ts';
 
@@ -44,113 +45,97 @@ libRouter.get(/^\/scwcutils\.iife\.[a-zA-Z0-9]+\.js$/, (_req, res) => {
   res.sendFile(filePath);
 });
 
-// /web/page/plugin/:pluginDir 访问插件的 UI 页面
-// TODO: 要求插件页面在构建时需要设置基础路径为 /web/page/plugin/:pluginDir/
-router.get('/plugin/:pluginDir', async (req: Request<{ pluginDir: string }>, res: Response) => {
-  try {
-    const pluginDir = req.params.pluginDir;
-    const plugin = plugins.find(
-      (p) => path.basename(p.pluginDir).trim() === pluginDir.toString().trim(),
-    );
-    if (!plugin) {
-      res.redirect('/web/page/worry/404');
-      return;
-    }
-    if (!plugin.handler?.ui?.entry) {
-      res.redirect('/web/page/worry/404');
-      return;
-    }
-    const entryPath = (() => {
-      // 判断 entry 是否是绝对路径，如果是，则直接使用；如果不是，则拼接为相对于插件目录的路径
-      if (path.isAbsolute(plugin.handler.ui.entry)) {
-        return plugin.handler.ui.entry;
-      } else {
-        const pluginDir = path.dirname(plugin.entryFile);
-        return path.join(pluginDir, plugin.handler.ui.entry);
-      }
-    })();
-    if (!fs.existsSync(entryPath)) {
-      res.redirect('/web/page/worry/404');
-      return;
-    }
-    const htmlContent =
-      (await plugin.handler.ui.html?.()) ?? (await fs.promises.readFile(entryPath, 'utf-8'));
-    const latestFile = findLatestLibFile();
-    if (!latestFile) {
-      // 不存在 web-utils 库文件, 直接返回 htmlContent
-      res.send(htmlContent);
-      return;
-    }
-    // 在 htmlContent 中  </body> 前插入 <script src="/web/page/lib/${latestFile}"></script>
-    const modifiedHtmlContent = htmlContent.replace(
-      '</body>',
-      `<script src="/web/page/lib/${latestFile}"></script></body>`,
-    );
-    res.send(modifiedHtmlContent);
-  } catch (error) {
-    console.error('访问插件页面出错:', error);
-    res.redirect('/web/page/worry/500');
+function inside(root: string, file: string) {
+  const relative = path.relative(root, file);
+  return (
+    relative === '' ||
+    (!relative.startsWith('..' + path.sep) && relative !== '..' && !path.isAbsolute(relative))
+  );
+}
+function sendDocument(res: Response, html: string) {
+  const latest = findLatestLibFile();
+  if (!latest) {
+    res.type('html').send(html);
+    return;
   }
-});
-
-// 挂载 entryPath 目录的所有资源
-router.get(
-  '/plugin/:pluginDir/{*path}',
-  async (req: Request<{ pluginDir: string; path: string[] }>, res: Response) => {
-    try {
-      const pluginDir = req.params.pluginDir;
-      const paths = req.params.path;
-      const plugin = plugins.find(
-        (p) => path.basename(p.pluginDir).trim() === pluginDir.toString().trim(),
-      );
-      if (!plugin) {
-        res.status(404).send('not found');
-        return;
-      }
-      if (!plugin.handler?.ui?.entry) {
-        res.status(404).send('not found');
-        return;
-      }
-      const entryPath = (() => {
-        // 判断 entry 是否是绝对路径，如果是，则直接使用；如果不是，则拼接为相对于插件目录的路径
-        if (path.isAbsolute(plugin.handler.ui.entry)) {
-          return plugin.handler.ui.entry;
-        } else {
-          const pluginDir = path.dirname(plugin.entryFile);
-          return path.join(pluginDir, plugin.handler.ui.entry);
-        }
-      })();
-      const entryDir = path.dirname(entryPath);
-      const assetFullPath = path.join(entryDir, ...paths);
-      if (!fs.existsSync(assetFullPath)) {
-        const lastPath = paths.at(-1) ?? '';
-        // Let plugin SPAs open deep links directly while preserving 404s for missing assets.
-        if (!lastPath.includes('.')) {
-          const htmlContent =
-            (await plugin.handler.ui.html?.()) ?? (await fs.promises.readFile(entryPath, 'utf-8'));
-          const latestFile = findLatestLibFile();
-          if (!latestFile) {
-            res.send(htmlContent);
-            return;
-          }
-          res.send(
-            htmlContent.replace(
-              '</body>',
-              `<script src="/web/page/lib/${latestFile}"></script></body>`,
-            ),
-          );
-          return;
-        }
-        res.status(404).send('not found');
-        return;
-      }
-      res.sendFile(assetFullPath);
-    } catch (error) {
-      console.error('访问插件资源出错:', error);
-      res.redirect('/web/page/worry/500');
+  const document = load(html);
+  if (!document('script[data-scwc-bootstrap]').length) {
+    document('head').prepend(`<script data-scwc-bootstrap src="/web/page/lib/${latest}"></script>`);
+  }
+  res.type('html').send(document.html());
+}
+async function servePlugin(req: Request, res: Response) {
+  const plugin = plugins.find((p) => p.pluginId === req.params.pluginDir);
+  if (!plugin?.handler?.ui?.entry) {
+    res.status(404).send('not found');
+    return;
+  }
+  try {
+    const pluginRoot = fs.realpathSync(plugin.pluginDir);
+    const entry = fs.realpathSync(
+      path.resolve(path.dirname(plugin.entryFile), plugin.handler.ui.entry),
+    );
+    if (!inside(pluginRoot, entry)) {
+      res.status(403).send('invalid UI root');
+      return;
     }
-  },
-);
+    const root = path.dirname(entry);
+    const parts = (req.params.path ?? []) as unknown as string[];
+    const candidate = path.resolve(root, ...parts);
+    if (!inside(root, candidate)) {
+      res.status(403).send('invalid path');
+      return;
+    }
+    let file: string | undefined;
+    try {
+      const real = fs.realpathSync(candidate);
+      if (!inside(root, real)) {
+        res.status(403).send('invalid path');
+        return;
+      }
+      if (fs.statSync(real).isFile()) {
+        file = real;
+      }
+    } catch {
+      /* Missing asset: consider the explicit SPA fallback below. */
+    }
+    const metadata = JSON.parse(
+      await fs.promises.readFile(path.join(pluginRoot, 'package.json'), 'utf8'),
+    );
+    const ui = metadata.scwc?.ui;
+    const suffix = parts.join('/');
+    const htmlNavigation = Boolean(req.accepts('html'));
+    const resource = (ui?.assetPrefix ?? ['assets/']).some((prefix: string) =>
+      suffix.startsWith(prefix),
+    );
+    const fallback =
+      ui?.spa === true
+        ? htmlNavigation && !resource
+        : ui?.spa === false
+          ? false
+          : !path.basename(suffix).includes('.');
+    if (!parts.length || file === entry || (!file && fallback)) {
+      const content =
+        (await plugin.handler.ui.html?.()) ?? (await fs.promises.readFile(entry, 'utf8'));
+      sendDocument(res, content);
+      return;
+    }
+    if (!file) {
+      res.status(404).send('not found');
+      return;
+    }
+    res.sendFile(file);
+  } catch {
+    res
+      .status(503)
+      .type('html')
+      .send(
+        '<!doctype html><html data-scwc-error="ui-unavailable"><body>插件页面不可用，请查看构建任务。</body></html>',
+      );
+  }
+}
+router.get('/plugin/:pluginDir', servePlugin);
+router.get('/plugin/:pluginDir/{*path}', servePlugin);
 
 /** 错误定义 */
 const errorDefinitions = {

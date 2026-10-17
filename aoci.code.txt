@@ -1279,6 +1279,5 @@ tsconfig.json[FQ4T]: F:为内建scwc终端插件启用严格ESNext无输出检�
 build-core-releases.yml[FV6T]: F:在三系统原生Runner构建两种Node运行时ZIP并从归档执行集成测试后上传 | R:code:package.json,code:projects/server/scripts/build-bundled-node.ts,code:projects/server/scripts/build-external-node.ts | A:workflow_dispatch,jobs.build | S:仅手动触发且不发布Release；构建已生成含Unix权限的ZIP，工作流不再次归档
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/public/lib/===
-scwcutils.iife.mv0uzymf.js[LU3L]: F:以ESM分发浏览器配置、通知和插件HTTP资源及WebSocket初始化工具 | R:code:projects/webUtils/lib/index.ts,code:projects/webUtils/lib/utils/fetch.ts | A:default工具对象 | S:文件名含iife但实际导出ESM，不能按普通script加载
 scwcutils.iife.mv0uzyo1.js[LU4M]: F:以UMD分发浏览器配置、通知和按宿主配置初始化的插件HTTP资源及WebSocket工具 | R:code:projects/webUtils/lib/index.ts,code:projects/server/router/web/page/index.ts | A:window.scwcutils,fetch,resource,websocket | S:消息不校验origin；初始化前resource为空且WebSocket抛错
 

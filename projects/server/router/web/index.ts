@@ -6,6 +6,7 @@ import { isDev, isProd } from '../../common/setupParam.ts';
 import { SERVER_ROOT } from '../../common/env.ts';
 import { pluginResourceRouter } from './api/load.ts';
 import { localConfig } from './local-config.ts';
+import { proxyDevelopmentPage } from './workbench/dev-proxy.ts';
 
 /** /web */
 const router = Router();
@@ -36,26 +37,25 @@ if (isProd) {
   });
 }
 
-if (isDev) {
-  // 开发模式下, 单独启动 vite dev server, 通过端口转发的方式访问 web 项目
-  // 静默转发, 将所有请求 /web/* 转发到 web 项目
-  router.get('/index.html', (req, res) => {
-    const webUrl = `http://localhost:3201/index.html`;
-    res.redirect(webUrl);
-  });
-  router.get('/', (req, res) => {
-    const webUrl = `http://localhost:3201/index.html`;
-    res.redirect(webUrl);
-  });
-  router.get('/assets/{*path}', (req, res) => {
-    const assetPath = req.path.replace('/assets/', '');
-    const webUrl = `http://localhost:3201/assets/${assetPath}`;
-    res.redirect(webUrl);
-  });
-}
-
 router.use('/api', apiRouter);
 router.use('/resource/plugin', pluginResourceRouter);
 router.use('/page', pageRouter);
+if (isDev) {
+  router.get(
+    [
+      '/',
+      '/index.html',
+      '/assets/{*path}',
+      '/src/{*path}',
+      '/@vite/{*path}',
+      '/@id/{*path}',
+      '/@fs/{*path}',
+      '/node_modules/{*path}',
+      '/style.css',
+      '/var.css',
+    ],
+    proxyDevelopmentPage,
+  );
+}
 
 export default router;

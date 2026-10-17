@@ -2,11 +2,13 @@ import { Router, type Request, type Response } from 'express';
 import { plugins } from '../../../plugin/load.ts';
 import path from 'node:path';
 import pluginApiRouter from './load.ts';
+import workbenchRouter from '../workbench/index.ts';
 
 // TODO: 注册插件 api
 
 /** /web/api */
 const router = Router();
+router.use('/workbench', workbenchRouter);
 
 // 请求插件的 safeId
 router.get('/safeId/:pluginDir', (req: Request<{ pluginDir: string }>, res: Response) => {

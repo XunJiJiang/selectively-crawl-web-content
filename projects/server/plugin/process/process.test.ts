@@ -29,6 +29,7 @@ import pageRouter from '../../router/web/page/index.ts';
 import pluginRouter from '../../router/plugin.ts';
 
 const clients: PluginProcessClient[] = [];
+const clientRoots = new WeakMap<PluginProcessClient, string>();
 const servers: Server[] = [];
 const directories: string[] = [];
 const fixture = fileURLToPath(new URL('./fixtures/plugin.ts', import.meta.url));
@@ -86,6 +87,7 @@ function setup(options: { mode?: string; timeout?: number; entry?: string; sourc
   const page = path.join(root, 'index.html');
   fs.writeFileSync(media, '0123456789');
   fs.writeFileSync(page, '<html><body>static page</body></html>');
+  fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ type: 'module' }));
   const source = path.join(root, 'plugin.ts');
   if (options.source) {
     fs.writeFileSync(source, options.source);
@@ -121,6 +123,7 @@ function setup(options: { mode?: string; timeout?: number; entry?: string; sourc
     },
   });
   clients.push(client);
+  clientRoots.set(client, root);
   return { root, media, client, cache, logger };
 }
 
@@ -147,7 +150,7 @@ function metadata(
     runtime: client.info,
     entry: fixture,
     entryFile: fixture,
-    pluginDir: `/plugins/${id}`,
+    pluginDir: clientRoots.get(client) ?? path.dirname(fixture),
     linkWith: [],
     logger: { info: vi.fn(), pathInfo: vi.fn(), warn: vi.fn(), error: vi.fn() },
   };

@@ -11,6 +11,9 @@ import { colorEnvironment } from '../../common/color.ts';
 import { publishLog, type LogLevel } from '../../utils/log.ts';
 import path from 'node:path';
 import { preparePluginWeb } from '../web/build.ts';
+import { getPluginConfig } from '../../workbench/plugin-config.ts';
+import { workbenchEvents, type WorkbenchEvent } from '../../workbench/events.ts';
+import { getNotifications } from '../../workbench/notifications.ts';
 import type { InputRequest, InvocationIdentity, TaskSnapshot } from '../../types/task.d.ts';
 import type {
   ProcessInfo,
@@ -71,6 +74,15 @@ export class PluginProcessClient {
   private manifest?: Manifest;
   private html?: string;
   private htmlRefresh?: Promise<string | undefined>;
+  private releaseConfigValidator?: () => void;
+  private configChanged = (event: WorkbenchEvent) => {
+    if (
+      event.type === 'config.changed' &&
+      event.entityId === (this.options.pluginId ?? this.options.name)
+    ) {
+      this.peer.event('config.changed', event.payload);
+    }
+  };
   private readonly killOnParentExit = () => this.killTree('SIGKILL');
 
   constructor(options: ClientOptions) {
@@ -95,6 +107,12 @@ export class PluginProcessClient {
     this.peer.onCall = (method, args) => this.cacheCall(method, args);
     this.peer.onEvent = (event, data) => this.event(event, data);
     this.peer.onEventError = (error) => options.logger.warn('插件事件处理失败', error);
+    workbenchEvents.on('event', this.configChanged);
+    this.child.once('close', () => {
+      workbenchEvents.off('event', this.configChanged);
+      this.releaseConfigValidator?.();
+      this.info.pid = undefined;
+    });
     this.exited = new Promise((resolve) =>
       this.child.once('close', (code, signal) => {
         if (!this.stopping) {
@@ -185,6 +203,39 @@ export class PluginProcessClient {
   }
 
   private async cacheCall(method: string, args: unknown): Promise<unknown> {
+    if (method.startsWith('config.')) {
+      const service = getPluginConfig(),
+        pluginId = this.options.pluginId ?? this.options.name;
+      const data = args as {
+        key: string;
+        values: unknown;
+        keys: string[];
+        baseRevision?: number;
+        definitions: import('../../types/plugin-config.d.ts').ConfigDefinition[];
+      };
+      if (method === 'config.get') {
+        return service.get(pluginId, data.key);
+      }
+      if (method === 'config.list') {
+        return service.snapshot(pluginId);
+      }
+      if (method === 'config.definitions') {
+        this.releaseConfigValidator ??= service.bindValidator(pluginId, (values) =>
+          this.call('config.validate', values),
+        );
+        for (const definition of data.definitions) {
+          service.define(pluginId, definition, service.snapshot(pluginId).revision);
+        }
+        return;
+      }
+      if (method === 'config.update' || method === 'config.reset') {
+        return service.update(pluginId, method === 'config.reset' ? {} : data.values, {
+          baseRevision: data.baseRevision,
+          reset: method === 'config.reset' ? data.keys : undefined,
+        });
+      }
+      throw new Error('未知配置操作');
+    }
     if (method === 'web.prepare') {
       const entry = (args as { entry?: unknown })?.entry;
       if (
@@ -281,7 +332,27 @@ export class PluginProcessClient {
     if (!value || typeof value !== 'object') {
       return;
     }
-    if (event === 'input.cancel') {
+    if (event === 'notification.workbench') {
+      const data = value as {
+        level: string;
+        title: string;
+        options: unknown;
+        executionId?: string;
+      };
+      const identity = data.executionId ? this.identities.get(data.executionId) : undefined;
+      try {
+        getNotifications().publish(
+          'plugin',
+          this.options.pluginId ?? this.options.name,
+          data.level,
+          data.title,
+          data.options,
+          { executionId: identity?.executionId },
+        );
+      } catch (error) {
+        this.options.logger.warn('工作台通知被拒绝', error);
+      }
+    } else if (event === 'input.cancel') {
       this.inputs.get((value as { id: string }).id)?.abort();
     } else if (event === 'log') {
       const data = value as { level: LogLevel; text: string; executionId?: string };
@@ -419,6 +490,12 @@ export class PluginProcessClient {
       );
       this.html = this.manifest.ui?.html;
       this.info.status = 'ready';
+      if (this.manifest.configuration?.hasValidator) {
+        this.releaseConfigValidator = getPluginConfig().bindValidator(
+          this.options.pluginId ?? this.options.name,
+          (values) => this.call('config.validate', values),
+        );
+      }
       this.heartbeat = setInterval(() => {
         if (this.pinging || this.stopping) {
           return;
@@ -505,6 +582,8 @@ export class PluginProcessClient {
     const command = manifest.command;
     return {
       name: manifest.name,
+      title: manifest.title,
+      description: manifest.description,
       onRequest: async ({ data, site }, logger) => {
         const id = randomUUID();
         this.notifications.set(id, logger);

@@ -60,6 +60,14 @@ HTTP 在插件激活前启动。加载器最多同时激活两个插件，成功
 
 第一阶段没有提供进程级 CPU/内存硬配额，也没有迁移贴纸的 SQLite 写连接、分离读通道或统一 FFmpeg/OCR 调度。独立进程内部的长同步操作仍可阻塞该插件自身 API，后续阶段处理这一点。
 
+## 持久字符串配置与工作台通知
+
+`onLoad(logger, context)` 提供冻结的 `context.config`，可长期持有。异步方法：`get(key)`、`list()`、`set(key,string,options?)`、`update(Record<string,string>,options?)`、`delete(key,options?)`、`reset(keys,options?)`；`subscribe(listener)` 返回解除订阅函数。写入选项支持 baseRevision；未提供时也会检查调用期间的并发变化。
+
+值只接受字符串，空字符串合法，JSON/数字/布尔编解码由插件负责。get 返回有效字符串或 undefined；delete/reset 删除覆盖，有定义时回到默认。插件目录命名空间由核心绑定，不能指定其他 pluginId。配置库固定在运行时 data 目录的 `scwc/plugin-config.sqlite`，默认 `ENV_DIR/data/scwc/plugin-config.sqlite`；SCWC_DATA_DIR 可改变 data 目录。与 Web 配置 API 共用值、定义、revision 和变更，不使用缓存，停止/退出不清空。
+
+可选导出 `configuration:{definitions?,normalize?,validate?,onChange?}`；函数留在隔离宿主。`logger.workbench.info/success/warn/error` 保存工作台通知，旧输出与采集 toWeb 语义保留。可选导出 title、description 供目录展示，name 仍是原标识。页面构建失败记录 UI 警告并继续后端 onLoad；onLoad 自身失败仍是后端失败。完整示例和字段见[Web 后端接入](../../../../docs/Web后端接口.md)。
+
 ## 验证
 
 ```bash

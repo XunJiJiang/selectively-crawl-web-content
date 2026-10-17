@@ -43,15 +43,25 @@ export async function inputReply(
 
 type InputHandler = (request: InputRequest, signal: AbortSignal) => Promise<string>;
 let handler: InputHandler | undefined;
+const sessionHandlers = new Map<string, InputHandler>();
+export function registerInputSession(sessionId: string, value: InputHandler) {
+  sessionHandlers.set(sessionId, value);
+  return () => {
+    if (sessionHandlers.get(sessionId) === value) {
+      sessionHandlers.delete(sessionId);
+    }
+  };
+}
 export function setInputHandler(value?: InputHandler) {
   handler = value;
 }
 export function readInput(request: InputRequest, signal: AbortSignal): Promise<string> {
   signal.throwIfAborted();
-  if (!handler) {
+  const selected = sessionHandlers.get(request.identity.sessionId ?? '') ?? handler;
+  if (!selected) {
     throw new InvocationInputError('unavailable', '当前调用没有可用的交互输入终端');
   }
-  return handler(request, signal);
+  return selected(request, signal);
 }
 export function inputFormat(type: InputConstructor): InputFormat {
   if (type === String) {

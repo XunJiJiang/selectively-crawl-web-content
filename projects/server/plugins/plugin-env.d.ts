@@ -37,6 +37,8 @@ namespace SCWC {
    * 允许插件长期持有该对象并在需要时调用其中的函数
    */
   export interface ILoadContext {
+    /** 持久配置，仅接受字符串；宿主已绑定当前插件目录命名空间。 */
+    config: import('../types/plugin-config.d.ts').PluginConfig;
     tasks?: import('../types/task.d.ts').TaskReporter;
     signal?: AbortSignal;
     createRetryGet<RES, A extends AxiosRequestConfig = AxiosRequestConfig>(
@@ -212,6 +214,18 @@ namespace SCWC {
   /** Core-generated adapter. Plugins implement IPluginHandler instead. */
   export interface IHostedPluginHandler {
     name?: string;
+    title?: string;
+    description?: string;
+    configuration?: {
+      definitions?: import('../types/plugin-config.d.ts').ConfigDefinition[];
+      normalize?: (
+        values: Record<string, string>,
+      ) => Record<string, string> | Promise<Record<string, string>>;
+      validate?: (values: Record<string, string>) => true | string | Promise<true | string>;
+      onChange?: (
+        change: import('../types/plugin-config.d.ts').ConfigChange,
+      ) => void | Promise<void>;
+    };
     onLoad?: (logger: TLogger, context: ILoadContext) => Promise<void> | void;
     // TODO: 修改名称
     onRequest: (

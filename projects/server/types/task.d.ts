@@ -45,6 +45,7 @@ export interface InputRequest {
   type: InputFormat;
 }
 export interface PluginLogger extends TLogger {
+  readonly workbench?: import('./notifications.d.ts').NotificationLogger;
   readonly pluginId: string;
   readonly windowId: string | null;
   readonly executionId?: string;

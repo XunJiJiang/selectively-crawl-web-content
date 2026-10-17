@@ -14,9 +14,10 @@ import { getRootUrl, matchLink } from './utils/index.ts';
 import { TOKEN } from '../common/env.ts';
 import { serverLogger } from '../common/logger.ts';
 import { isSameDomain } from '../utils/url.ts';
-import { pluginWebSocketRegistry } from './web/websocket.ts';
 import { createServer } from 'node:http';
 import { taskRegistry, currentIdentity, invocationStorage } from '../common/tasks.ts';
+import { pageSessions, requestOrigin } from '../workbench/page-sessions.ts';
+import { attachUpgradeDispatcher } from './web/workbench/websocket.ts';
 
 export const app = express();
 app.use((_req, res, next) => {
@@ -37,6 +38,11 @@ app.use((_req, res, next) => {
 });
 
 // 修改为支持大体积json
+app.use(
+  '/web/api/workbench',
+  express.raw({ type: 'image/png', limit: '2mb' }),
+  express.json({ limit: '1mb' }),
+);
 app.use(express.json({ limit: '100mb' }));
 
 /** 当前服务所在主机和端口 */
@@ -49,6 +55,36 @@ app.use((req, res, next) => {
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') {
     res.sendStatus(200);
+    return;
+  }
+
+  const management =
+    req.path === '/web/api/workbench' || req.path.startsWith('/web/api/workbench/');
+  const bearer = req.get('authorization');
+  if (
+    management ||
+    (bearer?.startsWith('Bearer ') &&
+      TOKEN &&
+      bearer !== `Bearer ${TOKEN}` &&
+      req.path.startsWith('/web/api/plugin/'))
+  ) {
+    try {
+      const origin = requestOrigin(req);
+      if ((TOKEN || (bearer && bearer.trim() !== 'Bearer')) && bearer !== `Bearer ${TOKEN}`) {
+        const session = pageSessions.authorize(req, origin);
+        if (!plugins.some((p) => p.pluginId === session.pluginId && p.safeId === session.safeId)) {
+          throw new Error('插件授权已失效');
+        }
+        res.locals.pageSession = session;
+      }
+      next();
+    } catch (error) {
+      res.status(403).json({
+        success: false,
+        code: 'unauthorized',
+        message: error instanceof Error ? error.message : '授权失败',
+      });
+    }
     return;
   }
 
@@ -262,7 +298,7 @@ app.use('/web', webRouter);
 
 export async function listen(port: number, callback?: (port: number) => void, range = 0) {
   const server = createServer(app);
-  pluginWebSocketRegistry.attach(server);
+  attachUpgradeDispatcher(server);
   const actualPort = await listenAvailable(server, port, range);
   callback?.(actualPort);
   return server;

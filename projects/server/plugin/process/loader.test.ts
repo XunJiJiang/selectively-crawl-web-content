@@ -46,7 +46,7 @@ describe('default isolated v2 plugin loader', () => {
   it('prepares missing Vite pages before onLoad, pauses startup timeout, and rejects unsupported build scripts', async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'scwc-auto-web-'));
     roots.push(root);
-    for (const id of ['built', 'invalid']) {
+    for (const id of ['built', 'invalid', 'ui-error']) {
       const directory = path.join(root, id);
       fs.mkdirSync(path.join(directory, 'web'), { recursive: true });
       fs.writeFileSync(
@@ -66,7 +66,7 @@ describe('default isolated v2 plugin loader', () => {
 import fs from 'node:fs';
 export default {
   onRequest() {},
-  onLoad() { fs.readFileSync(new URL('./web/dist/index.html', import.meta.url)); fs.writeFileSync(new URL('./started.txt', import.meta.url), 'started'); },
+  onLoad() { ${id === 'ui-error' ? '' : "fs.readFileSync(new URL('./web/dist/index.html', import.meta.url));"} fs.writeFileSync(new URL('./started.txt', import.meta.url), 'started'); },
   onUnload() { fs.writeFileSync(new URL('./stopped.txt', import.meta.url), 'stopped'); },
   ui: {entry:'./web/dist/index.html'},
 };
@@ -96,13 +96,14 @@ export default defineConfig({root:path.join(import.meta.dirname,'web'),build:{ou
         .filter((plugin) => plugin.pluginId === 'built')
         .map((plugin) => plugin.reason),
     ).toEqual([]);
-    expect(plugins.map((plugin) => plugin.pluginId)).toEqual(['built']);
+    expect(plugins.map((plugin) => plugin.pluginId).sort()).toEqual(['built', 'ui-error']);
+    expect(fs.existsSync(path.join(root, 'ui-error/started.txt'))).toBe(true);
     expect(fs.existsSync(path.join(root, 'built/web/dist/index.html'))).toBe(true);
     expect(fs.existsSync(path.join(root, 'built/started.txt'))).toBe(true);
     expect(fs.existsSync(path.join(root, 'invalid/started.txt'))).toBe(false);
     expect(fs.existsSync(path.join(root, 'invalid/stopped.txt'))).toBe(true);
     expect(inactivePlugins.find((plugin) => plugin.pluginId === 'invalid')?.reason).toContain(
-      'vite build',
+      'ENOENT',
     );
   }, 15_000);
   it('isolates plugins with omitted or partial settings while startup fails or hangs', async () => {

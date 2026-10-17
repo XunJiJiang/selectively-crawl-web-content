@@ -5,7 +5,7 @@
 1. 提供完整构建产物，`ui.entry` 指向可读取的 HTML；核心直接加载，不要求 Vite 或 build:web。
 2. 提供页面源码和 Vite 配置，在 package.json 保留 `scripts.build:web: "vite build --config vite.config.ts"`。HTML 缺失时核心自动构建，不要求在插件目录安装 Vite。
 
-初始化顺序是导入插件入口 → 获取 ui.entry → 准备/构建页面 → onLoad → 注册命令、API、资源和页面。入口模块的顶层代码不能提前读取尚未生成的页面；此类读取应放在 onLoad 或 ui.html 中。页面构建期间暂停插件 startupTimeoutMs；构建有独立的五分钟截止时间。失败插件进入 inactivePlugins，其他插件继续加载。
+初始化顺序是导入插件入口 → 获取 ui.entry → 准备/构建页面 → onLoad → 注册命令、API、资源和页面。入口模块的顶层代码不能提前读取尚未生成的页面；此类读取应放在 onLoad 或 ui.html 中。页面构建期间暂停插件 startupTimeoutMs；构建有独立的五分钟截止时间。页面构建失败记录 UI 警告并继续后端 onLoad；onLoad 自身失败才进入 inactivePlugins。其他插件继续加载，UI 与后端状态分别通过工作台 catalog 报告。
 
 ## 命令
 
