@@ -4,17 +4,7 @@
   "index_path": "aoci.txt",
   "exclude_dirs": [
     "node_modules",
-    "vendor",
-    "dist",
-    "build",
-    "target",
     ".next",
-    "coverage",
-    "tmp",
-    "uploads",
-    "backup",
-    "backups",
-    "artifacts",
     ".output",
     "__pycache__",
     ".venv",
@@ -25,6 +15,19 @@
     ".tox",
     ".nox",
     "htmlcov"
+  ],
+  "exclude_root_dirs": [
+    "backup",
+    "backups",
+    "build",
+    "cache",
+    "coverage",
+    "dist",
+    "target",
+    "tmp",
+    "uploads",
+    "artifacts",
+    "vendor"
   ],
   "exclude_files": [
     "*.backup.*",
@@ -278,13 +281,10 @@
       }
     ]
   },
-  "installed_agents": [
-    "codex"
-  ],
+  "installed_agents": [],
   "automation": {
     "mode": "auto"
   },
-  "maintain_transport_budget_bytes": 65536,
   "ai": {
     "enabled": false,
     "provider": "openai-compatible",
@@ -296,5 +296,6 @@
     "max_input_tokens": 0,
     "token_accounting": "auto",
     "prompt_snapshot": "redacted"
-  }
+  },
+  "maintain_transport_budget_bytes": 65536
 }

@@ -1,5 +1,12 @@
 # AGENTS
 
+## AOCI 索引版本门禁
+
+- 当前索引构建版本（最低兼容版本）：`0.1.0-rc21`。本次重建使用的 AOCI MCP 服务和 CLI 均为该版本。
+- 每次开始任务，必须先核验实际运行的 AOCI MCP 服务版本（`aoci_overview` 的 `check_only=true` 响应中 `cognition_receipt.mcp_service_version`）；需要调用 CLI 时，还须核验实际二进制的 `--version`。版本核验是执行用户任务前的必要步骤。
+- 如果任一实际使用的 AOCI 版本低于当前索引构建版本，先不执行用户的指示，也不得读取、维护或改写索引；必须向用户明确说明“AOCI 版本低于索引构建版本”，列出实际版本与索引构建版本，然后停止任务，等待用户升级 AOCI。无法确认版本时同样停止并说明原因。
+- 按语义化版本比较，预发布序号按数值比较（例如 `rc9 < rc21`），相同主、次、修订版本的正式版高于预发布版。以后重建索引时，必须同步更新本节的索引构建版本。
+
 <!-- aoci:begin -->
 ## AOCI 仓库认知
 
@@ -76,15 +83,15 @@ Entry 的语义必须来自模型对真实证据的理解。不得仅依据路�
 
 ### 任务收尾与认知维护
 
-1. 纯只读问答、分析、版本核验，或没有产生受AOCI管理对象变化的任务，不需要调用维护工具。当前AOCI版本是任意`aoci_overview` check_only或`aoci_maintain`响应里的`cognition_receipt.mcp_service_version`；二进制路径是项目`.mcp.json`里的`command`，CLI不必在PATH上。
+5. 纯只读问答、分析、版本核验，或没有产生受AOCI管理对象变化的任务，不需要调用维护工具。当前AOCI版本是任意`aoci_overview` check_only或`aoci_maintain`响应里的`cognition_receipt.mcp_service_version`；二进制路径是项目`.mcp.json`里的`command`，CLI不必在PATH上。
 
-2. 发生受AOCI管理对象变化时，待其达到本次任务的最终稳定状态后，只调用一次 `aoci_maintain`。不要在每次中间修改后逐文件维护。
+6. 发生受AOCI管理对象变化时，待其达到本次任务的最终稳定状态后，只调用一次 `aoci_maintain`。不要在每次中间修改后逐文件维护。
 
-3. 若维护结果返回真实语义候选，Host 模型必须基于每个候选绑定的对象和必要证据，独立创作完整标签与F/R/A/S更新。通过 `aoci_update_entry` 一次提交当前机器签发批次的完整候选集合，同时原样保留每项 `source_sha256`、`candidate_id` 与对应domain批次身份。`max_entries`只限制单次请求和原子事务，不限制logical plan、Whole-Index或Managed Scope。`remaining`非零时，在当前批次成功Apply后重新调用Maintain并从新preimage继续；绝不能为满足transport上限缩减Index覆盖或自行截取返回批次。
+7. 若维护结果返回真实语义候选，Host 模型必须基于每个候选绑定的对象和必要证据，独立创作完整标签与F/R/A/S更新。通过 `aoci_update_entry` 一次提交当前机器签发批次的完整候选集合，同时原样保留每项 `source_sha256`、`candidate_id` 与对应domain批次身份。`max_entries`只限制单次请求和原子事务，不限制logical plan、Whole-Index或Managed Scope。`remaining`非零时，在当前批次成功Apply后重新调用Maintain并从新preimage继续；绝不能为满足transport上限缩减Index覆盖或自行截取返回批次。
 
    没有足够证据且当前布局支持 `aoci_report` 时，使用它而不猜测、套用模板或为消除待办而生成缺乏证据的认知。
 
-4. 必须遵守工具返回的结构化状态和安全边界：
+8. 必须遵守工具返回的结构化状态和安全边界：
 
    - `repair_required`：只修复明确命中的候选，再重新提交当前机器签发的完整批次；
    - `stopped`：结束当前写入尝试并检查 `failed_step`、错误、正式写入证据与Recovery。auto模式下，已证明零写入则记录closure并重新Plan；完整Intent和可证明postimage则Resume；策略要求Rollback且preimage可证明则精确恢复后重新Plan。只有证据不足、第三方正式字节冲突、需要审批或外部动作，或命中其他真实安全边界时，才停止整个用户任务；
@@ -93,7 +100,7 @@ Entry 的语义必须来自模型对真实证据的理解。不得仅依据路�
 
    维护完成后如果又修改了任何受管理对象，之前的维护结果失效，应在新的最终稳定状态重新完成收尾。
 
-5. 用户只限制业务文件范围，但没有明确禁止仓库托管资产时，AOCI托管资产可以在收尾阶段为保持认知一致而更新，并应在审计和提交中与业务文件区分。
+9. 用户只限制业务文件范围，但没有明确禁止仓库托管资产时，AOCI托管资产可以在收尾阶段为保持认知一致而更新，并应在审计和提交中与业务文件区分。
 
    用户明确禁止修改 `aoci.txt`、`.aoci`、元数据或任何额外文件时，以用户限制为准，不得写入，并如实报告剩余不一致。
 
