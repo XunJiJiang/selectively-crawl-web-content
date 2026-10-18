@@ -44,6 +44,7 @@ export class CommandService {
   private pendingBytes = 0;
   private outputTimer?: ReturnType<typeof setTimeout>;
   private storage: WorkbenchStorage;
+  private startedAt = now();
   private workspace: WorkspaceService;
   constructor(storage: WorkbenchStorage, workspace: WorkspaceService) {
     this.storage = storage;
@@ -180,6 +181,7 @@ export class CommandService {
       coreBootId,
       owner,
       status: 'running',
+      command,
       createdAt: now(),
     };
     this.storage.db.transaction(() => {
@@ -193,6 +195,7 @@ export class CommandService {
         .prepare('UPDATE terminals SET value_json=?,revision=revision+1 WHERE id=?')
         .run(json(metadata), terminalId);
     })();
+    this.persistOutput(terminalId, { type: 'command', text: command, executionId: id });
     workbenchEvents.publish('execution.started', value, id);
     void invocationStorage
       .run(scope.context, () => parseAndRunCommands(command, scope.context))
@@ -466,6 +469,7 @@ export class CommandService {
           streamId,
           seq,
           timestamp: now(),
+          coreBootId,
           text: text.slice(i, i + 16000),
         };
         this.storage.db
@@ -514,7 +518,15 @@ export class CommandService {
         .get(streamId) as { seq: number | null }
     ).seq;
     return {
-      items: rows.map((r) => JSON.parse(r.value_json)),
+      items: rows.map((r) => {
+        const record = JSON.parse(r.value_json);
+        return {
+          ...record,
+          restored: record.coreBootId
+            ? record.coreBootId !== coreBootId
+            : record.timestamp < this.startedAt,
+        };
+      }),
       truncatedBefore: first && first > 1 ? first : null,
     };
   }

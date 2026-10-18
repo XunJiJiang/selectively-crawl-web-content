@@ -17,6 +17,7 @@ import type {
   Preferences,
   PreferenceValues,
   Terminal,
+  TerminalViewState,
   WorkbenchEvent,
   Workspace,
   WorkspaceSnapshot,
@@ -37,6 +38,24 @@ export class WorkbenchStore extends EventTarget {
   jobs = new Map<string, Job>();
   outputs = new Map<string, OutputRecord[]>();
   outputGaps = new Map<string, number>();
+  private terminalViews = new Map<string, TerminalViewState>();
+  terminalView(terminal: Terminal): TerminalViewState {
+    let view = this.terminalViews.get(terminal.id);
+    if (!view) {
+      view = {
+        draft: terminal.draft,
+        historyCursor: -1,
+        historyDraft: '',
+        historyLocked: false,
+        selectionAnchor: terminal.draft.length,
+        selectionHead: terminal.draft.length,
+        follow: true,
+        scrollTop: 0,
+      };
+      this.terminalViews.set(terminal.id, view);
+    }
+    return view;
+  }
   cursors: Record<string, string | null> = {};
   totals: Record<string, number> = {};
   connection: 'connected' | 'connecting' | 'disconnected' = 'connecting';

@@ -280,10 +280,37 @@ describe('Web command execution', () => {
       accepted.id,
     );
     expect(count).toBe(1);
+    expect(c.execution(accepted.id)).toMatchObject({ command: 'wb-test' });
+    expect(
+      c.outputPage(terminal.id, 0).items.filter((r: { type?: string }) => r.type === 'command'),
+    ).toEqual([
+      expect.objectContaining({
+        text: 'wb-test',
+        executionId: accepted.id,
+        coreBootId,
+        restored: false,
+      }),
+    ]);
     expect(
       c.outputPage(terminal.id, 0).items.some((r: { text: string }) => r.text.includes('answer')),
     ).toBe(true);
     expect(c.outputPage(other.id, 0).items).toHaveLength(0);
+    storage.db
+      .prepare('INSERT INTO output_records VALUES (?,?,?,?)')
+      .run(
+        other.id,
+        1,
+        new Date().toISOString(),
+        JSON.stringify({
+          seq: 1,
+          streamId: other.id,
+          timestamp: new Date().toISOString(),
+          type: 'command',
+          text: 'old',
+          coreBootId: 'previous-boot',
+        }),
+      );
+    expect(c.outputPage(other.id, 0).items[0]).toMatchObject({ text: 'old', restored: true });
     await expect(
       c.cancel('wa', 'owner-a', ta, terminal.id, accepted.id, coreBootId),
     ).rejects.toMatchObject({ code: 'stale_execution' });

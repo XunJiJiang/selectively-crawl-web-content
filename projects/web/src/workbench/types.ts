@@ -112,6 +112,21 @@ export interface OutputRecord {
   text: string;
   source?: string;
   pluginId?: string;
+  type?: 'prompt' | 'command' | 'output' | 'error' | 'warning' | 'info' | 'success';
+  executionId?: string;
+  coreBootId?: string;
+  restored?: boolean;
+}
+export interface TerminalViewState {
+  draft: string;
+  historyCursor: number;
+  historyDraft: string;
+  historyLocked: boolean;
+  selectionAnchor: number;
+  selectionHead: number;
+  follow: boolean;
+  scrollTop: number;
+  scrollAnchor?: { seq: number; offset: number };
 }
 export interface Job {
   id: string;
