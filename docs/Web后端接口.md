@@ -1,6 +1,6 @@
 # Web 工作台后端接入
 
-实施日期：2026-10-18。本文描述已实现的服务端合同；工作台 UI 和新增浏览器 SDK 的 MessageChannel、搜索、休眠等前端适配仍按[设计](Web插件工作台技术契约.md)实施。
+实施日期：2026-10-18。本文描述已实现的服务端合同；工作台 UI 与浏览器 SDK 已接入，运行与前端能力边界见[Web 前端接入](Web前端接入.md)；整体合同见[设计](Web插件工作台技术契约.md)。
 
 源码入口：[HTTP](../projects/server/router/web/workbench/index.ts)、[WebSocket](../projects/server/router/web/workbench/websocket.ts)、[业务服务](../projects/server/workbench/runtime.ts)、[数据库](数据库.md)。旧 `/web/api/pages`、safeId 和插件业务 API 保持兼容。
 

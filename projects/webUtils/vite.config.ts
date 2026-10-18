@@ -18,7 +18,7 @@ export default defineConfig(({ mode }) => {
       lib: {
         entry: resolve(import.meta.dirname, 'lib/index.ts'),
         name: 'scwcutils',
-        format: ['iife'],
+        formats: ['iife'],
         // 将添加适当的扩展名后缀
         fileName: () => `scwcutils.iife.${new Date().getTime().toString(36)}.js`,
       },

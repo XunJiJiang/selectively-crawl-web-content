@@ -23,7 +23,7 @@
     "noUncheckedSideEffectImports": true
   },
   "include": [
-    "projects/webutils/lib.d.ts",
+    "projects/webUtils/lib.d.ts",
     "projects/server/plugins/*/web/**/*",
     "projects/server/plugin/sdk/modules.d.ts",
     "projects/server/plugins/plugin-env.d.ts",
