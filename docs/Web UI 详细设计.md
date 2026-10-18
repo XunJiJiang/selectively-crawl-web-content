@@ -1824,6 +1824,7 @@
   overflow: hidden;
 }
 
+/* 终端输出区 - 类似 VS Code 终端 */
 .terminal-output {
   flex: 1;
   padding: var(--space-3);
@@ -1833,37 +1834,139 @@
   font-size: var(--text-sm);
   line-height: var(--leading-normal);
   background: var(--surface-0);
+  position: relative;
 }
 
-.terminal-input-area {
-  flex-shrink: 0;
-  border-top: 1px solid var(--border-subtle);
-  background: var(--surface-1);
-}
-
-.terminal-input-toolbar {
-  height: 28px;
-  padding: 0 var(--space-3);
+/* 终端输出行 */
+.terminal-output-line {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  background: var(--surface-2);
-  border-bottom: 1px solid var(--border-subtle);
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin-bottom: 2px;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
-.terminal-input-label {
-  font-size: var(--text-xs);
+/* 命令提示符 */
+.terminal-output-line[data-type="prompt"] {
+  color: var(--accent-primary);
+  font-weight: var(--font-semibold);
+}
+
+.terminal-output-line[data-type="prompt"]::before {
+  content: '>';
+  color: var(--accent-primary);
+  margin-right: var(--space-1);
+}
+
+/* 命令输入回显（历史记录） */
+.terminal-output-line[data-type="command"] {
+  color: var(--text-primary);
+}
+
+/* 命令输出 */
+.terminal-output-line[data-type="output"] {
   color: var(--text-secondary);
 }
 
-.terminal-input-actions {
-  display: flex;
-  gap: var(--space-1);
+/* 错误输出 */
+.terminal-output-line[data-type="error"] {
+  color: var(--status-error);
 }
 
+/* 警告输出 */
+.terminal-output-line[data-type="warning"] {
+  color: var(--status-warning);
+}
+
+/* 信息输出 */
+.terminal-output-line[data-type="info"] {
+  color: var(--status-info);
+}
+
+/* 成功输出 */
+.terminal-output-line[data-type="success"] {
+  color: var(--status-success);
+}
+
+/* 顶部置顶命令 - 类似 projects/terminal */
+.terminal-pinned-command {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border-default);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.terminal-pinned-command::before {
+  content: '>';
+  color: var(--accent-primary);
+  font-weight: var(--font-semibold);
+}
+
+.terminal-pinned-command-text {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 还原的历史记录提示 */
+.terminal-restored-indicator {
+  display: inline-block;
+  margin-left: var(--space-2);
+  padding: 0 var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  background: var(--surface-3);
+  border-radius: var(--radius-sm);
+}
+
+/* 终端输入区域 - 多行输入设计 */
+.terminal-input-area {
+  flex-shrink: 0;
+  border-top: 1px solid var(--border-subtle);
+  background: var(--surface-0);
+  display: flex;
+  flex-direction: column;
+  min-height: 40px;
+  max-height: 50vh;
+}
+
+/* 命令提示行 */
+.terminal-input-prompt-line {
+  display: flex;
+  align-items: center;
+  padding: var(--space-2) var(--space-3);
+  gap: var(--space-2);
+  background: var(--surface-0);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.terminal-input-prompt {
+  color: var(--accent-primary);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  user-select: none;
+}
+
+.terminal-input-prompt::after {
+  content: '>';
+  margin-left: var(--space-1);
+}
+
+/* 多行输入编辑器 */
 .terminal-input-editor {
-  min-height: 80px;
-  max-height: 240px;
+  flex: 1;
+  min-height: 0;
   padding: var(--space-3);
   font-family: var(--font-mono);
   font-size: var(--text-sm);
@@ -1871,13 +1974,97 @@
   color: var(--text-primary);
   background: var(--surface-0);
   border: none;
-  resize: vertical;
+  resize: none;
   overflow-y: auto;
+  white-space: pre;
+  word-break: normal;
 }
 
 .terminal-input-editor:focus {
-  outline: 2px solid var(--accent-primary);
-  outline-offset: -2px;
+  outline: none;
+}
+
+/* 命令补全候选列表 */
+.terminal-completion-list {
+  max-height: 200px;
+  overflow-y: auto;
+  background: var(--surface-1);
+  border-top: 1px solid var(--border-default);
+}
+
+.terminal-completion-item {
+  padding: var(--space-2) var(--space-3);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
+.terminal-completion-item:hover {
+  background: var(--surface-2);
+}
+
+.terminal-completion-item[data-selected="true"] {
+  background: var(--surface-3);
+  color: var(--accent-primary);
+}
+
+.terminal-completion-item-name {
+  flex: 1;
+  color: var(--text-primary);
+  font-weight: var(--font-medium);
+}
+
+.terminal-completion-item-description {
+  flex: 0 0 auto;
+  max-width: 50%;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 输入状态栏 */
+.terminal-input-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--space-3);
+  height: 24px;
+  background: var(--surface-1);
+  border-top: 1px solid var(--border-subtle);
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+}
+
+.terminal-input-status-left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.terminal-input-status-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* 多行输入指示器 */
+.terminal-multiline-indicator {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--text-secondary);
+}
+
+.terminal-multiline-indicator-icon {
+  width: 12px;
+  height: 12px;
 }
 
 /* 终端列表（多终端时显示） */
