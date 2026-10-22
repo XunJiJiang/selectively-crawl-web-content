@@ -2,7 +2,7 @@ import { requireValue } from '../../../shared/workbench-protocol.ts';
 import { LitElement, html, css, nothing, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { EditorState, Prec } from '@codemirror/state';
-import { EditorView, keymap } from '@codemirror/view';
+import { EditorView, keymap, drawSelection } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap, insertNewline } from '@codemirror/commands';
 import type { WorkbenchStore } from '../workbench/store.ts';
 import type { Terminal } from '../workbench/types.ts';
@@ -48,7 +48,7 @@ export class CommandEditor extends LitElement {
       color: var(--accent-primary);
       font-weight: var(--font-semibold);
       line-height: var(--leading-relaxed);
-      font-size: var(--text-xs);
+      font-size: 1rem;
       user-select: none;
     }
     .terminal-input-editor {
@@ -63,7 +63,7 @@ export class CommandEditor extends LitElement {
       max-height: 50vh;
       background: var(--surface-0);
       color: var(--text-primary);
-      font-size: var(--text-xs);
+      font-size: 1rem;
     }
     .cm-scroller {
       overflow: auto;
@@ -72,13 +72,25 @@ export class CommandEditor extends LitElement {
     }
     .cm-editor .cm-content {
       padding: 0 !important;
-      caret-color: var(--accent-primary);
+      caret-color: transparent;
     }
     .cm-focused {
       outline: none !important;
     }
     .cm-cursor {
-      border-left-color: var(--accent-primary);
+      display: block !important;
+      width: 1ch !important;
+      border: 1px solid var(--terminal-cursor) !important;
+      box-sizing: border-box;
+      background: transparent;
+      margin-left: 0 !important;
+    }
+    .cm-focused .cm-cursor {
+      background: var(--terminal-cursor);
+    }
+    .cm-cursorLayer {
+      animation: none !important;
+      opacity: 1 !important;
     }
     .cm-selectionBackground {
       background: var(--accent-subtle) !important;
@@ -95,7 +107,7 @@ export class CommandEditor extends LitElement {
       padding: var(--space-1);
       background: var(--surface-1);
       border: 1px solid var(--border-default);
-      border-radius: var(--radius-sm);
+      border-radius: 4px;
       box-shadow: var(--shadow-menu);
     }
     .terminal-completion-item {
@@ -103,7 +115,7 @@ export class CommandEditor extends LitElement {
       gap: var(--space-3);
       padding: var(--space-1) var(--space-2);
       color: var(--text-primary);
-      font-size: var(--text-xs);
+      font-size: 1rem;
       cursor: pointer;
     }
     .terminal-completion-item[data-selected='true'] {
@@ -155,6 +167,7 @@ export class CommandEditor extends LitElement {
   private extensions() {
     return [
       history(),
+      drawSelection({ cursorBlinkRate: 0, drawRangeCursor: false }),
       EditorView.lineWrapping,
       EditorView.contentAttributes.of({
         'aria-label': '命令输入',

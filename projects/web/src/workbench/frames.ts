@@ -35,6 +35,8 @@ export interface FrameRuntime {
   handshaking?: boolean;
   pendingHello?: MessageEvent;
   handshakeTimer?: ReturnType<typeof setTimeout>;
+  reportingNavigation?: number;
+  navigationQueue?: Promise<unknown>;
 }
 /** Frames have a single stable parent. Group moves only change their viewport rectangle. */
 export class FramePool extends EventTarget {
@@ -131,12 +133,17 @@ export class FramePool extends EventTarget {
         }
         r.port?.event('visibility.changed', visible);
       }
-      const focused = Boolean(visible && group?.id === snapshot.layout.focusedGroupId);
+      const focus = this.store.focusedLocation;
+      const focused = Boolean(
+        visible &&
+        group?.id === snapshot.layout.focusedGroupId &&
+        (!focus || (focus.kind === 'tab' && focus.id === r.tabId)),
+      );
       if (r.focused !== focused) {
         r.focused = focused;
         r.port?.event('focus.changed', focused);
       }
-      if (r.url !== tab.url) {
+      if (r.url !== tab.url && !r.reportingNavigation) {
         r.url = tab.url;
         this.invalidate(r);
         try {
@@ -173,11 +180,15 @@ export class FramePool extends EventTarget {
         );
         r.frame.hidden = !visible;
         if (visible && rect) {
+          const center = this.root.querySelector('.center-area')?.getBoundingClientRect();
           Object.assign(r.frame.style, {
             left: `${rect.left - base.left}px`,
             top: `${rect.top - base.top}px`,
             width: `${rect.width}px`,
             height: `${rect.height}px`,
+            clipPath: center
+              ? `inset(${Math.max(0, center.top - rect.top)}px ${Math.max(0, rect.right - center.right)}px ${Math.max(0, rect.bottom - center.bottom)}px ${Math.max(0, center.left - rect.left)}px)`
+              : '',
           });
         }
       }
@@ -214,6 +225,10 @@ export class FramePool extends EventTarget {
         const actual = frame.contentWindow?.location.href;
         if (actual && new URL(actual).origin === location.origin) {
           r.url = actual;
+          const current = this.store.workspace?.snapshot.tabs.find((t) => t.id === r.tabId);
+          if (current?.kind === 'plugin' && current.url !== actual) {
+            this.onEvent(r, 'navigation.report', { url: actual });
+          }
         }
         const error = frame.contentDocument?.documentElement.dataset.scwcError;
         if (error) {
@@ -344,6 +359,9 @@ export class FramePool extends EventTarget {
           theme: this.themeProjection(),
           capabilities: { search: true },
           keybindings: this.bindings(),
+          navigationIndex: tab.navigation.index,
+          focused: r.focused,
+          visible: r.visible,
         },
         location.origin,
         [channel.port2],
@@ -372,17 +390,8 @@ export class FramePool extends EventTarget {
       this.onEvent(r, 'page.update', { title: data.title });
       void this.restore(r);
     }
-    if (method === 'page.focus' && !r.focused) {
-      void this.store
-        .update((s) => {
-          const group = groups(s.layout.center).find((g) => g.tabIds.includes(r.tabId));
-          if (group) {
-            group.activeTabId = r.tabId;
-            s.layout.focusedGroupId = group.id;
-            s.focusedPluginTabId = r.tabId;
-          }
-        })
-        .catch(() => undefined);
+    if (method === 'page.focus') {
+      void this.command('focusPage', r.tabId).catch(() => undefined);
     }
     if (method === 'page.update') {
       const data = payload as PageRegistration;
@@ -411,12 +420,23 @@ export class FramePool extends EventTarget {
       }
     }
     if (method === 'navigation.report') {
-      const data = payload as { url: string; replace?: boolean };
-      if (typeof data.url === 'string' && data.url !== r.url) {
+      const data = payload as { url: string; replace?: boolean; index?: number };
+      if (typeof data.url === 'string') {
         r.url = data.url;
-        void this.command('reportNavigation', { tabId: r.tabId, ...data }).catch((e) =>
-          this.store.toast(this.store.message(e), 'error'),
-        );
+        r.reportingNavigation = (r.reportingNavigation ?? 0) + 1;
+        r.navigationQueue = (r.navigationQueue ?? Promise.resolve())
+          .then(() => this.command('reportNavigation', { tabId: r.tabId, ...data }))
+          .catch((e) => this.store.toast(this.store.message(e), 'error'))
+          .finally(() => {
+            r.reportingNavigation = Math.max(0, (r.reportingNavigation ?? 1) - 1);
+            if (!r.reportingNavigation) {
+              const tab = this.store.workspace?.snapshot.tabs.find((t) => t.id === r.tabId);
+              if (tab?.kind === 'plugin') {
+                r.port?.event('navigation.changed', { index: tab.navigation.index });
+              }
+            }
+            this.sync();
+          });
       }
     }
     if (method === 'state.checkpoint') {
@@ -521,7 +541,18 @@ export class FramePool extends EventTarget {
         return false;
       }
     }
-    return confirm('此页面包含未保存更改。继续离开？');
+    return await this.store.confirm('此页面包含未保存更改。继续离开？');
+  }
+  async traverse(id: string, delta: number) {
+    const r = this.runtimes.get(id);
+    if (!r?.port) {
+      return false;
+    }
+    try {
+      return await r.port.request<boolean>('navigation.traverse', { delta }, 2000);
+    } catch {
+      return false;
+    }
   }
   private scheduleCheckpoint(r: FrameRuntime) {
     clearTimeout(r.checkpointTimer);
@@ -587,7 +618,7 @@ export class FramePool extends EventTarget {
       if (automatic) {
         return;
       }
-      if (!confirm('此页面未提供状态恢复能力。释放页面后将重新加载，继续？')) {
+      if (!(await this.store.confirm('此页面未提供状态恢复能力。释放页面后将重新加载，继续？'))) {
         return;
       }
       if (!(await this.canLeave(id, 'hibernate'))) {

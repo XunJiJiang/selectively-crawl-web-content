@@ -10,13 +10,22 @@ import {
 } from './plugin/load.ts';
 import cacheController from './utils/cache.ts';
 import { cancelPluginWebBuilds } from './plugin/web/build.ts';
-import { HOST, PORT, PORT_SEARCH_RANGE, ACTIVE_PORT, setListeningPort } from './common/env.ts';
+import {
+  HOST,
+  PORT,
+  PORT_SEARCH_RANGE,
+  ACTIVE_PORT,
+  setListeningPort,
+  TOKEN,
+} from './common/env.ts';
 import { parsedArgs } from './common/setupParam.ts';
 import { serverLogger } from './common/logger.ts';
 import { Chalk } from 'chalk';
 import { outputColorLevel } from './common/color.ts';
 import { getWorkbench, closeWorkbench } from './workbench/runtime.ts';
 import { closeStorage } from './workbench/storage.ts';
+import { spawn } from 'node:child_process';
+import { isSea } from 'node:sea';
 
 async function main() {
   let exiting = false;
@@ -37,6 +46,23 @@ async function main() {
     }
     serverLogger.info(restart ? '服务重启' : '服务停止', `${HOST}:${ACTIVE_PORT}`);
     closeStorage();
+    if (restart && !ipc) {
+      const args = isSea()
+        ? process.argv.slice(2)
+        : [...process.execArgv, ...process.argv.slice(1)];
+      const child = spawn(process.execPath, args, {
+        cwd: process.cwd(),
+        env: { ...process.env, TOKEN: TOKEN || 'null' },
+        detached: true,
+        windowsHide: true,
+        stdio: 'ignore',
+      });
+      await new Promise<void>((resolve, reject) => {
+        child.once('spawn', resolve);
+        child.once('error', reject);
+      });
+      child.unref();
+    }
     process.exit(0);
   };
   process.on('SIGINT', () => {
@@ -49,6 +75,15 @@ async function main() {
     void shutdown(false);
   });
   const ipc = parsedArgs.interaction === 'ipc' ? createCoreBridge(shutdown) : undefined;
+  process.on('message', (signal) => {
+    if (signal === 'SIGINT-exit' || signal === 'SIGINT-restart') {
+      if (ipc) {
+        ipc.requestLifecycle(signal === 'SIGINT-restart');
+      } else {
+        void shutdown(signal === 'SIGINT-restart');
+      }
+    }
+  });
   if (ipc) {
     await ipc.handshake;
   }
@@ -76,11 +111,6 @@ async function main() {
   );
   if (!ipc) {
     listenProcessStdin(serverLogger);
-    process.on('message', (signal) => {
-      if (signal === 'SIGINT-exit' || signal === 'SIGINT-restart') {
-        void shutdown(signal === 'SIGINT-restart');
-      }
-    });
     process.stdin.on('error', (error) => {
       if (!exiting) {
         serverLogger.error(error);

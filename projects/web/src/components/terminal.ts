@@ -33,6 +33,22 @@ export class WorkbenchTerminal extends LitElement {
   private outputResize?: ResizeObserver;
   private lastRecords?: import('../workbench/types.ts').OutputRecord[];
   private rows: ReturnType<typeof terminalRows> = [];
+  private creating?: Promise<void>;
+  async activate(id?: string) {
+    if (!this.terminal) {
+      await this.create();
+      return;
+    }
+    const target = this.store.terminals.find((t) => t.id === id && !t.archivedAt) ?? this.terminal;
+    this.choose(target);
+    await this.updateComplete;
+    this.renderRoot.querySelector<CommandEditor>('wb-command-editor')?.focus();
+  }
+  async closeCurrent() {
+    if (this.terminal) {
+      await this.alter(this.terminal.id, 'close');
+    }
+  }
   static styles = css`
     ${unsafeCSS(style)}:host {
       display: flex;
@@ -81,8 +97,29 @@ export class WorkbenchTerminal extends LitElement {
     this.restoreScroll = true;
     this.wheelRemainder = 0;
     this.act(() => this.store.loadOutput(t.id));
+    void this.updateComplete.then(async () => {
+      const editor = this.renderRoot.querySelector<CommandEditor>('wb-command-editor');
+      await editor?.updateComplete;
+      if (this.isConnected) {
+        editor?.focus();
+      }
+    });
+    this.dispatchEvent(
+      new CustomEvent('terminal-focus', { detail: t.id, bubbles: true, composed: true }),
+    );
   }
   async create() {
+    if (this.creating) {
+      return this.creating;
+    }
+    this.creating = this.createTerminal();
+    try {
+      await this.creating;
+    } finally {
+      this.creating = undefined;
+    }
+  }
+  private async createTerminal() {
     const t = await this.store.api.request<Terminal>('/terminals', {
       ...this.store.session(),
       terminal: { title: `终端 ${this.store.terminals.length + 1}` },
@@ -108,9 +145,9 @@ export class WorkbenchTerminal extends LitElement {
       );
       if (
         result.needsForce &&
-        confirm(
+        (await this.store.confirm(
           `协作取消仍未完成。强制停止将终止整个插件宿主，影响 ${result.owners.join('、')} 的其他任务。继续？`,
-        )
+        ))
       ) {
         await this.store.api.request('/commands/cancel', { ...body, force: true });
       }
@@ -122,7 +159,7 @@ export class WorkbenchTerminal extends LitElement {
   async alter(id: string, action: string) {
     const execution = this.execution(id);
     if (execution) {
-      if (!confirm('终端正在执行命令。取消执行后关闭？')) {
+      if (!(await this.store.confirm('终端正在执行命令。取消执行后关闭？'))) {
         return;
       }
       await this.cancel(execution);
@@ -135,6 +172,19 @@ export class WorkbenchTerminal extends LitElement {
       this.store.session(),
     );
     await this.store.refreshTerminals();
+    if (action === 'close') {
+      if (!this.terminal) {
+        this.dispatchEvent(
+          new CustomEvent('workbench-command', {
+            detail: { id: 'lastTerminalClosed' },
+            bubbles: true,
+            composed: true,
+          }),
+        );
+      } else {
+        this.choose(this.terminal);
+      }
+    }
     if (action === 'clear-output') {
       this.store.outputs.delete(id);
       if (this.terminal?.id === id) {
@@ -180,7 +230,7 @@ export class WorkbenchTerminal extends LitElement {
           id: 'rename-terminal',
           label: '重命名终端',
           action: async () => {
-            const title = prompt('终端名称', terminal.title);
+            const title = await this.store.prompt('终端名称', terminal.title);
             if (!title) {
               return;
             }
@@ -360,8 +410,10 @@ export class WorkbenchTerminal extends LitElement {
           @wheel=${this.wheel}
           @keydown=${this.outputKeydown}
           @click=${(event: MouseEvent) => {
-            const target = event.target as HTMLElement;
-            if (!window.getSelection()?.toString() && !target.closest('.terminal-output-line')) {
+            if (
+              !window.getSelection()?.toString() &&
+              !(event.target as HTMLElement).closest('wb-command-editor')
+            ) {
               this.renderRoot.querySelector<CommandEditor>('wb-command-editor')?.focus();
             }
           }}
@@ -419,6 +471,14 @@ export class WorkbenchTerminal extends LitElement {
                     ? html`<div class="terminal-input-request">${input.message}</div>`
                     : nothing}
                   <wb-command-editor
+                    @focusin=${() =>
+                      this.dispatchEvent(
+                        new CustomEvent('terminal-focus', {
+                          detail: t.id,
+                          bubbles: true,
+                          composed: true,
+                        }),
+                      )}
                     .store=${this.store}
                     .terminal=${t}
                     .busy=${Boolean(execution) || this.submitting.has(t.id)}
@@ -506,7 +566,7 @@ export class WorkbenchTerminal extends LitElement {
                   aria-label=${`关闭 ${term.title}`}
                   @click=${() => this.act(() => this.alter(term.id, 'close'))}
                 >
-                  <wb-icon name="close"></wb-icon>
+                  <wb-icon name="trash"></wb-icon>
                 </button>
               </div>`;
             })}

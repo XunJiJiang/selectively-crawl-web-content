@@ -8,6 +8,12 @@ vi.mock('../../../shared/store/config.ts', () => ({
 }));
 let store: WorkbenchStore;
 beforeEach(() => {
+  Object.defineProperty(document, 'execCommand', { configurable: true, value: vi.fn() });
+  Object.defineProperty(Range.prototype, 'getClientRects', { configurable: true, value: () => [] });
+  Object.defineProperty(Range.prototype, 'getBoundingClientRect', {
+    configurable: true,
+    value: () => new DOMRect(),
+  });
   vi.stubGlobal(
     'ResizeObserver',
     class {
@@ -24,6 +30,9 @@ afterEach(() => {
   document.body.replaceChildren();
   store.lease = undefined;
   store.dispose();
+  Reflect.deleteProperty(document, 'execCommand');
+  Reflect.deleteProperty(Range.prototype, 'getClientRects');
+  Reflect.deleteProperty(Range.prototype, 'getBoundingClientRect');
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });

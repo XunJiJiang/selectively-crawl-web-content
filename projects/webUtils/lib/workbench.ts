@@ -58,6 +58,19 @@ export function createWorkbenchSDK(install: (fetch: TFetch) => void) {
   void ready.catch(() => undefined);
   const hosted = window.parent !== window;
   const nonce = crypto.randomUUID();
+  let hostFocused = false,
+    hostVisible = true;
+  let navigationBase = 0,
+    navigationPosition = 0;
+  const navigationUrls = [location.href];
+  const historyKey = `scwc:${nonce}`;
+  const stateWithPosition = (state: unknown, index: number) =>
+    state === null || typeof state === 'object'
+      ? { ...(state as object), [historyKey]: index }
+      : state;
+  const rawReplaceState = history.replaceState.bind(history);
+  rawReplaceState(stateWithPosition(history.state, 0), '');
+
   let lifecycle: Lifecycle = {};
   let search: SearchOptions | undefined;
   let searchRevision = 0;
@@ -109,6 +122,29 @@ export function createWorkbenchSDK(install: (fetch: TFetch) => void) {
   };
   const api = {
     ready,
+    externalState: {
+      get inWorkbench() {
+        return Boolean(port);
+      },
+      get inBrowser() {
+        return !hosted;
+      },
+      get focused(): boolean | undefined {
+        return port ? hostFocused : undefined;
+      },
+      get visible(): boolean | undefined {
+        return port ? hostVisible : undefined;
+      },
+      get() {
+        return {
+          inWorkbench: Boolean(port),
+          inBrowser: !hosted,
+          focused: port ? hostFocused : undefined,
+          visible: port ? hostVisible : undefined,
+        };
+      },
+      onChange: (fn: (value: unknown) => void) => on('external-state.changed', fn),
+    },
     theme: {
       get mode() {
         return themeMode;
@@ -143,7 +179,7 @@ export function createWorkbenchSDK(install: (fetch: TFetch) => void) {
       onFocus: (fn: (focused: boolean) => void) => on('focus.changed', (v) => fn(Boolean(v))),
     },
     navigation: {
-      report: async (value: { url: string; title?: string; replace?: boolean }) => {
+      report: async (value: { url: string; title?: string; replace?: boolean; index?: number }) => {
         await ready;
         port?.event('navigation.report', value);
       },
@@ -539,6 +575,15 @@ export function createWorkbenchSDK(install: (fetch: TFetch) => void) {
         )),
       };
     }
+    if (method === 'navigation.traverse') {
+      const delta = Number(data.delta),
+        target = navigationPosition + delta;
+      if (!Number.isInteger(delta) || target < 0 || target >= navigationUrls.length) {
+        return false;
+      }
+      history.go(delta);
+      return true;
+    }
     if (method === 'navigation.navigate') {
       const url = new URL(String(data.url), location.href);
       if (
@@ -586,6 +631,17 @@ export function createWorkbenchSDK(install: (fetch: TFetch) => void) {
     port.onRequest = handle;
     port.onCancel = (id) => requests.get(id)?.abort();
     port.onEvent = (method, payload) => {
+      if (method === 'navigation.changed') {
+        navigationBase = Number((payload as { index: number }).index) - navigationPosition;
+      }
+      if (method === 'focus.changed' || method === 'visibility.changed') {
+        if (method === 'focus.changed') {
+          hostFocused = Boolean(payload);
+        } else {
+          hostVisible = Boolean(payload);
+        }
+        emit('external-state.changed', api.externalState.get());
+      }
       if (method === 'theme.changed') {
         applyTheme(payload);
       }
@@ -615,6 +671,10 @@ export function createWorkbenchSDK(install: (fetch: TFetch) => void) {
     };
     keybindings = Array.isArray(message.keybindings) ? message.keybindings : [];
     applyTheme(message.theme);
+    hostFocused = Boolean(message.focused);
+    hostVisible = Boolean(message.visible);
+    navigationBase = (Number(message.navigationIndex) || 0) - navigationPosition;
+    emit('external-state.changed', api.externalState.get());
     installSession(message.session);
     readyResolve();
     port.event('ready', { title: document.title, url: location.href });
@@ -727,26 +787,47 @@ export function createWorkbenchSDK(install: (fetch: TFetch) => void) {
       console.warn('scwcutils 初始化失败', error);
     }
   }
-  // Install navigation observations before application scripts run.
+  // Observe SPA history without navigating the iframe from the host again.
   for (const name of ['pushState', 'replaceState'] as const) {
     const original = history[name].bind(history);
     history[name] = (...args: Parameters<History[typeof name]>) => {
-      original(args[0], args[1], args[2]);
-      void api.navigation.report({
-        url: location.href,
-        title: document.title,
-        replace: name === 'replaceState',
-      });
+      const next = name === 'pushState' ? navigationPosition + 1 : navigationPosition;
+      original(stateWithPosition(args[0], next), args[1], args[2]);
+      if (name === 'pushState') {
+        navigationUrls.splice(next);
+      }
+      navigationPosition = next;
+      navigationUrls[next] = location.href;
+      void api.navigation
+        .report({ url: location.href, title: document.title, replace: name === 'replaceState' })
+        .catch(() => undefined);
     };
   }
-  window.addEventListener(
-    'popstate',
-    () => void api.navigation.report({ url: location.href, title: document.title, replace: true }),
-  );
-  window.addEventListener(
-    'hashchange',
-    () => void api.navigation.report({ url: location.href, title: document.title }),
-  );
+  window.addEventListener('popstate', (event) => {
+    const index =
+      event.state && typeof event.state === 'object' ? event.state[historyKey] : undefined;
+    const found = Number.isInteger(index)
+      ? index
+      : navigationUrls.findIndex((url, i) => url === location.href && i !== navigationPosition);
+    if (found >= 0 && found < navigationUrls.length) {
+      navigationPosition = found;
+      void api.navigation
+        .report({ url: location.href, title: document.title, index: navigationBase + found })
+        .catch(() => undefined);
+    }
+  });
+  window.addEventListener('hashchange', () => {
+    if (navigationUrls[navigationPosition] === location.href) {
+      return;
+    }
+    navigationPosition++;
+    navigationUrls.splice(navigationPosition);
+    navigationUrls.push(location.href);
+    rawReplaceState(stateWithPosition(history.state, navigationPosition), '');
+    void api.navigation
+      .report({ url: location.href, title: document.title })
+      .catch(() => undefined);
+  });
   window.addEventListener('focus', () => port?.event('page.focus', {}));
   window.addEventListener('pointerdown', () => port?.event('page.focus', {}), { passive: true });
   window.addEventListener('keydown', (event) => {

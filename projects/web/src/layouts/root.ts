@@ -4,13 +4,15 @@ import { customElement, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 import { styleMap } from 'lit/directives/style-map.js';
 import { live } from 'lit/directives/live.js';
-import { virtualize } from '@lit-labs/virtualizer/virtualize.js';
 import '../components/icon.ts';
 import '../components/internal-page.ts';
 import '../components/page-inspector.ts';
 import '../components/context-menu/wb-context-menu.ts';
 import style from '../workbench/workbench.css?raw';
 import { WorkbenchStore } from '../workbench/store.ts';
+import { FocusHistory, type FocusLocation } from '../workbench/focus-history.ts';
+import { pruneEmptyGroups } from '../../../shared/workbench-layout.ts';
+import { terminalRows } from '../workbench/terminal-output.ts';
 import { FramePool } from '../workbench/frames.ts';
 import { SearchCoordinator } from '../workbench/search.ts';
 import {
@@ -58,6 +60,8 @@ import {
   runtimeClass,
   tabNavigation,
   deepActiveElement,
+  bookmarkList,
+  pluginOpenButtons,
 } from '../workbench/ui.ts';
 interface QuickResult {
   id: string;
@@ -97,9 +101,6 @@ export class AppRoot extends LitElement {
   @state() private accessor focusedOnly = false;
   @state() private accessor panelMaximized = false;
   @state() private accessor dragging = false;
-  @state() private accessor mobileSidebar = false;
-  @state() private accessor mobileAux = false;
-  @state() private accessor mobilePanel = false;
   @state() private accessor showJobs = false;
   @state() private accessor outputFilter = 'all';
   @state() private accessor outputQuery = '';
@@ -124,6 +125,85 @@ export class AppRoot extends LitElement {
   private dragTab = '';
   private previousTheme = '';
   private resizeSnapshot?: WorkspaceSnapshot;
+  private focusHistory = new FocusHistory();
+  private focusInitialized = false;
+  private traversingFocus = false;
+  private unreadSnapshot = new Set<string>();
+  private notificationObserver?: IntersectionObserver;
+  private notificationObserved = new WeakSet<Element>();
+  private dialogFocus?: HTMLElement;
+  private dialogActive = false;
+  @state() private accessor resizeCursor = 'col-resize';
+  private visible(part: 'main' | 'aux' | 'panel') {
+    const layout = (this.resizeSnapshot ?? this.snapshot).layout;
+    return (
+      !this.focusedOnly &&
+      (part === 'main'
+        ? layout.mainSidebar.visible
+        : part === 'aux'
+          ? layout.auxiliarySidebar.visible
+          : layout.panel.visible)
+    );
+  }
+  private recordFocus(location: FocusLocation) {
+    this.store.focusedLocation = location;
+    if (!this.traversingFocus) {
+      this.focusHistory.record(location);
+    }
+    this.requestUpdate();
+  }
+  private focusExists = (target: FocusLocation) =>
+    target.kind === 'sidebar' ||
+    (target.kind === 'tab'
+      ? this.snapshot.tabs.some((t) => t.id === target.id)
+      : target.view === 'output' ||
+        this.store.terminals.some((t) => t.id === target.terminalId && !t.archivedAt));
+  private async traverseFocus(direction: number) {
+    const target = this.focusHistory.go(direction, this.focusExists);
+    if (!target) {
+      return;
+    }
+    this.traversingFocus = true;
+    this.focusedOnly = false;
+    try {
+      if (target.kind === 'tab') {
+        await this.command('focusTab', target.id);
+      } else if (target.kind === 'sidebar') {
+        await this.setView(target.view);
+      } else {
+        await this.selectPanel(target.view, target.terminalId);
+      }
+    } finally {
+      this.traversingFocus = false;
+      this.requestUpdate();
+    }
+  }
+  private async selectPanel(view: 'output' | 'terminal', terminalId?: string) {
+    if (view === 'terminal') {
+      await this.ensureTerminal();
+    }
+    await this.store.update((s) => {
+      s.layout.panel.activeView = view;
+      s.layout.panel.visible = true;
+    });
+    await this.updateComplete;
+    if (view === 'terminal') {
+      await this.renderRoot
+        .querySelector<import('../components/terminal.ts').WorkbenchTerminal>('wb-terminal')
+        ?.activate(terminalId);
+    } else {
+      this.recordFocus({ kind: 'panel', view });
+      this.renderRoot.querySelector<HTMLElement>('.output-content')?.focus();
+    }
+  }
+  private decodedUrl(value: string) {
+    try {
+      return decodeURI(value).replace(/%([0-9a-f]{2})/gi, (part) => decodeURIComponent(part));
+    } catch {
+      return value;
+    }
+  }
+  private urlDraft?: { tabId: string; display: string; encoded: string };
   private quickTrigger?: HTMLElement;
   connectedCallback() {
     super.connectedCallback();
@@ -131,6 +211,12 @@ export class AppRoot extends LitElement {
     window.addEventListener('keydown', this.keydown);
     this.themeMedia.addEventListener('change', this.themeChanged);
     this.addEventListener('workbench-command', this.commandEvent as EventListener);
+    this.addEventListener('terminal-focus', ((event: CustomEvent<string>) =>
+      this.recordFocus({
+        kind: 'panel',
+        view: 'terminal',
+        terminalId: event.detail,
+      })) as EventListener);
     void this.store.start();
   }
   disconnectedCallback() {
@@ -138,6 +224,7 @@ export class AppRoot extends LitElement {
     window.removeEventListener('keydown', this.keydown);
     this.themeMedia.removeEventListener('change', this.themeChanged);
     this.observer?.disconnect();
+    this.notificationObserver?.disconnect();
     clearTimeout(this.queryTimer);
     this.searcher?.dispose();
     this.pool?.dispose();
@@ -167,6 +254,28 @@ export class AppRoot extends LitElement {
     void work().catch((e) => this.store.toast(this.store.message(e), 'error'));
   }
   protected updated(_changed: PropertyValues) {
+    if (!this.focusInitialized && this.store.workspace && !this.store.loading) {
+      this.focusInitialized = true;
+      if (this.current) {
+        this.recordFocus({ kind: 'tab', id: this.current.id });
+      }
+      if (this.visible('panel') && this.snapshot.layout.panel.activeView === 'terminal') {
+        this.act(() => this.selectPanel('terminal'));
+      }
+    }
+    if (this.store.workspace && !this.dialogActive && this.store.dialogState) {
+      this.dialogActive = true;
+      this.dialogFocus = this.shadowRoot ? deepActiveElement(this.shadowRoot) : undefined;
+      this.renderRoot
+        .querySelector<HTMLElement>(
+          '.workbench-dialog input, .workbench-dialog select, .workbench-dialog button',
+        )
+        ?.focus();
+    } else if (this.dialogActive && !this.store.dialogState) {
+      this.dialogActive = false;
+      this.dialogFocus?.focus();
+    }
+    this.observeNotifications();
     if (this.store.workspace && !this.pool) {
       const container = this.renderRoot.querySelector<HTMLElement>('.frame-pool');
       if (container) {
@@ -209,6 +318,7 @@ export class AppRoot extends LitElement {
     let available =
         topbar.clientWidth -
         controls.clientWidth -
+        (this.renderRoot.querySelector('.focus-navigation')?.clientWidth ?? 0) -
         Math.min(400, Math.max(160, topbar.clientWidth * 0.3)) -
         36,
       count = 6;
@@ -236,6 +346,9 @@ export class AppRoot extends LitElement {
     }
   }
   private keydown = (event: KeyboardEvent) => {
+    if (this.store.dialogState) {
+      return;
+    }
     if (event.isComposing || event.defaultPrevented) {
       return;
     }
@@ -284,7 +397,6 @@ export class AppRoot extends LitElement {
   }
   private async openInternal(page: InternalPage) {
     this.inspectedTab = undefined;
-    this.mobileSidebar = false;
     await this.store.update((s) => {
       const existing = s.tabs.find((t) => t.kind === 'internal' && t.page === page);
       if (existing) {
@@ -293,6 +405,9 @@ export class AppRoot extends LitElement {
         addTab(s, internalTab(page));
       }
     });
+    if (this.current) {
+      this.recordFocus({ kind: 'tab', id: this.current.id });
+    }
   }
   private async openPlugin(plugin: CatalogItem, url?: string, forceGroup?: string) {
     const target =
@@ -309,8 +424,8 @@ export class AppRoot extends LitElement {
         forceGroup,
       ),
     );
-    if (innerWidth < 1024) {
-      this.mobileSidebar = false;
+    if (this.current) {
+      this.recordFocus({ kind: 'tab', id: this.current.id });
     }
   }
   private async navigate(
@@ -337,12 +452,19 @@ export class AppRoot extends LitElement {
         navigateTab(target, resolved.url, resolved.locator, mode, index);
       }
     });
+    if (this.urlDraft?.tabId === id) {
+      this.urlDraft = undefined;
+    }
   }
   private async close(ids: string[], explicit = false) {
     const eligible = this.snapshot.tabs.filter(
       (t) => ids.includes(t.id) && (!t.pinned || explicit),
     );
-    if (explicit && eligible.some((t) => t.pinned) && !confirm('关闭固定标签？')) {
+    if (
+      explicit &&
+      eligible.some((t) => t.pinned) &&
+      !(await this.store.confirm('关闭固定标签？'))
+    ) {
       return;
     }
     const actual: string[] = [];
@@ -353,7 +475,9 @@ export class AppRoot extends LitElement {
       try {
         await this.pool?.checkpoint(tab.id);
       } catch (e) {
-        if (!confirm(`状态保存失败：${this.store.message(e)}。仍要关闭此页面？`)) {
+        if (
+          !(await this.store.confirm(`状态保存失败：${this.store.message(e)}。仍要关闭此页面？`))
+        ) {
           continue;
         }
       }
@@ -363,16 +487,31 @@ export class AppRoot extends LitElement {
       await this.store.closeTabs(actual);
     }
   }
-  private setView(view: keyof typeof viewNames) {
-    if (innerWidth < 1024) {
-      this.mobileSidebar = true;
-    }
-    return this.store.update((s) => {
+  private async setView(view: keyof typeof viewNames) {
+    this.recordFocus({ kind: 'sidebar', view });
+    await this.store.update((s) => {
       s.layout.mainSidebar.view = view;
       s.layout.mainSidebar.visible = true;
     });
+    await this.updateComplete;
+    this.renderRoot.querySelector<HTMLElement>('.sidebar-content')?.focus();
   }
   async command(id: string, args?: unknown): Promise<unknown> {
+    if (id === 'focusBack' || id === 'focusForward') {
+      return this.traverseFocus(id === 'focusBack' ? -1 : 1);
+    }
+    if (id === 'lastTerminalClosed') {
+      await this.selectPanel('output');
+      return this.store.update((s) => {
+        s.layout.panel.visible = false;
+      });
+    }
+    if (id === 'focusPage') {
+      this.inspectedTab = undefined;
+      const target = String(args);
+      this.recordFocus({ kind: 'tab', id: target });
+      return this.store.update((s) => focusTab(s, target));
+    }
     const tab =
       typeof args === 'object' && args && 'tabId' in args
         ? this.snapshot.tabs.find((t) => t.id === (args as { tabId: string }).tabId)
@@ -390,7 +529,7 @@ export class AppRoot extends LitElement {
       const value =
         typeof args === 'string'
           ? args
-          : prompt(
+          : await this.store.prompt(
               '输入当前核心的插件 URL 或路径',
               tab?.kind === 'plugin' ? tab.url : '/web/page/plugin/',
             );
@@ -407,6 +546,26 @@ export class AppRoot extends LitElement {
       }
       return this.openPlugin(plugin, result.url);
     }
+    if (id === 'openPluginExternal') {
+      const plugin = args as CatalogItem;
+      window.open(
+        plugin.ui.entryUrl ?? `/web/page/plugin/${encodeURIComponent(plugin.pluginId)}/`,
+        '_blank',
+        'noopener,noreferrer,popup',
+      );
+      return;
+    }
+    if (id === 'pluginOpenMenu') {
+      const trigger = this.shadowRoot ? deepActiveElement(this.shadowRoot) : undefined;
+      const rect = (trigger ?? this).getBoundingClientRect();
+      this.menu = {
+        x: rect.left,
+        y: rect.bottom,
+        trigger,
+        items: [this.menuAction('openPluginExternal', '在新浏览器窗口中打开', args)],
+      };
+      return;
+    }
     if (id === 'openPlugin') {
       return this.openPlugin(args as CatalogItem);
     }
@@ -415,6 +574,9 @@ export class AppRoot extends LitElement {
       const target = String(args);
       this.pool?.wake(target);
       await this.store.update((s) => focusTab(s, target));
+      if (this.snapshot.tabs.some((t) => t.id === target)) {
+        this.recordFocus({ kind: 'tab', id: target });
+      }
       await this.updateComplete;
       [...this.renderRoot.querySelectorAll<HTMLElement>('[data-tab-id]')]
         .find((el) => el.dataset.tabId === target)
@@ -422,12 +584,12 @@ export class AppRoot extends LitElement {
       return;
     }
     if (id === 'navigateTab' || id === 'reportNavigation') {
-      const data = args as { tabId: string; url: string; replace?: boolean };
+      const data = args as { tabId: string; url: string; replace?: boolean; index?: number };
       return this.navigate(
         data.tabId,
         data.url,
-        data.replace ? 'replace' : 'push',
-        undefined,
+        data.index !== undefined ? 'traverse' : data.replace ? 'replace' : 'push',
+        data.index,
         id === 'reportNavigation',
       );
     }
@@ -487,6 +649,12 @@ export class AppRoot extends LitElement {
       const index = tab.navigation.index + (id === 'back' ? -1 : 1),
         entry = tab.navigation.entries[index] as { url?: string } | undefined;
       if (entry?.url) {
+        if (!(await this.pool?.canLeave(tab.id, 'navigate'))) {
+          return;
+        }
+        if (await this.pool?.traverse(tab.id, id === 'back' ? -1 : 1)) {
+          return;
+        }
         return this.navigate(tab.id, entry.url, 'traverse', index);
       }
       return;
@@ -508,7 +676,7 @@ export class AppRoot extends LitElement {
       });
     }
     if (id === 'rename' && tab) {
-      const title = prompt('标签名称，留空恢复页面标题', tab.customTitle ?? '');
+      const title = await this.store.prompt('标签名称，留空恢复页面标题', tab.customTitle ?? '');
       if (title !== null) {
         return this.store.update((s) => {
           const t = s.tabs.find((t) => t.id === tab.id);
@@ -544,6 +712,38 @@ export class AppRoot extends LitElement {
         relocatedUrl(b.locator, requireValue(this.store.bootstrap).installationId, b.url),
       );
     }
+    if (id === 'newBookmarkFolder') {
+      const name = await this.store.prompt('新建收藏文件夹');
+      if (name?.trim()) {
+        return this.store.setPreferences({
+          bookmarkFolders: [
+            ...(this.store.preferences.values.bookmarkFolders ?? []),
+            { id: crypto.randomUUID(), name: name.trim() },
+          ],
+        });
+      }
+      return;
+    }
+    if (id === 'renameBookmarkFolder') {
+      const folder = args as { id: string; name: string };
+      const name = await this.store.prompt('文件夹名称', folder.name);
+      if (name?.trim()) {
+        return this.store.setPreferences({
+          bookmarkFolders: (this.store.preferences.values.bookmarkFolders ?? []).map((f) =>
+            f.id === folder.id ? { ...f, name: name.trim() } : f,
+          ),
+        });
+      }
+      return;
+    }
+    if (id === 'deleteBookmarkFolder') {
+      const folder = args as { id: string; name: string };
+      return this.store.setPreferences({
+        bookmarkFolders: (this.store.preferences.values.bookmarkFolders ?? []).filter(
+          (f) => f.id !== folder.id,
+        ),
+      });
+    }
     if (id === 'deleteBookmark') {
       const b = args as Bookmark;
       await this.store.api.request(`/bookmarks/${b.id}/delete`, { baseRevision: b.revision });
@@ -551,14 +751,26 @@ export class AppRoot extends LitElement {
     }
     if (id === 'editBookmark') {
       const b = args as Bookmark;
-      const title = prompt('收藏名称', b.customTitle ?? b.originalTitle);
-      if (title === null) {
+      const values = await this.store.dialog('编辑收藏', [
+        { name: 'title', label: '名称', value: b.customTitle ?? b.originalTitle },
+        { name: 'url', label: 'URL', value: b.url },
+        {
+          name: 'folderId',
+          label: '文件夹',
+          value: b.folderId ?? '',
+          options: [
+            { value: '', label: '未分类' },
+            ...(this.store.preferences.values.bookmarkFolders ?? []).map((f) => ({
+              value: f.id,
+              label: f.name,
+            })),
+          ],
+        },
+      ]);
+      if (!values) {
         return;
       }
-      const url = prompt('收藏完整 URL（保留 query 与 hash）', b.url);
-      if (url === null) {
-        return;
-      }
+      const { title, url, folderId } = values;
       const result = await this.store.api.request<{ url: string; locator: PluginTab['locator'] }>(
         '/url/resolve',
         { url, pluginId: b.pluginId },
@@ -570,38 +782,25 @@ export class AppRoot extends LitElement {
           locator: result.locator,
           originalTitle: b.originalTitle,
           customTitle: title || null,
+          folderId: folderId || null,
           previewId: url === b.url ? b.previewId : null,
         },
         baseRevision: b.revision,
       });
       return this.store.loadList('bookmarks');
     }
-    if (id === 'sidebar') {
-      if (innerWidth < 1024) {
-        this.mobileSidebar = !this.mobileSidebar;
-        return;
-      }
-      return this.store.update((s) => {
-        s.layout.mainSidebar.visible = !s.layout.mainSidebar.visible;
+    if (['sidebar', 'auxiliary', 'panel'].includes(id)) {
+      const part =
+        id === 'sidebar' ? 'mainSidebar' : id === 'auxiliary' ? 'auxiliarySidebar' : 'panel';
+      this.focusedOnly = false;
+      const wasVisible = this.snapshot.layout[part].visible;
+      await this.store.update((s) => {
+        s.layout[part].visible = !wasVisible;
       });
-    }
-    if (id === 'auxiliary') {
-      if (innerWidth < 1280) {
-        this.mobileAux = !this.mobileAux;
-        return;
+      if (id === 'panel' && !wasVisible) {
+        await this.selectPanel(this.snapshot.layout.panel.activeView);
       }
-      return this.store.update((s) => {
-        s.layout.auxiliarySidebar.visible = !s.layout.auxiliarySidebar.visible;
-      });
-    }
-    if (id === 'panel') {
-      if (innerWidth < 1024) {
-        this.mobilePanel = !this.mobilePanel;
-        return;
-      }
-      return this.store.update((s) => {
-        s.layout.panel.visible = !s.layout.panel.visible;
-      });
+      return;
     }
     if (id === 'focusGroup') {
       this.focusedOnly = !this.focusedOnly;
@@ -660,7 +859,7 @@ export class AppRoot extends LitElement {
       return this.store.update(defaultLayout);
     }
     if (id === 'saveLayout') {
-      const name = prompt('为当前布局命名');
+      const name = await this.store.prompt('为当前布局命名');
       if (name) {
         const layouts = JSON.parse(localStorage.getItem('scwc.layout-presets') ?? '{}');
         layouts[name] = this.snapshot.layout;
@@ -671,7 +870,7 @@ export class AppRoot extends LitElement {
     }
     if (id === 'applyLayout') {
       const layouts = JSON.parse(localStorage.getItem('scwc.layout-presets') ?? '{}');
-      const name = prompt(`选择布局：${Object.keys(layouts).join('、')}`);
+      const name = await this.store.prompt(`选择布局：${Object.keys(layouts).join('、')}`);
       if (name && layouts[name]) {
         return this.applyLayout(layouts[name]);
       }
@@ -694,13 +893,9 @@ export class AppRoot extends LitElement {
         search: '',
         hash: '',
       });
-      if (innerWidth < 1280) {
-        this.mobileAux = true;
-      } else {
-        await this.store.update((s) => {
-          s.layout.auxiliarySidebar.visible = true;
-        });
-      }
+      await this.store.update((s) => {
+        s.layout.auxiliarySidebar.visible = true;
+      });
       return;
     }
     if (id === 'enablePlugin') {
@@ -716,7 +911,9 @@ export class AppRoot extends LitElement {
         supplied?.pluginId ??
         (tab?.kind === 'plugin'
           ? tab.pluginId
-          : prompt(`插件目录标识：${this.store.catalog.map((p) => p.pluginId).join('、')}`));
+          : await this.store.prompt(
+              `插件目录标识：${this.store.catalog.map((p) => p.pluginId).join('、')}`,
+            ));
       const selected = this.store.catalog.find((p) => p.pluginId === selectedId);
       if (!selected) {
         throw new Error('请选择目录中的插件。');
@@ -735,7 +932,9 @@ export class AppRoot extends LitElement {
       }
       if (
         ['reload', 'disable', 'once-disable'].includes(action) &&
-        !confirm(`操作“${selected.title}”将影响它的所有页面连接及运行任务。继续？`)
+        !(await this.store.confirm(
+          `操作“${selected.title}”将影响它的所有页面连接及运行任务。继续？`,
+        ))
       ) {
         return;
       }
@@ -750,16 +949,18 @@ export class AppRoot extends LitElement {
       return;
     }
     if (id === 'output') {
-      this.mobilePanel = true;
-      await this.store.update((s) => {
-        s.layout.panel.visible = true;
-        s.layout.panel.activeView = 'output';
-      });
-      return this.store.loadOutput('public');
+      return this.selectPanel('output');
+    }
+    if (id === 'selectTerminal') {
+      return this.selectPanel('terminal');
+    }
+    if (id === 'closeTerminal') {
+      return this.renderRoot
+        .querySelector<import('../components/terminal.ts').WorkbenchTerminal>('wb-terminal')
+        ?.closeCurrent();
     }
     if (id === 'newTerminal') {
       await this.ensureTerminal();
-      this.mobilePanel = true;
       await this.store.update((s) => {
         s.layout.panel.visible = true;
         s.layout.panel.activeView = 'terminal';
@@ -770,7 +971,7 @@ export class AppRoot extends LitElement {
         ?.create();
     }
     if (id === 'notifications') {
-      this.notificationOpen = !this.notificationOpen;
+      this.toggleNotifications();
       return;
     }
     if (id === 'export') {
@@ -1055,6 +1256,34 @@ export class AppRoot extends LitElement {
       })),
     };
   }
+  private resizeTargets(event: PointerEvent) {
+    return [...this.renderRoot.querySelectorAll<HTMLElement>('[data-resize-key]')].filter((el) => {
+      const rect = el.getBoundingClientRect();
+      return (
+        rect.width > 0 &&
+        rect.height > 0 &&
+        event.clientX >= rect.left - 5 &&
+        event.clientX <= rect.right + 5 &&
+        event.clientY >= rect.top - 5 &&
+        event.clientY <= rect.bottom + 5
+      );
+    });
+  }
+  private hoverResize(event: PointerEvent) {
+    if (this.dragging) {
+      return;
+    }
+    const targets = this.resizeTargets(event);
+    const axes = new Set(targets.map((el) => el.getAttribute('aria-orientation')));
+    for (const el of this.renderRoot.querySelectorAll<HTMLElement>('[data-resize-key]')) {
+      el.style.cursor = '';
+    }
+    if (axes.size > 1) {
+      for (const el of targets) {
+        el.style.cursor = 'crosshair';
+      }
+    }
+  }
   private resize(
     event: PointerEvent,
     key: 'main' | 'aux' | 'panel' | 'sidebar-split' | 'split' | 'terminal-list',
@@ -1067,100 +1296,134 @@ export class AppRoot extends LitElement {
     const initial = clone(this.snapshot),
       startX = event.clientX,
       startY = event.clientY;
+    const targets = this.resizeTargets(event).map((el) => ({
+      key: el.dataset.resizeKey ?? key,
+      nodeId: el.dataset.resizeNode,
+    }));
+    if (!targets.some((target) => target.key === key && target.nodeId === nodeId)) {
+      targets.push({ key, nodeId });
+    }
+    const parts = [
+      ...new Map(targets.map((target) => [`${target.key}:${target.nodeId}`, target])).values(),
+    ];
+    const orientation = (part: (typeof parts)[number]) =>
+      part.key === 'sidebar-split' ||
+      (part.key === 'panel' && initial.layout.panel.dock === 'bottom') ||
+      (part.key === 'split' &&
+        this.renderRoot
+          .querySelector(`[data-split="${part.nodeId}"]`)
+          ?.classList.contains('vertical'))
+        ? 'row-resize'
+        : 'col-resize';
+    this.resizeCursor =
+      new Set(parts.map(orientation)).size > 1 ? 'crosshair' : orientation(parts[0]);
+    const oldCursor = document.documentElement.style.cursor;
+    document.documentElement.style.cursor = this.resizeCursor;
     this.dragging = true;
     this.resizeSnapshot = clone(initial);
     const side = initial.layout.mainSidebar.side;
-    const node = nodeId
-        ? this.renderRoot.querySelector<HTMLElement>(`[data-split="${nodeId}"]`)
-        : null,
-      rect = node?.getBoundingClientRect();
+    const rects = new Map(
+      parts.map((part) => [
+        part.nodeId,
+        this.renderRoot
+          .querySelector<HTMLElement>(`[data-split="${part.nodeId}"]`)
+          ?.getBoundingClientRect(),
+      ]),
+    );
     const clamp = (n: number, min: number, max: number) => Math.min(max, Math.max(min, n));
     const move = (e: PointerEvent) => {
-      const s = requireValue(this.resizeSnapshot);
+      const s = this.resizeSnapshot;
+      if (!s) {
+        return;
+      }
       const dx = e.clientX - startX,
         dy = e.clientY - startY;
-      if (key === 'main') {
-        s.layout.mainSidebar.size = clamp(
-          initial.layout.mainSidebar.size + (side === 'left' ? dx : -dx),
-          200,
-          480,
-        );
-      }
-      if (key === 'aux') {
-        s.layout.auxiliarySidebar.size = clamp(
-          initial.layout.auxiliarySidebar.size + (side === 'left' ? -dx : dx),
-          240,
-          480,
-        );
-      }
-      if (key === 'panel') {
-        if (initial.layout.panel.dock === 'bottom') {
-          s.layout.panel.height = clamp(
-            initial.layout.panel.height - dy,
-            120,
-            Math.min(600, innerHeight - 180),
+      for (const part of parts) {
+        if (part.key === 'main') {
+          const size =
+            (initial.layout.mainSidebar.visible ? initial.layout.mainSidebar.size : 0) +
+            (side === 'left' ? dx : -dx);
+          s.layout.mainSidebar.visible = size >= 200;
+          s.layout.mainSidebar.size = clamp(size, 200, 480);
+        }
+        if (part.key === 'aux') {
+          const size =
+            (initial.layout.auxiliarySidebar.visible ? initial.layout.auxiliarySidebar.size : 0) +
+            (side === 'left' ? -dx : dx);
+          s.layout.auxiliarySidebar.visible = size >= 240;
+          s.layout.auxiliarySidebar.size = clamp(size, 240, 480);
+        }
+        if (part.key === 'panel') {
+          const panel = s.layout.panel,
+            before = initial.layout.panel;
+          const size =
+            (before.visible ? (before.dock === 'bottom' ? before.height : before.width) : 0) +
+            (before.dock === 'bottom' ? -dy : before.dock === 'left' ? dx : -dx);
+          panel.visible = size >= (before.dock === 'bottom' ? 120 : 280);
+          if (before.dock === 'bottom') {
+            panel.height = clamp(size, 120, Math.max(120, Math.min(600, innerHeight - 100)));
+          } else {
+            panel.width = clamp(size, 280, 640);
+          }
+          this.panelMaximized = false;
+        }
+        if (part.key === 'sidebar-split') {
+          s.layout.mainSidebar.openPagesRatio = clamp(
+            initial.layout.mainSidebar.openPagesRatio +
+              dy / (this.renderRoot.querySelector('.sidebar-content')?.clientHeight ?? 400),
+            0.3,
+            0.8,
           );
-        } else {
-          s.layout.panel.width = clamp(
-            initial.layout.panel.width + (initial.layout.panel.dock === 'left' ? dx : -dx),
-            280,
-            640,
+        }
+        if (part.key === 'terminal-list') {
+          s.layout.panel.terminalListSize = clamp(
+            initial.layout.panel.terminalListSize - dx,
+            160,
+            320,
+          );
+        }
+        const rect = rects.get(part.nodeId);
+        if (part.key === 'split' && rect) {
+          s.layout.center = visit(s.layout.center, (n) =>
+            n.kind === 'split' && n.id === part.nodeId
+              ? {
+                  ...n,
+                  ratio: clamp(
+                    n.axis === 'horizontal'
+                      ? (e.clientX - rect.left) / rect.width
+                      : (e.clientY - rect.top) / rect.height,
+                    0.2,
+                    0.8,
+                  ),
+                }
+              : n,
           );
         }
       }
-      if (key === 'sidebar-split') {
-        const sidebar = this.renderRoot.querySelector('.sidebar-content');
-        s.layout.mainSidebar.openPagesRatio = clamp(
-          initial.layout.mainSidebar.openPagesRatio + dy / (sidebar?.clientHeight ?? 400),
-          0.3,
-          0.8,
-        );
-      }
-      if (key === 'terminal-list') {
-        s.layout.panel.terminalListSize = clamp(
-          initial.layout.panel.terminalListSize - dx,
-          160,
-          320,
-        );
-      }
-      if (key === 'split' && rect) {
-        s.layout.center = visit(s.layout.center, (n) =>
-          n.kind === 'split' && n.id === nodeId
-            ? {
-                ...n,
-                ratio: clamp(
-                  n.axis === 'horizontal'
-                    ? (e.clientX - rect.left) / rect.width
-                    : (e.clientY - rect.top) / rect.height,
-                  0.2,
-                  0.8,
-                ),
-              }
-            : n,
-        );
-      }
       this.requestUpdate();
-      this.pool?.position();
     };
-    const finish = () => {
+    const cleanup = () => {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', finish);
       window.removeEventListener('pointercancel', cancel);
-      const final = requireValue(this.resizeSnapshot);
-      this.resizeSnapshot = undefined;
+      document.documentElement.style.cursor = oldCursor;
       this.dragging = false;
-      this.act(() =>
-        this.store.update((s) => {
-          s.layout = final.layout;
-        }),
-      );
+    };
+    const finish = () => {
+      const final = this.resizeSnapshot;
+      this.resizeSnapshot = undefined;
+      cleanup();
+      if (final) {
+        this.act(() =>
+          this.store.update((s) => {
+            s.layout = final.layout;
+          }),
+        );
+      }
     };
     const cancel = () => {
       this.resizeSnapshot = undefined;
-      this.dragging = false;
-      window.removeEventListener('pointermove', move);
-      window.removeEventListener('pointerup', finish);
-      window.removeEventListener('pointercancel', cancel);
+      cleanup();
       this.requestUpdate();
     };
     window.addEventListener('pointermove', move);
@@ -1229,7 +1492,7 @@ export class AppRoot extends LitElement {
     let columns =
       layout.mainSidebar.side === 'left'
         ? ['activity', 'main', 'center', 'aux']
-        : ['aux', 'center', 'activity', 'main'];
+        : ['aux', 'center', 'main', 'activity'];
     if (layout.panel.dock !== 'bottom') {
       const i =
         layout.panel.align === 'full'
@@ -1256,6 +1519,8 @@ export class AppRoot extends LitElement {
       '--aux-sidebar-width': `${layout.auxiliarySidebar.size}px`,
       '--panel-height': `${layout.panel.height}px`,
       '--panel-width': `${layout.panel.width}px`,
+      '--main-visible-width': mainVisible ? widths.main : '0px',
+      '--aux-visible-width': auxVisible ? widths.aux : '0px',
       '--terminal-list-width': `${layout.panel.terminalListSize}px`,
     };
   }
@@ -1273,6 +1538,7 @@ export class AppRoot extends LitElement {
         >跳过导航，进入页面区域</a
       >
       <div
+        @pointermove=${this.hoverResize}
         class=${`workbench ${this.dragging ? 'is-dragging' : ''} ${this.focusedOnly ? 'is-focused' : ''}`}
       >
         ${this.renderTopbar()}
@@ -1315,12 +1581,34 @@ export class AppRoot extends LitElement {
             : html`<div
                 class="shell-body"
                 data-side=${this.snapshot.layout.mainSidebar.side}
-                data-main-overlay=${this.mobileSidebar}
+                data-main-overlay=${this.visible('main')}
                 data-panel-dock=${this.snapshot.layout.panel.dock}
+                data-main-visible=${this.visible('main')}
+                data-aux-visible=${this.visible('aux')}
+                data-panel-visible=${this.visible('panel')}
+                data-panel-maximized=${this.panelMaximized && this.visible('panel')}
                 style=${styleMap(this.shellStyle())}
               >
                 ${this.renderActivity()}${this.renderSidebar()}
-                <main id="workspace-center" tabindex="-1" class="center-area">
+                ${!this.visible('main')
+                  ? html`<div
+                      class="resize-handle hidden-main-resize"
+                      data-resize-key="main"
+                      role="separator"
+                      aria-label="展开和调整主侧栏宽度"
+                      aria-orientation="vertical"
+                      tabindex="0"
+                      @pointerdown=${(e: PointerEvent) => this.resize(e, 'main')}
+                      @keydown=${(e: KeyboardEvent) => this.resizeKey(e, 'main')}
+                    ></div>`
+                  : nothing}
+
+                <main
+                  id="workspace-center"
+                  tabindex="-1"
+                  class="center-area"
+                  @scroll=${() => this.pool?.position()}
+                >
                   ${groups(this.snapshot.layout.center).length > 1
                     ? html`<nav class="group-switcher" aria-label="切换页面组">
                         ${groups(this.snapshot.layout.center).map(
@@ -1339,19 +1627,19 @@ export class AppRoot extends LitElement {
                             </button>`,
                         )}
                       </nav>`
-                    : nothing}${this.renderNode(
-                    (this.resizeSnapshot ?? this.snapshot).layout.center,
-                  )}
+                    : nothing}
+                  <div class="center-canvas">
+                    ${this.renderNode((this.resizeSnapshot ?? this.snapshot).layout.center)}
+                  </div>
                 </main>
                 <aside
                   class="auxiliary-sidebar"
-                  data-visible=${innerWidth < 1280
-                    ? this.mobileAux
-                    : this.snapshot.layout.auxiliarySidebar.visible && !this.focusedOnly}
+                  data-visible=${this.visible('aux')}
                   aria-label="当前页面属性"
                 >
                   <div
                     class="resize-handle aux-resize"
+                    data-resize-key="aux"
                     role="separator"
                     tabindex="0"
                     aria-label="调整辅助侧栏宽度"
@@ -1390,13 +1678,19 @@ export class AppRoot extends LitElement {
             @contextmenu=${(e: Event) => e.preventDefault()}
           ></wb-context-menu>`
         : nothing}
-      ${this.dragging ? html`<div class="resize-shield"></div>` : nothing}
+      ${this.store.dialogState ? this.renderDialog() : nothing}
+      ${this.dragging
+        ? html`<div class="resize-shield" style=${`cursor:${this.resizeCursor}`}></div>`
+        : nothing}
       <div class="sr-only" role="status" aria-live="polite">
         ${this.store.saveState === 'unsaved' ? '工作区尚未保存' : ''}
       </div>`;
   }
   private renderTopbar() {
     const disabled = !this.store.workspace;
+    const right = this.store.workspace?.snapshot.layout.mainSidebar.side === 'right';
+    const leftVisible = !disabled && this.visible(right ? 'aux' : 'main');
+    const rightVisible = !disabled && this.visible(right ? 'main' : 'aux');
     return html`<header class="topbar">
       <nav class="topbar-menu-area" aria-label="主菜单">
         ${menus
@@ -1423,6 +1717,20 @@ export class AppRoot extends LitElement {
             </button>`
           : nothing}
       </nav>
+      <div class="focus-navigation">
+        ${iconButton(
+          'arrow-left',
+          '返回上一个聚焦位置',
+          () => this.act(() => this.command('focusBack')),
+          disabled || !this.focusHistory.canGo(-1, this.focusExists),
+        )}
+        ${iconButton(
+          'arrow-right',
+          '前进到下一个聚焦位置',
+          () => this.act(() => this.command('focusForward')),
+          disabled || !this.focusHistory.canGo(1, this.focusExists),
+        )}
+      </div>
       <button
         class="topbar-search"
         ?disabled=${disabled}
@@ -1432,19 +1740,19 @@ export class AppRoot extends LitElement {
       </button>
       <div class="topbar-controls">
         ${iconButton(
-          'sidebar',
-          '切换主侧栏',
-          () => this.act(() => this.command('sidebar')),
+          leftVisible ? 'layout-sidebar-left' : 'layout-sidebar-left-off',
+          right ? '切换辅助侧栏' : '切换主侧栏',
+          () => this.act(() => this.command(right ? 'auxiliary' : 'sidebar')),
           disabled,
         )}${iconButton(
-          'panel',
+          !disabled && this.visible('panel') ? 'layout-panel' : 'layout-panel-off',
           '切换底部面板',
           () => this.act(() => this.command('panel')),
           disabled,
         )}${iconButton(
-          'auxiliary',
-          '切换辅助侧栏',
-          () => this.act(() => this.command('auxiliary')),
+          rightVisible ? 'layout-sidebar-right' : 'layout-sidebar-right-off',
+          right ? '切换主侧栏' : '切换辅助侧栏',
+          () => this.act(() => this.command(right ? 'sidebar' : 'auxiliary')),
           disabled,
         )}
       </div>
@@ -1462,7 +1770,7 @@ export class AppRoot extends LitElement {
             class="activity-bar-item"
             title=${label}
             aria-label=${label}
-            aria-pressed=${view === id}
+            aria-pressed=${this.visible('main') && view === id}
             @click=${() => this.act(() => this.setView(id as keyof typeof viewNames))}
           >
             ${icon(id)}<span>${id === 'history' ? '历史' : id === 'plugins' ? '插件' : label}</span>
@@ -1486,13 +1794,17 @@ export class AppRoot extends LitElement {
     );
     return html`<aside
       class="main-sidebar"
-      data-visible=${innerWidth < 1024
-        ? this.mobileSidebar
-        : layout.mainSidebar.visible && !this.focusedOnly}
+      data-visible=${this.visible('main')}
       aria-label="主侧栏"
+      @pointerdown=${(e: PointerEvent) => {
+        if (!(e.target as HTMLElement).closest('[data-resize-key]')) {
+          this.recordFocus({ kind: 'sidebar', view });
+        }
+      }}
     >
       <div
         class="resize-handle main-resize"
+        data-resize-key="main"
         role="separator"
         tabindex="0"
         aria-label="调整主侧栏宽度"
@@ -1504,15 +1816,10 @@ export class AppRoot extends LitElement {
       <div class="sidebar-header">
         <strong>${viewNames[view]}</strong>
         <div>
-          ${iconButton(
-            view === 'pages' ? 'split' : 'external',
-            view === 'pages' ? '向右拆分' : '在中心打开',
-            () =>
-              this.act(() =>
-                view === 'pages'
-                  ? this.command('splitRight')
-                  : this.openInternal(view === 'search' ? 'search' : view),
-              ),
+          ${iconButton('external', '在中心打开', () =>
+            this.act(() =>
+              view === 'pages' ? this.openInternal('pages') : this.openInternal(view),
+            ),
           )}${iconButton('more', '侧栏布局选项', () => {
             const trigger = this.shadowRoot ? deepActiveElement(this.shadowRoot) : undefined,
               rect = (trigger ?? this).getBoundingClientRect();
@@ -1547,7 +1854,7 @@ export class AppRoot extends LitElement {
           }}
         />
       </div>
-      <div class="sidebar-content">
+      <div class="sidebar-content" tabindex="-1">
         ${view === 'pages'
           ? html`<section
                 class="sidebar-section"
@@ -1561,7 +1868,8 @@ export class AppRoot extends LitElement {
                     (g, index) =>
                       html`<div class="group-label">分组 ${index + 1}</div>
                         ${g.tabIds
-                          .map((id) => requireValue(this.snapshot.tabs.find((t) => t.id === id)))
+                          .map((id) => this.snapshot.tabs.find((t) => t.id === id))
+                          .filter((t): t is Tab => Boolean(t))
                           .filter((t) => !query || titleOf(t).toLowerCase().includes(query))
                           .map(
                             (tab) =>
@@ -1589,6 +1897,7 @@ export class AppRoot extends LitElement {
               </section>
               <div
                 class="sidebar-splitter"
+                data-resize-key="sidebar-split"
                 role="separator"
                 tabindex="0"
                 aria-label="调整打开页面与插件列表比例"
@@ -1621,6 +1930,11 @@ export class AppRoot extends LitElement {
                             ></span
                           ><i class=${`dot ${runtimeClass(p.runtime.status)}`}></i></button
                         >${iconButton('more', `${p.title} 的操作`, () => this.openPluginMenu(p))}
+                        ${pluginOpenButtons(
+                          p,
+                          (id, args) => this.act(() => this.command(id, args)),
+                          true,
+                        )}
                       </div>`,
                   )}${!pluginPages.length
                     ? html`<div class="sidebar-empty">
@@ -1653,26 +1967,12 @@ export class AppRoot extends LitElement {
           : nothing}
         ${view === 'bookmarks'
           ? html`<div class="sidebar-section-body">
-              ${this.store.bookmarks
-                .filter((b) =>
-                  `${b.customTitle ?? b.originalTitle} ${b.url}`.toLowerCase().includes(query),
-                )
-                .map(
-                  (b) =>
-                    html`<div class="sidebar-list-item">
-                      <button
-                        class="list-main"
-                        title=${b.url}
-                        @click=${() => this.act(() => this.command('openBookmark', b))}
-                      >
-                        ${icon('bookmarks')}<span>${b.customTitle ?? b.originalTitle}</span></button
-                      >${iconButton('more', '编辑收藏', () =>
-                        this.act(() => this.command('editBookmark', b)),
-                      )}
-                    </div>`,
-                )}${!this.store.bookmarks.length
-                ? html`<div class="sidebar-empty">在页面状态栏点击收藏，即可保存精确地址。</div>`
-                : nothing}${this.store.cursors.bookmarks
+              ${bookmarkList(
+                this.store,
+                (id, args) => this.act(() => this.command(id, args)),
+                query,
+                true,
+              )}${this.store.cursors.bookmarks
                 ? html`<button
                     class="text-button"
                     @click=${() => this.act(() => this.store.loadList('bookmarks', true))}
@@ -1743,6 +2043,8 @@ export class AppRoot extends LitElement {
         </div>
         <div
           class=${`center-splitter ${node.axis}`}
+          data-resize-key="split"
+          data-resize-node=${node.id}
           role="separator"
           tabindex="0"
           aria-label="调整页面分组比例"
@@ -1786,10 +2088,18 @@ export class AppRoot extends LitElement {
       data-group=${node.id}
       aria-label="页面分组"
       @pointerdown=${() => {
+        this.inspectedTab = undefined;
+        if (active) {
+          this.recordFocus({ kind: 'tab', id: active.id });
+        }
         if (!focused) {
           this.act(() =>
             this.store.update((s) => {
-              s.layout.focusedGroupId = node.id;
+              if (active) {
+                focusTab(s, active.id);
+              } else {
+                s.layout.focusedGroupId = node.id;
+              }
             }),
           );
         }
@@ -1806,7 +2116,8 @@ export class AppRoot extends LitElement {
         e.preventDefault();
         e.stopPropagation();
         if (this.dragTab) {
-          this.act(() => this.store.update((s) => moveTab(s, this.dragTab, node.id)));
+          const source = this.dragTab;
+          this.act(() => this.store.update((s) => moveTab(s, source, node.id)));
         }
         this.dragTab = '';
         this.classList.remove('tab-dragging');
@@ -1848,7 +2159,10 @@ export class AppRoot extends LitElement {
             ),
             (id) => id,
             (id) => {
-              const tab = requireValue(this.snapshot.tabs.find((t) => t.id === id));
+              const tab = this.snapshot.tabs.find((t) => t.id === id);
+              if (!tab) {
+                return nothing;
+              }
               const runtime = this.pool?.runtimes.get(id);
               return html`<div
                 class="tab-item"
@@ -1925,6 +2239,11 @@ export class AppRoot extends LitElement {
           )}
         </div>
         <div class="tab-bar-actions">
+          ${!node.tabIds.length && groups(this.snapshot.layout.center).length > 1
+            ? iconButton('close', '关闭空分组', () =>
+                this.act(() => this.store.update(pruneEmptyGroups)),
+              )
+            : nothing}
           ${iconButton('split', '向右拆分', () =>
             this.act(() => this.command('splitRight', node.id)),
           )}${iconButton('more', '分组操作', () => {
@@ -2075,7 +2394,7 @@ export class AppRoot extends LitElement {
   }
   private renderPanel() {
     const panel = (this.resizeSnapshot ?? this.snapshot).layout.panel,
-      visible = innerWidth < 1024 ? this.mobilePanel : panel.visible && !this.focusedOnly;
+      visible = this.visible('panel');
     const records = (this.store.outputs.get('public') ?? []).filter(
       (r) =>
         (this.outputFilter === 'all' || r.level === this.outputFilter) &&
@@ -2086,9 +2405,18 @@ export class AppRoot extends LitElement {
       data-visible=${visible}
       data-dock=${panel.dock}
       aria-label="输出与终端面板"
+      @pointerdown=${(e: PointerEvent) => {
+        if (
+          panel.activeView === 'output' &&
+          !(e.target as HTMLElement).closest('[data-resize-key]')
+        ) {
+          this.recordFocus({ kind: 'panel', view: 'output' });
+        }
+      }}
     >
       <div
         class=${`resize-handle panel-resize ${panel.dock}`}
+        data-resize-key="panel"
         role="separator"
         tabindex="0"
         aria-label="调整面板尺寸"
@@ -2107,12 +2435,7 @@ export class AppRoot extends LitElement {
                 role="tab"
                 tabindex=${panel.activeView === id ? 0 : -1}
                 aria-selected=${panel.activeView === id}
-                @click=${() =>
-                  this.act(() =>
-                    this.store.update((s) => {
-                      s.layout.panel.activeView = id as 'output' | 'terminal';
-                    }),
-                  )}
+                @click=${() => this.act(() => this.selectPanel(id as 'output' | 'terminal'))}
               >
                 ${icon(id)}${label}${id === 'terminal' &&
                 this.store.terminals.filter((t) => !t.archivedAt).length
@@ -2124,6 +2447,12 @@ export class AppRoot extends LitElement {
           )}
         </div>
         <div class="panel-actions">
+          ${panel.activeView === 'terminal' &&
+          this.store.terminals.filter((t) => !t.archivedAt).length === 1
+            ? iconButton('trash', '关闭当前终端', () =>
+                this.act(() => this.command('closeTerminal')),
+              )
+            : nothing}
           ${iconButton('plus', '新建命令终端', () =>
             this.act(() => this.command('newTerminal')),
           )}${iconButton(this.panelMaximized ? 'collapse' : 'expand', '最大化 / 还原面板', () => {
@@ -2193,7 +2522,13 @@ export class AppRoot extends LitElement {
               this.act(() => navigator.clipboard.writeText(records.map((r) => r.text).join('\n'))),
             )}
           </div>
-          <div class="output-content" role="log" aria-label="公共输出">
+          <div
+            class="output-content"
+            role="log"
+            tabindex="0"
+            aria-label="公共输出"
+            @focus=${() => this.recordFocus({ kind: 'panel', view: 'output' })}
+          >
             ${this.store.outputGaps.has('public')
               ? html`<p class="notice">更早的输出已截断。</p>`
               : nothing}${!records.length
@@ -2201,17 +2536,21 @@ export class AppRoot extends LitElement {
                   <p>暂无公共输出</p>
                   <span>核心与插件后台日志将在这里显示。</span>
                 </div>`
-              : virtualize({
-                  items: this.outputPaused ? this.pausedRecords : records,
-                  renderItem: (r) =>
+              : repeat(
+                  terminalRows(this.outputPaused ? this.pausedRecords : records),
+                  (r) => r.seq,
+                  (r) =>
                     html`<div class="output-line">
-                      <time>${new Date(r.timestamp).toLocaleTimeString()}</time
-                      ><span class=${`level ${r.level ?? 'info'}`}>${r.level ?? 'info'}</span
-                      ><span class="output-text"
-                        >${r.text.replace(/\x1b\[[0-9;]*[A-Za-z]/g, '')}</span
+                      <time>${new Date(r.timestamp).toLocaleTimeString()}</time>
+                      <span class=${`level ${r.level ?? 'info'}`}>${r.level ?? 'info'}</span>
+                      <span class="output-text"
+                        >${r.segments.map(
+                          (segment) =>
+                            html`<span style=${styleMap(segment.style)}>${segment.text}</span>`,
+                        )}</span
                       >
                     </div>`,
-                })}
+                )}
           </div>
         </div>
       </div>
@@ -2227,7 +2566,7 @@ export class AppRoot extends LitElement {
           ? this.store.catalog.find((p) => p.pluginId === tab.pluginId)
           : undefined,
       runtime = tab && this.pool?.runtimes.get(tab.id);
-    const unread = this.store.notifications.filter((n) => !n.readAt).length;
+    const unread = this.store.notificationItems.filter((n) => !n.readAt).length;
     return html`<footer class="status-bar">
       <div class="status-bar-left">
         <button
@@ -2282,15 +2621,68 @@ export class AppRoot extends LitElement {
           class="status-url-input"
           aria-label="当前插件 URL"
           ?disabled=${tab?.kind !== 'plugin'}
-          .value=${live(tab?.kind === 'plugin' ? tab.url : tab ? '内置页面' : '没有活动页面')}
+          .value=${live(
+            tab?.kind === 'plugin'
+              ? this.urlDraft?.tabId === tab.id
+                ? this.urlDraft.display
+                : this.decodedUrl(tab.url)
+              : tab
+                ? '内置页面'
+                : '没有活动页面',
+          )}
+          @input=${(e: Event) => {
+            if (tab?.kind !== 'plugin') {
+              return;
+            }
+            const display = (e.currentTarget as HTMLInputElement).value;
+            let encoded = display;
+            try {
+              encoded = new URL(display, tab.url).href;
+            } catch {
+              /* Keep incomplete edits. */
+            }
+            this.urlDraft = { tabId: tab.id, display, encoded };
+          }}
+          @blur=${(e: FocusEvent) => {
+            const input = e.currentTarget as HTMLInputElement;
+            input.value = this.decodedUrl(input.value);
+            if (this.urlDraft && this.urlDraft.tabId === tab?.id) {
+              this.urlDraft.display = input.value;
+            }
+          }}
+          @copy=${(e: ClipboardEvent) => {
+            const input = e.currentTarget as HTMLInputElement;
+            if (
+              input.selectionStart === 0 &&
+              input.selectionEnd === input.value.length &&
+              tab?.kind === 'plugin'
+            ) {
+              e.preventDefault();
+              e.clipboardData?.setData(
+                'text/plain',
+                this.urlDraft?.tabId === tab.id && this.urlDraft.display === input.value
+                  ? this.urlDraft.encoded
+                  : input.value === this.decodedUrl(tab.url)
+                    ? tab.url
+                    : new URL(input.value, location.origin).href,
+              );
+            }
+          }}
           @keydown=${(e: KeyboardEvent) => {
             if (e.key === 'Enter' && tab?.kind === 'plugin') {
               e.preventDefault();
-              const value = (e.currentTarget as HTMLInputElement).value;
+              const input = e.currentTarget as HTMLInputElement;
+              const value =
+                this.urlDraft?.tabId === tab.id
+                  ? this.urlDraft.encoded
+                  : input.value === this.decodedUrl(tab.url)
+                    ? tab.url
+                    : input.value;
               this.act(() => this.navigate(tab.id, value));
             }
             if (e.key === 'Escape' && tab?.kind === 'plugin') {
-              (e.currentTarget as HTMLInputElement).value = tab.url;
+              this.urlDraft = undefined;
+              (e.currentTarget as HTMLInputElement).value = this.decodedUrl(tab.url);
             }
           }}
         />${iconButton(
@@ -2299,7 +2691,10 @@ export class AppRoot extends LitElement {
           () => this.act(() => this.command('copyUrl')),
           tab?.kind !== 'plugin',
         )}${iconButton(
-          'bookmarks',
+          tab?.kind === 'plugin' &&
+            this.store.bookmarks.some((b) => b.pluginId === tab.pluginId && b.url === tab.url)
+            ? 'star-full'
+            : 'star-half',
           '收藏当前页面',
           () => this.act(() => this.command('bookmark')),
           tab?.kind !== 'plugin',
@@ -2326,9 +2721,11 @@ export class AppRoot extends LitElement {
           : nothing}<button
           class="status-item notification-button"
           aria-label=${`通知，${unread} 条未读`}
-          @click=${() => (this.notificationOpen = !this.notificationOpen)}
+          @click=${() => this.toggleNotifications()}
         >
-          ${icon('bell')}${unread ? html`<span class="badge accent">${unread}</span>` : nothing}
+          ${icon(unread ? 'bell-dot' : 'bell')}${unread
+            ? html`<span class="badge accent">${unread}</span>`
+            : nothing}
         </button>
       </div>
     </footer>`;
@@ -2753,18 +3150,15 @@ export class AppRoot extends LitElement {
     </div>`;
   }
   private renderNotifications() {
-    const all = this.store.notifications,
+    const all = this.store.notificationItems,
       items = all.filter((n) =>
         this.notificationFilter === 'unread'
-          ? !n.readAt
+          ? !n.readAt || this.unreadSnapshot.has(n.id)
           : this.notificationFilter === 'error'
             ? n.level === 'error'
             : this.notificationFilter === 'all' || n.source === this.notificationFilter,
       );
-    return html`<div
-        class="notification-backdrop"
-        @click=${() => (this.notificationOpen = false)}
-      ></div>
+    return html`<div class="notification-backdrop" @click=${() => this.toggleNotifications()}></div>
       <section class="notification-center" role="dialog" aria-label="通知中心">
         <div class="sidebar-header">
           <strong>通知中心</strong><span class="spacer"></span>${iconButton(
@@ -2772,12 +3166,9 @@ export class AppRoot extends LitElement {
             '全部标记已读',
             () =>
               this.act(async () => {
-                await this.store.api.request('/notifications/ack', {
-                  ids: all.filter((n) => !n.readAt).map((n) => n.id),
-                });
-                await this.store.loadList('notifications');
+                await this.store.ackNotifications(all.filter((n) => !n.readAt).map((n) => n.id));
               }),
-          )}${iconButton('close', '关闭通知中心', () => (this.notificationOpen = false))}
+          )}${iconButton('close', '关闭通知中心', () => this.toggleNotifications())}
         </div>
         <div class="notification-filters">
           ${[
@@ -2791,7 +3182,12 @@ export class AppRoot extends LitElement {
               html`<button
                 class="btn ghost small"
                 aria-pressed=${this.notificationFilter === v}
-                @click=${() => (this.notificationFilter = v)}
+                @click=${() => {
+                  this.notificationFilter = v;
+                  this.unreadSnapshot = new Set(
+                    this.store.notificationItems.filter((n) => !n.readAt).map((n) => n.id),
+                  );
+                }}
               >
                 ${l}
               </button>`,
@@ -2800,7 +3196,10 @@ export class AppRoot extends LitElement {
         <div class="notification-list">
           ${items.map(
             (n) =>
-              html`<article class=${`notification ${!n.readAt ? 'unread' : ''}`}>
+              html`<article
+                data-notification-id=${n.id}
+                class=${`notification ${!n.readAt ? 'unread' : 'read'}`}
+              >
                 <span class=${n.level}>${icon(n.level === 'warn' ? 'warning' : n.level)}</span>
                 <div>
                   <strong>${n.title}</strong>${n.count > 1
@@ -2829,14 +3228,12 @@ export class AppRoot extends LitElement {
                   ${!n.readAt
                     ? iconButton('check', '标记已读', () =>
                         this.act(async () => {
-                          await this.store.api.request('/notifications/ack', { ids: [n.id] });
-                          await this.store.loadList('notifications');
+                          await this.store.ackNotifications([n.id]);
                         }),
                       )
                     : nothing}${iconButton('close', '删除通知', () =>
                     this.act(async () => {
-                      await this.store.api.request('/notifications/delete', { ids: [n.id] });
-                      await this.store.loadList('notifications');
+                      await this.store.deleteNotifications([n.id]);
                     }),
                   )}
                 </div>
@@ -2892,8 +3289,8 @@ export class AppRoot extends LitElement {
                 ${['queued', 'running'].includes(job.status)
                   ? html`<button
                       class="btn secondary"
-                      @click=${() => {
-                        if (confirm('取消此共享任务将影响所有订阅窗口。继续？')) {
+                      @click=${async () => {
+                        if (await this.store.confirm('取消此共享任务将影响所有订阅窗口。继续？')) {
                           this.act(async () => {
                             const next = await this.store.api.request<typeof job>(
                               `/jobs/${job.id}/cancel`,
@@ -2924,12 +3321,143 @@ export class AppRoot extends LitElement {
     return html`<div class="toast-container" aria-live="polite">
       ${this.store.toasts.map(
         (t) =>
-          html`<div class=${`toast ${t.level}`} role=${t.level === 'error' ? 'alert' : 'status'}>
+          html`<div
+            class=${`toast ${t.level} ${t.focused ? 'focused' : ''}`}
+            tabindex="0"
+            @click=${(e: MouseEvent) => (e.currentTarget as HTMLElement).focus()}
+            @focusin=${() => this.store.focusToast(t.id, true)}
+            @focusout=${(e: FocusEvent) => {
+              if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) {
+                this.store.focusToast(t.id, false);
+              }
+            }}
+            role=${t.level === 'error' ? 'alert' : 'status'}
+          >
             <span>${icon(t.level === 'warn' ? 'warning' : t.level)}</span>
             <div>${t.text}</div>
             ${iconButton('close', '关闭提示', () => this.store.dismissToast(t.id))}
           </div>`,
       )}
+    </div>`;
+  }
+  private toggleNotifications() {
+    this.notificationOpen = !this.notificationOpen;
+    this.unreadSnapshot = new Set(
+      this.store.notificationItems.filter((n) => !n.readAt).map((n) => n.id),
+    );
+    this.notificationObserver?.disconnect();
+    this.notificationObserver = undefined;
+    this.notificationObserved = new WeakSet();
+  }
+  private observeNotifications() {
+    if (!this.notificationOpen || typeof IntersectionObserver === 'undefined') {
+      return;
+    }
+    const root = this.renderRoot.querySelector('.notification-list');
+    if (!root) {
+      return;
+    }
+    this.notificationObserver ??= new IntersectionObserver(
+      (entries) => {
+        const ids = entries
+          .filter((e) => e.isIntersecting && e.intersectionRatio > 0)
+          .map((e) => (e.target as HTMLElement).dataset.notificationId ?? '')
+          .filter((id) => this.store.notificationItems.some((n) => n.id === id && !n.readAt));
+        if (ids.length) {
+          if (this.notificationFilter === 'unread') {
+            for (const id of ids) {
+              this.unreadSnapshot.add(id);
+            }
+          }
+          this.act(() => this.store.ackNotifications(ids));
+        }
+      },
+      { root, threshold: 0.01 },
+    );
+    for (const element of root.querySelectorAll('[data-notification-id]')) {
+      if (!this.notificationObserved.has(element)) {
+        this.notificationObserved.add(element);
+        this.notificationObserver.observe(element);
+      }
+    }
+  }
+  private renderDialog() {
+    const dialog = this.store.dialogState;
+    if (!dialog) {
+      return nothing;
+    }
+    const rect = this.renderRoot.querySelector('.center-area')?.getBoundingClientRect();
+    return html`<div
+      class="dialog-backdrop"
+      style=${rect
+        ? styleMap({
+            left: `${rect.left}px`,
+            top: `${rect.top}px`,
+            width: `${rect.width}px`,
+            height: `${rect.height}px`,
+          })
+        : nothing}
+    >
+      <form
+        class="workbench-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-label=${dialog.title}
+        @submit=${(event: SubmitEvent) => {
+          event.preventDefault();
+          dialog.resolve(
+            Object.fromEntries(new FormData(event.currentTarget as HTMLFormElement)) as Record<
+              string,
+              string
+            >,
+          );
+        }}
+        @keydown=${(event: KeyboardEvent) => {
+          if (event.key === 'Escape') {
+            event.stopPropagation();
+            dialog.resolve(null);
+          }
+          if (event.key === 'Tab') {
+            const items = [
+              ...(event.currentTarget as HTMLElement).querySelectorAll<HTMLElement>(
+                'input,select,button',
+              ),
+            ];
+            const first = items[0],
+              last = items[items.length - 1];
+            if (event.shiftKey && this.shadowRoot?.activeElement === first) {
+              event.preventDefault();
+              last?.focus();
+            } else if (!event.shiftKey && this.shadowRoot?.activeElement === last) {
+              event.preventDefault();
+              first?.focus();
+            }
+          }
+        }}
+      >
+        <h2>${dialog.title}</h2>
+        ${dialog.fields.map(
+          (field) =>
+            html`<label
+              >${field.label}${field.options
+                ? html`<select name=${field.name} .value=${field.value}>
+                    ${field.options.map(
+                      (option) => html`<option value=${option.value}>${option.label}</option>`,
+                    )}
+                  </select>`
+                : html`<input
+                    name=${field.name}
+                    .value=${field.value}
+                    autocomplete="off"
+                  />`}</label
+            >`,
+        )}
+        <div class="dialog-actions">
+          <button type="button" class="btn secondary" @click=${() => dialog.resolve(null)}>
+            取消</button
+          ><button type="submit" class="btn primary">确定</button>
+        </div>
+      </form>
     </div>`;
   }
 }

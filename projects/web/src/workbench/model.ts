@@ -7,6 +7,7 @@ import type {
   WorkspaceSnapshot,
 } from './types.ts';
 import { pageNames } from './types.ts';
+import { pruneEmptyGroups } from '../../../shared/workbench-layout.ts';
 export const uid = () => crypto.randomUUID();
 export const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value));
 export const titleOf = (tab: Tab) =>
@@ -111,6 +112,9 @@ export function splitGroup(
   }
 }
 export function moveTab(s: WorkspaceSnapshot, id: string, target: string, index?: number) {
+  if (!s.tabs.some((t) => t.id === id)) {
+    return;
+  }
   const destination = groups(s.layout.center).find((g) => g.id === target);
   if (!destination) {
     return;
@@ -123,6 +127,7 @@ export function moveTab(s: WorkspaceSnapshot, id: string, target: string, index?
   }
   destination.tabIds.splice(index ?? destination.tabIds.length, 0, id);
   focusTab(s, id);
+  pruneEmptyGroups(s);
 }
 export function mergeGroups(s: WorkspaceSnapshot) {
   const gs = groups(s.layout.center),

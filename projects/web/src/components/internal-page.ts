@@ -14,7 +14,7 @@ import {
   platform,
   type Command,
 } from '../workbench/commands.ts';
-import { icon, iconButton, pluginCard } from '../workbench/ui.ts';
+import { icon, iconButton, pluginCard, bookmarkList } from '../workbench/ui.ts';
 import { ConfigController } from '../../../shared/store/config.ts';
 import { CONFIG_KEY } from '../../../shared/utils/common.ts';
 @customElement('wb-internal-page')
@@ -65,6 +65,23 @@ export class InternalPageView extends LitElement {
       return nothing;
     }
     switch (this.page) {
+      case 'pages':
+        return html`<div class="internal-view">
+          ${this.header('PAGES', '页面', '打开的页面与插件页面。')}
+          <div class="record-list">
+            ${this.store.workspace?.snapshot.tabs.map(
+              (tab) =>
+                html`<button class="record-card" @click=${() => this.action('focusTab', tab.id)}>
+                  ${icon(tab.kind === 'plugin' ? 'pages' : tab.page)}${titleOf(tab)}
+                </button>`,
+            )}
+          </div>
+          <div class="plugin-grid">
+            ${this.store.catalog
+              .filter((p) => p.ui.state === 'ready')
+              .map((p) => pluginCard(p, this.action))}
+          </div>
+        </div>`;
       case 'welcome':
         return this.welcome();
       case 'settings':
@@ -229,44 +246,10 @@ export class InternalPageView extends LitElement {
     </div>`;
   }
   private bookmarks() {
-    const rows = this.store.bookmarks.filter((b) =>
-      `${b.customTitle ?? b.originalTitle} ${b.url}`
-        .toLowerCase()
-        .includes(this.query.toLowerCase()),
-    );
     return html`<div class="internal-view">
       ${this.header('BOOKMARKS', '收藏', '保留精确地址，随时回到需要的内容。')}${this.search(
         '搜索收藏名称或 URL…',
-      )}
-      <div class="record-list">
-        ${rows.map(
-          (b) =>
-            html`<article class="record-card">
-              ${icon('bookmarks')}<button
-                class="record-main"
-                @click=${() => this.action('openBookmark', b)}
-              >
-                <strong>${b.customTitle ?? b.originalTitle}</strong
-                ><small class="mono">${b.url}</small
-                ><small
-                  >${this.store.catalog.find((p) => p.pluginId === b.pluginId)?.title ??
-                  b.pluginId}</small
-                ></button
-              >${iconButton('edit', '编辑收藏', () => this.action('editBookmark', b))}${iconButton(
-                'trash',
-                '删除收藏',
-                () => this.action('deleteBookmark', b),
-              )}
-            </article>`,
-        )}
-      </div>
-      ${!rows.length
-        ? html`<div class="empty">
-            ${icon('bookmarks')}
-            <p>还没有收藏</p>
-            <span>在插件页面点击状态栏的收藏按钮。</span>
-          </div>`
-        : nothing}${this.more('bookmarks')}
+      )}${bookmarkList(this.store, this.action, this.query)}${this.more('bookmarks')}
     </div>`;
   }
   private history() {
@@ -537,9 +520,10 @@ export class InternalPageView extends LitElement {
                     重试保存</button
                   ><button
                     class="text-button"
-                    @click=${() =>
-                      confirm('本地草稿将被服务端版本替换。请先导出需要保留的更改。继续？') &&
-                      this.run(() => this.store.acceptRemote())}
+                    @click=${async () =>
+                      (await this.store.confirm(
+                        '本地草稿将被服务端版本替换。请先导出需要保留的更改。继续？',
+                      )) && this.run(() => this.store.acceptRemote())}
                   >
                     接受服务端版本
                   </button>`
@@ -622,8 +606,8 @@ export class InternalPageView extends LitElement {
           <option value="unbound">未绑定</option></select
         ><button
           class="btn secondary"
-          @click=${() =>
-            confirm('恢复全部默认快捷键？') &&
+          @click=${async () =>
+            (await this.store.confirm('恢复全部默认快捷键？')) &&
             this.run(() => this.store.setPreferences({}, ['keybindings']))}
         >
           全部重置

@@ -2,7 +2,7 @@ import { css } from 'lit';
 export const menuStyles = css`
   :host {
     color: var(--text-primary);
-    font: var(--text-sm)/1.5 var(--font-sans);
+    font: var(--text-base)/1.5 var(--font-sans);
     --wb-color-bg-surface: var(--surface-elevated);
     --wb-color-bg-surface-2: var(--surface-3);
     --wb-color-text-secondary: var(--text-secondary);
@@ -31,8 +31,9 @@ export const menuStyles = css`
     max-width: 320px;
     padding: 4px;
     border: 1px solid var(--border-default);
-    border-radius: var(--radius-md);
-    background: var(--surface-elevated);
+    border-radius: 4px;
+    background: var(--menu-background);
+    backdrop-filter: blur(16px);
     box-shadow: var(--shadow-menu);
   }
   .wb-menu__item {
@@ -43,7 +44,7 @@ export const menuStyles = css`
     min-height: 28px;
     padding: 4px 12px;
     border: 0;
-    border-radius: var(--radius-sm);
+    border-radius: 4px;
     background: transparent;
     text-align: left;
     white-space: nowrap;
@@ -94,7 +95,7 @@ export const menuStyles = css`
     gap: 8px;
     padding: 5px 12px;
     border: 1px solid var(--border-default);
-    border-radius: 999px;
+    border-radius: 4px;
     background: var(--surface-3);
   }
   .wb-loading {

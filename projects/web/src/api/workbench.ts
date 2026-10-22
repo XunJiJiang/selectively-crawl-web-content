@@ -1,5 +1,6 @@
 import type { TConfig } from '../../../shared/types/config.d.ts';
 import type { ListPage, WorkbenchEvent } from '../workbench/types.ts';
+import { loadLocalConfig } from './local-config.ts';
 export class ApiError extends Error {
   code: string;
   status: number;
@@ -90,6 +91,11 @@ export class EventConnection {
     const generation = ++this.generation;
     this.status('connecting');
     try {
+      if (this.attempts > 0) {
+        const config = await loadLocalConfig(this.api.config);
+        this.api.config.api = config.api;
+        await this.resync();
+      }
       const session = this.session();
       const result = await this.api.request<{ ticket: string }>('/stream-ticket', {
         workspaceId: session.workspaceId,

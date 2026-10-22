@@ -3,6 +3,8 @@ import { WorkbenchAPI, ApiError, EventConnection } from '../api/workbench.ts';
 import { ConfigController } from '../../../shared/store/config.ts';
 import { CONFIG_KEY } from '../../../shared/utils/common.ts';
 import { clone, uid, defaultLayout, internalTab, addTab, relocatedUrl } from './model.ts';
+import type { DialogField, WorkbenchDialog } from './dialogs.ts';
+import type { FocusLocation } from './focus-history.ts';
 import type {
   Bookmark,
   Bootstrap,
@@ -25,6 +27,7 @@ import type {
 } from './types.ts';
 export class WorkbenchStore extends EventTarget {
   readonly api = new WorkbenchAPI(ConfigController.config);
+  focusedLocation?: FocusLocation;
   bootstrap?: Bootstrap;
   workspace?: Workspace;
   lease?: Lease;
@@ -63,18 +66,58 @@ export class WorkbenchStore extends EventTarget {
   loading = true;
   error = '';
   saveState: 'saved' | 'saving' | 'unsaved' = 'saved';
-  toasts: { id: string; text: string; level: string }[] = [];
+  toasts: {
+    id: string;
+    text: string;
+    level: string;
+    focused?: boolean;
+    notification: Notification;
+    remote: boolean;
+  }[] = [];
+  private localNotifications: Notification[] = [];
+  dialogState?: WorkbenchDialog;
+  private dialogs: Promise<unknown> = Promise.resolve();
+  dialog(title: string, fields: DialogField[] = []) {
+    const result = this.dialogs.then(
+      () =>
+        new Promise<Record<string, string> | null>((resolve) => {
+          this.dialogState = {
+            title,
+            fields,
+            resolve: (value) => {
+              this.dialogState = undefined;
+              this.changed();
+              resolve(value);
+            },
+          };
+          this.changed();
+        }),
+    );
+    this.dialogs = result;
+    return result;
+  }
+  async prompt(title: string, value = '') {
+    return (await this.dialog(title, [{ name: 'value', label: title, value }]))?.value ?? null;
+  }
+  async confirm(title: string) {
+    return (await this.dialog(title)) !== null;
+  }
   private queue: Promise<unknown> = Promise.resolve();
   private events?: EventConnection;
   private renewTimer?: ReturnType<typeof setInterval>;
   private refreshTimer?: ReturnType<typeof setTimeout>;
-  private toastTimers = new Set<ReturnType<typeof setTimeout>>();
+  private toastTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private disposed = false;
   private pending?: { path: string; body: unknown };
   private executionGeneration = 0;
   private listGeneration: Record<string, number> = {};
   constructor() {
     super();
+    try {
+      this.localNotifications = JSON.parse(localStorage.getItem('scwc.notifications') ?? '[]');
+    } catch {
+      /* Storage is optional. */
+    }
     window.addEventListener('pagehide', this.release);
   }
   private release = () => {
@@ -94,19 +137,107 @@ export class WorkbenchStore extends EventTarget {
       this.dispatchEvent(new Event('change'));
     }
   }
-  toast(text: string, level = 'info') {
-    const id = uid();
-    this.toasts = [...this.toasts, { id, text, level }].slice(-4);
-    this.changed();
-    const timer = setTimeout(() => {
-      this.dismissToast(id);
-      this.toastTimers.delete(timer);
-    }, 6000);
-    this.toastTimers.add(timer);
+  get notificationItems() {
+    const active = new Set(this.toasts.map((t) => t.id));
+    return [...this.localNotifications, ...this.notifications]
+      .filter((n) => !active.has(n.id))
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   }
-  dismissToast(id: string) {
-    this.toasts = this.toasts.filter((t) => t.id !== id);
+  private persistNotifications() {
+    try {
+      localStorage.setItem(
+        'scwc.notifications',
+        JSON.stringify(this.localNotifications.slice(0, 1000)),
+      );
+    } catch {
+      /* Optional browser persistence. */
+    }
+  }
+  toast(text: string, level = 'info', notification?: Notification) {
+    const id = notification?.id ?? uid();
+    const value = notification ?? {
+      id,
+      title: text,
+      message: '',
+      source: 'core',
+      pluginId: null,
+      level,
+      readAt: null,
+      updatedAt: new Date().toISOString(),
+      count: 1,
+      actions: [],
+    };
+    if (this.toasts.some((t) => t.id === id)) {
+      this.dismissToast(id, true);
+    }
+    this.toasts = [
+      ...this.toasts,
+      { id, text, level, notification: value, remote: Boolean(notification) },
+    ];
+    this.scheduleToast(id);
     this.changed();
+  }
+  private scheduleToast(id: string) {
+    clearTimeout(this.toastTimers.get(id));
+    this.toastTimers.set(
+      id,
+      setTimeout(() => this.dismissToast(id, false), 6000),
+    );
+  }
+  focusToast(id: string, focused: boolean) {
+    const toast = this.toasts.find((t) => t.id === id);
+    if (!toast) {
+      return;
+    }
+    toast.focused = focused;
+    if (focused) {
+      clearTimeout(this.toastTimers.get(id));
+      toast.notification.readAt = new Date().toISOString();
+      if (toast.remote) {
+        void this.ackNotifications([id]).catch(() => undefined);
+      }
+    } else {
+      this.scheduleToast(id);
+    }
+    this.changed();
+  }
+  dismissToast(id: string, manual = true) {
+    clearTimeout(this.toastTimers.get(id));
+    this.toastTimers.delete(id);
+    const toast = this.toasts.find((t) => t.id === id);
+    this.toasts = this.toasts.filter((t) => t.id !== id);
+    if (toast && !manual && !toast.remote) {
+      this.localNotifications = [toast.notification, ...this.localNotifications].slice(0, 1000);
+      this.persistNotifications();
+    }
+    if (toast?.remote && manual) {
+      void this.deleteNotifications([id]).catch(() => undefined);
+    }
+    this.changed();
+  }
+  async ackNotifications(ids: string[]) {
+    const readAt = new Date().toISOString();
+    for (const n of [...this.localNotifications, ...this.notifications]) {
+      if (ids.includes(n.id)) {
+        n.readAt = readAt;
+      }
+    }
+    this.persistNotifications();
+    this.changed();
+    const remote = ids.filter((id) => !this.localNotifications.some((n) => n.id === id));
+    if (remote.length) {
+      await this.api.request('/notifications/ack', { ids: remote });
+    }
+  }
+  async deleteNotifications(ids: string[]) {
+    const remote = ids.filter((id) => !this.localNotifications.some((n) => n.id === id));
+    this.localNotifications = this.localNotifications.filter((n) => !ids.includes(n.id));
+    this.notifications = this.notifications.filter((n) => !ids.includes(n.id));
+    this.persistNotifications();
+    this.changed();
+    if (remote.length) {
+      await this.api.request('/notifications/delete', { ids: remote });
+    }
   }
   async authenticate(token: string) {
     this.api.config.api.token = token.trim();
@@ -397,6 +528,19 @@ export class WorkbenchStore extends EventTarget {
     this.listGeneration[key] = generation;
     const endpoint = key === 'catalog' ? 'plugins' : key;
     const result = await this.api.list<unknown>(`/${endpoint}`, more ? this.cursors[key] : null);
+    // Notification history is bounded by the server; loading every page keeps the unread bell exact.
+    if (key === 'notifications' && !more) {
+      const cursors = new Set<string>();
+      while (result.nextCursor && this.listGeneration[key] === generation) {
+        if (cursors.has(result.nextCursor)) {
+          throw new Error('通知分页游标未前进');
+        }
+        cursors.add(result.nextCursor);
+        const next = await this.api.list<unknown>(`/${endpoint}`, result.nextCursor);
+        result.items.push(...next.items);
+        result.nextCursor = next.nextCursor;
+      }
+    }
     if (this.listGeneration[key] !== generation) {
       return;
     }
@@ -583,7 +727,8 @@ export class WorkbenchStore extends EventTarget {
       return;
     } // This lease is the sole writer; HTTP receipts own local revision updates.
     if (e.type === 'notification.created') {
-      this.toast((e.payload as Notification).title, (e.payload as Notification).level);
+      const notification = e.payload as Notification;
+      this.toast(notification.title, notification.level, notification);
     }
     clearTimeout(this.refreshTimer);
     this.refreshTimer = setTimeout(
@@ -594,13 +739,19 @@ export class WorkbenchStore extends EventTarget {
   private async resync() {
     const boot = await this.api.request<Bootstrap>('/bootstrap');
     const changed = boot.coreBootId !== this.bootstrap?.coreBootId;
-    this.bootstrap = boot;
     this.preferences = boot.preferences;
     if (changed) {
       this.toast('核心已重启，正在重新连接；历史命令不会重放。', 'warn');
-      await this.renew();
+      if (this.lease) {
+        this.lease = await this.api.request<Lease>(`/workspaces/${this.lease.workspaceId}/lease`, {
+          action: 'acquire',
+        });
+      }
+      sessionStorage.setItem('scwc.workspace', this.session().workspaceId);
+      this.bootstrap = boot;
       this.dispatchEvent(new Event('core-restarted'));
     }
+    this.bootstrap = boot;
     if (this.saveState === 'saved') {
       await this.acceptRemote();
     }
@@ -622,7 +773,7 @@ export class WorkbenchStore extends EventTarget {
     this.disposed = true;
     clearInterval(this.renewTimer);
     clearTimeout(this.refreshTimer);
-    for (const timer of this.toastTimers) {
+    for (const timer of this.toastTimers.values()) {
       clearTimeout(timer);
     }
     this.events?.close();

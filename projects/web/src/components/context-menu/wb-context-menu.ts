@@ -669,10 +669,11 @@ export class WbContextMenu extends LitElement {
       return;
     }
     if (item.kind === 'input') {
-      const value = window.prompt(item.label, item.value);
-      if (value !== null) {
-        emit(this, 'wb-menu-input-submit', { id: item.id, value });
-      }
+      this.nativePickerFailed = true;
+      this.requestUpdate();
+      void this.updateComplete.then(() =>
+        this.renderRoot.querySelector<HTMLInputElement>(`[data-menu-input="${item.id}"]`)?.focus(),
+      );
       return;
     }
     emit(this, 'wb-menu-select', { id: item.id });

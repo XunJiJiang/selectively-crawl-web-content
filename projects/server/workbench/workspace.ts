@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { assert, json, now, WorkbenchError, type WorkbenchStorage } from './storage.ts';
 import { workbenchEvents, type WorkbenchEvents } from './events.ts';
+import { pruneEmptyGroups } from '../../shared/workbench-layout.ts';
 
 export const identifier = z
   .string()
@@ -47,6 +48,7 @@ export const tabSchema = z.discriminatedUnion('kind', [
       kind: z.literal('internal'),
       page: z.enum([
         'welcome',
+        'pages',
         'settings',
         'keybindings',
         'search',
@@ -217,6 +219,10 @@ export function validateSnapshot(input: unknown) {
 const preferenceSchema = z
   .object({
     theme: z.enum(['system', 'light-2026', 'dark-2026']).optional(),
+    bookmarkFolders: z
+      .array(z.object({ id: identifier, name: z.string().min(1).max(200) }).strict())
+      .max(500)
+      .optional(),
     keybindings: z
       .array(
         z
@@ -404,6 +410,7 @@ export class WorkspaceService {
         }
         remove(current.snapshot.layout.center);
         current.snapshot.tabs = current.snapshot.tabs.filter((t) => !selected.has(t.id));
+        pruneEmptyGroups(current.snapshot);
         if (
           current.snapshot.focusedPluginTabId &&
           selected.has(current.snapshot.focusedPluginTabId)
@@ -511,7 +518,7 @@ export class WorkspaceService {
   setPreferences(input: unknown, baseRevision: number, reset: string[] = []) {
     const values = preferenceSchema.parse(input);
     assert(
-      reset.every((k) => ['theme', 'keybindings', 'energy'].includes(k)),
+      reset.every((k) => ['theme', 'keybindings', 'energy', 'bookmarkFolders'].includes(k)),
       'invalid_preferences',
       '未知偏好字段',
     );
@@ -550,6 +557,7 @@ export class WorkspaceService {
         originalTitle: z.string().max(1000),
         customTitle: z.string().max(1000).nullable().optional(),
         previewId: identifier.nullable().optional(),
+        folderId: identifier.nullable().optional(),
       })
       .strict();
     const result = this.storage.db.transaction(() => {

@@ -75,7 +75,7 @@ export class WbIcon extends LitElement {
     return html`<span
       aria-hidden="true"
       class=${`codicon codicon-${names[this.name] ?? this.name}`}
-      style=${`font-size:${this.size === 'sm' ? 14 : 16}px`}
+      style=${`font-size:${this.size === 'sm' ? 1 : 16 / 14}rem`}
     ></span>`;
   }
 }

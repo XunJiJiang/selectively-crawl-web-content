@@ -27,6 +27,20 @@ function fixture() {
   return { s, tab };
 }
 describe('frontend snapshots satisfy the real backend layout contract', () => {
+  it('appends a dropped tab and collapses its empty source group without introducing missing IDs', () => {
+    const { s, tab } = fixture();
+    const settings = internalTab('settings');
+    addTab(s, settings);
+    splitGroup(s, 'horizontal', tab.id);
+    const first = groups(s.layout.center)[0];
+    moveTab(s, tab.id, first.id);
+    expect(groups(s.layout.center)).toHaveLength(1);
+    expect(groups(s.layout.center)[0].tabIds).toEqual([settings.id, tab.id]);
+    const before = JSON.stringify(s);
+    moveTab(s, '', first.id);
+    expect(JSON.stringify(s)).toBe(before);
+    validateSnapshot(s);
+  });
   it('preserves every tab exactly once across recursive splits, moves and merges', () => {
     const { s, tab } = fixture();
     addTab(s, internalTab('settings'));

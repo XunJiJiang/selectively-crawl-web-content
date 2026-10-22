@@ -24,6 +24,7 @@ export interface CatalogItem {
   revision: number;
 }
 export interface PreferenceValues {
+  bookmarkFolders?: { id: string; name: string }[];
   theme?: 'system' | 'light-2026' | 'dark-2026';
   keybindings?: Keybinding[];
   energy?: { enabled: boolean; idleMinutes: number };
@@ -59,6 +60,7 @@ export interface Lease {
   clonedFrom?: string;
 }
 export interface Bookmark {
+  folderId?: string | null;
   id: string;
   pluginId: string;
   url: string;
@@ -163,6 +165,7 @@ export interface WorkbenchEvent {
 }
 export const pageNames: Record<InternalPage, string> = {
   welcome: '欢迎',
+  pages: '页面',
   settings: '设置',
   keybindings: '快捷键设置',
   search: '搜索结果',

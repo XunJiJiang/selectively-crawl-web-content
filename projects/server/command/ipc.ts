@@ -330,6 +330,7 @@ export function createCoreBridge(shutdown: (restart: boolean) => Promise<void>) 
     void shutdown(false);
   });
   return {
+    requestLifecycle: (restart: boolean) => peer.event('lifecycle.request', { restart }),
     handshake: handshake.promise,
     ready: (port: number) => peer.event('ready', { port, commands: getCommands() }),
     confirm: (text: string) =>

@@ -46,7 +46,15 @@ export class CommandService {
   private storage: WorkbenchStorage;
   private startedAt = now();
   private workspace: WorkspaceService;
-  constructor(storage: WorkbenchStorage, workspace: WorkspaceService) {
+  private onLifecycle: (restart: boolean) => void;
+  constructor(
+    storage: WorkbenchStorage,
+    workspace: WorkspaceService,
+    onLifecycle: (restart: boolean) => void = (restart) => {
+      process.emit('message', restart ? 'SIGINT-restart' : 'SIGINT-exit', null);
+    },
+  ) {
+    this.onLifecycle = onLifecycle;
     this.storage = storage;
     this.workspace = workspace;
     this.unsubscribe = subscribeLog((event) => {
@@ -77,7 +85,7 @@ export class CommandService {
   commands() {
     return getCommands().map((c) => ({
       ...c,
-      executable: !c.lifecycle,
+      executable: true,
     }));
   }
   terminals(workspaceId: string) {
@@ -151,12 +159,7 @@ export class CommandService {
       409,
     );
     const validated = validateCommand(command);
-    assert(
-      !(validated.system && ['exit', 'restart'].includes(validated.originalName)),
-      'lifecycle_forbidden',
-      'Web命令不支持退出或重启核心',
-      403,
-    );
+    const lifecycle = validated.system && ['exit', 'restart'].includes(validated.originalName);
     const id = randomUUID(),
       sessionId = `web:${workspaceId}`;
     if (!this.sessions.has(sessionId)) {
@@ -198,7 +201,9 @@ export class CommandService {
     this.persistOutput(terminalId, { type: 'command', text: command, executionId: id });
     workbenchEvents.publish('execution.started', value, id);
     void invocationStorage
-      .run(scope.context, () => parseAndRunCommands(command, scope.context))
+      .run(scope.context, () =>
+        lifecycle ? Promise.resolve() : parseAndRunCommands(command, scope.context),
+      )
       .catch((error) => {
         execution.error = error instanceof Error ? error.message : String(error);
         this.output(terminalId, { level: 'error', text: execution.error, executionId: id });
@@ -210,6 +215,9 @@ export class CommandService {
         workbenchEvents.publish('execution.returned', { executionId: id }, id);
         scope.finish();
         this.changed();
+        if (lifecycle) {
+          setTimeout(() => this.onLifecycle(validated.originalName === 'restart'), 50);
+        }
       });
     return value;
   }

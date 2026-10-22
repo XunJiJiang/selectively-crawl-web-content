@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -8,7 +8,7 @@ import { WorkspaceService, defaultSnapshot, validateSnapshot } from './workspace
 import { WorkbenchEvents } from './events.ts';
 import { PageSessions } from './page-sessions.ts';
 import { CommandService } from './command-service.ts';
-import { registerCommand, unregisterPluginCommand } from '../utils/command.ts';
+import { registerCommand, unregisterPluginCommand, SYSTEM_SYMBOL } from '../utils/command.ts';
 import { createLogger } from '../utils/log.ts';
 import { NotificationService } from './notifications.ts';
 
@@ -128,6 +128,30 @@ describe('persistent plugin strings', () => {
 });
 
 describe('workspace leases and close history', () => {
+  it('persists bookmark folders and bookmark membership without altering encoded URLs', () => {
+    const { workspace } = fixture();
+    workspace.setPreferences({ bookmarkFolders: [{ id: 'research', name: '资料' }] }, 0);
+    const url = 'http://localhost/web/page/plugin/p/%E4%B8%AD%E6%96%87?q=a%26b#draft';
+    const bookmark = workspace.bookmark({
+      pluginId: 'p',
+      url,
+      locator: {
+        installationId: 'i',
+        pluginId: 'p',
+        path: '/%E4%B8%AD%E6%96%87',
+        search: '?q=a%26b',
+        hash: '#draft',
+      },
+      originalTitle: 'P',
+      folderId: 'research',
+    });
+    expect(workspace.preferences().values.bookmarkFolders).toEqual([
+      { id: 'research', name: '资料' },
+    ]);
+    expect(workspace.bookmarks()[0]).toMatchObject({ id: bookmark.id, url, folderId: 'research' });
+    workspace.bookmark(undefined, bookmark.id, bookmark.revision, true);
+    expect(workspace.bookmarks()).toEqual([]);
+  });
   it('clones a live duplicate window, renews only its owner, and expires leases', () => {
     const { storage } = fixture();
     let clock = 0;
@@ -240,6 +264,44 @@ describe('events, tickets and notifications', () => {
 });
 
 describe('Web command execution', () => {
+  it('accepts exit and restart once and requests lifecycle after the execution receipt', async () => {
+    const { storage, workspace } = fixture();
+    const lease = workspace.lease('lifecycle-workspace', 'owner', 'acquire');
+    const token = 'token' in lease ? (lease.token ?? '') : '';
+    const lifecycle = vi.fn();
+    const service = new CommandService(storage, workspace, lifecycle);
+    commands.push(service);
+    const terminal = service.saveTerminal('lifecycle-workspace', 'owner', token, {
+      title: 'Lifecycle',
+    });
+    for (const name of ['exit', 'restart']) {
+      registerCommand(
+        createLogger('lifecycle-test', ''),
+        name,
+        () => {
+          throw new Error('Must use coordinated lifecycle');
+        },
+        SYSTEM_SYMBOL,
+      );
+      const receipt = await service.execute(
+        'lifecycle-workspace',
+        'owner',
+        token,
+        terminal.id,
+        name,
+        name,
+      );
+      expect(lifecycle).not.toHaveBeenCalledWith(name === 'restart');
+      expect(
+        (await service.execute('lifecycle-workspace', 'owner', token, terminal.id, name, name)).id,
+      ).toBe(receipt.id);
+      await expect.poll(() => service.execution(receipt.id).status).toBe('succeeded');
+      await expect
+        .poll(() => lifecycle.mock.calls.some(([restart]) => restart === (name === 'restart')))
+        .toBe(true);
+    }
+    expect(lifecycle).toHaveBeenCalledTimes(2);
+  });
   it('persists acceptance, isolates input, keeps returned busy tasks and rejects stale cancels', async () => {
     const { storage, workspace: w } = fixture();
     const a = w.lease('wa', 'owner-a', 'acquire'),
@@ -295,21 +357,19 @@ describe('Web command execution', () => {
       c.outputPage(terminal.id, 0).items.some((r: { text: string }) => r.text.includes('answer')),
     ).toBe(true);
     expect(c.outputPage(other.id, 0).items).toHaveLength(0);
-    storage.db
-      .prepare('INSERT INTO output_records VALUES (?,?,?,?)')
-      .run(
-        other.id,
-        1,
-        new Date().toISOString(),
-        JSON.stringify({
-          seq: 1,
-          streamId: other.id,
-          timestamp: new Date().toISOString(),
-          type: 'command',
-          text: 'old',
-          coreBootId: 'previous-boot',
-        }),
-      );
+    storage.db.prepare('INSERT INTO output_records VALUES (?,?,?,?)').run(
+      other.id,
+      1,
+      new Date().toISOString(),
+      JSON.stringify({
+        seq: 1,
+        streamId: other.id,
+        timestamp: new Date().toISOString(),
+        type: 'command',
+        text: 'old',
+        coreBootId: 'previous-boot',
+      }),
+    );
     expect(c.outputPage(other.id, 0).items[0]).toMatchObject({ text: 'old', restored: true });
     await expect(
       c.cancel('wa', 'owner-a', ta, terminal.id, accepted.id, coreBootId),
