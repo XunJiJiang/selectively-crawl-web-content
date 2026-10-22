@@ -44,7 +44,12 @@ function setup(name: string) {
       startupTimeoutMs: 5000,
       shutdownTimeoutMs: 1500,
     },
-    execArgv: ['--experimental-strip-types', '--no-experimental-transform-types'],
+    execArgv: [
+      '--experimental-strip-types',
+      ...(process.allowedNodeEnvironmentFlags.has('--no-experimental-transform-types')
+        ? ['--no-experimental-transform-types']
+        : []),
+    ],
     env: {
       ...process.env,
       NODE_OPTIONS: '',

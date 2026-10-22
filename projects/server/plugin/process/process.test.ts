@@ -36,6 +36,12 @@ const fixture = fileURLToPath(new URL('./fixtures/plugin.ts', import.meta.url));
 const stickerEntry = fileURLToPath(
   new URL('../../plugins/sticker-management/index.ts', import.meta.url),
 );
+const nativeNodeArgs = [
+  '--experimental-strip-types',
+  ...(process.allowedNodeEnvironmentFlags.has('--no-experimental-transform-types')
+    ? ['--no-experimental-transform-types']
+    : []),
+];
 
 function must<T>(value: T | undefined): T {
   if (value === undefined) {
@@ -100,7 +106,7 @@ function setup(options: { mode?: string; timeout?: number; entry?: string; sourc
     logger,
     cache: () => cache,
     cwd: root,
-    execArgv: ['--experimental-strip-types', '--no-experimental-transform-types'],
+    execArgv: nativeNodeArgs,
     env: {
       ...process.env,
       NODE_OPTIONS: '',
@@ -416,8 +422,7 @@ describe('isolated plugin host', () => {
     const output = execFileSync(
       process.execPath,
       [
-        '--experimental-strip-types',
-        '--no-experimental-transform-types',
+        ...nativeNodeArgs,
         '--input-type=module',
         '--eval',
         source,
@@ -689,8 +694,7 @@ describe('isolated plugin host', () => {
       const parent = spawn(
         process.execPath,
         [
-          '--experimental-strip-types',
-          '--no-experimental-transform-types',
+          ...nativeNodeArgs,
           '--input-type=module',
           '--eval',
           source,
