@@ -254,6 +254,8 @@ export class AppRoot extends LitElement {
     void work().catch((e) => this.store.toast(this.store.message(e), 'error'));
   }
   protected updated(_changed: PropertyValues) {
+    const output = this.renderRoot.querySelector<HTMLElement>('.output-content');
+    if (output && this.followOutput) output.scrollTop = output.scrollHeight;
     if (!this.focusInitialized && this.store.workspace && !this.store.loading) {
       this.focusInitialized = true;
       if (this.current) {
@@ -409,7 +411,12 @@ export class AppRoot extends LitElement {
       this.recordFocus({ kind: 'tab', id: this.current.id });
     }
   }
-  private async openPlugin(plugin: CatalogItem, url?: string, forceGroup?: string) {
+  private async openPlugin(
+    plugin: CatalogItem,
+    url?: string,
+    forceGroup?: string,
+    forceNew = false,
+  ) {
     const target =
       url ?? plugin.ui.entryUrl ?? `/web/page/plugin/${encodeURIComponent(plugin.pluginId)}/`;
     const resolved = await this.store.api.request<{
@@ -417,13 +424,20 @@ export class AppRoot extends LitElement {
       pluginId: string;
       locator: PluginTab['locator'];
     }>('/url/resolve', { url: target, pluginId: plugin.pluginId });
-    await this.store.update((s) =>
-      addTab(
-        s,
-        newPluginTab(plugin.pluginId, plugin.title, resolved.url, resolved.locator),
-        forceGroup,
-      ),
-    );
+    await this.store.update((s) => {
+      const existing =
+        !forceNew && s.tabs.find((t) => t.kind === 'plugin' && t.url === resolved.url);
+      if (existing) {
+        focusTab(s, existing.id);
+        this.pool?.wake(existing.id);
+      } else {
+        addTab(
+          s,
+          newPluginTab(plugin.pluginId, plugin.title, resolved.url, resolved.locator),
+          forceGroup,
+        );
+      }
+    });
     if (this.current) {
       this.recordFocus({ kind: 'tab', id: this.current.id });
     }
@@ -551,7 +565,7 @@ export class AppRoot extends LitElement {
       window.open(
         plugin.ui.entryUrl ?? `/web/page/plugin/${encodeURIComponent(plugin.pluginId)}/`,
         '_blank',
-        'noopener,noreferrer,popup',
+        'noopener,noreferrer',
       );
       return;
     }
@@ -562,9 +576,15 @@ export class AppRoot extends LitElement {
         x: rect.left,
         y: rect.bottom,
         trigger,
-        items: [this.menuAction('openPluginExternal', '在新浏览器窗口中打开', args)],
+        items: [
+          this.menuAction('openPluginNew', '在新的标签页中打开', args),
+          this.menuAction('openPluginExternal', '在新浏览器标签页中打开', args),
+        ],
       };
       return;
+    }
+    if (id === 'openPluginNew') {
+      return this.openPlugin(args as CatalogItem, undefined, undefined, true);
     }
     if (id === 'openPlugin') {
       return this.openPlugin(args as CatalogItem);
@@ -1179,6 +1199,7 @@ export class AppRoot extends LitElement {
         kind: 'submenu',
         id: 'move',
         label: '移动到分组',
+        disabled: groups(this.snapshot.layout.center).length <= 1,
         children: groups(this.snapshot.layout.center)
           .filter((g) => g.id !== group.id)
           .map((g, i) => ({
@@ -1280,7 +1301,7 @@ export class AppRoot extends LitElement {
     }
     if (axes.size > 1) {
       for (const el of targets) {
-        el.style.cursor = 'crosshair';
+        el.style.cursor = 'move';
       }
     }
   }
@@ -1315,8 +1336,7 @@ export class AppRoot extends LitElement {
           ?.classList.contains('vertical'))
         ? 'row-resize'
         : 'col-resize';
-    this.resizeCursor =
-      new Set(parts.map(orientation)).size > 1 ? 'crosshair' : orientation(parts[0]);
+    this.resizeCursor = new Set(parts.map(orientation)).size > 1 ? 'move' : orientation(parts[0]);
     const oldCursor = document.documentElement.style.cursor;
     document.documentElement.style.cursor = this.resizeCursor;
     this.dragging = true;
@@ -1524,10 +1544,27 @@ export class AppRoot extends LitElement {
       '--terminal-list-width': `${layout.panel.terminalListSize}px`,
     };
   }
+  @state() private accessor sizeWarningDismissed = false;
+  private followOutput = true;
+  protected willUpdate() {
+    const output = this.renderRoot.querySelector<HTMLElement>('.output-content');
+    if (output)
+      this.followOutput = output.scrollHeight - output.scrollTop - output.clientHeight < 24;
+  }
   render() {
-    return html`<div class="window-size-warning">
-        当前窗口过小，部分功能可能不可用。建议窗口宽度 ≥1024px。
-      </div>
+    return html`${this.sizeWarningDismissed
+        ? nothing
+        : html`<div class="window-size-warning">
+            <span class="width-warning"
+              >当前窗口宽度过低，部分功能可能不可用。建议窗口宽度 ≥1024px。</span
+            >
+            <span class="height-warning"
+              >当前窗口高度过低，部分功能可能不可用。建议窗口高度 ≥480px。</span
+            >
+            ${iconButton('close', '关闭窗口尺寸提示', () => {
+              this.sizeWarningDismissed = true;
+            })}
+          </div>`}
       <a
         href="#workspace-center"
         class="skip-nav"
@@ -1771,9 +1808,14 @@ export class AppRoot extends LitElement {
             title=${label}
             aria-label=${label}
             aria-pressed=${this.visible('main') && view === id}
-            @click=${() => this.act(() => this.setView(id as keyof typeof viewNames))}
+            @click=${() =>
+              this.act(() =>
+                this.visible('main') && view === id
+                  ? this.command('sidebar')
+                  : this.setView(id as keyof typeof viewNames),
+              )}
           >
-            ${icon(id)}<span>${id === 'history' ? '历史' : id === 'plugins' ? '插件' : label}</span>
+            ${icon(id)}
           </button>`,
       )}
       <div class="activity-bar-bottom">
@@ -1928,8 +1970,12 @@ export class AppRoot extends LitElement {
                                 ? `PID ${p.runtime.pid} · `
                                 : ''}${runtimeNames[p.runtime.status] ?? p.runtime.status}</small
                             ></span
-                          ><i class=${`dot ${runtimeClass(p.runtime.status)}`}></i></button
-                        >${iconButton('more', `${p.title} 的操作`, () => this.openPluginMenu(p))}
+                          ></button
+                        ><i class=${`dot ${runtimeClass(p.runtime.status)}`}></i>${iconButton(
+                          'more',
+                          `${p.title} 的操作`,
+                          () => this.openPluginMenu(p),
+                        )}
                         ${pluginOpenButtons(
                           p,
                           (id, args) => this.act(() => this.command(id, args)),
@@ -2694,7 +2740,7 @@ export class AppRoot extends LitElement {
           tab?.kind === 'plugin' &&
             this.store.bookmarks.some((b) => b.pluginId === tab.pluginId && b.url === tab.url)
             ? 'star-full'
-            : 'star-half',
+            : 'star-empty',
           '收藏当前页面',
           () => this.act(() => this.command('bookmark')),
           tab?.kind !== 'plugin',

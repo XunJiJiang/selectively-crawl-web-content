@@ -47,6 +47,7 @@ export class FramePool extends EventTarget {
   private observer: ResizeObserver;
   private timer: ReturnType<typeof setInterval>;
   private stopped = false;
+  private navigationTimer: ReturnType<typeof setInterval>;
   private container: HTMLElement;
   private store: WorkbenchStore;
   private root: ShadowRoot;
@@ -67,6 +68,24 @@ export class FramePool extends EventTarget {
     this.observer.observe(container);
     store.addEventListener('server-event', this.serverEvent);
     store.addEventListener('core-restarted', this.restarted);
+    // Same-origin fallback also covers routers that replace the SDK history wrappers.
+    this.navigationTimer = setInterval(() => {
+      for (const runtime of this.runtimes.values()) {
+        if (
+          !['ready', 'document-loaded', 'bridge-unavailable'].includes(runtime.state) ||
+          runtime.reportingNavigation
+        )
+          continue;
+        try {
+          const url = runtime.frame.contentWindow?.location.href;
+          if (url && url !== 'about:blank' && url !== runtime.url) {
+            this.onEvent(runtime, 'navigation.report', { url });
+          }
+        } catch {
+          /* Cross-origin documents cannot be inspected by the host. */
+        }
+      }
+    }, 250);
     this.timer = setInterval(() => void this.energy(), 10000);
   }
   private changed() {
@@ -790,6 +809,7 @@ export class FramePool extends EventTarget {
     this.dispatchEvent(new Event('search-changed'));
   }
   dispose() {
+    clearInterval(this.navigationTimer);
     this.stopped = true;
     cancelAnimationFrame(this.raf);
     clearInterval(this.timer);

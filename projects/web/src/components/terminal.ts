@@ -1,3 +1,4 @@
+import { commandSource } from '../../../terminal/command-text.ts';
 import { tabNavigation } from '../workbench/ui.ts';
 import './context-menu/wb-context-menu.ts';
 import type { ContextMenuItem } from './context-menu/menu-types.ts';
@@ -122,7 +123,7 @@ export class WorkbenchTerminal extends LitElement {
   private async createTerminal() {
     const t = await this.store.api.request<Terminal>('/terminals', {
       ...this.store.session(),
-      terminal: { title: `终端 ${this.store.terminals.length + 1}` },
+      terminal: { title: '终端' },
     });
     await this.store.refreshTerminals();
     this.choose(t);
@@ -201,10 +202,10 @@ export class WorkbenchTerminal extends LitElement {
       }
     }
   }
-  private openMenu(event: MouseEvent) {
+  private openMenu(event: MouseEvent, selected = this.terminal) {
     const target = event.currentTarget as HTMLElement,
       rect = target.getBoundingClientRect(),
-      terminal = this.terminal;
+      terminal = selected;
     if (event.type === 'contextmenu') {
       event.preventDefault();
     }
@@ -323,7 +324,7 @@ export class WorkbenchTerminal extends LitElement {
         await this.store.api.request('/commands/execute', {
           ...this.store.session(),
           terminalId: terminal.id,
-          command,
+          command: commandSource(command).command,
           idempotencyKey: uid(),
         });
       }
@@ -544,13 +545,14 @@ export class WorkbenchTerminal extends LitElement {
                   aria-selected=${term.id === t?.id}
                   tabindex=${term.id === t?.id ? 0 : -1}
                   @click=${() => this.choose(term)}
+                  @contextmenu=${(e: MouseEvent) => this.openMenu(e, term)}
                 >
                   <span>${term.title}</span
                   ><small
                     ><i class=${`dot ${run ? 'success' : ''}`}></i>${waiting
                       ? '等待输入'
                       : run
-                        ? '运行中'
+                        ? `运行中 ${run.command?.trim().split(/\s+/)[0] ?? ''}`
                         : '空闲'}</small
                   ></button
                 >${run

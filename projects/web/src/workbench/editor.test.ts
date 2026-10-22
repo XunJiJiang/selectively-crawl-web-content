@@ -145,22 +145,17 @@ it('restores the history cursor and scratch draft independently when switching t
   key('Escape');
   expect(editor.value).toBe('');
 });
-it('opens all candidates on double Tab, navigates and accepts without submitting', async () => {
+it('cycles prefix matches on repeated Tab without requesting all commands', async () => {
   const { editor, key } = await fixture('he');
   const request = vi.mocked(editor.store.api.request);
   request.mockResolvedValueOnce({
     command: 'he',
     from: 0,
     to: 2,
-    items: [{ name: 'help', insertText: 'help', description: '帮助' }],
-  });
-  request.mockResolvedValueOnce({
-    command: '',
-    from: 0,
-    to: 0,
     items: [
       { name: 'help', insertText: 'help' },
-      { name: 'status', insertText: 'status', description: '状态' },
+      { name: 'hello', insertText: 'hello' },
+      { name: 'status', insertText: 'status' },
     ],
   });
   const submit = vi.fn();
@@ -168,17 +163,24 @@ it('opens all candidates on double Tab, navigates and accepts without submitting
   key('Tab');
   await Promise.resolve();
   await editor.updateComplete;
-  expect(editor.shadowRoot?.querySelector('[role="option"]')?.textContent).toContain('帮助');
   key('Tab');
-  await Promise.resolve();
   await editor.updateComplete;
-  expect(request.mock.calls[1][1]).toMatchObject({ command: '', cursor: 0 });
-  key('ArrowDown');
+  expect(request).toHaveBeenCalledTimes(1);
   key('Enter');
-  expect(editor.value).toBe('status');
+  expect(editor.value).toBe('hello');
   expect(submit).not.toHaveBeenCalled();
   key('Enter');
   expect(submit).toHaveBeenCalledTimes(1);
+});
+it('continues a trailing backslash with Enter and ignores Command+Enter', async () => {
+  const { editor, key } = await fixture('help' + String.fromCharCode(92));
+  const submit = vi.fn();
+  editor.addEventListener('submit-command', submit);
+  key('Enter');
+  expect(editor.value).toBe('help' + String.fromCharCode(92) + '\n');
+  expect(submit).not.toHaveBeenCalled();
+  key('Enter', { metaKey: true });
+  expect(editor.value).toBe('help' + String.fromCharCode(92) + '\n');
 });
 it('ignores a completion response from the previous terminal and preserves Ctrl+C copying', async () => {
   const { editor, key } = await fixture('help');
@@ -207,7 +209,7 @@ it('ignores a completion response from the previous terminal and preserves Ctrl+
   key('c', { ctrlKey: true });
   expect(editor.value).toBe('');
 });
-it('filters provider candidates and preserves the argument key on double Tab', async () => {
+it('preserves prefix filtering and the argument key on repeated Tab', async () => {
   const { editor, key } = await fixture('crawl run --format=j');
   const request = vi.mocked(editor.store.api.request);
   const items = [
@@ -223,8 +225,8 @@ it('filters provider candidates and preserves the argument key on double Tab', a
   key('Tab');
   await Promise.resolve();
   await editor.updateComplete;
-  expect(request.mock.calls[1][1]).toMatchObject({ command: 'crawl run --format=', cursor: 19 });
+  expect(request).toHaveBeenCalledTimes(1);
   key('ArrowDown');
   key('Enter');
-  expect(editor.value).toBe('crawl run --format=html');
+  expect(editor.value).toBe('crawl run --format=json');
 });

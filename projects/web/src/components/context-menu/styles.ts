@@ -2,7 +2,7 @@ import { css } from 'lit';
 export const menuStyles = css`
   :host {
     color: var(--text-primary);
-    font: var(--text-base)/1.5 var(--font-sans);
+    font: 0.928571rem/1.4 var(--font-sans);
     --wb-color-bg-surface: var(--surface-elevated);
     --wb-color-bg-surface-2: var(--surface-3);
     --wb-color-text-secondary: var(--text-secondary);
@@ -27,8 +27,8 @@ export const menuStyles = css`
   .wb-menu__submenu-panel {
     position: fixed;
     width: max-content;
-    min-width: 220px;
-    max-width: 320px;
+    min-width: 200px;
+    max-width: 300px;
     padding: 4px;
     border: 1px solid var(--border-default);
     border-radius: 4px;
@@ -41,8 +41,8 @@ export const menuStyles = css`
     align-items: center;
     gap: 8px;
     width: 100%;
-    min-height: 28px;
-    padding: 4px 12px;
+    min-height: 25px;
+    padding: 3px 10px;
     border: 0;
     border-radius: 4px;
     background: transparent;

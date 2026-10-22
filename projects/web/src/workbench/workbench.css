@@ -2959,3 +2959,30 @@ wb-icon {
   .bottom-panel[data-dock='left'], .bottom-panel[data-dock='right'] { width: var(--panel-width); height: auto; top: 0; }
   .bottom-panel[data-dock='right'] { left: auto; }
 }
+
+.sidebar-plugin { display: grid; grid-template-columns: minmax(0, 1fr) 12px 28px; align-items: start; }
+.sidebar-plugin > .list-main { grid-column: 1; grid-row: 1; }
+.sidebar-plugin > .dot { grid-column: 2; grid-row: 1; margin-top: 10px; }
+.sidebar-plugin > .icon-button { grid-column: 3; grid-row: 1; }
+.sidebar-plugin .plugin-open-buttons { grid-column: 1 / -1; grid-row: 2; justify-self: end; margin: 4px 8px 8px; }
+.bookmark-folder > summary { padding-left: 16px; }
+.bookmark-folder.compact > summary { padding-left: 20px; }
+.bookmark-folder:not([open]) .folder-open, .bookmark-folder[open] .folder-closed { display: none; }
+.quick-input-wrap input { padding-left: 12px; padding-right: 12px; }
+.window-size-warning .height-warning { display: none; }
+.window-size-warning > .icon-button { float: right; }
+@media (max-height: 479px) {
+  .window-size-warning .width-warning { display: none; }
+  .window-size-warning .height-warning { display: inline; }
+}
+@media (max-width: 1279px) {
+  .center-canvas { flex: 1 0 100%; height: 100%; box-sizing: border-box; }
+  wb-internal-page { display: block; height: 100%; min-height: 0; overflow: auto; }
+}
+
+@media (max-width: 1023px) {
+  .center-canvas { width: calc(100% + var(--overlay-left, 0px) + var(--overlay-right, 0px) + var(--overlay-panel-left, 0px) + var(--overlay-panel-right, 0px)); padding-left: calc(var(--overlay-left, 0px) + var(--overlay-panel-left, 0px)); padding-right: calc(var(--overlay-right, 0px) + var(--overlay-panel-right, 0px)); padding-bottom: var(--overlay-panel-bottom, 0px); }
+  .shell-body[data-panel-visible='true'][data-panel-dock='left'] { --overlay-panel-left: var(--panel-width); }
+  .shell-body[data-panel-visible='true'][data-panel-dock='right'] { --overlay-panel-right: var(--panel-width); }
+  .shell-body[data-panel-visible='true'][data-panel-dock='bottom'] { --overlay-panel-bottom: var(--panel-height); }
+}

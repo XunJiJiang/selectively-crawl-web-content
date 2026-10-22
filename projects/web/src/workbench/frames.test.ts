@@ -15,6 +15,7 @@ vi.mock('../../../shared/store/config.ts', () => ({
 const disposers: (() => void)[] = [];
 afterEach(() => {
   disposers.splice(0).forEach((fn) => fn());
+  vi.useRealTimers();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
   document.body.replaceChildren();
@@ -102,13 +103,14 @@ function fixture() {
   if (!container) {
     throw new Error('missing pool');
   }
-  const pool = new FramePool(container, store, root, async () => undefined);
+  const command = vi.fn(async (_id: string, _args?: unknown) => undefined);
+  const pool = new FramePool(container, store, root, command);
   disposers.unshift(() => {
     pool.dispose();
     store.lease = undefined;
   });
   pool.sync();
-  return { pool, store, snapshot, tab, root, container };
+  return { pool, store, snapshot, tab, root, container, command };
 }
 describe('stable iframe ownership and hibernation safety', () => {
   it('moves a tab to another group without reparenting or replacing its iframe', () => {
@@ -147,4 +149,25 @@ describe('stable iframe ownership and hibernation safety', () => {
     expect(runtime.frame.isConnected).toBe(true);
     expect(event).toHaveBeenCalledWith('lifecycle.resume', {});
   });
+});
+
+it('reports a same-document route change when a router bypasses the SDK', async () => {
+  vi.useFakeTimers();
+  const { pool, tab, command } = fixture();
+  const runtime = pool.runtimes.get(tab.id)!;
+  runtime.state = 'ready';
+  const url = tab.url + 'nested?view=detail#section';
+  vi.spyOn(runtime.frame, 'contentWindow', 'get').mockReturnValue({
+    location: { href: url },
+  } as Window);
+  command.mockImplementation(async (_id, args) => {
+    const data = args as { url: string };
+    tab.url = data.url;
+  });
+  const src = runtime.frame.src;
+  await vi.advanceTimersByTimeAsync(250);
+  expect(command).toHaveBeenCalledWith('reportNavigation', { tabId: tab.id, url });
+  expect(runtime.frame.src).toBe(src);
+  await vi.advanceTimersByTimeAsync(250);
+  expect(command).toHaveBeenCalledTimes(1);
 });

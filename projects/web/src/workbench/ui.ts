@@ -89,12 +89,14 @@ export function bookmarkList(
     </div>
     ${folders.map(
       (folder) =>
-        html`<details class="bookmark-folder" open>
+        html`<details class=${`bookmark-folder ${compact ? 'compact' : ''}`} open>
           <summary>
-            ${icon('folder')}${folder.name}<span class="spacer"></span>${iconButton(
-              'edit',
-              '重命名文件夹',
-              () => action('renameBookmarkFolder', folder),
+            <span class="folder-closed">${icon('folder-compact')}</span
+            ><span class="folder-open">${icon('folder-opened-compact')}</span>${folder.name}<span
+              class="spacer"
+            ></span
+            >${iconButton('edit', '重命名文件夹', () =>
+              action('renameBookmarkFolder', folder),
             )}${iconButton('trash', '删除文件夹，保留收藏', () =>
               action('deleteBookmarkFolder', folder),
             )}

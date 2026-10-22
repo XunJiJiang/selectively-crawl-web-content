@@ -8,7 +8,7 @@ LICENSE[SG2T]: F:授予使用许可 | R:- | A:MIT许可条款 | S:再分发须�
 bun.lock[FV5L]: F:锁定依赖解析 | R:code:package.json | A:lockfileVersion,workspaces,packages | S:本地工作区与外部包解析统一锁定，冻结安装依赖其完整性记录
 oxfmt.config.ts[FQ4T]: F:约束源码格式 | R:code:package.json | A:defineConfig | S:只格式化TS，LF及两空格；忽略构建目录与编辑器配置
 oxlint.config.ts[FQ5S]: F:配置类型感知检查 | R:code:package.json | A:defineConfig | S:强制ts/js显式扩展名；浏览器环境覆盖使用webutils小写路径
-package.json[FV8S]: F:组织工作区运行 | R:code:projects/server/scripts/setup.ts,code:projects/server/scripts/build-bundled-node.ts,code:projects/server/scripts/build-external-node.ts | A:workspaces,scripts,dependencies,engines | S:根build先做项目类型检查再构建用户脚本、Web和工具包；核心发行构建单独执行
+package.json[FV8S]: F:组织工作区运行 | R:code:projects/server/scripts/setup.ts,code:projects/server/scripts/build-bundled-node.ts,code:projects/server/scripts/build-external-node.ts | A:workspaces,scripts,dependencies,engines | S:根build先类型检查再构建用户脚本、Web和工具包；核心发行构建单独执行
 terminal-implementation-prompt.md[SU4M]: F:描述Web终端改造要求 | R:code:projects/terminal/model.ts,code:projects/web/src/components/terminal.ts | A:终端UI实现提示与验收要求 | S:文中通信路径是任务草案，现行契约应以工作台API实现为准
 tsconfig.app.json[FQ5T]: F:检查浏览器应用源码 | R:code:projects/shared/store/config.ts,code:projects/user-script/src/main.ts,code:projects/web/src/main.ts | A:compilerOptions,include | S:启用旧装饰器和严格无输出检查；显式包含服务端插件全局声明以供SCWC类型使用
 tsconfig.json[FQ5T]: F:聚合工作区类型项目 | R:code:tsconfig.app.json,code:tsconfig.node.json,code:tsconfig.serve.json,code:tsconfig.terminal.json,code:tsconfig.plugin-web.json,code:projects/vite-plugin/tsconfig.json | A:references | S:根files为空，实际检查范围由各引用项目决定
@@ -1025,16 +1025,15 @@ zoom-in.svg[ZU2T]: F:绘制圆框放大加号 | R:- | A:SVG图形 | S:-
 zoom-out.svg[ZU2T]: F:绘制圆框缩小减号 | R:- | A:SVG图形 | S:-
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/public/web/assets/===
-flow-zEod8gvh.js[LU4T]: F:分发虚拟列表布局 | R:- | A:FlowLayout | S:用测量缓存与平均尺寸估计滚动范围，方向变化会重排并清理测量
-index-BzVb89sJ.js[EU5L]: F:启动生产工作台 | R:code:projects/web/src/main.ts,code:projects/web/src/api/local-config.ts | A:浏览器ESM入口 | S:先取得本机同源启动配置并写入存储，再动态加载布局，避免首请求带旧TOKEN
-index-DEypdQrr.css[ZU4T]: F:分发工作台全局样式 | R:code:projects/web/style.css,code:projects/web/var.css | A:主题CSS变量,codicon字形样式 | S:HTML与body固定满屏并隐藏外层滚动，滚动由内部布局承担
-layouts-DAln1iwl.js[AU5L]: F:分发工作台布局编排 | R:code:projects/web/src/layouts/root.ts,code:projects/web/src/workbench/store.ts,code:projects/web/src/workbench/frames.ts | A:app-root注册入口 | S:iframe握手核验精确同源及文档nonce；快照失败保留页面；终端按需动态导入
-model-CBMMCW70.js[LU4L]: F:分发工作台共享模型 | R:code:projects/web/src/workbench/model.ts,code:projects/web/src/workbench/types.ts,code:projects/web/src/workbench/ui.ts | A:工作台共享ESM导出 | S:URL重定位先核对installationId，并保留query与hash
 repeat-C4FhUeWi.js[LU4T]: F:提供Lit共享渲染运行时 | R:- | A:模板与指令ESM导出,repeat | S:repeat只允许用于子内容表达式，使用键映射复用及移动DOM
-terminal-DdRZfP5y.js[AU4M]: F:分发Web终端交互 | R:code:projects/web/src/components/terminal.ts,code:projects/web/src/components/command-editor.ts,code:projects/web/src/workbench/terminal-output.ts | A:WorkbenchTerminal,wb-terminal | S:命令提交带幂等键；强停确认影响整个插件宿主；滚动恢复按seq定位
+index-B5_6x4KQ.css[ZU4T]: F:分发工作台全局样式 | R:code:projects/web/style.css,code:projects/web/var.css | A:主题变量,codicon字体 | S:外层满屏隐藏滚动，内部布局承担滚动；基础字号14px
+index-DlhA_0Wn.js[EU5L]: F:启动生产工作台 | R:code:projects/web/src/main.ts,code:projects/web/src/api/local-config.ts | A:浏览器ESM入口 | S:同源本机配置写入存储后才动态加载布局，避免使用旧凭据
+layouts-UrhcUiZj.js[AU5L]: F:分发工作台布局编排 | R:code:projects/web/src/layouts/root.ts,code:projects/web/src/workbench/frames.ts | A:app-root注册入口 | S:默认打开先聚焦同URL；导航报告排队防反向刷新，终端按需导入
+model-b8hoOyV-.js[LU4L]: F:分发工作台共享模型与展示 | R:code:projects/web/src/workbench/model.ts,code:projects/web/src/workbench/ui.ts | A:共享ESM导出 | S:URL重定位核验installationId且保留query与hash；收藏文件夹复用组合控件
+terminal-DHCf9F9z.js[AU4M]: F:分发Web终端交互 | R:code:projects/web/src/components/terminal.ts,code:projects/web/src/components/command-editor.ts | A:wb-terminal | S:Tab循环前缀候选；命令续行提交前归一，待答输入保留原文
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/public/web/===
-index.html[EU5T]: F:装载生产工作台产物 | R:code:projects/server/public/web/assets/index-BzVb89sJ.js,code:projects/server/public/web/assets/index-DEypdQrr.css,code:projects/server/public/web/assets/repeat-C4FhUeWi.js | A:/web/HTML入口 | S:脚本和样式资源固定/web/assets，初始主题dark-2026
+index.html[EU5T]: F:装载生产工作台产物 | R:code:projects/server/public/web/assets/index-DlhA_0Wn.js,code:projects/server/public/web/assets/index-B5_6x4KQ.css,code:projects/server/public/web/assets/repeat-C4FhUeWi.js | A:/web/HTML入口 | S:资源固定/web/assets，初始主题dark-2026
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/router/===
 index.ts[MN8M]: F:接入采集HTTP请求 | R:code:projects/server/plugin/load.ts,code:projects/server/workbench/page-sessions.ts,code:projects/server/router/web/workbench/websocket.ts | A:app,listen,/api/metadata/scrape | S:管理请求可用页面会话授权；普通采集须来源与site同主机后验Bearer；静态Web GET放行，HTTP任务在响应关闭时结束
@@ -1285,17 +1284,17 @@ plugins.ts[IE5T]: F:获取旧版插件页面列表 | R:code:projects/web/src/lay
 workbench.ts[IN8S]: F:连接工作台HTTP事件 | R:code:projects/server/router/web/workbench/index.ts,code:projects/server/router/web/workbench/websocket.ts,code:projects/web/src/api/local-config.ts | A:WorkbenchAPI,ApiError,EventConnection | S:HTTP同源并带窗口UUID；Socket只带一次票据且按序去重；重试先刷新本机凭据并重同步；bootId变化或缺口全量恢复，退避最多15秒
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/web/src/components/===
-command-editor.ts[IU7L]: F:编辑Web终端命令 | R:code:projects/web/src/workbench/store.ts,code:projects/web/src/workbench/commands.ts,code:projects/web/var.css | A:wb-command-editor,draft-change,submit-command,cancel-command | S:撤销栈按终端隔离；Enter避开IME，ShiftEnter换行；双Tab600ms内请求全部候选，迟到结果拒收；光标无闪烁，焦点实心失焦空心，颜色取主题变量
+command-editor.ts[IU7L]: F:编辑Web终端命令 | R:code:projects/web/src/workbench/store.ts,code:projects/terminal/command-text.ts | A:wb-command-editor,draft-change,submit-command,cancel-command | S:撤销栈按终端隔离；Enter避开IME，末尾反斜杠续行；Tab循环前缀候选不请求全列表，补全映射原文偏移并拒收迟到响应；光标常亮，焦点实心失焦空心
 icon.ts[LU4T]: F:适配工作台图标名 | R:code:projects/web/src/workbench/ui.ts | A:wb-icon,WbIcon | S:字形字体由外层加载，ShadowDOM移除font-face；未知语义名直接作为codicon名，尺寸按rem缩放
 internal-page.ts[AU7L]: F:渲染工作台内置页面 | R:code:projects/web/src/workbench/store.ts,code:projects/web/src/workbench/commands.ts,code:projects/web/src/layouts/root.ts,code:projects/web/src/workbench/ui.ts | A:wb-internal-page,workbench-command | S:页面和收藏管理统一派发命令；确认走中心弹层；设置及键绑定持久化，同平台同上下文覆盖优先，null键列表禁用默认键
 page-inspector.ts[AU7L]: F:检查页面并编辑配置 | R:code:projects/web/src/workbench/store.ts,code:projects/web/src/workbench/frames.ts | A:wb-page-inspector | S:配置草稿全为字符串，数据和schema双revision提交；page-required需在线原页面签发校验票据；代数和tab身份拒收过期请求，远端变化保留冲突草稿
-terminal.ts[AU8L]: F:管理Web终端视图 | R:code:projects/web/src/components/command-editor.ts,code:projects/web/src/workbench/terminal-output.ts,code:projects/web/src/workbench/store.ts | A:wb-terminal,create,activate,closeCurrent,cancel,alter | S:激活无终端时去重创建并聚焦编辑器；末个终端关闭通知根层切输出并隐藏；草稿串行CAS，命令幂等，输入核验身份；滚动按seq及follow恢复，强停确认整个宿主影响
+terminal.ts[AU8L]: F:管理Web终端视图 | R:code:projects/web/src/components/command-editor.ts,code:projects/web/src/workbench/store.ts,code:projects/terminal/command-text.ts | A:wb-terminal,activate,closeCurrent,cancel,alter | S:无终端时去重创建，默认同名且可重命名；草稿串行CAS和命令幂等；执行前去续行而待答输入保留原文；末个关闭通知根层隐藏，滚动按seq及follow恢复，强停确认整个宿主
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/web/src/components/context-menu/===
 SOURCE.md[SG4T]: F:记录菜单复制来源 | R:code:projects/web/src/components/context-menu/wb-context-menu.ts,code:projects/web/src/components/context-menu/wb-menu-select.ts | A:菜单组件来源说明 | S:来自插件的独立副本无运行时导入依赖，后续行为修复需考虑两份实现
 helpers.ts[LU4T]: F:适配菜单平台行为 | R:code:projects/web/src/components/context-menu/menu-types.ts | A:isMacPlatform,resolveMenuPresentation,emit | S:auto只在Mac使用原生菜单；事件冒泡且穿透ShadowDOM
 menu-types.ts[FU5T]: F:定义工作台菜单项 | R:code:projects/web/src/components/context-menu/wb-context-menu.ts | A:ContextMenuItem,MenuPresentationMode,ResolvedMenuPresentation | S:动作、勾选和输入回调独立声明，选择事件仍由宿主执行回调
-styles.ts[ZU4S]: F:提供菜单主题样式 | R:code:projects/web/var.css,code:projects/web/src/components/context-menu/wb-context-menu.ts | A:menuStyles | S:固定定位菜单使用主题半透明背景和背板模糊；共享焦点、禁用状态及4px圆角
+styles.ts[ZU4S]: F:提供紧凑菜单主题样式 | R:code:projects/web/var.css,code:projects/web/src/components/context-menu/wb-context-menu.ts | A:menuStyles | S:固定定位菜单采用主题半透明背景和背板模糊；焦点、禁用状态与4px圆角共享
 wb-context-menu.ts[IU7L]: F:显示分层上下文菜单 | R:code:projects/web/src/components/context-menu/menu-types.ts,code:projects/web/src/components/context-menu/helpers.ts | A:wb-context-menu,requestClose,wb-menu-select,wb-menu-input-submit,wb-menu-close | S:仅宿主背景click关闭且幂等；坐标或open变化重置；原生输入项及showPicker失败回退自绘；窄屏子菜单保留父锚点；只发选择事件不执行业务回调
 wb-menu-select.ts[IU5S]: F:统一菜单式单选 | R:code:projects/web/src/components/context-menu/wb-context-menu.ts | A:wb-menu-select,wb-menu-change | S:原生和自绘均拒绝禁用、缺失和同值选项；只派发新值，由外部回写value
 
@@ -1308,7 +1307,7 @@ header.css[ZU3T]: F:排版旧版顶栏 | R:code:projects/web/src/layouts/header.
 header.ts[IU4T]: F:提供旧版侧栏切换 | R:code:projects/web/src/layouts/header.css | A:app-header,toggle-left-bar | S:仅派发事件，展开状态由外部属性决定
 index.ts[EU4T]: F:注册工作台根组件 | R:code:projects/web/src/layouts/root.ts | A:副作用导入入口 | S:-
 root.css[ZU2T]: F:保留根布局基础样式 | R:- | A::host | S:当前工作台根组件直接导入workbench.css，本文件未被其使用
-root.ts[AU9L]: F:编排插件工作台界面 | R:code:projects/web/src/workbench/store.ts,code:projects/web/src/workbench/frames.ts,code:projects/web/src/workbench/model.ts,code:projects/web/src/workbench/focus-history.ts,code:projects/web/src/workbench/ui.ts | A:app-root,command | S:导航经核心解析精确URL，关闭检查脏页和快照；焦点历史独立于页面路由；拖拽仅预览并在松开后提交，异步标签移动须捕获源ID；中心弹层处理确认编辑，插件外开显式请求独立窗口
+root.ts[AU9L]: F:编排插件工作台界面 | R:code:projects/web/src/workbench/store.ts,code:projects/web/src/workbench/frames.ts,code:projects/web/src/workbench/model.ts,code:projects/web/src/workbench/focus-history.ts,code:projects/web/src/workbench/ui.ts | A:app-root,command | S:默认打开解析后聚焦同URL，显式新标签才重复；关闭检查脏页及快照；焦点历史独立于路由；拖拽松开才提交且异步捕获源ID；输出仅原在底部时跟随；尺寸提示关闭仅当前文档有效
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/web/src/===
 main.test.ts[TI5T]: F:验证Web启动请求顺序 | R:code:projects/web/src/main.ts | A:Vitest用例 | S:断言首次插件API请求发生在当前token加载并写入存储之后
@@ -1319,9 +1318,9 @@ api.d.ts[FE4T]: F:声明插件页面响应 | R:code:projects/web/src/api/plugins
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/web/src/workbench/===
 commands.ts[CU6S]: F:统一工作台命令绑定 | R:code:projects/web/src/layouts/root.ts,code:projects/web/src/components/command-editor.ts | A:commands,effectiveKeys,eventKey,matchesKey,editableTarget,conflicts | S:覆盖按逆序查找且上下文须相同；Mod按平台映射；组合键比较要求完整修饰键，ShadowDOM输入由composedPath识别
-editor.test.ts[TU6M]: F:验证Web命令编辑器 | R:code:projects/web/src/components/command-editor.ts | A:Vitest用例 | S:覆盖Enter与IME优先级、每终端草稿历史、双Tab补全参数键保留及旧终端响应拒收
-frames.test.ts[TU6S]: F:验证页面池生命周期 | R:code:projects/web/src/workbench/frames.ts | A:Vitest用例 | S:分组移动须保留iframe与contentWindow身份；快照保存失败必须保留文档并发送resume
-frames.ts[AU8L]: F:管理插件页面实例 | R:code:projects/shared/workbench-protocol.ts,code:projects/web/src/workbench/store.ts,code:projects/webUtils/lib/workbench.ts | A:FramePool,FrameRuntime | S:iframe固定父容器，分组只改视口并裁剪滚动越界；握手核验origin/source/nonce及epoch；页面导航报告排队且禁止反向重载，单页遍历委托SDK；快照绑定成功才释放文档
+editor.test.ts[TU6M]: F:验证Web命令编辑器 | R:code:projects/web/src/components/command-editor.ts | A:Vitest用例 | S:覆盖Enter与IME、反斜杠续行及屏蔽CmdEnter；重复Tab循环前缀候选且保留参数键；拒收旧终端补全
+frames.test.ts[TU6S]: F:验证页面池生命周期和导航 | R:code:projects/web/src/workbench/frames.ts | A:Vitest用例 | S:分组移动保留iframe及contentWindow；快照失败保留文档并resume；同文档URL兜底只报告一次且不改iframe.src
+frames.ts[AU8L]: F:管理插件页面实例 | R:code:projects/shared/workbench-protocol.ts,code:projects/web/src/workbench/store.ts,code:projects/webUtils/lib/workbench.ts | A:FramePool,FrameRuntime | S:iframe父容器稳定，分组仅改视口；握手验origin/source/nonce/epoch；SDK报告与同源URL轮询共用串行导航防反向刷新；单页遍历委托SDK，快照绑定成功才释放
 menu.test.ts[TU5T]: F:验证工作台菜单关闭 | R:code:projects/web/src/components/context-menu/wb-context-menu.ts | A:Vitest用例 | S:覆盖真实背景幂等关闭、原坐标重开、覆盖回调及禁用项拒选
 model.ts[DU7M]: F:变换工作区布局数据 | R:code:projects/web/src/workbench/types.ts,code:projects/shared/workbench-layout.ts,code:projects/server/workbench/workspace.ts | A:addTab,focusTab,splitGroup,moveTab,navigateTab,relocatedUrl | S:限制200标签、8组、500导航项；移动拒绝缺失ID并收拢空源组；URL重定位核验installationId且精确保留重复query与hash
 protocol.test.ts[TN6T]: F:验证页面端口隔离 | R:code:projects/shared/workbench-protocol.ts | A:Vitest用例 | S:真实MessageChannel验证错误tab、旧epoch、重复序号拒收，关闭必须拒绝待答RPC
@@ -1334,8 +1333,8 @@ terminal-output.test.ts[TO5T]: F:验证安全ANSI渲染 | R:code:projects/web/sr
 terminal-output.ts[KU6S]: F:解析Web终端输出样式 | R:code:projects/web/src/workbench/types.ts,code:projects/web/src/components/terminal.ts | A:ansiSegments,terminalRows,AnsiStyle,AnsiSegment | S:只认SGR为样式，剥除其他控制序列；样式按executionId或streamId跨记录延续，command回显不污染样式状态
 terminal.test.ts[TU6S]: F:验证Web终端视图状态 | R:code:projects/web/src/components/terminal.ts,code:projects/web/src/workbench/store.ts | A:Vitest用例 | S:快速切换保存离开终端草稿但不覆盖新编辑；待答重复提交只执行一次，输出HomeEnd不拦截编辑器；jsdom补齐光标测量及聚焦接口
 types.ts[FG7M]: F:声明工作台共享模型 | R:code:projects/server/workbench/workspace.ts,code:projects/server/types/plugin-config.d.ts,code:projects/server/types/task.d.ts | A:Workspace,Lease,CatalogItem,Terminal,Bookmark,WorkbenchEvent | S:布局直接复用服务端类型；收藏文件夹定义随偏好，成员关系随收藏；本地终端视图独立于持久终端，事件含bootId和每流seq
-ui.ts[LU5M]: F:复用工作台展示片段 | R:code:projects/web/src/workbench/types.ts,code:projects/web/src/components/icon.ts,code:projects/web/src/workbench/store.ts | A:icon,iconButton,pluginCard,pluginOpenButtons,bookmarkList,tabNavigation | S:插件打开要求运行与UI双ready；侧栏及中心共享收藏文件夹和组合打开按钮；键盘标签导航跳过禁用项，深层焦点穿透ShadowDOM
-workbench.css[ZU6L]: F:定义工作台视图布局 | R:code:projects/web/var.css,code:projects/web/src/layouts/root.ts | A:.workbench,.frame-pool,.terminal-output,.dialog-backdrop,.center-canvas | S:iframe池默认无指针而frame开启，拖动时禁用；终端滚动由模型维护；窄屏浮层侧栏通过加宽中心画布保留横滚；面板最大化覆盖中心，状态栏32px，圆角4px
+ui.ts[LU5M]: F:复用工作台展示片段 | R:code:projects/web/src/workbench/types.ts,code:projects/web/src/components/icon.ts,code:projects/web/src/workbench/store.ts | A:icon,iconButton,pluginCard,pluginOpenButtons,bookmarkList,tabNavigation | S:打开要求运行与UI双ready；侧栏及中心共享收藏和组合打开按钮；原生details状态切换文件夹图标；键盘导航跳过禁用项
+workbench.css[ZU6L]: F:定义工作台视图布局 | R:code:projects/web/var.css,code:projects/web/src/layouts/root.ts | A:.workbench,.frame-pool,.terminal-output,.center-canvas | S:iframe池默认无指针而frame开启；窄屏画布保持受限高度及横向溢出，预留浮层侧栏和面板空间；面板最大化覆盖中心，状态栏32px，圆角4px
 dialogs.ts[FU4T]: F:声明工作台弹层表单 | R:code:projects/web/src/workbench/store.ts,code:projects/web/src/layouts/root.ts | A:DialogField,WorkbenchDialog | S:结果是字符串字段映射，null明确表示取消；选项只描述单选值
 focus-history.test.ts[TU5T]: F:验证工作台焦点遍历 | R:code:projects/web/src/workbench/focus-history.ts | A:Vitest用例 | S:关闭标签与归档终端必须跳过并移除；侧栏和单个终端分别记位，新焦点截断前进分支
 focus-history.ts[DU6T]: F:管理工作台焦点历史 | R:code:projects/web/src/layouts/root.ts | A:FocusLocation,FocusHistory | S:最多500项，连续同位置去重；canGo也会删除失效目标并修正游标；记录新位置会截断前进分支
@@ -1355,4 +1354,5 @@ workbench.ts[LE8L]: F:实现插件页面集成SDK | R:code:projects/shared/workb
 fetch.ts[IN5T]: F:提供旧版插件请求工厂 | R:code:projects/server/router/web/api/index.ts | A:createFetch,TFetch,TResource,TWebSocket | S:先以目录获取safeId；fetch加Bearer，旧版WebSocket把token置查询；safeId失败返回不可用适配器，当前SDK入口改由页面会话安装
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/public/lib/===
-scwcutils.iife.mvjavfme.js[LU6T]: F:分发插件页面SDK | R:code:projects/webUtils/lib/index.ts,code:projects/webUtils/lib/workbench.ts,code:projects/webUtils/lib/ticket-socket.ts | A:scwcutils全局对象 | S:fetch等待ready；同步WebSocket入口要求调用方先await ready；pagehide取消待答请求并关闭通信
+scwcutils.iife.mvjqowaj.js[LU6T]: F:分发插件页面集成SDK | R:code:projects/webUtils/lib/workbench.ts,code:projects/webUtils/lib/ticket-socket.ts | A:scwcutils全局对象 | S:单页历史遍历同步宿主索引且不刷新；请求等待授权，页面卸载取消通信
+

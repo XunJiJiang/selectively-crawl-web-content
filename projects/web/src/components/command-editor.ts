@@ -1,3 +1,4 @@
+import { completionSource } from '../../../terminal/command-text.ts';
 import { requireValue } from '../../../shared/workbench-protocol.ts';
 import { LitElement, html, css, nothing, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
@@ -27,7 +28,6 @@ export class CommandEditor extends LitElement {
   private position = { line: 1, column: 1, lines: 1 };
   private editor?: EditorView;
   private completion?: AbortController;
-  private lastTab = 0;
   private applying = false;
   private terminalId = '';
   // Undo stacks belong to a terminal, never to the previously selected terminal.
@@ -40,7 +40,7 @@ export class CommandEditor extends LitElement {
     }
     .terminal-input-prompt-line {
       display: flex;
-      align-items: flex-start;
+      align-items: center;
       background: var(--surface-0);
     }
     .terminal-input-prompt {
@@ -194,7 +194,6 @@ export class CommandEditor extends LitElement {
         local.selectionHead = selection.head;
         if (update.docChanged) {
           this.closeCompletion();
-          this.lastTab = 0;
           this.value = update.state.doc.toString();
           local.draft = this.value;
           if (local.historyCursor >= 0 && local.historyCursor < this.terminal.history.length) {
@@ -301,7 +300,7 @@ export class CommandEditor extends LitElement {
     this.candidates = null;
     this.completing = false;
   }
-  private async complete(all: boolean) {
+  private async complete() {
     if (!this.editor || this.busy || this.waiting) {
       return;
     }
@@ -309,16 +308,8 @@ export class CommandEditor extends LitElement {
     const view = this.editor,
       original = view.state.doc.toString(),
       cursor = view.state.selection.main.head;
-    let from = cursor;
-    while (from > 0 && !/\s/.test(original[from - 1])) {
-      from--;
-    }
-    const equals = original.indexOf('=', from);
-    if (original[from] === '-' && equals >= from && equals < cursor) {
-      from = equals + 1;
-    }
-    // An empty prefix asks the existing provider for every candidate at this position.
-    const command = all ? original.slice(0, from) + original.slice(cursor) : original;
+    const source = completionSource(original, cursor);
+    const command = source.command;
     const controller = (this.completion = new AbortController());
     this.completing = true;
     try {
@@ -328,7 +319,7 @@ export class CommandEditor extends LitElement {
           ...this.store.session(),
           terminalId: this.terminal.id,
           command,
-          cursor: all ? from : cursor,
+          cursor: source.cursor,
         },
         controller.signal,
       );
@@ -342,11 +333,11 @@ export class CommandEditor extends LitElement {
       if (result.command !== undefined && result.command !== command) {
         return;
       }
-      const prefix = original.slice(result.from, cursor);
+      const prefix = command.slice(result.from, source.cursor);
       this.candidates = {
         ...result,
-        items: result.items.filter((item) => all || item.name.startsWith(prefix)),
-        to: result.to + (all ? cursor - from : 0),
+        items: result.items.filter((item) => item.name.startsWith(prefix)),
+        ...source.range(result.from, result.to),
       };
       this.candidateIndex = 0;
     } catch (error) {
@@ -390,13 +381,14 @@ export class CommandEditor extends LitElement {
       return true;
     };
     if (matches('terminal.complete') && !event.shiftKey) {
-      const now = performance.now(),
-        all = this.lastTab > 0 && now - this.lastTab < 600;
-      this.lastTab = now;
-      void this.complete(all);
+      if (this.candidates) {
+        const count = this.candidates.items.length;
+        if (count) this.candidateIndex = (this.candidateIndex + 1) % count;
+      } else if (!this.completing) {
+        void this.complete();
+      }
       return handled();
     }
-    this.lastTab = 0;
     if (this.candidates && ['ArrowUp', 'ArrowDown'].includes(event.key)) {
       const count = this.candidates.items.length;
       if (count) {
@@ -405,7 +397,13 @@ export class CommandEditor extends LitElement {
       }
       return handled();
     }
+    if (event.key === 'Enter' && event.metaKey) return handled();
     if (matches('terminal.submit') && !event.shiftKey) {
+      const text = view.state.doc.toString();
+      if (view.state.selection.main.head === text.length && text.endsWith('\\')) {
+        insertNewline(view);
+        return handled();
+      }
       if (this.candidates) {
         this.accept();
         return handled();
