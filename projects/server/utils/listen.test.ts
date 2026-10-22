@@ -1,6 +1,7 @@
 import { createServer, type Server, type AddressInfo } from 'node:net';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { listenAvailable } from './listen.ts';
+import { portSettings } from '../common/config.ts';
 
 const servers: Server[] = [];
 function newServer() {
@@ -42,6 +43,18 @@ describe('HTTP port search', () => {
     const start = await ephemeral(newServer());
     const server = newServer();
     await expect(listenAvailable(server, start, 0)).rejects.toThrow(
+      `端口 ${start} 到 ${start} 均被占用`,
+    );
+    expect(server.listening).toBe(false);
+  });
+  it('fails on an occupied development port even when the environment enables increments', async () => {
+    const start = await ephemeral(newServer());
+    const server = newServer();
+    const settings = portSettings(
+      { PORT: String(start), PORT_SEARCH_RANGE: '20' },
+      { mode: 'dev' },
+    );
+    await expect(listenAvailable(server, settings.port, settings.range)).rejects.toThrow(
       `端口 ${start} 到 ${start} 均被占用`,
     );
     expect(server.listening).toBe(false);

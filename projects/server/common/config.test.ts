@@ -38,6 +38,60 @@ describe('startup configuration', () => {
   it('rejects startup options with missing values', () => {
     expect(() => portSettings({}, { port: true })).toThrow('--port');
   });
+  it.each(['dev', 'development'])(
+    'ignores the environment port range in %s mode and reports it',
+    (mode) => {
+      const log = vi.fn();
+      expect(portSettings({ PORT: '4000', PORT_SEARCH_RANGE: '20' }, { mode }, log)).toEqual({
+        port: 4000,
+        range: 0,
+      });
+      expect(log).toHaveBeenCalledOnce();
+      expect(log).toHaveBeenCalledWith(
+        '开发环境下核心端口自增配置 PORT_SEARCH_RANGE=20 将被忽略，固定使用端口 4000',
+      );
+    },
+  );
+  it('ignores an explicit CLI range in development while preserving the CLI port override', () => {
+    const log = vi.fn();
+    expect(
+      portSettings(
+        { PORT: '4000', PORT_SEARCH_RANGE: '3' },
+        { mode: 'dev', port: '5000', 'port-range': '10' },
+        log,
+      ),
+    ).toEqual({ port: 5000, range: 0 });
+    expect(log).toHaveBeenCalledWith(
+      '开发环境下核心端口自增配置 --port-range=10 将被忽略，固定使用端口 5000',
+    );
+  });
+  it.each([{}, { PORT_SEARCH_RANGE: '0' }])(
+    'uses a fixed development port silently without an enabled range: %j',
+    (env) => {
+      const log = vi.fn();
+      expect(portSettings(env, { mode: 'dev' }, log)).toEqual({ port: 3200, range: 0 });
+      expect(log).not.toHaveBeenCalled();
+    },
+  );
+  it('does not validate an unused development range but still validates the core port', () => {
+    expect(portSettings({ PORT: '65535', PORT_SEARCH_RANGE: '20' }, { mode: 'dev' })).toEqual({
+      port: 65535,
+      range: 0,
+    });
+    expect(portSettings({ PORT_SEARCH_RANGE: 'invalid' }, { mode: 'dev' })).toEqual({
+      port: 3200,
+      range: 0,
+    });
+    expect(() => portSettings({ PORT: '0' }, { mode: 'dev' })).toThrow('PORT');
+  });
+  it.each(['prod', 'production'])('preserves port increments in %s mode', (mode) => {
+    const log = vi.fn();
+    expect(portSettings({ PORT_SEARCH_RANGE: '3' }, { mode }, log)).toEqual({
+      port: 3200,
+      range: 3,
+    });
+    expect(log).not.toHaveBeenCalled();
+  });
 });
 
 describe('Redis configuration', () => {

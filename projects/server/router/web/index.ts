@@ -6,7 +6,7 @@ import { isDev, isProd } from '../../common/setupParam.ts';
 import { SERVER_ROOT } from '../../common/env.ts';
 import { pluginResourceRouter } from './api/load.ts';
 import { localConfig } from './local-config.ts';
-import { proxyDevelopmentPage } from './workbench/dev-proxy.ts';
+import { redirectDevelopmentPage } from './workbench/dev-proxy.ts';
 
 /** /web */
 const router = Router();
@@ -41,21 +41,7 @@ router.use('/api', apiRouter);
 router.use('/resource/plugin', pluginResourceRouter);
 router.use('/page', pageRouter);
 if (isDev) {
-  router.get(
-    [
-      '/',
-      '/index.html',
-      '/assets/{*path}',
-      '/src/{*path}',
-      '/@vite/{*path}',
-      '/@id/{*path}',
-      '/@fs/{*path}',
-      '/node_modules/{*path}',
-      '/style.css',
-      '/var.css',
-    ],
-    proxyDevelopmentPage,
-  );
+  router.get(['/', '/index.html'], redirectDevelopmentPage);
 }
 
 export default router;

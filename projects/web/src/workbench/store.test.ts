@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { WorkbenchStore } from './store.ts';
-import { ApiError } from '../api/workbench.ts';
+import { ApiError, EventConnection } from '../api/workbench.ts';
+import { CONFIG_KEY } from '../../../shared/utils/common.ts';
 import type { WorkspaceSnapshot } from './types.ts';
 import { requireValue } from '../../../shared/workbench-protocol.ts';
 vi.mock('../../../shared/store/config.ts', () => ({
@@ -42,6 +43,7 @@ afterEach(() => {
   });
   vi.restoreAllMocks();
   localStorage.clear();
+  vi.unstubAllGlobals();
 });
 function fixture() {
   const data = new Map<string, string>();
@@ -58,6 +60,55 @@ function fixture() {
   return store;
 }
 describe('workspace writes and recovery', () => {
+  it('retries authentication with the entered token and only persists a successful connection', async () => {
+    const store = fixture();
+    const snapshot = defaultSnapshot();
+    const fetcher = vi.fn().mockImplementation(async (url: string, options: RequestInit) => {
+      const token = (options.headers as Record<string, string>).Authorization;
+      if (token !== 'Bearer current-token') {
+        return {
+          ok: false,
+          status: 403,
+          json: async () => ({ success: false, message: '无效令牌' }),
+        };
+      }
+      const pathname = new URL(url, location.origin).pathname;
+      let data: unknown = { items: [], total: 0, nextCursor: null };
+      if (pathname.endsWith('/bootstrap')) {
+        data = {
+          installationId: 'installation',
+          coreBootId: 'boot',
+          preferences: { values: {}, revision: 0 },
+        };
+      } else if (pathname.endsWith('/lease')) {
+        data = { workspaceId: 'workspace', token: 'lease', expiresAt: Date.now() + 30000 };
+      } else if (pathname.endsWith('/workspaces/workspace')) {
+        data = { workspaceId: 'workspace', revision: 1, snapshot };
+      } else if (pathname.endsWith('/terminals')) {
+        data = [];
+      }
+      return { ok: true, json: async () => ({ success: true, data }) };
+    });
+    vi.stubGlobal('fetch', fetcher);
+    vi.spyOn(EventConnection.prototype, 'connect').mockResolvedValue();
+    await store.authenticate('wrong-token');
+    expect(store.error).toBe('无效令牌');
+    expect(localStorage.getItem(CONFIG_KEY)).toBeNull();
+    await store.authenticate('  current-token  ');
+    expect(store.error).toBe('');
+    expect(store.workspace?.workspaceId).toBe('workspace');
+    expect(JSON.parse(requireValue(localStorage.getItem(CONFIG_KEY))).api.token).toBe(
+      'current-token',
+    );
+    expect(fetcher).toHaveBeenNthCalledWith(
+      2,
+      '/web/api/workbench/bootstrap',
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer current-token' }),
+      }),
+    );
+  });
+
   it('keeps a committed receipt saved when browser cleanup fails, and exports from memory', async () => {
     const store = fixture();
     vi.spyOn(localStorage, 'removeItem').mockImplementation(() => {

@@ -2,7 +2,17 @@ import { createServer, request, type Server } from 'node:http';
 import express from 'express';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const startup = vi.hoisted(() => ({ host: 'http://127.0.0.1', token: 'startup-token' }));
+const startup = vi.hoisted(() => ({
+  host: 'http://127.0.0.1',
+  token: 'startup-token',
+  dev: false,
+}));
+vi.mock('../../common/setupParam.ts', () => ({
+  get isDev() {
+    return startup.dev;
+  },
+  WEB_PORT: 3201,
+}));
 vi.mock('../../common/env.ts', () => ({
   get HOST() {
     return startup.host;
@@ -20,6 +30,7 @@ let origin: string;
 beforeEach(async () => {
   startup.host = 'http://127.0.0.1';
   startup.token = 'startup-token';
+  startup.dev = false;
   const app = express();
   app.use((_req, res, next) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -71,6 +82,36 @@ function getConfig(headers: Record<string, string> = {}) {
 }
 
 describe('local startup configuration', () => {
+  it('allows the configured loopback Vite proxy only in development', async () => {
+    const headers = { Host: 'localhost:3201', Referer: 'http://localhost:3201/web/' };
+    expect((await getConfig(headers)).status).toBe(403);
+    startup.dev = true;
+    const response = await getConfig(headers);
+    expect(response.status).toBe(200);
+    expect(JSON.parse(response.body).data).toEqual({
+      host: 'http://localhost',
+      port: '3201',
+      token: startup.token,
+    });
+    expect(response.headers['access-control-allow-origin']).toBeUndefined();
+  });
+
+  it.each<Record<string, string>>([
+    { Host: 'localhost:3202', Referer: 'http://localhost:3202/web/' },
+    { Host: 'evil.example:3201', Referer: 'http://evil.example:3201/web/' },
+    { Host: 'localhost:3201', Referer: 'http://localhost:3200/web/' },
+    {
+      Host: 'localhost:3201',
+      Referer: 'http://localhost:3201/web/',
+      'Sec-Fetch-Site': 'cross-site',
+    },
+  ])('keeps the development credential boundary for %j', async (headers) => {
+    startup.dev = true;
+    const response = await getConfig(headers);
+    expect(response.status).toBe(403);
+    expect(response.body).not.toContain(startup.token);
+  });
+
   it('returns the current token and actual listening port without bearer authentication', async () => {
     const response = await getConfig();
     expect(response.status).toBe(200);

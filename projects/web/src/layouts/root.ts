@@ -1300,8 +1300,7 @@ export class AppRoot extends LitElement {
                       const input = requireValue(
                         (e.currentTarget as HTMLFormElement).querySelector('input'),
                       );
-                      this.store.api.config.api.token = input.value;
-                      this.act(() => this.store.start());
+                      this.act(() => this.store.authenticate(input.value));
                     }}
                   >
                     <input type="password" aria-label="核心令牌" autocomplete="off" /><button

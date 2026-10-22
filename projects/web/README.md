@@ -12,3 +12,9 @@ bun run test --run --project selectively-crawl-web-content-web
 ```
 
 核心持久化工作区、收藏、统一关闭历史、通知与 Web 终端。前端的租约/CAS、事件恢复与实例池分别位于 `src/workbench/store.ts`、`src/api/workbench.ts`、`src/workbench/frames.ts`。浏览器 SDK 的源码位于 `projects/webUtils/lib/`，修改后需单独构建。
+
+开发模式下，核心的 `/web/` 跳转到 `--web-port` 指定的 Vite 端口（默认 3201，可用 `--web-host` 指定地址）。Vite 保留页面来源，将启动配置、API、插件页面、资源及 WebSocket 转发给核心，本机页面可自动加载当前 TOKEN；手动认证成功后也会保存 TOKEN。生产模式仍由核心直接提供 `/web/`。
+
+开发模式下，核心固定监听 `PORT` / `--port`，端口占用时直接启动失败；`.env` 的 `PORT_SEARCH_RANGE` 和 CLI 的 `--port-range` 均被忽略，显式配置非零范围时会输出服务日志说明。生产模式保留端口自增能力。
+
+Vite 从仓库根目录的环境文件读取核心的 `HOST` / `PORT`，缺省连接 `http://localhost:3200`。核心使用 `--port` 覆盖环境端口时，启动 Vite 前设置 `SCWC_CORE_URL` 为核心实际地址。修改 Vite 端口时，同时设置核心的 `--web-port`，例如 `bun run dev:web --port 3215` 和 `node projects/server/scripts/setup.ts --mode=dev --web-port=3215`。

@@ -7,8 +7,6 @@ import { workbenchEvents, type WorkbenchEvent } from '../../../workbench/events.
 import { coreBootId } from '../../../workbench/storage.ts';
 import { getWorkbench } from '../../../workbench/runtime.ts';
 import { plugins } from '../../../plugin/load.ts';
-import { isDev } from '../../../common/setupParam.ts';
-import { proxyDevelopmentUpgrade } from './dev-proxy.ts';
 
 function reject(socket: Duplex) {
   socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');
@@ -22,10 +20,6 @@ export function attachUpgradeDispatcher(server: Server) {
       url = new URL(req.url ?? '', 'http://localhost');
     } catch {
       return reject(socket);
-    }
-    if (isDev && url.pathname === '/web/__vite_hmr') {
-      proxyDevelopmentUpgrade(req, socket, head);
-      return;
     }
     if (url.pathname.startsWith('/web/websocket/plugin/')) {
       void pluginWebSocketRegistry.handleUpgrade(req, socket, head);

@@ -72,8 +72,22 @@ export function stringArg(
   return value;
 }
 
-export function portSettings(env: NodeJS.ProcessEnv, args: Record<string, string | boolean> = {}) {
+export function portSettings(
+  env: NodeJS.ProcessEnv,
+  args: Record<string, string | boolean> = {},
+  onIgnoredRange?: (message: string) => void,
+) {
   const port = integerSetting('PORT/--port', stringArg(args, 'port') ?? env.PORT, 3200, 1, 65535);
+  if (args.mode === 'dev' || args.mode === 'development') {
+    const configuredRange = args['port-range'] ?? env.PORT_SEARCH_RANGE;
+    if (configuredRange !== undefined && Number(configuredRange) !== 0) {
+      const source = args['port-range'] !== undefined ? '--port-range' : 'PORT_SEARCH_RANGE';
+      onIgnoredRange?.(
+        `开发环境下核心端口自增配置 ${source}=${configuredRange} 将被忽略，固定使用端口 ${port}`,
+      );
+    }
+    return { port, range: 0 };
+  }
   const range = integerSetting(
     'PORT_SEARCH_RANGE/--port-range',
     stringArg(args, 'port-range') ?? env.PORT_SEARCH_RANGE,

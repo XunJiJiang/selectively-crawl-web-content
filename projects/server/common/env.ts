@@ -5,7 +5,7 @@ import { portSettings } from './config.ts';
 import { parsedArgs } from './setupParam.ts';
 export { ROOT, SERVER_ROOT } from './paths.ts';
 
-const ports = portSettings(process.env, parsedArgs);
+const ports = portSettings(process.env, parsedArgs, (message) => serverLogger.info(message));
 export const PORT = ports.port;
 export const PORT_SEARCH_RANGE = ports.range;
 export let ACTIVE_PORT = PORT;

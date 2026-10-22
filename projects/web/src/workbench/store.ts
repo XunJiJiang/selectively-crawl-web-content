@@ -1,6 +1,7 @@
 import { requireValue } from '../../../shared/workbench-protocol.ts';
 import { WorkbenchAPI, ApiError, EventConnection } from '../api/workbench.ts';
 import { ConfigController } from '../../../shared/store/config.ts';
+import { CONFIG_KEY } from '../../../shared/utils/common.ts';
 import { clone, uid, defaultLayout, internalTab, addTab, relocatedUrl } from './model.ts';
 import type {
   Bookmark,
@@ -106,6 +107,13 @@ export class WorkbenchStore extends EventTarget {
   dismissToast(id: string) {
     this.toasts = this.toasts.filter((t) => t.id !== id);
     this.changed();
+  }
+  async authenticate(token: string) {
+    this.api.config.api.token = token.trim();
+    await this.start();
+    if (!this.error) {
+      localStorage.setItem(CONFIG_KEY, JSON.stringify(this.api.config));
+    }
   }
   async start() {
     this.loading = true;
