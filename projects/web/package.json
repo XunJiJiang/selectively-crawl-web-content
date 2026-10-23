@@ -12,7 +12,7 @@
   },
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "node scripts/dev.ts",
     "build": "vite build",
     "test": "vitest",
     "lint": "oxlint",

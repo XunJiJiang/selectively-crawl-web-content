@@ -1,5 +1,6 @@
 import { defineConfig, loadEnv } from 'vite';
 import path from 'node:path';
+import { parseCorePort } from './scripts/dev-options.ts';
 
 const __dirname = import.meta.dirname;
 
@@ -7,12 +8,18 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, path.resolve(__dirname, '../..'), '');
   const core = new URL(env.HOST ?? 'http://localhost');
   core.port = env.PORT ?? '3200';
-  const target = env.SCWC_CORE_URL ?? core.origin;
+  let target = env.SCWC_CORE_URL ?? core.origin;
+  const corePort = env.SCWC_WEB_CORE_PORT;
+  if (corePort !== undefined) {
+    const override = new URL(target);
+    override.port = parseCorePort(corePort);
+    target = override.href;
+  }
   return {
     plugins: [],
     define: {
       'import.meta.env.HOST': JSON.stringify(env.HOST),
-      'import.meta.env.PORT': JSON.stringify(env.PORT),
+      'import.meta.env.PORT': JSON.stringify(corePort ?? env.PORT),
     },
     base: '/web/',
     root: path.join(__dirname),

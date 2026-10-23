@@ -17,4 +17,13 @@ bun run test --run --project selectively-crawl-web-content-web
 
 开发模式下，核心固定监听 `PORT` / `--port`，端口占用时直接启动失败；`.env` 的 `PORT_SEARCH_RANGE` 和 CLI 的 `--port-range` 均被忽略，显式配置非零范围时会输出服务日志说明。生产模式保留端口自增能力。
 
-Vite 从仓库根目录的环境文件读取核心的 `HOST` / `PORT`，缺省连接 `http://localhost:3200`。核心使用 `--port` 覆盖环境端口时，启动 Vite 前设置 `SCWC_CORE_URL` 为核心实际地址。修改 Vite 端口时，同时设置核心的 `--web-port`，例如 `bun run dev:web --port 3215` 和 `node projects/server/scripts/setup.ts --mode=dev --web-port=3215`。
+Vite 从仓库根目录的环境文件读取核心的 `HOST` / `PORT`，缺省连接 `http://localhost:3200`；`SCWC_CORE_URL` 可覆盖完整的核心代理地址。使用 `--core-port` 可以单独覆盖核心代理端口，优先于上述环境配置，仅对本次 Web 启动生效，不需要设置 PowerShell 的 `$env:PORT`。
+
+`--port` 是 Web 自身的监听端口，`--core-port` 是它连接的核心端口。修改 Web 端口时，同时设置核心的 `--web-port`。例如在两个终端分别运行：
+
+```sh
+bun run dev:server --port=5174 --web-port=5173
+bun run dev:web --port=5173 --core-port=5174
+```
+
+打开 `http://localhost:5173/web/`。`--core-port 5174` 和 `--core-port=5174` 两种写法均支持；其他 Vite 参数（例如 `--host`、`--mode`）继续原样传递。
