@@ -57,6 +57,28 @@ async function fixture() {
   return { terminal, root: requireValue(terminal.shadowRoot) };
 }
 describe('inline Web command terminal', () => {
+  it('routes Ctrl+C from the output pane to cancellation while a command is running', async () => {
+    const { terminal, root } = await fixture();
+    store.executions = [
+      { id: 'running', terminalId: 'a', status: 'running', coreBootId: 'boot', command: 'long' },
+    ] as typeof store.executions;
+    store.changed();
+    await terminal.updateComplete;
+    const request = vi.spyOn(store.api, 'request').mockResolvedValue({ needsForce: false });
+    const event = new KeyboardEvent('keydown', {
+      key: 'c',
+      ctrlKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    requireValue(root.querySelector('.terminal-output')).dispatchEvent(event);
+    await Promise.resolve();
+    expect(event.defaultPrevented).toBe(true);
+    expect(request).toHaveBeenCalledWith(
+      '/commands/cancel',
+      expect.objectContaining({ executionId: 'running' }),
+    );
+  });
   it('keeps the prompt in the output flow without a form toolbar, run button or placeholder', async () => {
     const { root } = await fixture();
     expect(root.querySelector('.terminal-output wb-command-editor')).not.toBeNull();

@@ -394,6 +394,55 @@ describe('Web command execution', () => {
   });
 });
 
+it('cancels a running Web command through its invocation signal and frees the terminal', async () => {
+  const { storage, workspace } = fixture();
+  const lease = workspace.lease('cancel-workspace', 'owner', 'acquire');
+  assert('token' in lease, 'test', 'lease required');
+  const service = new CommandService(storage, workspace);
+  commands.push(service);
+  const terminal = service.saveTerminal('cancel-workspace', 'owner', lease.token, {
+    title: 'Cancel',
+  });
+  let cancelled = false;
+  registerCommand(
+    createLogger('test', ''),
+    'cancel-running',
+    async (_log, _options, _unused, _raw, context) => {
+      assert(context, 'test', 'context required');
+      await new Promise<void>((resolve) =>
+        context.signal.addEventListener(
+          'abort',
+          () => {
+            cancelled = true;
+            resolve();
+          },
+          { once: true },
+        ),
+      );
+    },
+    'workbench-test',
+  );
+  const execution = await service.execute(
+    'cancel-workspace',
+    'owner',
+    lease.token,
+    terminal.id,
+    'cancel-running',
+    'cancel-key',
+  );
+  const result = await service.cancel(
+    'cancel-workspace',
+    'owner',
+    lease.token,
+    terminal.id,
+    execution.id,
+    coreBootId,
+  );
+  expect(cancelled).toBe(true);
+  expect(result.needsForce).toBe(false);
+  expect(service.execution(execution.id).status).toBe('cancelled');
+});
+
 describe('bookmark tree moves', () => {
   it('atomically moves folders and bookmarks in a mixed sibling order, rejecting cycles and stale revisions', () => {
     const { workspace } = fixture();

@@ -1,4 +1,5 @@
 /// <reference lib="es2022.intl" />
+import { completionInput } from '../../../shared/command-completion.ts';
 import { completionSource } from '../../../terminal/command-text.ts';
 import { requireValue } from '../../../shared/workbench-protocol.ts';
 import { LitElement, html, css, nothing, type PropertyValues } from 'lit';
@@ -126,8 +127,9 @@ export class CommandEditor extends LitElement {
     }
     .cursor {
       display: inline-block;
-      vertical-align: top;
-      height: 1lh;
+      vertical-align: baseline;
+      height: 0.8lh;
+      background: transparent;
       outline: 1px solid var(--terminal-cursor);
       outline-offset: -1px;
     }
@@ -454,6 +456,7 @@ export class CommandEditor extends LitElement {
     if (this.busy || this.waiting) {
       return;
     }
+    this.readSelection();
     this.closeCompletion();
     const original = this.value,
       cursor = this.head,
@@ -467,6 +470,8 @@ export class CommandEditor extends LitElement {
         '/commands/complete',
         { ...this.store.session(), terminalId, command, cursor: source.cursor },
         controller.signal,
+        false,
+        true,
       );
       if (
         controller.signal.aborted ||
@@ -478,10 +483,10 @@ export class CommandEditor extends LitElement {
       ) {
         return;
       }
-      const prefix = command.slice(result.from, source.cursor);
+      const prefix = completionInput(command, source.cursor).prefix;
       this.candidates = {
         ...result,
-        items: result.items.filter((item) => item.name.startsWith(prefix)),
+        items: result.items.filter((item) => item.insertText.startsWith(prefix)),
         ...source.range(result.from, result.to),
       };
       this.candidateIndex = 0;
@@ -591,7 +596,7 @@ export class CommandEditor extends LitElement {
     if (
       matches('terminal.cancel') &&
       !event.metaKey &&
-      (mac || (this.anchor === this.head && !window.getSelection()?.toString()))
+      (this.busy || mac || (this.anchor === this.head && !window.getSelection()?.toString()))
     ) {
       this.closeCompletion();
       if (this.busy) {

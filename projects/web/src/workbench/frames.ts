@@ -21,6 +21,7 @@ export interface FrameRuntime {
   dirty: boolean;
   dirtyRevision?: number;
   checkpointTimer?: ReturnType<typeof setTimeout>;
+  reconnectTimer?: ReturnType<typeof setTimeout>;
   properties: { label: string; value: string }[];
   capabilities: Record<string, boolean>;
   activity: Map<string, string>;
@@ -68,6 +69,26 @@ export class FramePool extends EventTarget {
     this.observer.observe(container);
     store.addEventListener('server-event', this.serverEvent);
     store.addEventListener('core-restarted', this.restarted);
+    store.addEventListener('connection-paused', this.paused);
+    store.addEventListener('connection-resumed', this.resumed);
+    store.pausePages = async () => {
+      const results = await Promise.all(
+        [...this.runtimes.values()]
+          .filter((r) => r.port)
+          .map(async (r) => {
+            try {
+              return await r.port?.request<boolean>('connection.pause', {}, 2000);
+            } catch {
+              return false;
+            }
+          }),
+      );
+      if (results.some((result) => !result)) {
+        this.resumed();
+        return false;
+      }
+      return true;
+    };
     // Same-origin fallback also covers routers that replace the SDK history wrappers.
     this.navigationTimer = setInterval(() => {
       for (const runtime of this.runtimes.values()) {
@@ -298,6 +319,7 @@ export class FramePool extends EventTarget {
     r.activity.clear();
     r.state = 'navigating';
     r.requests = 0;
+    this.store.setPageRequests(r.tabId, 0);
     r.observedRequests = 0;
     r.failedRequests = 0;
     r.dirty = false;
@@ -479,12 +501,25 @@ export class FramePool extends EventTarget {
     if (method === 'requests.changed') {
       const data = payload as { delta: number; failed?: boolean };
       r.requests = Math.max(0, r.requests + Number(data.delta || 0));
+      this.store.setPageRequests(r.tabId, r.requests);
+      if (r.requests) {
+        r.lastBackgroundAt = Date.now();
+        if (r.state === 'suspended') {
+          r.state = 'ready';
+          r.port?.event('lifecycle.resume', {});
+        }
+      } else {
+        r.lastBackgroundAt = Date.now();
+      }
       if (data.delta > 0) {
         r.observedRequests = (r.observedRequests ?? 0) + 1;
       }
       if (data.failed) {
         r.failedRequests = (r.failedRequests ?? 0) + 1;
       }
+    }
+    if (method === 'page.activity') {
+      this.store.activity();
     }
     if (method === 'search.changed') {
       const data = payload as { revision: number; available: boolean };
@@ -514,13 +549,19 @@ export class FramePool extends EventTarget {
       return;
     }
     const epoch = r.epoch,
-      session = await this.store.api.request<PageSession>('/page-sessions', {
-        ...this.store.session(),
-        tabId: r.tabId,
-        pluginId: tab.pluginId,
-        url: r.url,
-        frameEpoch: epoch,
-      });
+      session = await this.store.api.request<PageSession>(
+        '/page-sessions',
+        {
+          ...this.store.session(),
+          tabId: r.tabId,
+          pluginId: tab.pluginId,
+          url: r.url,
+          frameEpoch: epoch,
+        },
+        undefined,
+        false,
+        true,
+      );
     if (r.epoch === epoch) {
       r.session = session;
       r.port?.event('session.changed', session);
@@ -632,6 +673,7 @@ export class FramePool extends EventTarget {
     if (
       !tab ||
       tab.kind !== 'plugin' ||
+      r.requests > 0 ||
       (automatic && (r.visible || r.dirty || r.activity.size || r.requests || tab.keepAlive))
     ) {
       return;
@@ -659,7 +701,11 @@ export class FramePool extends EventTarget {
     this.changed();
     try {
       await this.checkpoint(id, 'hibernate');
-      if (r.transition !== transition || (automatic && (r.visible || r.dirty || r.activity.size))) {
+      if (
+        r.transition !== transition ||
+        r.requests ||
+        (automatic && (r.visible || r.dirty || r.activity.size))
+      ) {
         throw new Error('页面状态已变化，保留运行');
       }
       this.hibernated.set(id, automatic);
@@ -696,7 +742,6 @@ export class FramePool extends EventTarget {
     if (r) {
       try {
         r.port?.event('requests.abort', {});
-        r.frame.contentWindow?.stop();
         r.state = 'stopped';
       } catch {
         r.error = '当前页面不支持停止';
@@ -772,15 +817,40 @@ export class FramePool extends EventTarget {
     }
     this.sync();
   };
+  private paused = () => {
+    for (const r of this.runtimes.values()) {
+      clearTimeout(r.checkpointTimer);
+      clearTimeout(r.reconnectTimer);
+      r.port?.event('connection.paused', {});
+    }
+  };
+  private resumed = () => {
+    for (const r of this.runtimes.values()) {
+      // Only renew authorization. Keep the iframe and its document alive.
+      this.resumeRuntime(r);
+    }
+  };
+  private resumeRuntime(r: FrameRuntime, attempts = 0) {
+    clearTimeout(r.reconnectTimer);
+    if (this.stopped || this.store.disconnectedForIdle || this.runtimes.get(r.tabId) !== r) {
+      return;
+    }
+    void this.renew(r).catch(() => {
+      r.reconnectTimer = setTimeout(
+        () => this.resumeRuntime(r, attempts + 1),
+        Math.min(15000, 1000 * 2 ** attempts),
+      );
+    });
+  }
   private async energy() {
-    if (!this.store.preferences.values.energy?.enabled) {
+    if (this.store.disconnectedForIdle || !this.store.preferences.values.energy?.enabled) {
       return;
     }
     const minutes = this.store.preferences.values.energy.idleMinutes;
     for (const r of this.runtimes.values()) {
       if (!r.visible) {
         const elapsed = Date.now() - r.lastBackgroundAt;
-        if (elapsed > 30000 && r.state === 'ready') {
+        if (elapsed > 30000 && r.state === 'ready' && !r.requests && !r.activity.size) {
           r.port?.event('lifecycle.suspend', {});
           r.state = 'suspended';
         }
@@ -806,7 +876,9 @@ export class FramePool extends EventTarget {
     r.transition = undefined;
     clearTimeout(r.handshakeTimer);
     clearTimeout(r.checkpointTimer);
+    clearTimeout(r.reconnectTimer);
     r.port?.close();
+    this.store.setPageRequests(r.tabId, 0);
     r.frame.remove();
     this.runtimes.delete(r.tabId);
     this.dispatchEvent(new Event('search-changed'));
@@ -820,6 +892,9 @@ export class FramePool extends EventTarget {
     window.removeEventListener('message', this.hello);
     this.store.removeEventListener('server-event', this.serverEvent);
     this.store.removeEventListener('core-restarted', this.restarted);
+    this.store.removeEventListener('connection-paused', this.paused);
+    this.store.removeEventListener('connection-resumed', this.resumed);
+    this.store.pausePages = undefined;
     for (const r of this.runtimes.values()) {
       this.remove(r);
     }

@@ -11,6 +11,26 @@ class FakeSocket extends EventTarget {
   close = vi.fn();
 }
 describe('ticket-backed synchronous SDK socket', () => {
+  it('reopens an interruptible socket without losing handlers or delivering stale close events', async () => {
+    const first = new FakeSocket(),
+      second = new FakeSocket();
+    const connect = vi.fn().mockResolvedValueOnce(first).mockResolvedValueOnce(second);
+    const socket = new TicketSocket(connect);
+    const close = vi.fn(),
+      message = vi.fn();
+    socket.onclose = close;
+    socket.onmessage = message;
+    await Promise.resolve();
+    socket.suspend();
+    first.dispatchEvent(new CloseEvent('close'));
+    expect(first.close).toHaveBeenCalledOnce();
+    expect(close).not.toHaveBeenCalled();
+    socket.resume();
+    await Promise.resolve();
+    second.dispatchEvent(new MessageEvent('message', { data: 'fresh' }));
+    expect(connect).toHaveBeenCalledTimes(2);
+    expect(message).toHaveBeenCalledOnce();
+  });
   it('keeps callbacks, listeners and send behavior while a ticket is acquired', async () => {
     const native = new FakeSocket(),
       socket = new TicketSocket(async () => native as unknown as WebSocket),

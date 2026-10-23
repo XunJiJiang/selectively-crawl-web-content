@@ -21,7 +21,8 @@ import type {
   CommandCompletionCache,
 } from '../types/command.d.ts';
 import type { CompletionRequest, CompletionResult } from '../../terminal/protocol.ts';
-import { completionInput, abortable } from '../../terminal/completion.ts';
+import { abortable } from '../../terminal/completion.ts';
+import { completionInput } from '../../shared/command-completion.ts';
 import { createCommandCompletionCache } from './commandCompletion.ts';
 
 /**
@@ -268,19 +269,8 @@ export async function completeCommand(
       items: result.commands.map((name) => ({ name, insertText: name })),
     };
   }
-  let from = cursor;
-  let to = cursor;
-  while (from > 0 && !/\s/.test(command[from - 1])) {
-    from--;
-  }
-  while (to < command.length && !/\s/.test(command[to])) {
-    to++;
-  }
-  const prefix = command.slice(from, cursor);
-  let parents: string[];
-  try {
-    parents = splitCommand(command.slice(0, from));
-  } catch {
+  const { from, to, prefix, parents } = input;
+  if (!input.eligible) {
     return { command, from, to, items: [] };
   }
   const definitions = [...commandRegistry].filter(
@@ -456,10 +446,12 @@ export async function parseAndRunCommands(command: string, supplied?: Invocation
   const logger = bindLogger(prepared.definition.log, context, prepared.definition.pluginId);
   try {
     await invocationStorage.run(context, async () => {
+      context.signal.throwIfAborted();
       for (const warning of prepared.warnings) {
         logger.warn(warning);
       }
       await prepared.execute(logger, prepared.options, prepared.unused, prepared.parts, context);
+      context.signal.throwIfAborted();
       logger.info('=======================================================');
     });
   } finally {

@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { WorkbenchStore } from './store.ts';
-import { addTab, internalTab, titleOf } from './model.ts';
+import { addTab, internalTab, titleOf, splitGroup, groups } from './model.ts';
 import { requireValue } from '../../../shared/workbench-protocol.ts';
 import type { AppRoot } from '../layouts/root.ts';
 
@@ -78,6 +78,39 @@ async function fixture() {
   return requireValue(app.shadowRoot);
 }
 describe('workbench interactions', () => {
+  it('collapses page sections and drags a sidebar tab into another group with a placement marker', async () => {
+    const root = await fixture();
+    vi.spyOn(app.store, 'update').mockImplementation(async (mutate) => {
+      mutate(requireValue(app.store.workspace).snapshot);
+      app.store.changed();
+    });
+    const snapshot = requireValue(app.store.workspace).snapshot;
+    const first = snapshot.tabs[0];
+    addTab(snapshot, internalTab('bookmarks'));
+    splitGroup(snapshot, 'horizontal', snapshot.tabs[1].id);
+    const target = snapshot.layout.focusedGroupId;
+    app.requestUpdate();
+    await app.updateComplete;
+    const fire = (node: Element, type: string) => {
+      const event = new Event(type, { bubbles: true, cancelable: true });
+      Object.assign(event, { clientY: 0, dataTransfer: { setData: vi.fn() } });
+      node.dispatchEvent(event);
+    };
+    const row = requireValue(root.querySelector('.sidebar-list-item'));
+    fire(row, 'dragstart');
+    const label = requireValue(root.querySelectorAll('.group-label')[1]);
+    fire(label, 'dragover');
+    expect(label.getAttribute('data-tab-drop')).toBe('before');
+    fire(label, 'drop');
+    await Promise.resolve();
+    await app.updateComplete;
+    expect(groups(snapshot.layout.center).find((g) => g.id === target)?.tabIds).toContain(first.id);
+    requireValue(
+      root.querySelector<HTMLButtonElement>('[aria-label="折叠或展开打开的页面"]'),
+    ).click();
+    await app.updateComplete;
+    expect(root.querySelector('.sidebar-section-body')?.hasAttribute('hidden')).toBe(true);
+  });
   it('follows public output only while the reader remains at the bottom, including hidden updates', async () => {
     const root = await fixture();
     const output = requireValue(root.querySelector<HTMLElement>('.output-content'));

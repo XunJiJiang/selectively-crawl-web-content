@@ -1,4 +1,6 @@
 import { TicketSocket } from './ticket-socket.ts';
+import { RequestLifecycle, type RequestOptions } from '../../shared/request-lifecycle.ts';
+import { ManagedResources } from '../../shared/managed-resources.ts';
 import {
   requireValue,
   InstancePort,
@@ -74,7 +76,14 @@ export function createWorkbenchSDK(install: (fetch: TFetch) => void) {
   let lifecycle: Lifecycle = {};
   let search: SearchOptions | undefined;
   let searchRevision = 0;
-  const managedRequests = new Set<AbortController>();
+  const network = new RequestLifecycle();
+  let blockingRequests = 0;
+  network.addEventListener('change', () => {
+    port?.event('requests.changed', { delta: network.blocking - blockingRequests });
+    blockingRequests = network.blocking;
+  });
+  const sockets = new Set<TicketSocket>();
+  const resources = new ManagedResources(network);
   const registrations = new Map<string, SettingsOptions>(),
     requests = new Map<string, AbortController>(),
     configListeners = new Set<(change: ConfigChange) => void>();
@@ -94,17 +103,26 @@ export function createWorkbenchSDK(install: (fetch: TFetch) => void) {
     if (!session) {
       throw new Error('页面尚未授权');
     }
-    const response = await fetch(`/web/api/workbench${path}`, {
-      method: body === undefined ? 'GET' : 'POST',
-      headers: { Authorization: `Bearer ${session.grant}`, 'Content-Type': 'application/json' },
-      body: body === undefined ? undefined : JSON.stringify(body),
-      referrerPolicy: 'same-origin',
-    });
-    const data = await response.json();
-    if (!response.ok || !data.success) {
-      throw new Error(data.message ?? '请求失败');
-    }
-    return data.data;
+    return network.run(
+      async (signal) => {
+        const response = await fetch(`/web/api/workbench${path}`, {
+          signal,
+          method: body === undefined ? 'GET' : 'POST',
+          headers: {
+            Authorization: `Bearer ${requireValue(session).grant}`,
+            'Content-Type': 'application/json',
+          },
+          body: body === undefined ? undefined : JSON.stringify(body),
+          referrerPolicy: 'same-origin',
+        });
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+          throw new Error(data.message ?? '请求失败');
+        }
+        return data.data;
+      },
+      body === undefined || path === '/stream-ticket',
+    );
   }
   const configPath = () =>
     `/plugins/${encodeURIComponent(decodeURIComponent(location.pathname.split('/')[4]))}/config`;
@@ -369,28 +387,11 @@ export function createWorkbenchSDK(install: (fetch: TFetch) => void) {
       ) => Promise<unknown>
     >,
     requests: {
-      track: async <T>(operation: () => Promise<T>) => {
-        port?.event('requests.changed', { delta: 1 });
-        const start = performance.now();
-        let failed = false;
-        try {
-          return await operation();
-        } catch (error) {
-          failed = true;
-          throw error;
-        } finally {
-          port?.event('requests.changed', {
-            delta: -1,
-            duration: performance.now() - start,
-            failed,
-          });
-        }
-      },
+      track: <T>(operation: (signal: AbortSignal) => Promise<T>, options?: RequestOptions) =>
+        network.run(operation, options?.interruptible),
     },
-    websocketAsync: async (url: string, protocols?: string | string[]) => {
-      const result = await request<{ ticket: string }>('/stream-ticket', {});
-      return openSocket(url, result.ticket, protocols);
-    },
+    websocketAsync: async (url: string, protocols?: string | string[], options?: RequestOptions) =>
+      managedSocket(url, protocols, options),
   };
   let navigationAdapter: ((url: string) => void | Promise<void>) | undefined;
   async function validateValues(values: Record<string, string>) {
@@ -453,49 +454,57 @@ export function createWorkbenchSDK(install: (fetch: TFetch) => void) {
     url.searchParams.set('ticket', ticket);
     return new WebSocket(url, protocols);
   }
+  function managedSocket(path: string, protocols?: string | string[], options?: RequestOptions) {
+    const release = options?.interruptible ? () => undefined : network.protect();
+    const socket = new TicketSocket(async () => {
+      await network.wait();
+      const result = await request<{ ticket: string }>('/stream-ticket', {});
+      return openSocket(path, result.ticket, protocols);
+    });
+    sockets.add(socket);
+    socket.addEventListener('close', () => {
+      release();
+      sockets.delete(socket);
+    });
+    return socket.asWebSocket();
+  }
   function installSession(value: Session) {
     session = value;
     install(
       Object.assign(
-        async (path: string, options?: RequestInit) => {
-          const url = new URL(
-            `/web/api/plugin/${requireValue(session).safeId}/${path.replace(/^\//, '')}`,
-            location.origin,
-          );
-          url.searchParams.set('site', location.href);
-          const headers = new Headers(options?.headers);
-          headers.set('Authorization', `Bearer ${requireValue(session).grant}`);
-          if (!headers.has('Content-Type')) {
-            headers.set('Content-Type', 'application/json');
-          }
-          const controller = new AbortController(),
-            abort = () => controller.abort();
-          managedRequests.add(controller);
-          options?.signal?.addEventListener('abort', abort, { once: true });
-          if (options?.signal?.aborted) {
-            controller.abort();
-          }
-          try {
-            return await api.requests.track(async () => {
-              const response = await fetch(url, { ...options, headers, signal: controller.signal });
+        async (path: string, options?: RequestInit & RequestOptions) => {
+          return network.run(
+            async (signal) => {
+              const url = new URL(
+                `/web/api/plugin/${requireValue(session).safeId}/${path.replace(/^\//, '')}`,
+                location.origin,
+              );
+              url.searchParams.set('site', location.href);
+              const headers = new Headers(options?.headers);
+              headers.set('Authorization', `Bearer ${requireValue(session).grant}`);
+              if (!headers.has('Content-Type')) {
+                headers.set('Content-Type', 'application/json');
+              }
+              const response = await fetch(url, { ...options, headers, signal });
               return response.json();
-            });
-          } finally {
-            managedRequests.delete(controller);
-            options?.signal?.removeEventListener('abort', abort);
-          }
+            },
+            options?.interruptible,
+            options?.signal ?? undefined,
+          );
         },
         {
-          resource: (path: string) => {
+          resource: (path: string, options?: RequestOptions) => {
             const url = new URL(
               `/web/resource/plugin/${requireValue(session).safeId}/${path.replace(/^\//, '')}`,
               location.origin,
             );
             url.searchParams.set('site', location.href);
+            if (options?.interruptible) {
+              url.searchParams.set('_scwc_interruptible', '1');
+            }
             return url.href;
           },
-          websocket: (path: string, protocols?: string | string[]) =>
-            new TicketSocket(() => api.websocketAsync(path, protocols)).asWebSocket(),
+          websocket: managedSocket,
         },
       ) as TFetch,
     );
@@ -510,6 +519,17 @@ export function createWorkbenchSDK(install: (fetch: TFetch) => void) {
   }
   async function handle(method: string, payload: unknown, id: string) {
     const data = payload as Record<string, unknown>;
+    if (method === 'connection.pause') {
+      if (!network.pause()) {
+        return false;
+      }
+      clearTimeout(refreshTimer);
+      resources.pause();
+      for (const socket of sockets) {
+        socket.suspend();
+      }
+      return true;
+    }
     if (method === 'search.query') {
       if (!search) {
         throw new Error('页面没有注册搜索');
@@ -532,6 +552,9 @@ export function createWorkbenchSDK(install: (fetch: TFetch) => void) {
     }
     if (method === 'lifecycle.serialize') {
       if (data.reason === 'hibernate') {
+        if (network.blocking) {
+          throw new Error('页面仍有不可中断的请求');
+        }
         await lifecycle.onSuspend?.();
       }
       return lifecycle.serialize?.();
@@ -549,19 +572,22 @@ export function createWorkbenchSDK(install: (fetch: TFetch) => void) {
       if (blob.type !== 'image/png' || blob.size > 2 * 1024 * 1024) {
         throw new Error('预览需要≤2MiB PNG');
       }
-      const response = await fetch('/web/api/workbench/snapshots/preview', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${requireValue(session).grant}`,
-          'Content-Type': 'image/png',
-        },
-        body: blob,
+      return network.run(async (signal) => {
+        const response = await fetch('/web/api/workbench/snapshots/preview', {
+          signal,
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${requireValue(session).grant}`,
+            'Content-Type': 'image/png',
+          },
+          body: blob,
+        });
+        const result = await response.json();
+        if (!result.success) {
+          throw new Error(result.message);
+        }
+        return result.data.id;
       });
-      const result = await response.json();
-      if (!result.success) {
-        throw new Error(result.message);
-      }
-      return result.data.id;
     }
     if (method === 'config.validate') {
       const values = await validateValues(data.values as Record<string, string>);
@@ -649,12 +675,24 @@ export function createWorkbenchSDK(install: (fetch: TFetch) => void) {
         keybindings = payload as typeof keybindings;
       }
       if (method === 'requests.abort') {
-        for (const controller of managedRequests) {
-          controller.abort();
+        network.cancelInterruptible();
+      }
+      if (method === 'connection.paused') {
+        if (network.pause()) {
+          clearTimeout(refreshTimer);
+          for (const socket of sockets) {
+            socket.suspend();
+          }
+          resources.pause();
         }
       }
       if (method === 'session.changed') {
         installSession(payload as Session);
+        network.resume();
+        for (const socket of sockets) {
+          socket.resume();
+        }
+        resources.resume();
       }
       if (method === 'config.changed') {
         for (const fn of configListeners) {
@@ -665,7 +703,9 @@ export function createWorkbenchSDK(install: (fetch: TFetch) => void) {
         void lifecycle.onResume?.();
       }
       if (method === 'lifecycle.suspend') {
-        void lifecycle.onSuspend?.();
+        if (!network.blocking) {
+          void lifecycle.onSuspend?.();
+        }
       }
       emit(method, payload);
     };
@@ -678,6 +718,9 @@ export function createWorkbenchSDK(install: (fetch: TFetch) => void) {
     installSession(message.session);
     readyResolve();
     port.event('ready', { title: document.title, url: location.href });
+    if (network.blocking) {
+      port.event('requests.changed', { delta: network.blocking });
+    }
     emit('theme.changed', message.theme);
   });
   let standaloneSocket: WebSocket | undefined;
@@ -829,6 +872,12 @@ export function createWorkbenchSDK(install: (fetch: TFetch) => void) {
       .catch(() => undefined);
   });
   window.addEventListener('focus', () => port?.event('page.focus', {}));
+  for (const name of ['pointerdown', 'keydown', 'wheel', 'input', 'focus'] as const) {
+    window.addEventListener(name, () => port?.event('page.activity', {}), {
+      capture: true,
+      passive: true,
+    });
+  }
   window.addEventListener('pointerdown', () => port?.event('page.focus', {}), { passive: true });
   window.addEventListener('keydown', (event) => {
     if (
@@ -863,8 +912,10 @@ export function createWorkbenchSDK(install: (fetch: TFetch) => void) {
   });
   window.addEventListener('pagehide', () => {
     disposed = true;
-    for (const controller of managedRequests) {
-      controller.abort();
+    network.pause();
+    resources.dispose();
+    for (const socket of sockets) {
+      socket.close();
     }
     clearTimeout(standaloneRetry);
     port?.close();

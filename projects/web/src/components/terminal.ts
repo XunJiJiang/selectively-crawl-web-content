@@ -394,7 +394,23 @@ export class WorkbenchTerminal extends LitElement {
       this.restoreScroll = true;
     }
     this.firstSeq = records[0]?.seq ?? 0;
-    return html`<div class="terminal-view">
+    return html`<div
+      class="terminal-view"
+      @keydown=${(event: KeyboardEvent) => {
+        if (
+          execution &&
+          !event.defaultPrevented &&
+          event.ctrlKey &&
+          !event.metaKey &&
+          !event.altKey &&
+          event.key.toLowerCase() === 'c'
+        ) {
+          event.preventDefault();
+          event.stopPropagation();
+          this.act(() => this.cancel(execution));
+        }
+      }}
+    >
       <div class="terminal-main" @contextmenu=${this.openMenu}>
         <div
           class="terminal-output"

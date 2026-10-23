@@ -172,6 +172,29 @@ it('cycles prefix matches on repeated Tab without requesting all commands', asyn
   key('Enter');
   expect(submit).toHaveBeenCalledTimes(1);
 });
+it.each(['plugin li', 'plugin list de', 'plugin list detail ch'])(
+  'filters terminal candidates at every level: %s',
+  async (command) => {
+    const { editor, key } = await fixture(command);
+    const from = command.lastIndexOf(' ') + 1;
+    const word = command.slice(from);
+    vi.mocked(editor.store.api.request).mockResolvedValueOnce({
+      command,
+      from,
+      to: command.length,
+      items: [
+        { name: word + 'tail', insertText: word + 'tail' },
+        { name: 'other', insertText: 'other' },
+      ],
+    });
+    key('Tab');
+    await Promise.resolve();
+    await editor.updateComplete;
+    expect(editor.shadowRoot?.textContent).not.toContain('没有匹配的命令候选');
+    key('Enter');
+    expect(editor.value).toBe(command + 'tail');
+  },
+);
 it('continues a trailing backslash with Enter and ignores Command+Enter', async () => {
   const { editor, key } = await fixture('help' + String.fromCharCode(92));
   const submit = vi.fn();

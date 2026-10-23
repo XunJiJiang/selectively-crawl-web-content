@@ -14,7 +14,13 @@ import {
   platform,
   type Command,
 } from '../workbench/commands.ts';
-import { icon, iconButton, pluginCard, bookmarkList } from '../workbench/ui.ts';
+import {
+  icon,
+  iconButton,
+  pluginCard,
+  bookmarkList,
+  bookmarkFolderButton,
+} from '../workbench/ui.ts';
 import { ConfigController } from '../../../shared/store/config.ts';
 import { CONFIG_KEY } from '../../../shared/utils/common.ts';
 @customElement('wb-internal-page')
@@ -112,7 +118,7 @@ export class InternalPageView extends LitElement {
         placeholder=${placeholder}
         .value=${live(this.query)}
         @input=${(e: Event) => (this.query = (e.target as HTMLInputElement).value)}
-      />
+      />${this.page === 'bookmarks' ? bookmarkFolderButton(this.store, this.action) : nothing}
     </div>`;
   }
   private welcome() {

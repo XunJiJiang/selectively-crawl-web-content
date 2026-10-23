@@ -61,6 +61,7 @@ import {
   tabNavigation,
   deepActiveElement,
   bookmarkList,
+  bookmarkFolderButton,
   pluginOpenButtons,
 } from '../workbench/ui.ts';
 interface QuickResult {
@@ -124,6 +125,9 @@ export class AppRoot extends LitElement {
   @state() private accessor inspectedTab: PluginTab | undefined = undefined;
   private queryTimer?: ReturnType<typeof setTimeout>;
   private dragTab = '';
+  @state() private accessor openPagesCollapsed = false;
+  @state() private accessor pluginPagesCollapsed = false;
+  private sidebarDrop?: HTMLElement;
   private previousTheme = '';
   private resizeSnapshot?: WorkspaceSnapshot;
   private focusHistory = new FocusHistory();
@@ -747,13 +751,83 @@ export class AppRoot extends LitElement {
       this.store.changed();
       return;
     }
+    if (id === 'bookmarkMenu') {
+      const data = args as {
+        x: number;
+        y: number;
+        folder?: { id: string; name: string };
+        bookmark?: Bookmark;
+      };
+      const item = (
+        id: string,
+        label: string,
+        command: string,
+        value: unknown,
+      ): ContextMenuItem => ({
+        kind: 'action',
+        id,
+        label,
+        action: async () => {
+          await this.command(command, value);
+        },
+      });
+      const items = [
+        item(
+          'edit',
+          '编辑',
+          data.folder ? 'renameBookmarkFolder' : 'editBookmark',
+          data.folder ?? data.bookmark,
+        ),
+        item(
+          'delete',
+          '删除',
+          data.folder ? 'deleteBookmarkFolder' : 'deleteBookmark',
+          data.folder ?? data.bookmark,
+        ),
+      ];
+      if (data.folder) {
+        items.push(
+          item('folder', '新建文件夹', 'newBookmarkFolder', { parentId: data.folder.id }),
+          item('bookmark', '新建收藏项', 'newBookmark', { folderId: data.folder.id }),
+        );
+      }
+      this.menu = { x: data.x, y: data.y, items };
+      return;
+    }
+    if (id === 'newBookmark') {
+      const values = await this.store.dialog('新建收藏项', [
+        { name: 'title', label: '名称', value: '' },
+        { name: 'url', label: 'URL', value: '' },
+      ]);
+      if (!values) {
+        return;
+      }
+      const resolved = await this.store.api.request<{
+        url: string;
+        pluginId: string;
+        locator: PluginTab['locator'];
+      }>('/url/resolve', { url: values.url });
+      await this.store.api.request('/bookmarks', {
+        value: {
+          ...resolved,
+          originalTitle: values.title || resolved.url,
+          folderId: (args as { folderId: string }).folderId,
+          previewId: null,
+        },
+      });
+      return this.store.loadList('bookmarks');
+    }
     if (id === 'newBookmarkFolder') {
+      const parentId =
+        (args as { parentId?: string | null } | undefined)?.parentId ??
+        this.store.focusedBookmarkFolder ??
+        null;
       const name = await this.store.prompt('新建收藏文件夹');
       if (name?.trim()) {
         return this.store.setPreferences({
           bookmarkFolders: [
             ...(this.store.preferences.values.bookmarkFolders ?? []),
-            { id: crypto.randomUUID(), name: name.trim() },
+            { id: crypto.randomUUID(), name: name.trim(), parentId },
           ],
         });
       }
@@ -1902,20 +1976,39 @@ export class AppRoot extends LitElement {
             }
           }}
         />
+        ${view === 'bookmarks'
+          ? bookmarkFolderButton(this.store, (id, args) => this.act(() => this.command(id, args)))
+          : nothing}
       </div>
       <div class="sidebar-content" tabindex="-1">
         ${view === 'pages'
           ? html`<section
                 class="sidebar-section"
-                style=${`flex:0 0 ${layout.mainSidebar.openPagesRatio * 100}%`}
+                style=${this.openPagesCollapsed
+                  ? 'flex:0 0 auto'
+                  : this.pluginPagesCollapsed
+                    ? 'flex:1'
+                    : `flex:0 0 ${layout.mainSidebar.openPagesRatio * 100}%`}
               >
                 <div class="section-heading">
-                  ${icon('down')}打开的页面<span class="badge">${this.snapshot.tabs.length}</span>
+                  ${iconButton(
+                    this.openPagesCollapsed ? 'chevron-right' : 'chevron-down',
+                    '折叠或展开打开的页面',
+                    () => {
+                      this.openPagesCollapsed = !this.openPagesCollapsed;
+                    },
+                  )}打开的页面<span class="badge">${this.snapshot.tabs.length}</span>
                 </div>
-                <div class="sidebar-section-body">
+                <div class="sidebar-section-body" ?hidden=${this.openPagesCollapsed}>
                   ${groups(this.snapshot.layout.center).map(
                     (g, index) =>
-                      html`<div class="group-label">分组 ${index + 1}</div>
+                      html`<div
+                          class="group-label"
+                          @dragover=${(e: DragEvent) => this.sidebarDragOver(e)}
+                          @drop=${(e: DragEvent) => this.sidebarDropTab(e, g)}
+                        >
+                          分组 ${index + 1}
+                        </div>
                         ${g.tabIds
                           .map((id) => this.snapshot.tabs.find((t) => t.id === id))
                           .filter((t): t is Tab => Boolean(t))
@@ -1924,6 +2017,23 @@ export class AppRoot extends LitElement {
                             (tab) =>
                               html`<div
                                 class="sidebar-list-item"
+                                draggable="true"
+                                @dragstart=${(e: DragEvent) => {
+                                  this.dragTab = tab.id;
+                                  e.dataTransfer?.setData('text/x-scwc-tab', tab.id);
+                                }}
+                                @dragend=${() => this.clearSidebarDrop()}
+                                @dragover=${(e: DragEvent) => this.sidebarDragOver(e, true)}
+                                @dragleave=${(e: DragEvent) => {
+                                  if (
+                                    !(e.currentTarget as HTMLElement).contains(
+                                      e.relatedTarget as Node,
+                                    )
+                                  ) {
+                                    this.sidebarDrop?.removeAttribute('data-tab-drop');
+                                  }
+                                }}
+                                @drop=${(e: DragEvent) => this.sidebarDropTab(e, g, tab.id)}
                                 aria-selected=${this.current?.id === tab.id}
                                 @contextmenu=${(e: MouseEvent) => this.tabMenu(e, tab, g)}
                               >
@@ -1946,6 +2056,7 @@ export class AppRoot extends LitElement {
               </section>
               <div
                 class="sidebar-splitter"
+                ?hidden=${this.openPagesCollapsed || this.pluginPagesCollapsed}
                 data-resize-key="sidebar-split"
                 role="separator"
                 tabindex="0"
@@ -1954,14 +2065,23 @@ export class AppRoot extends LitElement {
                 @pointerdown=${(e: PointerEvent) => this.resize(e, 'sidebar-split')}
                 @keydown=${(e: KeyboardEvent) => this.resizeKey(e, 'sidebar-split')}
               ></div>
-              <section class="sidebar-section plugin-section">
+              <section
+                class="sidebar-section plugin-section"
+                style=${this.pluginPagesCollapsed ? 'flex:0 0 auto' : ''}
+              >
                 <div class="section-heading">
-                  ${icon('down')}插件页面<span class="badge">${pluginPages.length}</span
+                  ${iconButton(
+                    this.pluginPagesCollapsed ? 'chevron-right' : 'chevron-down',
+                    '折叠或展开插件页面',
+                    () => {
+                      this.pluginPagesCollapsed = !this.pluginPagesCollapsed;
+                    },
+                  )}插件页面<span class="badge">${pluginPages.length}</span
                   ><span class="spacer"></span>${iconButton('refresh', '重新扫描插件目录', () =>
                     this.act(() => this.command('rescan')),
                   )}
                 </div>
-                <div class="sidebar-section-body">
+                <div class="sidebar-section-body" ?hidden=${this.pluginPagesCollapsed}>
                   ${pluginPages.map(
                     (p) =>
                       html`<div class="sidebar-plugin">
@@ -1970,7 +2090,7 @@ export class AppRoot extends LitElement {
                           ?disabled=${p.runtime.status !== 'ready' || p.ui.state !== 'ready'}
                           @click=${() => this.act(() => this.openPlugin(p))}
                         >
-                          ${icon('plugins')}<span
+                          <span
                             ><strong>${p.title}</strong
                             ><small
                               >${p.runtime.pid !== null
@@ -2073,10 +2193,40 @@ export class AppRoot extends LitElement {
             </div>`
           : nothing}
       </div>
-      <div class="sidebar-footer">
-        ${iconButton('settings', '打开设置', () => this.act(() => this.command('settings')))}
-      </div>
+      <div class="sidebar-footer"></div>
     </aside>`;
+  }
+  private clearSidebarDrop() {
+    this.sidebarDrop?.removeAttribute('data-tab-drop');
+    this.sidebarDrop = undefined;
+    this.dragTab = '';
+  }
+  private sidebarDragOver(e: DragEvent, row = false) {
+    if (!this.dragTab) {
+      return;
+    }
+    e.preventDefault();
+    e.stopPropagation();
+    this.sidebarDrop?.removeAttribute('data-tab-drop');
+    const target = e.currentTarget as HTMLElement;
+    this.sidebarDrop = target;
+    target.dataset.tabDrop =
+      row &&
+      e.clientY > target.getBoundingClientRect().top + target.getBoundingClientRect().height / 2
+        ? 'after'
+        : 'before';
+  }
+  private sidebarDropTab(e: DragEvent, group: Group, target?: string) {
+    e.preventDefault();
+    e.stopPropagation();
+    const source = this.dragTab;
+    const after = this.sidebarDrop?.dataset.tabDrop === 'after';
+    const remaining = group.tabIds.filter((id) => id !== source);
+    const index = target ? remaining.indexOf(target) + Number(after) : remaining.length;
+    this.clearSidebarDrop();
+    if (source && source !== target) {
+      this.act(() => this.store.update((s) => moveTab(s, source, group.id, index)));
+    }
   }
   private renderNode(node: LayoutNode): unknown {
     if (node.kind === 'split') {
@@ -2643,10 +2793,7 @@ export class AppRoot extends LitElement {
         <button
           class="status-item"
           title="连接状态"
-          @click=${() =>
-            this.store.toast(
-              `服务：${location.origin} · ${this.store.connection === 'connected' ? '实时连接正常' : '正在尝试重新连接'}${this.store.bootstrap ? ` · 启动 ${this.store.bootstrap.coreBootId.slice(0, 8)}` : ''}`,
-            )}
+          @click=${() => this.act(() => this.store.reconnect())}
         >
           <i
             class=${`dot ${this.store.connection === 'connected' ? 'success' : this.store.connection === 'connecting' ? 'warn' : 'error'}`}

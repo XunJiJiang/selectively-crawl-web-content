@@ -29,6 +29,7 @@ import type {
 export class WorkbenchStore extends EventTarget {
   readonly api = new WorkbenchAPI(ConfigController.config);
   focusedLocation?: FocusLocation;
+  focusedBookmarkFolder: string | null = null;
   bootstrap?: Bootstrap;
   workspace?: Workspace;
   lease?: Lease;
@@ -114,6 +115,13 @@ export class WorkbenchStore extends EventTarget {
   private persistence?: WorkspacePersistence;
   private retryTimer?: ReturnType<typeof setTimeout>;
   private listGeneration: Record<string, number> = {};
+  private idleTimer?: ReturnType<typeof setTimeout>;
+  private idleDisconnected = false;
+  private reconnecting?: Promise<void>;
+  private pageRequests = new Map<string, number>();
+  private idleSince = Date.now();
+  pausePages?: () => Promise<boolean>;
+  private activityEvents = ['pointerdown', 'keydown', 'wheel', 'input', 'focus'] as const;
   constructor() {
     super();
     try {
@@ -122,6 +130,191 @@ export class WorkbenchStore extends EventTarget {
       /* Storage is optional. */
     }
     window.addEventListener('pagehide', this.release);
+    for (const name of this.activityEvents) {
+      window.addEventListener(name, this.activity, true);
+    }
+    this.api.beforeRequest = async () => {
+      if (this.idleDisconnected) {
+        await this.reconnect();
+      }
+    };
+    this.api.prepareBody = (body) =>
+      body && typeof body === 'object' && 'lease' in body && this.lease
+        ? {
+            ...body,
+            lease: this.lease.token,
+            ...('workspaceId' in body ? { workspaceId: this.lease.workspaceId } : {}),
+          }
+        : body;
+    this.api.requests.addEventListener('change', this.requestActivity);
+  }
+  get disconnectedForIdle() {
+    return this.idleDisconnected;
+  }
+  private protectedWork() {
+    return (
+      this.api.requests.blocking > 0 ||
+      [...this.pageRequests.values()].some(Boolean) ||
+      this.executions.some((e) => ['running', 'returned', 'cancelling'].includes(e.status))
+    );
+  }
+  setPageRequests(id: string, count: number) {
+    if (count) {
+      this.pageRequests.set(id, count);
+    } else {
+      this.pageRequests.delete(id);
+    }
+    if (count && this.idleDisconnected) {
+      void this.reconnect();
+    }
+    this.requestActivity();
+  }
+  private requestActivity = () => {
+    this.idleSince = Date.now();
+    this.scheduleIdle();
+  };
+  activity = () => {
+    this.idleSince = Date.now();
+    if (this.idleDisconnected) {
+      void this.reconnect();
+    } else {
+      this.scheduleIdle();
+    }
+  };
+  private scheduleIdle() {
+    clearTimeout(this.idleTimer);
+    if (
+      this.disposed ||
+      this.idleDisconnected ||
+      !this.workspace ||
+      this.protectedWork() ||
+      this.workspace.snapshot.binding?.kind === 'local-path'
+    ) {
+      return;
+    }
+    const delay = (this.preferences.values.energy?.idleMinutes ?? 5) * 60000;
+    this.idleTimer = setTimeout(
+      () => void this.disconnectIdle(),
+      Math.max(0, delay - (Date.now() - this.idleSince)),
+    );
+  }
+  private async disconnectIdle() {
+    if (
+      this.disposed ||
+      this.workspace?.snapshot.binding?.kind === 'local-path' ||
+      this.protectedWork()
+    ) {
+      return;
+    }
+    const idleSince = this.idleSince;
+    if (this.pausePages && !(await this.pausePages())) {
+      return;
+    }
+    if (this.protectedWork() || idleSince !== this.idleSince) {
+      this.dispatchEvent(new Event('connection-resumed'));
+      return;
+    }
+    if (!this.api.requests.pause()) {
+      return;
+    }
+    this.idleDisconnected = true;
+    clearInterval(this.renewTimer);
+    clearTimeout(this.refreshTimer);
+    clearTimeout(this.retryTimer);
+    this.events?.close();
+    this.connection = 'disconnected';
+    this.dispatchEvent(new Event('connection-paused'));
+    this.changed();
+  }
+  reconnect(): Promise<void> {
+    if (!this.idleDisconnected) {
+      return this.renew().then(async () => {
+        await this.resync();
+        this.openEvents();
+      });
+    }
+    if (this.reconnecting) {
+      return this.reconnecting;
+    }
+    this.reconnecting = (async () => {
+      let attempts = 0;
+      while (!this.disposed && this.idleDisconnected) {
+        try {
+          const requested = requireValue(this.lease).workspaceId;
+          this.lease = await this.api.request<Lease>(
+            `/workspaces/${requested}/lease`,
+            { action: 'acquire' },
+            undefined,
+            false,
+            false,
+            true,
+          );
+          const fresh = await this.api.request<Workspace>(
+            `/workspaces/${this.lease.workspaceId}`,
+            undefined,
+            undefined,
+            false,
+            false,
+            true,
+          );
+          const snapshot = requireValue(this.workspace).snapshot;
+          this.workspace = { ...fresh, snapshot };
+          // Rebind the local document to a workspace that may have expired on the
+          // server. Keep its frames, navigation and drafts intact.
+          this.workspace = await this.api.request<Workspace>(
+            `/workspaces/${fresh.workspaceId}/save`,
+            {
+              snapshot,
+              baseRevision: fresh.revision,
+              lease: this.lease.token,
+              operationId: uid(),
+            },
+            undefined,
+            false,
+            false,
+            true,
+          );
+          this.pending = undefined;
+          this.saveState = 'saved';
+          this.idleDisconnected = false;
+          this.api.requests.resume();
+          // The live stream will retry synchronization if the service drops
+          // again. Requests have resumed, so never pause them as a side effect
+          // of a failed status refresh.
+          await this.resync(true).catch(() => undefined);
+          this.openEvents();
+          this.renewTimer = setInterval(() => void this.renew(), 10000);
+          this.dispatchEvent(new Event('connection-resumed'));
+          this.idleSince = Date.now();
+          this.scheduleIdle();
+        } catch {
+          this.idleDisconnected = true;
+          this.api.requests.pause();
+          this.connection = 'disconnected';
+          this.changed();
+          await new Promise((resolve) =>
+            setTimeout(resolve, Math.min(15000, 1000 * 2 ** attempts++)),
+          );
+        }
+      }
+    })().finally(() => {
+      this.reconnecting = undefined;
+    });
+    return this.reconnecting;
+  }
+  private openEvents() {
+    this.events?.close();
+    this.events = new EventConnection(
+      this.api,
+      () => ({ ...this.session(), coreBootId: requireValue(this.bootstrap).coreBootId }),
+      (e) => this.onEvent(e),
+      (state) => {
+        this.connection = state;
+        this.changed();
+      },
+      () => this.resync(),
+    );
+    void this.events.connect();
   }
   private release = () => {
     if (this.lease) {
@@ -301,18 +494,8 @@ export class WorkbenchStore extends EventTarget {
           addTab(s, internalTab('welcome'));
         });
       }
-      this.events?.close();
-      this.events = new EventConnection(
-        this.api,
-        () => ({ ...this.session(), coreBootId: requireValue(this.bootstrap).coreBootId }),
-        (e) => this.onEvent(e),
-        (state) => {
-          this.connection = state;
-          this.changed();
-        },
-        () => this.resync(),
-      );
-      void this.events.connect();
+      this.openEvents();
+      this.scheduleIdle();
       clearInterval(this.renewTimer);
       this.renewTimer = setInterval(() => void this.renew(), 10000);
     } catch (e) {
@@ -383,14 +566,20 @@ export class WorkbenchStore extends EventTarget {
     }
   }
   private async renew() {
-    if (!this.lease || this.disposed) {
+    if (!this.lease || this.disposed || this.idleDisconnected) {
       return;
     }
     try {
-      this.lease = await this.api.request<Lease>(`/workspaces/${this.lease.workspaceId}/lease`, {
-        action: 'renew',
-        lease: this.lease.token,
-      });
+      this.lease = await this.api.request<Lease>(
+        `/workspaces/${this.lease.workspaceId}/lease`,
+        {
+          action: 'renew',
+          lease: this.lease.token,
+        },
+        undefined,
+        false,
+        true,
+      );
     } catch {
       this.connection = 'disconnected';
       this.changed();
@@ -641,6 +830,10 @@ export class WorkbenchStore extends EventTarget {
     }
     this.terminals = await this.api.request<Terminal[]>(
       `/terminals?workspaceId=${encodeURIComponent(this.lease.workspaceId)}`,
+      undefined,
+      undefined,
+      false,
+      true,
     );
     this.changed();
   }
@@ -669,6 +862,10 @@ export class WorkbenchStore extends EventTarget {
     do {
       batch = await this.api.request(
         `/terminals/${encodeURIComponent(id)}/output?workspaceId=${encodeURIComponent(this.session().workspaceId)}&after=${after}&limit=500`,
+        undefined,
+        undefined,
+        false,
+        true,
       );
       records.push(...batch.items);
       after = records[records.length - 1]?.seq ?? after;
@@ -697,23 +894,38 @@ export class WorkbenchStore extends EventTarget {
     return this.trackJob(job.id);
   }
   private async trackJob(id: string) {
-    let job = requireValue(this.jobs.get(id));
-    while (!this.disposed && ['queued', 'running', 'cancelling'].includes(job.status)) {
-      await new Promise((resolve) => setTimeout(resolve, 700));
-      job = await this.api.request<Job>(`/jobs/${encodeURIComponent(id)}`);
-      this.jobs.set(id, job);
-      this.changed();
+    const release = this.api.requests.protect();
+    try {
+      let job = requireValue(this.jobs.get(id));
+      while (!this.disposed && ['queued', 'running', 'cancelling'].includes(job.status)) {
+        await new Promise((resolve) => setTimeout(resolve, 700));
+        job = await this.api.request<Job>(
+          `/jobs/${encodeURIComponent(id)}`,
+          undefined,
+          undefined,
+          false,
+          true,
+        );
+        this.jobs.set(id, job);
+        this.changed();
+      }
+      await this.loadList('catalog');
+      if (job.status === 'failed') {
+        throw new Error(job.error ?? '插件操作失败');
+      }
+      return job;
+    } finally {
+      release();
     }
-    await this.loadList('catalog');
-    if (job.status === 'failed') {
-      throw new Error(job.error ?? '插件操作失败');
-    }
-    return job;
   }
   async syncExecutions() {
     const generation = ++this.executionGeneration;
     const workspace = await this.api.request<Workspace>(
       `/workspaces/${this.session().workspaceId}`,
+      undefined,
+      undefined,
+      false,
+      true,
     );
     if (generation !== this.executionGeneration) {
       return;
@@ -723,6 +935,7 @@ export class WorkbenchStore extends EventTarget {
   }
   private applyExecutionState(w: Workspace) {
     this.executions = w.executions ?? [];
+    this.requestActivity();
     this.inputs = w.inputs ?? [];
   }
   private onEvent(e: WorkbenchEvent) {
@@ -775,7 +988,7 @@ export class WorkbenchStore extends EventTarget {
       120,
     );
   }
-  private async resync() {
+  private async resync(preserveFrames = false) {
     const boot = await this.api.request<Bootstrap>('/bootstrap');
     const changed = boot.coreBootId !== this.bootstrap?.coreBootId;
     this.preferences = boot.preferences;
@@ -788,7 +1001,9 @@ export class WorkbenchStore extends EventTarget {
       }
 
       this.bootstrap = boot;
-      this.dispatchEvent(new Event('core-restarted'));
+      if (!preserveFrames) {
+        this.dispatchEvent(new Event('core-restarted'));
+      }
     }
     this.bootstrap = boot;
     if (this.saveState === 'saved') {
@@ -811,6 +1026,13 @@ export class WorkbenchStore extends EventTarget {
     window.removeEventListener('pagehide', this.release);
     this.disposed = true;
     clearInterval(this.renewTimer);
+    clearTimeout(this.idleTimer);
+    for (const name of this.activityEvents) {
+      window.removeEventListener(name, this.activity, true);
+    }
+    this.api.requests.removeEventListener('change', this.requestActivity);
+    this.api.beforeRequest = undefined;
+    this.api.requests.resume();
     clearTimeout(this.refreshTimer);
     clearTimeout(this.retryTimer);
     for (const timer of this.toastTimers.values()) {

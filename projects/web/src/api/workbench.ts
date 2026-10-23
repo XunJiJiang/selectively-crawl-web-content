@@ -1,6 +1,7 @@
 import type { TConfig } from '../../../shared/types/config.d.ts';
 import type { ListPage, WorkbenchEvent } from '../workbench/types.ts';
 import { loadLocalConfig } from './local-config.ts';
+import { RequestLifecycle } from '../../../shared/request-lifecycle.ts';
 export class ApiError extends Error {
   code: string;
   status: number;
@@ -13,6 +14,9 @@ export class ApiError extends Error {
   }
 }
 export class WorkbenchAPI {
+  readonly requests = new RequestLifecycle();
+  beforeRequest?: () => Promise<void>;
+  prepareBody?: (body: unknown) => unknown;
   readonly clientWindowId = crypto.randomUUID();
   readonly config: TConfig;
   constructor(config: TConfig) {
@@ -23,31 +27,40 @@ export class WorkbenchAPI {
     body?: unknown,
     signal?: AbortSignal,
     keepalive = false,
+    interruptible = false,
+    control = false,
   ): Promise<T> {
-    const response = await fetch(`/web/api/workbench${path}`, {
-      method: body === undefined ? 'GET' : 'POST',
-      keepalive,
-      headers: {
-        Authorization: `Bearer ${this.config.api.token}`,
-        'Content-Type': 'application/json',
-        'X-SCWC-Client-Window': this.clientWindowId,
-      },
-      body: body === undefined ? undefined : JSON.stringify(body),
-      signal,
-      cache: 'no-store',
-      credentials: 'same-origin',
-      referrerPolicy: 'same-origin',
-    });
-    const result = await response.json();
-    if (!response.ok || !result.success) {
-      throw new ApiError(
-        result.code ?? 'request_failed',
-        result.message ?? `请求失败 (${response.status})`,
-        response.status,
-        result.data,
-      );
+    if (!interruptible && !control) {
+      await this.beforeRequest?.();
     }
-    return result.data as T;
+    const send = async (signal?: AbortSignal) => {
+      body = this.prepareBody?.(body) ?? body;
+      const response = await fetch(`/web/api/workbench${path}`, {
+        method: body === undefined ? 'GET' : 'POST',
+        keepalive,
+        headers: {
+          Authorization: `Bearer ${this.config.api.token}`,
+          'Content-Type': 'application/json',
+          'X-SCWC-Client-Window': this.clientWindowId,
+        },
+        body: body === undefined ? undefined : JSON.stringify(body),
+        signal,
+        cache: 'no-store',
+        credentials: 'same-origin',
+        referrerPolicy: 'same-origin',
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new ApiError(
+          result.code ?? 'request_failed',
+          result.message ?? `请求失败 (${response.status})`,
+          response.status,
+          result.data,
+        );
+      }
+      return result.data as T;
+    };
+    return control ? send(signal) : this.requests.run(send, interruptible, signal);
   }
   async list<T>(
     path: string,
@@ -58,7 +71,7 @@ export class WorkbenchAPI {
     if (cursor) {
       q.set('cursor', cursor);
     }
-    return this.request(`${path}?${q}`);
+    return this.request(`${path}?${q}`, undefined, undefined, false, true);
   }
 }
 /** Single-use tickets only; never put the manager token in a WebSocket URL. */
@@ -97,10 +110,16 @@ export class EventConnection {
         await this.resync();
       }
       const session = this.session();
-      const result = await this.api.request<{ ticket: string }>('/stream-ticket', {
-        workspaceId: session.workspaceId,
-        lease: session.lease,
-      });
+      const result = await this.api.request<{ ticket: string }>(
+        '/stream-ticket',
+        {
+          workspaceId: session.workspaceId,
+          lease: session.lease,
+        },
+        undefined,
+        false,
+        true,
+      );
       if (this.stopped || generation !== this.generation) {
         return;
       }
@@ -109,6 +128,10 @@ export class EventConnection {
       url.searchParams.set('ticket', result.ticket);
       const socket = (this.socket = new WebSocket(url));
       socket.onopen = () => {
+        if (this.stopped || generation !== this.generation) {
+          socket.close();
+          return;
+        }
         this.attempts = 0;
         socket.send(
           JSON.stringify({
@@ -120,6 +143,9 @@ export class EventConnection {
         this.status('connected');
       };
       socket.onmessage = async (message) => {
+        if (this.stopped || generation !== this.generation) {
+          return;
+        }
         try {
           const e = JSON.parse(message.data) as WorkbenchEvent;
           if (
@@ -144,7 +170,11 @@ export class EventConnection {
         }
       };
       socket.onerror = () => socket.close();
-      socket.onclose = () => this.retry();
+      socket.onclose = () => {
+        if (generation === this.generation) {
+          this.retry();
+        }
+      };
     } catch {
       this.retry();
     }

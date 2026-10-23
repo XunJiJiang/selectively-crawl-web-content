@@ -60,6 +60,20 @@ type BookmarkDrag = {
   timer?: ReturnType<typeof setTimeout>;
 };
 const bookmarkDrags = new WeakMap<WorkbenchStore, BookmarkDrag>();
+export function bookmarkFolderButton(
+  store: WorkbenchStore,
+  action: (id: string, args?: unknown) => void,
+) {
+  return html`<button
+    class="icon-button"
+    title="新建文件夹"
+    aria-label="新建文件夹"
+    @mousedown=${(e: MouseEvent) => e.preventDefault()}
+    @click=${() => action('newBookmarkFolder', { parentId: store.focusedBookmarkFolder ?? null })}
+  >
+    ${icon('new-folder')}
+  </button>`;
+}
 function clearBookmarkDrop(drag: BookmarkDrag) {
   clearTimeout(drag.timer);
   drag.timer = undefined;
@@ -208,6 +222,11 @@ export function bookmarkList(
               data-bookmark-key=${n.key}
               draggable="true"
               open
+              @contextmenu=${(e: MouseEvent) => {
+                e.preventDefault();
+                e.stopPropagation();
+                action('bookmarkMenu', { x: e.clientX, y: e.clientY, folder: n.folder });
+              }}
               @dragstart=${(e: DragEvent) => begin(e, n.key)}
               @dragend=${end}
               @dragover=${(e: DragEvent) => over(e, n.key, true)}
@@ -218,23 +237,38 @@ export function bookmarkList(
                 }
               }}
             >
-              <summary>
+              <summary
+                tabindex="0"
+                data-focused=${store.focusedBookmarkFolder === n.folder.id}
+                @focus=${() => {
+                  store.focusedBookmarkFolder = n.folder.id;
+                  store.changed();
+                }}
+              >
                 <span class="folder-closed">${icon('folder-compact')}</span
                 ><span class="folder-open">${icon('folder-opened-compact')}</span>${n.folder
-                  .name}<span class="spacer"></span>${iconButton('edit', '重命名文件夹', () =>
-                  action('renameBookmarkFolder', n.folder),
-                )}${iconButton('trash', '删除文件夹，保留收藏', () =>
-                  action('deleteBookmarkFolder', n.folder),
-                )}
+                  .name}<span class="spacer"></span
+                ><span class="bookmark-actions" @click=${(e: Event) => e.stopPropagation()}
+                  >${iconButton('edit', '重命名文件夹', () =>
+                    action('renameBookmarkFolder', n.folder),
+                  )}${iconButton('trash', '删除文件夹，保留收藏', () =>
+                    action('deleteBookmarkFolder', n.folder),
+                  )}</span
+                >
               </summary>
               <div class="bookmark-children">
                 ${renderChildren(n.folder.id, [...ancestors, n.folder.id])}
               </div>
             </details>`
           : html`<article
-              class=${`bookmark-node ${compact ? 'sidebar-list-item' : 'record-card'}`}
+              class=${`bookmark-node bookmark-item ${compact ? 'compact' : ''}`}
               data-bookmark-key=${n.key}
               draggable="true"
+              @contextmenu=${(e: MouseEvent) => {
+                e.preventDefault();
+                e.stopPropagation();
+                action('bookmarkMenu', { x: e.clientX, y: e.clientY, bookmark: n.bookmark });
+              }}
               @dragstart=${(e: DragEvent) => begin(e, n.key)}
               @dragend=${end}
               @dragover=${(e: DragEvent) => over(e, n.key, false)}
@@ -246,40 +280,53 @@ export function bookmarkList(
               }}
             >
               <button
-                class=${compact ? 'list-main' : 'record-main'}
+                class="list-main"
                 title=${requireValue(n.bookmark).url}
                 @click=${() => action('openBookmark', n.bookmark)}
               >
-                ${compact ? icon('star-full') : nothing}<span>${requireValue(n.bookmark)
-                  .customTitle ?? requireValue(n.bookmark).originalTitle}</span>${compact
-                  ? nothing
-                  : html`<small class="mono">${requireValue(n.bookmark).url}</small>`}</button
-              >${iconButton('edit', '编辑收藏名称、URL 和文件夹', () =>
-                action('editBookmark', n.bookmark),
-              )}${iconButton('trash', '删除收藏', () => action('deleteBookmark', n.bookmark))}
+                ${icon('star-full')}<span class="bookmark-title"
+                  >${requireValue(n.bookmark).customTitle ??
+                  requireValue(n.bookmark).originalTitle}${compact
+                    ? nothing
+                    : html`<small class="mono">${requireValue(n.bookmark).url}</small>`}</span
+                ></button
+              ><span class="bookmark-actions"
+                >${iconButton('edit', '编辑收藏名称、URL 和文件夹', () =>
+                  action('editBookmark', n.bookmark),
+                )}${iconButton('trash', '删除收藏', () =>
+                  action('deleteBookmark', n.bookmark),
+                )}</span
+              >
             </article>`,
     )}`;
   };
-  return html`<div class="bookmark-toolbar">
-      <button class="btn secondary small" @click=${() => action('newBookmarkFolder')}>
-        ${icon('new-folder')}新建文件夹
-      </button>
-    </div>
-    <div
-      class="bookmark-tree"
-      aria-label="收藏树"
-      @dragover=${(e: DragEvent) => {
-        if (drag.source) {
-          e.preventDefault();
-          clearBookmarkDrop(drag);
-        }
-      }}
-      @drop=${(e: DragEvent) => drop(e, null)}
-    >
-      ${renderChildren(null)}${!matching.length && !folders.length
-        ? html`<p class="sidebar-empty">暂无收藏。</p>`
-        : nothing}
-    </div>`;
+  return html`<div
+    class="bookmark-tree"
+    tabindex="0"
+    @focus=${(e: FocusEvent) => {
+      if (e.target === e.currentTarget) {
+        store.focusedBookmarkFolder = null;
+        store.changed();
+      }
+    }}
+    @click=${(e: MouseEvent) => {
+      if (e.target === e.currentTarget) {
+        (e.currentTarget as HTMLElement).focus();
+      }
+    }}
+    aria-label="收藏树"
+    @dragover=${(e: DragEvent) => {
+      if (drag.source) {
+        e.preventDefault();
+        clearBookmarkDrop(drag);
+      }
+    }}
+    @drop=${(e: DragEvent) => drop(e, null)}
+  >
+    ${renderChildren(null)}${!matching.length && !folders.length
+      ? html`<p class="sidebar-empty">暂无收藏。</p>`
+      : nothing}
+  </div>`;
 }
 export function pluginCard(
   p: CatalogItem,
@@ -306,43 +353,49 @@ export function pluginCard(
       ${iconButton('more', `${p.title} 的操作`, () => action('pluginMenu', p))}
     </div>
     ${p.description ? html`<p class="plugin-card-description">${p.description}</p>` : nothing}
-    <div class="plugin-card-status">
-      <span class=${`badge ${runtimeClass(p.runtime.status)}`}
-        ><i class="dot"></i>${runtimeNames[p.runtime.status] ?? p.runtime.status}</span
-      ><span
-        class=${`badge ${p.ui.state === 'error' ? 'error' : p.ui.state === 'building' ? 'building' : 'neutral'}`}
-        >${uiNames[p.ui.state] ?? p.ui.state}</span
-      >
-    </div>
     ${p.diagnostics.length || p.ui.diagnostics.length
       ? html`<details class="diagnostics">
           <summary>${p.diagnostics.length + p.ui.diagnostics.length} 项诊断</summary>
           ${[...p.diagnostics, ...p.ui.diagnostics].map((d) => html`<p>${d.message}</p>`)}
         </details>`
       : nothing}
-    <div class="plugin-card-actions">
-      ${open
-        ? pluginOpenButtons(p, action, compact)
-        : html`<button
-            class=${`btn ${open ? 'primary' : 'secondary'}`}
-            ?disabled=${!open &&
-            p.runtime.status === 'ready' &&
-            p.ui.buildCapability !== 'supported'}
-            @click=${() =>
-              action(
-                open ? 'openPlugin' : p.runtime.status !== 'ready' ? 'enablePlugin' : 'buildPlugin',
-                p,
-              )}
-          >
-            ${icon(open ? 'external' : p.runtime.status !== 'ready' ? 'play' : 'code')}${open
-              ? '打开页面'
-              : p.runtime.status !== 'ready'
-                ? '启用插件'
-                : p.ui.buildCapability === 'supported'
-                  ? '构建页面'
-                  : '后端插件'}
-          </button>`}
-      ${iconButton('settings', `${p.title} 的配置`, () => action('pluginConfig', p))}
+    <div class="plugin-card-footer">
+      <div class="plugin-card-status">
+        <span class=${`badge ${runtimeClass(p.runtime.status)}`}
+          ><i class="dot"></i>${runtimeNames[p.runtime.status] ?? p.runtime.status}</span
+        ><span
+          class=${`badge ${p.ui.state === 'error' ? 'error' : p.ui.state === 'building' ? 'building' : 'neutral'}`}
+          >${uiNames[p.ui.state] ?? p.ui.state}</span
+        >
+      </div>
+      <div class="plugin-card-actions">
+        ${open
+          ? pluginOpenButtons(p, action, compact)
+          : html`<button
+              class=${`btn ${open ? 'primary' : 'secondary'}`}
+              ?disabled=${!open &&
+              p.runtime.status === 'ready' &&
+              p.ui.buildCapability !== 'supported'}
+              @click=${() =>
+                action(
+                  open
+                    ? 'openPlugin'
+                    : p.runtime.status !== 'ready'
+                      ? 'enablePlugin'
+                      : 'buildPlugin',
+                  p,
+                )}
+            >
+              ${icon(open ? 'external' : p.runtime.status !== 'ready' ? 'play' : 'code')}${open
+                ? '打开页面'
+                : p.runtime.status !== 'ready'
+                  ? '启用插件'
+                  : p.ui.buildCapability === 'supported'
+                    ? '构建页面'
+                    : '后端插件'}
+            </button>`}
+        ${iconButton('settings', `${p.title} 的配置`, () => action('pluginConfig', p))}
+      </div>
     </div>
   </article>`;
 }

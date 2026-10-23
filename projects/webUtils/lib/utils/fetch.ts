@@ -1,7 +1,12 @@
 import type { TConfig } from '../../../shared/types/config.ts';
+import type { RequestOptions } from '../../../shared/request-lifecycle.ts';
 
-export type TResource = (url: string) => string;
-export type TWebSocket = (url: string, protocols?: string | string[]) => WebSocket;
+export type TResource = (url: string, options?: RequestOptions) => string;
+export type TWebSocket = (
+  url: string,
+  protocols?: string | string[],
+  options?: RequestOptions,
+) => WebSocket;
 export type TFetchResponse<T> = {
   success: boolean;
   message?: string;
@@ -10,7 +15,7 @@ export type TFetchResponse<T> = {
 
 export type TFetch = (<T = unknown>(
   url: string,
-  options?: RequestInit,
+  options?: RequestInit & RequestOptions,
 ) => Promise<TFetchResponse<T>>) & {
   resource: TResource;
   websocket: TWebSocket;

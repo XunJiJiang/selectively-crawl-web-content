@@ -37,6 +37,7 @@ function defaultSnapshot(): WorkspaceSnapshot {
 import { addTab, newPluginTab } from './model.ts';
 const stores: WorkbenchStore[] = [];
 afterEach(() => {
+  vi.useRealTimers();
   stores.splice(0).forEach((s) => {
     s.lease = undefined;
     s.dispose();
@@ -44,6 +45,96 @@ afterEach(() => {
   vi.restoreAllMocks();
   localStorage.clear();
   vi.unstubAllGlobals();
+});
+
+it('starts idle countdown only after every protected request finishes and excludes local bindings', async () => {
+  vi.useFakeTimers();
+  const store = fixture();
+  store.preferences.values.energy = { enabled: true, idleMinutes: 1 };
+  const releaseFirst = store.api.requests.protect(),
+    releaseSecond = store.api.requests.protect();
+  store.activity();
+  await vi.advanceTimersByTimeAsync(120000);
+  expect(store.disconnectedForIdle).toBe(false);
+  releaseFirst();
+  await vi.advanceTimersByTimeAsync(120000);
+  expect(store.disconnectedForIdle).toBe(false);
+  releaseSecond();
+  await vi.advanceTimersByTimeAsync(59000);
+  expect(store.disconnectedForIdle).toBe(false);
+  const releaseNew = store.api.requests.protect();
+  await vi.advanceTimersByTimeAsync(60000);
+  expect(store.disconnectedForIdle).toBe(false);
+  releaseNew();
+  await vi.advanceTimersByTimeAsync(60000);
+  expect(store.disconnectedForIdle).toBe(true);
+  const local = fixture();
+  requireValue(local.workspace).snapshot.binding = {
+    kind: 'local-path',
+    localPath: 'C:/workspace.json',
+  };
+  local.activity();
+  await vi.advanceTimersByTimeAsync(3600000);
+  expect(local.disconnectedForIdle).toBe(false);
+});
+
+it('rebinds idle workspaces on interaction while preserving the document snapshot and updating remote state', async () => {
+  vi.useFakeTimers();
+  const store = fixture();
+  store.preferences.values.energy = { enabled: true, idleMinutes: 1 };
+  store.bootstrap = {
+    coreBootId: 'boot',
+    installationId: 'installation',
+    preferences: store.preferences,
+  } as NonNullable<typeof store.bootstrap>;
+  requireValue(store.workspace).snapshot.layout.mainSidebar.size = 371;
+  const snapshot = structuredClone(requireValue(store.workspace).snapshot);
+  vi.spyOn(EventConnection.prototype, 'connect').mockResolvedValue();
+  const restarted = vi.fn(),
+    resumed = vi.fn();
+  store.addEventListener('core-restarted', restarted);
+  store.addEventListener('connection-resumed', resumed);
+  const request = vi.spyOn(store.api, 'request').mockImplementation(async (path, body) => {
+    if (path.endsWith('/lease')) {
+      return { workspaceId: 'ws', token: 'new-lease', expiresAt: Date.now() + 30000 } as never;
+    }
+    if (path.endsWith('/save')) {
+      return {
+        workspaceId: 'ws',
+        revision: 3,
+        snapshot: (body as { snapshot: WorkspaceSnapshot }).snapshot,
+      } as never;
+    }
+    return { workspaceId: 'ws', revision: 2, snapshot: defaultSnapshot() } as never;
+  });
+  const lists = vi.spyOn(store, 'refreshLists').mockResolvedValue();
+  vi.spyOn(store, 'acceptRemote').mockResolvedValue();
+  store.activity();
+  await vi.advanceTimersByTimeAsync(60000);
+  expect(store.disconnectedForIdle).toBe(true);
+  request.mockImplementation(async (path, body) => {
+    if (path === '/bootstrap') {
+      return store.bootstrap as never;
+    }
+    if (path.endsWith('/lease')) {
+      return { workspaceId: 'ws', token: 'new-lease', expiresAt: Date.now() + 30000 } as never;
+    }
+    if (path.endsWith('/save')) {
+      return {
+        workspaceId: 'ws',
+        revision: 3,
+        snapshot: (body as { snapshot: WorkspaceSnapshot }).snapshot,
+      } as never;
+    }
+    return { workspaceId: 'ws', revision: 2, snapshot: defaultSnapshot() } as never;
+  });
+  store.activity();
+  await store.reconnect();
+  expect(store.workspace?.snapshot).toEqual(snapshot);
+  expect(store.lease?.token).toBe('new-lease');
+  expect(lists).toHaveBeenCalledOnce();
+  expect(resumed).toHaveBeenCalledOnce();
+  expect(restarted).not.toHaveBeenCalled();
 });
 function fixture() {
   const data = new Map<string, string>();
