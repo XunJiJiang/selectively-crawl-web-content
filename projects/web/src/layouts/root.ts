@@ -2139,7 +2139,16 @@ export class AppRoot extends LitElement {
             </div>`
           : nothing}
         ${view === 'bookmarks'
-          ? html`<div class="sidebar-section-body">
+          ? html`<div
+              class="sidebar-section-body"
+              @click=${(e: MouseEvent) => {
+                if (e.target === e.currentTarget) {
+                  (e.currentTarget as HTMLElement)
+                    .querySelector<HTMLElement>('.bookmark-tree')
+                    ?.focus();
+                }
+              }}
+            >
               ${bookmarkList(
                 this.store,
                 (id, args) => this.act(() => this.command(id, args)),

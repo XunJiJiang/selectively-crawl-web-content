@@ -1,7 +1,7 @@
 {
   "version": 1,
   "created_at": "2026-10-18T10:54:05Z",
-  "updated_at": "2026-10-23T10:06:25Z",
+  "updated_at": "2026-10-23T11:54:29Z",
   "files": {
     ".gitattributes": {
       "role": "index",
@@ -59,9 +59,9 @@
     },
     "aoci.code.txt": {
       "role": "index",
-      "sha256": "9c1b907066c7a669f5dfe3710a74e7360b7c91ebf175d7200f63b4e5ea987812",
-      "size": 160673,
-      "normalized_sha256": "9c1b907066c7a669f5dfe3710a74e7360b7c91ebf175d7200f63b4e5ea987812"
+      "sha256": "55550d0abe8baa39fa81e743c2a0d3b64bac8254de040ddbf2dc425d80c2dcb6",
+      "size": 160785,
+      "normalized_sha256": "55550d0abe8baa39fa81e743c2a0d3b64bac8254de040ddbf2dc425d80c2dcb6"
     },
     "aoci.meta.txt": {
       "role": "index",
@@ -161,9 +161,9 @@
     },
     "docs/待办设计.md": {
       "role": "observe",
-      "sha256": "50155f1996b3d61308f05245bf0fa211cc0c99be7c8df436995d603d769cf55a",
-      "size": 38668,
-      "normalized_sha256": "50155f1996b3d61308f05245bf0fa211cc0c99be7c8df436995d603d769cf55a"
+      "sha256": "91e10b75cd73e1321e687f82bc89b7c9c6e2a4a404fd82ce198f2abf49205aaa",
+      "size": 41653,
+      "normalized_sha256": "91e10b75cd73e1321e687f82bc89b7c9c6e2a4a404fd82ce198f2abf49205aaa"
     },
     "docs/数据库.md": {
       "role": "observe",
@@ -209,9 +209,9 @@
     },
     "package.json": {
       "role": "index",
-      "sha256": "2d4fa2fc49ca28eb05cd5856ad8f251b53233d2e83e8b5a82607dfff0667bce8",
+      "sha256": "e60d62fb5f105c062a7cbadc6f8a725805555ff0af02b353bb60d5ccd6f187d9",
       "size": 4108,
-      "normalized_sha256": "2d4fa2fc49ca28eb05cd5856ad8f251b53233d2e83e8b5a82607dfff0667bce8"
+      "normalized_sha256": "e60d62fb5f105c062a7cbadc6f8a725805555ff0af02b353bb60d5ccd6f187d9"
     },
     "projects/server/README.md": {
       "role": "observe",
@@ -347,9 +347,9 @@
     },
     "projects/server/package.json": {
       "role": "index",
-      "sha256": "399198ddd8d126c6ca2696c1f03c2ac6363268a1725b949ddac35c3d0174f4c9",
+      "sha256": "593b2fbd9bf39f1c04da44fcad1e19f8c5e6e7c7a71d99cfecfdcf246738f111",
       "size": 1616,
-      "normalized_sha256": "399198ddd8d126c6ca2696c1f03c2ac6363268a1725b949ddac35c3d0174f4c9"
+      "normalized_sha256": "593b2fbd9bf39f1c04da44fcad1e19f8c5e6e7c7a71d99cfecfdcf246738f111"
     },
     "projects/server/plugin/lifecycle.test.ts": {
       "role": "index",
@@ -7468,9 +7468,9 @@
     },
     "projects/web/package.json": {
       "role": "index",
-      "sha256": "445a81553076396d5518d80cab2952d2bc2798338b71e8ea9517092eab1dd393",
+      "sha256": "1f6a5276eb0cf6b9fc418cd03c78278e29228dbc6ec40ba6996bacdc4be73bcc",
       "size": 556,
-      "normalized_sha256": "445a81553076396d5518d80cab2952d2bc2798338b71e8ea9517092eab1dd393"
+      "normalized_sha256": "1f6a5276eb0cf6b9fc418cd03c78278e29228dbc6ec40ba6996bacdc4be73bcc"
     },
     "projects/web/public/favicon.ico": {
       "role": "index",
@@ -7635,9 +7635,9 @@
     },
     "projects/web/src/layouts/root.ts": {
       "role": "index",
-      "sha256": "49e79f1f613b3c898ba46678488bb89e0775c6d4be150d1acc069ef2de2b10f8",
-      "size": 138464,
-      "normalized_sha256": "49e79f1f613b3c898ba46678488bb89e0775c6d4be150d1acc069ef2de2b10f8"
+      "sha256": "38122a8bbac444461c7d3afe8d6cb76452e5cfa56fb00a835209933c7b7fa842",
+      "size": 138770,
+      "normalized_sha256": "38122a8bbac444461c7d3afe8d6cb76452e5cfa56fb00a835209933c7b7fa842"
     },
     "projects/web/src/main.test.ts": {
       "role": "index",
@@ -7743,9 +7743,9 @@
     },
     "projects/web/src/workbench/root.test.ts": {
       "role": "index",
-      "sha256": "1439cd0e8de22a86e2db4db13f2c07a790299d0f1133de7ecedf9020153265c3",
-      "size": 7547,
-      "normalized_sha256": "1439cd0e8de22a86e2db4db13f2c07a790299d0f1133de7ecedf9020153265c3"
+      "sha256": "50207b459a59968bd89e4de9264dde878fcaa437ba2f0c97a66a053ba6a79d76",
+      "size": 9117,
+      "normalized_sha256": "50207b459a59968bd89e4de9264dde878fcaa437ba2f0c97a66a053ba6a79d76"
     },
     "projects/web/src/workbench/sdk-socket.test.ts": {
       "role": "index",
@@ -7809,9 +7809,9 @@
     },
     "projects/web/src/workbench/workbench.css": {
       "role": "index",
-      "sha256": "1535b86160afe21d2c839cee34392bddb72baeee50938d8a5ac8ace4c73d2677",
-      "size": 69691,
-      "normalized_sha256": "eb567132f419f0fdf804fc1628c81bfd8c471946b5192d6f1615de0ad5b36882"
+      "sha256": "375a3d3e4e2fea40d95ca787627efc480164c275d83805a3cd83f50c9becffa8",
+      "size": 70299,
+      "normalized_sha256": "70eeb0621f314d56c3784912d4609584a51834b4dd743d8b715987e0d5b6eeb1"
     },
     "projects/web/style.css": {
       "role": "index",

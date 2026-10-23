@@ -78,6 +78,34 @@ async function fixture() {
   return requireValue(app.shadowRoot);
 }
 describe('workbench interactions', () => {
+  it('creates a root bookmark folder after clicking the sidebar body outside the tree', async () => {
+    const root = await fixture();
+    requireValue(app.store.workspace).snapshot.layout.mainSidebar.view = 'bookmarks';
+    app.store.preferences.values.bookmarkFolders = [{ id: 'parent', name: 'Parent' }];
+    const prompt = vi.spyOn(app.store, 'prompt').mockResolvedValue('New folder');
+    const save = vi.spyOn(app.store, 'setPreferences').mockResolvedValue();
+    app.requestUpdate();
+    await app.updateComplete;
+    const folder = requireValue(root.querySelector<HTMLElement>('.bookmark-folder > summary'));
+    const button = requireValue(
+      root.querySelector<HTMLButtonElement>('.sidebar-search [aria-label="新建文件夹"]'),
+    );
+    folder.focus();
+    expect(app.store.focusedBookmarkFolder).toBe('parent');
+    expect(button.dispatchEvent(new MouseEvent('mousedown', { cancelable: true }))).toBe(false);
+    expect(root.activeElement).toBe(folder);
+    button.click();
+    await vi.waitFor(() => expect(save).toHaveBeenCalledOnce());
+    expect(save.mock.calls[0][0].bookmarkFolders?.[1].parentId).toBe('parent');
+
+    requireValue(root.querySelector<HTMLElement>('.sidebar-section-body')).click();
+    expect(root.activeElement).toBe(root.querySelector('.bookmark-tree'));
+    expect(app.store.focusedBookmarkFolder).toBeNull();
+    button.click();
+    await vi.waitFor(() => expect(save).toHaveBeenCalledTimes(2));
+    expect(save.mock.calls[1][0].bookmarkFolders?.[1].parentId).toBeNull();
+    expect(prompt).toHaveBeenCalledTimes(2);
+  });
   it('collapses page sections and drags a sidebar tab into another group with a placement marker', async () => {
     const root = await fixture();
     vi.spyOn(app.store, 'update').mockImplementation(async (mutate) => {
