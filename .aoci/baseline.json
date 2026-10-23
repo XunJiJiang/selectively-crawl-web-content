@@ -1,7 +1,7 @@
 {
   "version": 1,
   "created_at": "2026-10-18T10:54:05Z",
-  "updated_at": "2026-10-23T11:54:29Z",
+  "updated_at": "2026-10-23T13:05:10Z",
   "files": {
     ".gitattributes": {
       "role": "index",
@@ -59,9 +59,9 @@
     },
     "aoci.code.txt": {
       "role": "index",
-      "sha256": "55550d0abe8baa39fa81e743c2a0d3b64bac8254de040ddbf2dc425d80c2dcb6",
-      "size": 160785,
-      "normalized_sha256": "55550d0abe8baa39fa81e743c2a0d3b64bac8254de040ddbf2dc425d80c2dcb6"
+      "sha256": "2228669628edd65e25b31a0f6869ee1c0f541486157680078ea48cab428d614e",
+      "size": 160802,
+      "normalized_sha256": "2228669628edd65e25b31a0f6869ee1c0f541486157680078ea48cab428d614e"
     },
     "aoci.meta.txt": {
       "role": "index",
@@ -161,9 +161,9 @@
     },
     "docs/待办设计.md": {
       "role": "observe",
-      "sha256": "91e10b75cd73e1321e687f82bc89b7c9c6e2a4a404fd82ce198f2abf49205aaa",
-      "size": 41653,
-      "normalized_sha256": "91e10b75cd73e1321e687f82bc89b7c9c6e2a4a404fd82ce198f2abf49205aaa"
+      "sha256": "ce13e861fa44f18979f04e114bd62ddcae3f9560bfdd9974e4d625bf540a4895",
+      "size": 43067,
+      "normalized_sha256": "ce13e861fa44f18979f04e114bd62ddcae3f9560bfdd9974e4d625bf540a4895"
     },
     "docs/数据库.md": {
       "role": "observe",
@@ -209,9 +209,9 @@
     },
     "package.json": {
       "role": "index",
-      "sha256": "e60d62fb5f105c062a7cbadc6f8a725805555ff0af02b353bb60d5ccd6f187d9",
+      "sha256": "a3c189156db154978d1b6cdfb9e00dc7f6ea04a4601cf18e92033a92c71531db",
       "size": 4108,
-      "normalized_sha256": "e60d62fb5f105c062a7cbadc6f8a725805555ff0af02b353bb60d5ccd6f187d9"
+      "normalized_sha256": "a3c189156db154978d1b6cdfb9e00dc7f6ea04a4601cf18e92033a92c71531db"
     },
     "projects/server/README.md": {
       "role": "observe",
@@ -347,9 +347,9 @@
     },
     "projects/server/package.json": {
       "role": "index",
-      "sha256": "593b2fbd9bf39f1c04da44fcad1e19f8c5e6e7c7a71d99cfecfdcf246738f111",
+      "sha256": "402ebdb380aff921f7bf7f2d12679f5fb4b606f43bea394d9a8febf8ba929e29",
       "size": 1616,
-      "normalized_sha256": "593b2fbd9bf39f1c04da44fcad1e19f8c5e6e7c7a71d99cfecfdcf246738f111"
+      "normalized_sha256": "402ebdb380aff921f7bf7f2d12679f5fb4b606f43bea394d9a8febf8ba929e29"
     },
     "projects/server/plugin/lifecycle.test.ts": {
       "role": "index",
@@ -7468,9 +7468,9 @@
     },
     "projects/web/package.json": {
       "role": "index",
-      "sha256": "1f6a5276eb0cf6b9fc418cd03c78278e29228dbc6ec40ba6996bacdc4be73bcc",
+      "sha256": "55f04f11fb3ea919f946a8dd49473b2bfb89890e51f726bc54fc8a58ed43023c",
       "size": 556,
-      "normalized_sha256": "1f6a5276eb0cf6b9fc418cd03c78278e29228dbc6ec40ba6996bacdc4be73bcc"
+      "normalized_sha256": "55f04f11fb3ea919f946a8dd49473b2bfb89890e51f726bc54fc8a58ed43023c"
     },
     "projects/web/public/favicon.ico": {
       "role": "index",
@@ -7635,9 +7635,9 @@
     },
     "projects/web/src/layouts/root.ts": {
       "role": "index",
-      "sha256": "38122a8bbac444461c7d3afe8d6cb76452e5cfa56fb00a835209933c7b7fa842",
-      "size": 138770,
-      "normalized_sha256": "38122a8bbac444461c7d3afe8d6cb76452e5cfa56fb00a835209933c7b7fa842"
+      "sha256": "f6c6bc757f72f47ebd72b782d015cedcf30aba1f145e6ffbb23e66917169689b",
+      "size": 138792,
+      "normalized_sha256": "f6c6bc757f72f47ebd72b782d015cedcf30aba1f145e6ffbb23e66917169689b"
     },
     "projects/web/src/main.test.ts": {
       "role": "index",
@@ -7671,9 +7671,9 @@
     },
     "projects/web/src/workbench/commands.ts": {
       "role": "index",
-      "sha256": "36535e8b11a242137dfc86343eb9caa8fb43f4a07d23058b7e085e2e31389d26",
-      "size": 6316,
-      "normalized_sha256": "36535e8b11a242137dfc86343eb9caa8fb43f4a07d23058b7e085e2e31389d26"
+      "sha256": "b3c274c70c7416d07d16130074e2b3abd54ba2fbc763e038ba5f50e1b20ac7c1",
+      "size": 6358,
+      "normalized_sha256": "b3c274c70c7416d07d16130074e2b3abd54ba2fbc763e038ba5f50e1b20ac7c1"
     },
     "projects/web/src/workbench/dialogs.ts": {
       "role": "index",
@@ -7809,9 +7809,9 @@
     },
     "projects/web/src/workbench/workbench.css": {
       "role": "index",
-      "sha256": "375a3d3e4e2fea40d95ca787627efc480164c275d83805a3cd83f50c9becffa8",
-      "size": 70299,
-      "normalized_sha256": "70eeb0621f314d56c3784912d4609584a51834b4dd743d8b715987e0d5b6eeb1"
+      "sha256": "bc2707c259e342b502d5151bb3d0e8fde323c8a8246281d22b37a0e06bfa35c8",
+      "size": 67123,
+      "normalized_sha256": "bc2707c259e342b502d5151bb3d0e8fde323c8a8246281d22b37a0e06bfa35c8"
     },
     "projects/web/style.css": {
       "role": "index",

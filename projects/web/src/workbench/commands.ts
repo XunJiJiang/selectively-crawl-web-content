@@ -64,6 +64,7 @@ export const commands: Command[] = [
   command('output', '打开输出', '工具'),
   command('notifications', '通知中心', '工具'),
   command('export', '导出工作区草稿', '工具'),
+  command('welcome', '欢迎', '帮助'),
   command('settings', '打开设置', '帮助', ['Mod+,']),
   command('keybindings', '打开快捷键设置', '帮助'),
   command('connection', '连接设置', '帮助'),

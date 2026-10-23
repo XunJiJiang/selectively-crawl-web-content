@@ -932,7 +932,7 @@ export class AppRoot extends LitElement {
       }
       return this.setView(id as keyof typeof viewNames);
     }
-    if (['settings', 'keybindings', 'plugins'].includes(id)) {
+    if (['welcome', 'settings', 'keybindings', 'plugins'].includes(id)) {
       return this.openInternal(id as InternalPage);
     }
     if (id === 'connection') {
@@ -1196,7 +1196,7 @@ export class AppRoot extends LitElement {
           'plugin.build',
         ],
         ['newTerminal', 'output', 'notifications', 'export'],
-        ['settings', 'keybindings', 'connection', 'about'],
+        ['welcome', 'settings', 'keybindings', 'connection', 'about'],
       ][index] ?? [];
     return items.map((id) => {
       const item = this.menuAction(id, undefined, target);

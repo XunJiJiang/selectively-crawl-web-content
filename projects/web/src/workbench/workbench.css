@@ -1765,7 +1765,6 @@ wb-icon {
   flex-wrap: wrap;
 }
 .plugin-card-actions {
-  --plugin-action-padding: 16px;
   --plugin-dropdown-width: 28px;
   display: flex;
   align-items: center;
@@ -1775,16 +1774,20 @@ wb-icon {
 }
 .plugin-card-actions > .btn {
   flex: 1;
-  padding-inline: calc(var(--plugin-action-padding) + var(--plugin-dropdown-width) / 2);
+  padding-inline-start: 16px;
+  padding-inline-end: 30px;
 }
 .compact-card .plugin-card-actions {
-  --plugin-action-padding: 7px;
   --plugin-dropdown-width: 32px;
 }
 .plugin-card-actions > .icon-button {
   width: 28px;
   border: 1px solid var(--border-default);
   border-radius: 4px;
+}
+.compact-card .plugin-card-actions > .icon-button {
+  width: 24px;
+  height: 24px;
 }
 .compact-card {
   padding: 12px;
@@ -3027,10 +3030,14 @@ wb-icon {
 .topbar wb-icon { font-size: .928571rem; --icon-size: .928571rem; }
 .tab-bar { scrollbar-width: thin; scrollbar-color: transparent transparent; }
 .tab-bar:hover { scrollbar-color: var(--border-default) transparent; }
-.tab-bar::-webkit-scrollbar { height: 4px; width: 4px; }
+/* Non-auto standard scrollbar styles override WebKit sizing and button styles. */
+@supports selector(::-webkit-scrollbar) {
+  .tab-bar, .tab-bar:hover { scrollbar-width: auto; scrollbar-color: auto; }
+}
+.tab-bar::-webkit-scrollbar { height: 4px; width: 4px; background: transparent; }
 .tab-bar::-webkit-scrollbar-thumb { background: transparent; border-radius: 4px; }
 .tab-bar:hover::-webkit-scrollbar-thumb { background: var(--border-default); }
-.tab-bar::-webkit-scrollbar-track { background: transparent; }
+.tab-bar::-webkit-scrollbar-track, .tab-bar::-webkit-scrollbar-corner { background: transparent; }
 .tab-bar::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
 .bookmark-tree { min-height: 24px; padding-bottom: 16px; }
 .bookmark-node { position: relative; }
@@ -3063,7 +3070,3 @@ wb-icon {
 [data-tab-drop]::after { content: ''; position: absolute; left: 0; right: 0; height: 2px; background: var(--accent-primary); pointer-events: none; z-index: 2; }
 [data-tab-drop='before']::after { top: 0; }
 [data-tab-drop='after']::after { bottom: 0; }
-.tab-bar { scrollbar-width: thin; scrollbar-color: var(--border-default) transparent; }
-.tab-bar::-webkit-scrollbar, .tab-bar::-webkit-scrollbar-track, .tab-bar::-webkit-scrollbar-corner { background: transparent; }
-.tab-bar::-webkit-scrollbar:horizontal { height: 4px; }
-.tab-bar::-webkit-scrollbar-button:single-button { display: none; width: 0; height: 0; }
