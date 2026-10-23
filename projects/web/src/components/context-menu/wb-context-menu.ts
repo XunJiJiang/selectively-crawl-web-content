@@ -272,6 +272,7 @@ export class WbContextMenu extends LitElement {
       data-context-menu=${id === 'root' ? '' : nothing}
       data-submenu-panel=${id === 'root' ? nothing : id}
       data-panel-id=${id}
+      data-has-checked=${items.some((item) => item.kind === 'checkbox' && item.checked)}
       role="menu"
       tabindex="-1"
       style=${styleMap({ left: `${this.position.left}px`, top: `${this.position.top}px` })}

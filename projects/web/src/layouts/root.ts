@@ -70,6 +70,7 @@ interface QuickResult {
   icon: string;
   run: () => Promise<unknown>;
   openNew?: (groupId?: string) => Promise<unknown>;
+  keepOpen?: boolean;
 }
 type Menu = { x: number; y: number; items: ContextMenuItem[]; trigger?: HTMLElement };
 const viewNames = {
@@ -255,7 +256,9 @@ export class AppRoot extends LitElement {
   }
   protected updated(_changed: PropertyValues) {
     const output = this.renderRoot.querySelector<HTMLElement>('.output-content');
-    if (output && this.followOutput) output.scrollTop = output.scrollHeight;
+    if (output && this.followOutput) {
+      output.scrollTop = output.scrollHeight;
+    }
     if (!this.focusInitialized && this.store.workspace && !this.store.loading) {
       this.focusInitialized = true;
       if (this.current) {
@@ -268,11 +271,13 @@ export class AppRoot extends LitElement {
     if (this.store.workspace && !this.dialogActive && this.store.dialogState) {
       this.dialogActive = true;
       this.dialogFocus = this.shadowRoot ? deepActiveElement(this.shadowRoot) : undefined;
-      this.renderRoot
-        .querySelector<HTMLElement>(
-          '.workbench-dialog input, .workbench-dialog select, .workbench-dialog button',
-        )
-        ?.focus();
+      const field = this.renderRoot.querySelector<HTMLElement>(
+        '.workbench-dialog input, .workbench-dialog select, .workbench-dialog button',
+      );
+      field?.focus();
+      if (field instanceof HTMLInputElement) {
+        field.select();
+      }
     } else if (this.dialogActive && !this.store.dialogState) {
       this.dialogActive = false;
       this.dialogFocus?.focus();
@@ -696,7 +701,7 @@ export class AppRoot extends LitElement {
       });
     }
     if (id === 'rename' && tab) {
-      const title = await this.store.prompt('标签名称，留空恢复页面标题', tab.customTitle ?? '');
+      const title = await this.store.prompt('标签名称，留空恢复页面标题', titleOf(tab));
       if (title !== null) {
         return this.store.update((s) => {
           const t = s.tabs.find((t) => t.id === tab.id);
@@ -1501,7 +1506,7 @@ export class AppRoot extends LitElement {
       auxVisible = layout.auxiliarySidebar.visible && !medium && !this.focusedOnly,
       panelVisible = layout.panel.visible && !narrow && !this.focusedOnly;
     const widths: Record<string, string> = {
-      activity: '48px',
+      activity: '40px',
       main: mainVisible
         ? `${Math.min(layout.mainSidebar.size, innerWidth < 1280 ? 360 : 480)}px`
         : '0px',
@@ -1546,11 +1551,6 @@ export class AppRoot extends LitElement {
   }
   @state() private accessor sizeWarningDismissed = false;
   private followOutput = true;
-  protected willUpdate() {
-    const output = this.renderRoot.querySelector<HTMLElement>('.output-content');
-    if (output)
-      this.followOutput = output.scrollHeight - output.scrollTop - output.clientHeight < 24;
-  }
   render() {
     return html`${this.sizeWarningDismissed
         ? nothing
@@ -2323,54 +2323,59 @@ export class AppRoot extends LitElement {
           })}
         </div>
       </div>
-      <div class="page-container" data-page-slot=${node.id}>
-        ${!active
-          ? html`<div class="empty empty-group">
-              ${icon('pages')}
-              <p>打开一个页面开始工作</p>
-              <div class="btn-group">
-                <button class="btn primary" @click=${() => this.act(() => this.command('plugins'))}>
-                  浏览插件</button
-                ><button
-                  class="btn secondary"
-                  @click=${() => this.act(() => this.command('quickOpen'))}
-                >
-                  快速访问 <kbd>F1</kbd>
-                </button>
-              </div>
-            </div>`
-          : active.kind === 'internal'
-            ? active.page === 'search'
-              ? html`<div class="internal-view search-view">
-                  <div class="page-heading">
-                    <span class="eyebrow">SEARCH</span>
-                    <h1>搜索工作台</h1>
-                    <p>查找页面、收藏与在线插件内容。</p>
-                  </div>
-                  <div class="page-search">
-                    ${icon('search')}<input
-                      aria-label="搜索工作台"
-                      placeholder="输入关键词…"
-                      .value=${live(this.searchQuery)}
-                      @input=${(e: Event) => this.setSearch((e.target as HTMLInputElement).value)}
-                    />
-                  </div>
-                  <label class="search-scope"
-                    ><input
-                      type="checkbox"
-                      .checked=${this.searchCurrent}
-                      @change=${(e: Event) => {
-                        this.searchCurrent = (e.target as HTMLInputElement).checked;
-                        this.setSearch(this.searchQuery);
-                      }}
-                    />仅搜索最近激活的插件页内容</label
-                  >${this.renderSearchResults(this.searchQuery)}
-                </div>`
-              : html`<wb-internal-page
-                  .store=${this.store}
-                  .page=${active.page}
-                ></wb-internal-page>`
-            : this.renderPageState(active)}
+      <div class="page-viewport" @scroll=${() => this.pool?.position()}>
+        <div class="page-container" data-page-slot=${node.id}>
+          ${!active
+            ? html`<div class="empty empty-group">
+                ${icon('pages')}
+                <p>打开一个页面开始工作</p>
+                <div class="btn-group">
+                  <button
+                    class="btn primary"
+                    @click=${() => this.act(() => this.command('plugins'))}
+                  >
+                    浏览插件</button
+                  ><button
+                    class="btn secondary"
+                    @click=${() => this.act(() => this.command('quickOpen'))}
+                  >
+                    快速访问 <kbd>F1</kbd>
+                  </button>
+                </div>
+              </div>`
+            : active.kind === 'internal'
+              ? active.page === 'search'
+                ? html`<div class="internal-view search-view">
+                    <div class="page-heading">
+                      <span class="eyebrow">SEARCH</span>
+                      <h1>搜索工作台</h1>
+                      <p>查找页面、收藏与在线插件内容。</p>
+                    </div>
+                    <div class="page-search">
+                      ${icon('search')}<input
+                        aria-label="搜索工作台"
+                        placeholder="输入关键词…"
+                        .value=${live(this.searchQuery)}
+                        @input=${(e: Event) => this.setSearch((e.target as HTMLInputElement).value)}
+                      />
+                    </div>
+                    <label class="search-scope"
+                      ><input
+                        type="checkbox"
+                        .checked=${this.searchCurrent}
+                        @change=${(e: Event) => {
+                          this.searchCurrent = (e.target as HTMLInputElement).checked;
+                          this.setSearch(this.searchQuery);
+                        }}
+                      />仅搜索最近激活的插件页内容</label
+                    >${this.renderSearchResults(this.searchQuery)}
+                  </div>`
+                : html`<wb-internal-page
+                    .store=${this.store}
+                    .page=${active.page}
+                  ></wb-internal-page>`
+              : this.renderPageState(active)}
+        </div>
       </div>
     </section>`;
   }
@@ -2573,6 +2578,13 @@ export class AppRoot extends LitElement {
             role="log"
             tabindex="0"
             aria-label="公共输出"
+            @scroll=${(event: Event) => {
+              const output = event.currentTarget as HTMLElement;
+              if (output.clientHeight > 0) {
+                this.followOutput =
+                  output.scrollHeight - output.scrollTop - output.clientHeight <= 2;
+              }
+            }}
             @focus=${() => this.recordFocus({ kind: 'panel', view: 'output' })}
           >
             ${this.store.outputGaps.has('public')
@@ -3070,7 +3082,29 @@ export class AppRoot extends LitElement {
             })),
           )
         : [];
-    const results = [...this.metadataResults(this.quickQuery), ...online].slice(0, 100);
+    const modes: QuickResult[] = this.quickQuery.trim()
+      ? []
+      : [
+          { prefix: '>', title: '执行操作', icon: 'command' },
+          { prefix: '@', title: '查找标签', icon: 'pages' },
+          { prefix: '*', title: '查找收藏', icon: 'bookmarks' },
+          { prefix: '#', title: '查找关闭历史', icon: 'history' },
+        ].map(({ prefix, title, icon }) => ({
+          id: `mode-${prefix}`,
+          title: `${prefix} ${title}`,
+          detail: `输入 ${prefix} ${title}`,
+          icon,
+          keepOpen: true,
+          run: async () => {
+            this.quickOpen = true;
+            this.quickQuery = prefix;
+            this.quickIndex = 0;
+            this.setSearch(prefix);
+            await this.updateComplete;
+            this.renderRoot.querySelector<HTMLInputElement>('#quick-input')?.focus();
+          },
+        }));
+    const results = [...modes, ...this.metadataResults(this.quickQuery), ...online].slice(0, 100);
     this.quickIndex = Math.min(Math.max(0, this.quickIndex), Math.max(0, results.length - 1));
     return html`<div
       class="modal-backdrop quick-backdrop"
@@ -3133,7 +3167,9 @@ export class AppRoot extends LitElement {
                 e.preventDefault();
                 const result = results[this.quickIndex];
                 if (result) {
-                  this.closeQuick();
+                  if (!result.keepOpen) {
+                    this.closeQuick();
+                  }
                   this.act(() => this.runResult(result, e));
                 }
               }
@@ -3151,7 +3187,9 @@ export class AppRoot extends LitElement {
                 class="search-result"
                 @mouseenter=${() => (this.quickIndex = i)}
                 @click=${(e: MouseEvent) => {
-                  this.closeQuick();
+                  if (!result.keepOpen) {
+                    this.closeQuick();
+                  }
                   this.act(() => this.runResult(result, e));
                 }}
               >

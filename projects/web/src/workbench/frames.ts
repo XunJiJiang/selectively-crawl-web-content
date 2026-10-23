@@ -74,8 +74,9 @@ export class FramePool extends EventTarget {
         if (
           !['ready', 'document-loaded', 'bridge-unavailable'].includes(runtime.state) ||
           runtime.reportingNavigation
-        )
+        ) {
           continue;
+        }
         try {
           const url = runtime.frame.contentWindow?.location.href;
           if (url && url !== 'about:blank' && url !== runtime.url) {
@@ -199,7 +200,9 @@ export class FramePool extends EventTarget {
         );
         r.frame.hidden = !visible;
         if (visible && rect) {
-          const center = this.root.querySelector('.center-area')?.getBoundingClientRect();
+          const center = (
+            slot?.closest('.page-viewport') ?? this.root.querySelector('.center-area')
+          )?.getBoundingClientRect();
           Object.assign(r.frame.style, {
             left: `${rect.left - base.left}px`,
             top: `${rect.top - base.top}px`,

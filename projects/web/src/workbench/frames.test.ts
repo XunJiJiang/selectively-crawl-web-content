@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { requireValue } from '../../../shared/workbench-protocol.ts';
 import { FramePool } from './frames.ts';
 import { WorkbenchStore } from './store.ts';
 import { addTab, groups, moveTab, newPluginTab, splitGroup } from './model.ts';
@@ -113,6 +114,36 @@ function fixture() {
   return { pool, store, snapshot, tab, root, container, command };
 }
 describe('stable iframe ownership and hibernation safety', () => {
+  it('clips a horizontally scrolled page to its own viewport', () => {
+    vi.useFakeTimers();
+    const { pool, tab, root } = fixture();
+    const slot = requireValue(root.querySelector<HTMLElement>('[data-page-slot]'));
+    const viewport = document.createElement('div');
+    viewport.className = 'page-viewport';
+    slot.replaceWith(viewport);
+    viewport.append(slot);
+    const rect = (left: number, right: number) => ({
+      x: left,
+      y: 0,
+      left,
+      right,
+      top: 0,
+      bottom: 400,
+      width: right - left,
+      height: 400,
+      toJSON() {
+        return {};
+      },
+    });
+    Object.defineProperty(slot, 'getBoundingClientRect', { value: () => rect(-100, 400) });
+    Object.defineProperty(viewport, 'getBoundingClientRect', { value: () => rect(0, 200) });
+    pool.position();
+    vi.advanceTimersByTime(20);
+    const frame = pool.runtimes.get(tab.id)?.frame;
+    expect(frame?.style.left).toBe('-100px');
+    expect(frame?.style.width).toBe('500px');
+    expect(frame?.style.clipPath).toBe('inset(0px 200px 0px 100px)');
+  });
   it('moves a tab to another group without reparenting or replacing its iframe', () => {
     const { pool, snapshot, tab, root, container } = fixture();
     const runtime = pool.runtimes.get(tab.id);
@@ -154,7 +185,7 @@ describe('stable iframe ownership and hibernation safety', () => {
 it('reports a same-document route change when a router bypasses the SDK', async () => {
   vi.useFakeTimers();
   const { pool, tab, command } = fixture();
-  const runtime = pool.runtimes.get(tab.id)!;
+  const runtime = requireValue(pool.runtimes.get(tab.id));
   runtime.state = 'ready';
   const url = tab.url + 'nested?view=detail#section';
   vi.spyOn(runtime.frame, 'contentWindow', 'get').mockReturnValue({

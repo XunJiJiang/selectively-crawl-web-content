@@ -63,6 +63,9 @@ export const menuStyles = css`
     flex-shrink: 0;
     color: var(--accent-primary);
   }
+  [data-has-checked='false'] .wb-menu__check {
+    display: none;
+  }
   .wb-menu__label {
     flex: 1;
   }

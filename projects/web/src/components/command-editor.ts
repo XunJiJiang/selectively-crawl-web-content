@@ -3,7 +3,7 @@ import { requireValue } from '../../../shared/workbench-protocol.ts';
 import { LitElement, html, css, nothing, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { EditorState, Prec } from '@codemirror/state';
-import { EditorView, keymap, drawSelection } from '@codemirror/view';
+import { EditorView, keymap, drawSelection, gutter, GutterMarker } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap, insertNewline } from '@codemirror/commands';
 import type { WorkbenchStore } from '../workbench/store.ts';
 import type { Terminal } from '../workbench/types.ts';
@@ -14,6 +14,16 @@ type Completion = {
   to: number;
   items: { name: string; insertText: string; description?: string }[];
 };
+
+class PromptMarker extends GutterMarker {
+  toDOM() {
+    const prompt = document.createElement('span');
+    prompt.textContent = '>';
+    prompt.setAttribute('aria-hidden', 'true');
+    return prompt;
+  }
+}
+const promptMarker = new PromptMarker();
 
 @customElement('wb-command-editor')
 export class CommandEditor extends LitElement {
@@ -43,7 +53,11 @@ export class CommandEditor extends LitElement {
       align-items: center;
       background: var(--surface-0);
     }
-    .terminal-input-prompt {
+    .cm-editor .cm-gutters {
+      background: transparent;
+      border: 0;
+    }
+    .terminal-input-prompts .cm-gutterElement {
       padding: 0 var(--space-2) 0 0;
       color: var(--accent-primary);
       font-weight: var(--font-semibold);
@@ -160,13 +174,13 @@ export class CommandEditor extends LitElement {
           : nothing}
       </div>
       <div class="terminal-input-prompt-line">
-        <span class="terminal-input-prompt" aria-hidden="true">&gt;</span>
         <div id="editor" class="terminal-input-editor"></div>
       </div> `;
   }
   private extensions() {
     return [
       history(),
+      gutter({ class: 'terminal-input-prompts', lineMarker: () => promptMarker }),
       drawSelection({ cursorBlinkRate: 0, drawRangeCursor: false }),
       EditorView.lineWrapping,
       EditorView.contentAttributes.of({
@@ -383,7 +397,9 @@ export class CommandEditor extends LitElement {
     if (matches('terminal.complete') && !event.shiftKey) {
       if (this.candidates) {
         const count = this.candidates.items.length;
-        if (count) this.candidateIndex = (this.candidateIndex + 1) % count;
+        if (count) {
+          this.candidateIndex = (this.candidateIndex + 1) % count;
+        }
       } else if (!this.completing) {
         void this.complete();
       }
@@ -397,7 +413,9 @@ export class CommandEditor extends LitElement {
       }
       return handled();
     }
-    if (event.key === 'Enter' && event.metaKey) return handled();
+    if (event.key === 'Enter' && event.metaKey) {
+      return handled();
+    }
     if (matches('terminal.submit') && !event.shiftKey) {
       const text = view.state.doc.toString();
       if (view.state.selection.main.head === text.length && text.endsWith('\\')) {
