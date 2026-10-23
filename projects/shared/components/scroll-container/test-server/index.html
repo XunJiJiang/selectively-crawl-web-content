@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light" />
+    <title>Scroll Container · 组件试验台</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <script type="module" src="/main.ts"></script>
+  </head>
+  <body>
+    <header class="page-header">
+      <a class="brand" href="#"
+        ><span class="brand-mark">↔</span> SCWC <span>/ COMPONENT LAB</span></a
+      >
+      <nav aria-label="页面导航">
+        <a href="#playground-section">参数试验台</a><a href="#virtual-section">虚拟滚动</a
+        ><a href="#api-section">API 与事件</a>
+      </nav>
+    </header>
+    <main>
+      <section class="intro">
+        <div>
+          <p class="eyebrow">SHARED / SCROLL CONTAINER</p>
+          <h1>滚动，自由一点。</h1>
+          <p>
+            调节每个参数，观察滚动条、视口和内容如何响应。所有示例均运行真实的
+            <code>scwc-scroll-container</code> 组件。
+          </p>
+        </div>
+        <div class="intro-note">
+          <span class="status-dot"></span> 独立测试环境<span>仅监听本机 · 支持热更新</span>
+        </div>
+      </section>
+
+      <section class="section" id="playground-section">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">01 / PLAYGROUND</p>
+            <h2>参数试验台</h2>
+          </div>
+          <button id="reset" class="subtle">恢复默认参数</button>
+        </div>
+        <div class="playground-grid">
+          <aside class="card settings" aria-label="组件参数">
+            <details open>
+              <summary>滚动与布局<span>通用参数</span></summary>
+              <div class="settings-body">
+                <label
+                  >scrollBehavior<select id="behavior">
+                    <option value="smooth">smooth · 平滑滚动</option>
+                    <option value="instant">instant · 跳跃滚动</option>
+                  </select></label
+                >
+                <label
+                  >stepDistance <span>最小跳跃距离 / px</span
+                  ><input id="step" type="number" min="0" step="1" value="40"
+                /></label>
+                <label
+                  >wheelDirection<select id="wheel">
+                    <option value="auto">auto · 保留双轴</option>
+                    <option value="horizontal">horizontal · 横向</option>
+                    <option value="vertical">vertical · 纵向</option>
+                    <option value="none">none · 禁用</option>
+                  </select></label
+                >
+                <label
+                  >shiftWheelDirection<select id="shift-wheel">
+                    <option value="horizontal">horizontal · 横向</option>
+                    <option value="vertical">vertical · 纵向</option>
+                    <option value="auto">auto · 保留双轴</option>
+                    <option value="none">none · 禁用</option>
+                  </select></label
+                >
+                <div class="field-pair">
+                  <label
+                    >容器宽 / px<input
+                      id="viewport-width"
+                      type="number"
+                      min="120"
+                      max="1200"
+                      value="640" /></label
+                  ><label
+                    >容器高 / px<input
+                      id="viewport-height"
+                      type="number"
+                      min="40"
+                      max="800"
+                      value="300"
+                  /></label>
+                </div>
+                <div class="field-pair">
+                  <label
+                    >内容宽 / px<input
+                      id="content-width"
+                      type="number"
+                      min="0"
+                      max="5000"
+                      value="1100" /></label
+                  ><label
+                    >内容高 / px<input
+                      id="content-height"
+                      type="number"
+                      min="0"
+                      max="5000"
+                      value="720"
+                  /></label>
+                </div>
+                <label class="check-label"
+                  ><input id="part-theme" type="checkbox" /> 用 ::part 叠加滑块描边</label
+                >
+              </div>
+            </details>
+            <div id="axis-settings"></div>
+          </aside>
+          <div class="preview-column">
+            <div class="card preview-card">
+              <div class="card-toolbar">
+                <span><span class="status-dot"></span> 实时预览</span>
+                <div class="preset-group">
+                  <button data-preset="tabs">40px 标签栏</button
+                  ><button data-preset="both">双轴内容</button
+                  ><button data-preset="gutter">占位模式</button
+                  ><button data-preset="fit">无溢出</button>
+                </div>
+              </div>
+              <div class="preview-stage">
+                <scwc-scroll-container id="playground" aria-label="参数试验台滚动区域">
+                  <div id="demo-canvas">
+                    <div class="canvas-title">
+                      <span class="canvas-icon">↗</span>
+                      <div>
+                        <strong>向任意方向探索</strong
+                        ><span>移入显示 · 拖拽滑块 · 滚轮 / Shift+滚轮</span>
+                      </div>
+                    </div>
+                    <div id="sample-grid"></div>
+                    <div class="canvas-end">你已到达内容边缘 ↘</div>
+                  </div>
+                </scwc-scroll-container>
+              </div>
+              <div class="metrics-strip" id="playground-metrics" aria-live="polite"></div>
+            </div>
+            <div class="callout">
+              <strong>观察这三件事</strong>
+              <p>
+                悬浮模式保留完整的内容高度；只有溢出的方向出现滚动条；容器或内容尺寸变化时，该方向重新显示。将鼠标移出可观察慢速淡出。
+              </p>
+              <span id="motion-note"></span>
+            </div>
+            <div class="card code-card">
+              <div class="card-toolbar">
+                <span>当前参数用法</span><span class="tag">Lit / slot</span>
+              </div>
+              <pre id="playground-code"></pre>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="virtual-section">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">02 / VIRTUAL CONTENT</p>
+            <h2>内部更新与外部控制</h2>
+          </div>
+          <span class="section-description">只渲染可见行，滚动范围使用逻辑尺寸。</span>
+        </div>
+        <div class="virtual-grid">
+          <div class="card virtual-settings">
+            <label
+              >控制来源<select id="metrics-mode">
+                <option value="internal">内部 · content(updateMetrics)</option>
+                <option value="external">外部 · metrics 属性</option>
+              </select></label
+            >
+            <div class="field-pair">
+              <label
+                >scrollWidth<input id="logical-width" type="number" min="1" value="1000" /></label
+              ><label
+                >scrollHeight<input id="logical-height" type="number" min="1" value="20000"
+              /></label>
+            </div>
+            <div class="field-pair">
+              <label>scrollLeft<input id="logical-left" type="number" min="0" value="0" /></label
+              ><label>scrollTop<input id="logical-top" type="number" min="0" value="1200" /></label>
+            </div>
+            <button id="apply-metrics" class="primary">应用逻辑尺寸和位置</button>
+            <button id="retained-update" class="subtle">调用已保存的内部回调</button>
+            <p class="hint">
+              旧回调会请求高度 8,000px、位置 320px。切换为外部控制后，调用会被组件忽略。
+            </p>
+            <output id="callback-status"></output>
+          </div>
+          <div class="card virtual-preview">
+            <div class="card-toolbar">
+              <span>虚拟列表</span><span class="tag" id="rendered-rows">仅渲染可见行</span>
+            </div>
+            <scwc-scroll-container
+              id="virtual-demo"
+              aria-label="虚拟滚动示例"
+            ></scwc-scroll-container>
+            <div class="metrics-strip" id="virtual-metrics" aria-live="polite"></div>
+            <div class="event-pair">
+              <div><span>向外 scroll 事件</span><strong id="virtual-outer-count">0</strong></div>
+              <div>
+                <span>向内 contentScroll 回调</span><strong id="virtual-inner-count">0</strong>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="card code-card virtual-code">
+          <div class="card-toolbar">
+            <span>当前控制模式用法</span><span class="tag">content / metrics / contentScroll</span>
+          </div>
+          <pre id="virtual-code"></pre>
+        </div>
+      </section>
+
+      <section class="section" id="api-section">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">03 / METHODS & EVENTS</p>
+            <h2>主动操作与事件记录</h2>
+          </div>
+          <button id="clear-events" class="subtle">清空记录</button>
+        </div>
+        <div class="api-grid">
+          <div class="card api-controls">
+            <p class="hint">以下操作作用于上方参数试验台。</p>
+            <div class="field-pair">
+              <label>left / x<input id="api-left" type="number" value="200" /></label
+              ><label>top / y<input id="api-top" type="number" value="160" /></label>
+            </div>
+            <label
+              >单次 behavior<select id="api-behavior">
+                <option value="inherit">跟随 scrollBehavior</option>
+                <option value="smooth">smooth</option>
+                <option value="instant">instant</option>
+                <option value="auto">auto</option>
+              </select></label
+            >
+            <div class="method-buttons">
+              <button id="scroll-options" class="primary">scrollTo({ left, top, behavior })</button
+              ><button id="scroll-coordinates">scrollTo(x, y)</button
+              ><button id="read-state">读取 scrollState</button
+              ><button id="refresh">refresh()</button
+              ><button id="focus-viewport">scrollElement.focus()</button>
+            </div>
+            <pre id="state-output" aria-label="当前滚动状态"></pre>
+          </div>
+          <div class="card event-card">
+            <div class="card-toolbar">
+              <span>scroll 事件流</span><span class="tag">bubbles + composed</span>
+            </div>
+            <ol id="event-log" aria-live="polite"></ol>
+            <div class="event-footnote">
+              保留最近 24 条事件；尺寸变化只有引起位置钳制时才触发 scroll。
+            </div>
+          </div>
+        </div>
+      </section>
+      <footer>
+        SCWC SHARED COMPONENTS <span>原生视口 · 自定义悬浮滚动条 · 独立参数演示</span>
+      </footer>
+    </main>
+  </body>
+</html>
