@@ -737,6 +737,16 @@ export class AppRoot extends LitElement {
         relocatedUrl(b.locator, requireValue(this.store.bootstrap).installationId, b.url),
       );
     }
+    if (id === 'moveBookmark') {
+      const result = await this.store.api.request<{
+        preferences: import('../workbench/types.ts').Preferences;
+        bookmarks: Bookmark[];
+      }>('/bookmarks/move', { ...(args as object), baseRevision: this.store.preferences.revision });
+      this.store.preferences = result.preferences;
+      this.store.bookmarks = result.bookmarks;
+      this.store.changed();
+      return;
+    }
     if (id === 'newBookmarkFolder') {
       const name = await this.store.prompt('新建收藏文件夹');
       if (name?.trim()) {
@@ -764,9 +774,9 @@ export class AppRoot extends LitElement {
     if (id === 'deleteBookmarkFolder') {
       const folder = args as { id: string; name: string };
       return this.store.setPreferences({
-        bookmarkFolders: (this.store.preferences.values.bookmarkFolders ?? []).filter(
-          (f) => f.id !== folder.id,
-        ),
+        bookmarkFolders: (this.store.preferences.values.bookmarkFolders ?? [])
+          .filter((f) => f.id !== folder.id)
+          .map((f) => (f.parentId === folder.id ? { ...f, parentId: null } : f)),
       });
     }
     if (id === 'deleteBookmark') {
@@ -1718,10 +1728,7 @@ export class AppRoot extends LitElement {
       ${this.store.dialogState ? this.renderDialog() : nothing}
       ${this.dragging
         ? html`<div class="resize-shield" style=${`cursor:${this.resizeCursor}`}></div>`
-        : nothing}
-      <div class="sr-only" role="status" aria-live="polite">
-        ${this.store.saveState === 'unsaved' ? '工作区尚未保存' : ''}
-      </div>`;
+        : nothing} `;
   }
   private renderTopbar() {
     const disabled = !this.store.workspace;
@@ -2067,14 +2074,7 @@ export class AppRoot extends LitElement {
           : nothing}
       </div>
       <div class="sidebar-footer">
-        <span
-          ><i class=${`dot ${this.store.saveState === 'unsaved' ? 'error' : 'success'}`}></i>${this
-            .store.saveState === 'saved'
-            ? '工作区已保存'
-            : this.store.saveState === 'saving'
-              ? '正在保存…'
-              : '尚未保存'}</span
-        >${iconButton('settings', '打开设置', () => this.act(() => this.command('settings')))}
+        ${iconButton('settings', '打开设置', () => this.act(() => this.command('settings')))}
       </div>
     </aside>`;
   }
@@ -2172,6 +2172,19 @@ export class AppRoot extends LitElement {
       <div class="group-tab-strip">
         <div
           class="tab-bar"
+          @wheel=${(e: WheelEvent) => {
+            if (e.ctrlKey || ['left', 'right'].includes(node.tabBarPosition)) {
+              return;
+            }
+            const bar = e.currentTarget as HTMLElement;
+            if (bar.scrollWidth <= bar.clientWidth) {
+              return;
+            }
+            e.preventDefault();
+            const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+            bar.scrollLeft +=
+              delta * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? bar.clientWidth : 1);
+          }}
           role="tablist"
           aria-label="页面标签"
           aria-orientation=${['left', 'right'].includes(node.tabBarPosition)
@@ -2769,13 +2782,6 @@ export class AppRoot extends LitElement {
               >${pageStateNames[runtime.state] ?? runtime.state} · 已观测 ${runtime.requests}
               请求</span
             >`
-          : nothing}${this.store.saveState === 'unsaved'
-          ? html`<button
-              class="status-item error"
-              @click=${() => this.act(() => this.openInternal('settings'))}
-            >
-              ${icon('warning')}尚未保存
-            </button>`
           : nothing}<button
           class="status-item notification-button"
           aria-label=${`通知，${unread} 条未读`}

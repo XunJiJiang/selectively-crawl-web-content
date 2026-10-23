@@ -1061,7 +1061,7 @@ worry.html[SU2T]: F:提供错误页模板 | R:code:projects/server/router/web/pa
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/router/web/workbench/===
 backend.test.ts[TE7M]: F:验证工作台服务边界 | R:code:projects/server/router/index.ts,code:projects/server/workbench/runtime.ts | A:Vitest集成用例 | S:真实插件进程及SQLite验证页面授权范围、字符串配置冲突、票据流和SPA符号链接限制
 dev-proxy.ts[EN6T]: F:重定向开发页面入口 | R:code:projects/server/common/setupParam.ts,code:projects/server/router/web/index.ts | A:redirectDevelopmentPage | S:按WEB_ORIGIN跳转并保留路径与查询，/web规范为/web/；不探测Vite可用性，避免IPv4地址假阴性
-index.ts[EU8L]: F:提供工作台HTTP契约 | R:code:projects/server/workbench/runtime.ts,code:projects/server/workbench/page-sessions.ts,code:projects/server/workbench/plugin-config.ts | A:createWorkbenchRouter,resolvePluginUrl,default Router | S:写工作区与终端需窗口身份和租约，状态变更带revision及幂等键；页面授权限制插件与快照归属；统一错误不外泄内部异常
+index.ts[EU8L]: F:提供工作台HTTP契约 | R:code:projects/server/workbench/runtime.ts,code:projects/server/workbench/page-sessions.ts,code:projects/server/workbench/plugin-config.ts | A:createWorkbenchRouter,resolvePluginUrl,default Router | S:工作区和终端写入核验窗口及租约，revision与幂等键约束状态变更；页面授权限制插件和快照归属；收藏移动按偏好revision提交；统一错误隐藏内部异常
 websocket.ts[IN8S]: F:分派工作台事件升级 | R:code:projects/server/workbench/events.ts,code:projects/server/workbench/page-sessions.ts,code:projects/server/workbench/command-service.ts | A:attachUpgradeDispatcher | S:票据单次消费后五秒内须resume；事件按页面或工作区过滤；积压超2MiB关闭并要求重同步，回放缺口显式通知
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/scripts/===
@@ -1130,8 +1130,8 @@ page-sessions.ts[CI8S]: F:签发页面授权票据 | R:code:projects/server/rout
 plugin-config.ts[PD8M]: F:持久化插件字符串 | R:code:projects/server/workbench/storage.ts,code:projects/server/types/plugin-config.d.ts,code:projects/server/workbench/events.ts | A:PluginConfigService,getPluginConfig | S:点号键按字面存储并拒绝原型片段，单值64KiB；数据和定义双revision；异步校验后事务再验CAS，校验器不可增删键
 runtime.ts[AG8S]: F:组装工作台服务 | R:code:projects/server/workbench/storage.ts,code:projects/server/workbench/command-service.ts,code:projects/server/workbench/workspace.ts | A:WorkbenchRuntime,getWorkbench,closeWorkbench | S:状态快照256KiB、PNG预览2MiB且分别有总配额；被工作区、收藏或历史引用的快照不可删除；关闭后创建健康备份
 storage.ts[PD9M]: F:托管工作台双数据库 | R:code:projects/server/common/paths.ts,code:projects/server/workbench/plugin-config.ts | A:WorkbenchStorage,getStorage,closeStorage,WorkbenchError,assert,coreBootId | S:工作台与插件配置分库，WAL及外键开启；损坏主库先隔离再恢复健康备份；新schema拒绝；重启标记未完成执行中断，幂等键绑定指纹
-workbench.test.ts[TD7M]: F:验证工作台状态治理 | R:code:projects/server/workbench/storage.ts,code:projects/server/workbench/workspace.ts,code:projects/server/workbench/command-service.ts | A:Vitest用例 | S:覆盖字符串CAS、损坏恢复、租约及关闭回执；收藏文件夹保留编码URL；生命周期注入回调验证回执先行与幂等，后台busy阻止下一命令
-workspace.ts[PD8L]: F:治理工作区快照 | R:code:projects/server/workbench/storage.ts,code:projects/server/workbench/events.ts,code:projects/shared/workbench-layout.ts | A:WorkspaceService,WorkspaceSnapshot,LayoutNode,defaultSnapshot,validateSnapshot,snapshotSchema | S:30秒租约，抢占克隆工作区；事务内CAS和幂等回执；关闭历史只存插件页，关闭后收拢空组；文件夹随偏好持久化，收藏成员关系存folderId
+workbench.test.ts[TD7L]: F:验证工作台状态治理 | R:code:projects/server/workbench/storage.ts,code:projects/server/workbench/workspace.ts,code:projects/server/workbench/command-service.ts | A:Vitest用例 | S:真实内存SQLite验证租约、字符串CAS及幂等关闭；收藏混排移动须原子提交且拒绝循环和旧revision；后台busy阻止下一命令
+workspace.ts[PD8L]: F:治理工作区快照及收藏树 | R:code:projects/server/workbench/storage.ts,code:projects/server/workbench/events.ts,code:projects/shared/workbench-layout.ts | A:WorkspaceService,WorkspaceSnapshot,defaultSnapshot,validateSnapshot,snapshotSchema | S:30秒租约，抢占克隆；CAS和幂等写入在事务内；关闭只归档插件页并收拢空组；binding预留本地路径；收藏parentId、folderId和混合顺序在同一事务更新，拒绝循环
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/shared/components/===
 button.css[ZU3T]: F:定义共享按钮外观 | R:code:projects/shared/components/button.ts | A:.scwc-btn样式 | S:host不接收指针，内部button重新开启交互
@@ -1284,11 +1284,11 @@ plugins.ts[IE5T]: F:获取旧版插件页面列表 | R:code:projects/web/src/lay
 workbench.ts[IN8S]: F:连接工作台HTTP事件 | R:code:projects/server/router/web/workbench/index.ts,code:projects/server/router/web/workbench/websocket.ts,code:projects/web/src/api/local-config.ts | A:WorkbenchAPI,ApiError,EventConnection | S:HTTP同源并带窗口UUID；Socket只带一次票据且按序去重；重试先刷新本机凭据并重同步；bootId变化或缺口全量恢复，退避最多15秒
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/web/src/components/===
-command-editor.ts[IU7L]: F:编辑Web终端命令 | R:code:projects/web/src/workbench/store.ts,code:projects/terminal/command-text.ts | A:wb-command-editor,draft-change,submit-command,cancel-command | S:撤销按终端隔离，行首栏逐行显示提示符；Enter避开IME及反斜杠续行；Tab循环前缀候选，原文偏移映射且拒收迟到响应；光标常亮、失焦空心
+command-editor.ts[IU7L]: F:独立编辑Web终端命令 | R:code:projects/web/src/workbench/store.ts,code:projects/terminal/command-text.ts | A:wb-command-editor,hasOpenQuote,draft-change,submit-command,cancel-command | S:textarea承接IME和选区，字素镜像绘制光标；撤销按终端隔离；未闭合引号及尾反斜杠续行；多行上下键留给原生编辑，补全拒收迟到响应
 icon.ts[LU4T]: F:适配工作台图标名 | R:code:projects/web/src/workbench/ui.ts | A:wb-icon,WbIcon | S:字形字体由外层加载，ShadowDOM移除font-face；未知语义名直接作为codicon名，尺寸按rem缩放
 internal-page.ts[AU7L]: F:渲染工作台内置页面 | R:code:projects/web/src/workbench/store.ts,code:projects/web/src/workbench/commands.ts,code:projects/web/src/layouts/root.ts,code:projects/web/src/workbench/ui.ts | A:wb-internal-page,workbench-command | S:页面和收藏管理统一派发命令；确认走中心弹层；设置及键绑定持久化，同平台同上下文覆盖优先，null键列表禁用默认键
 page-inspector.ts[AU7L]: F:检查页面并编辑配置 | R:code:projects/web/src/workbench/store.ts,code:projects/web/src/workbench/frames.ts | A:wb-page-inspector | S:配置草稿全为字符串，数据和schema双revision提交；page-required需在线原页面签发校验票据；代数和tab身份拒收过期请求，远端变化保留冲突草稿
-terminal.ts[AU8L]: F:管理Web终端视图 | R:code:projects/web/src/components/command-editor.ts,code:projects/web/src/workbench/store.ts,code:projects/terminal/command-text.ts | A:wb-terminal,activate,closeCurrent,cancel,alter | S:无终端时去重创建，默认同名且可重命名；草稿串行CAS和命令幂等；执行前去续行而待答输入保留原文；末个关闭通知根层隐藏，滚动按seq及follow恢复，强停确认整个宿主
+terminal.ts[AU8L]: F:管理Web终端视图 | R:code:projects/web/src/components/command-editor.ts,code:projects/web/src/workbench/store.ts,code:projects/terminal/command-text.ts | A:wb-terminal,activate,closeCurrent,cancel,alter | S:草稿串行CAS，命令幂等；执行去续行而待答保留原文；末个关闭通知根层隐藏；滚动按seq及follow恢复，强停确认整个宿主；输出区mousedown保留输入焦点
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/web/src/components/context-menu/===
 SOURCE.md[SG4T]: F:记录菜单复制来源 | R:code:projects/web/src/components/context-menu/wb-context-menu.ts,code:projects/web/src/components/context-menu/wb-menu-select.ts | A:菜单组件来源说明 | S:来自插件的独立副本无运行时导入依赖，后续行为修复需考虑两份实现
@@ -1307,7 +1307,7 @@ header.css[ZU3T]: F:排版旧版顶栏 | R:code:projects/web/src/layouts/header.
 header.ts[IU4T]: F:提供旧版侧栏切换 | R:code:projects/web/src/layouts/header.css | A:app-header,toggle-left-bar | S:仅派发事件，展开状态由外部属性决定
 index.ts[EU4T]: F:注册工作台根组件 | R:code:projects/web/src/layouts/root.ts | A:副作用导入入口 | S:-
 root.css[ZU2T]: F:保留根布局基础样式 | R:- | A::host | S:当前工作台根组件直接导入workbench.css，本文件未被其使用
-root.ts[AU9L]: F:编排插件工作台界面 | R:code:projects/web/src/workbench/store.ts,code:projects/web/src/workbench/frames.ts,code:projects/web/src/workbench/model.ts,code:projects/web/src/workbench/focus-history.ts,code:projects/web/src/workbench/ui.ts | A:app-root,command | S:默认打开先聚焦同URL，显式新标签才重复；关闭检查脏页及快照；焦点历史独立于路由；拖拽松开才提交并捕获源ID；重命名预填显示标题，弹窗首字段全选；公共输出跟随由可见滚动位置决定，隐藏不重置；空查询置顶前缀入口，选择后保留弹窗；尺寸提示关闭仅当前文档有效
+root.ts[AU9L]: F:编排插件工作台界面 | R:code:projects/web/src/workbench/store.ts,code:projects/web/src/workbench/frames.ts,code:projects/web/src/workbench/model.ts,code:projects/web/src/workbench/focus-history.ts,code:projects/web/src/workbench/ui.ts | A:app-root,command | S:默认打开聚焦同URL，显式新标签才重复；关闭检查脏页及快照；焦点历史独立路由；拖拽松开才提交并捕获源ID；重命名预填标题，弹窗首字段全选；公共输出隐藏不恢复跟随；空查询前缀选择保留弹窗；尺寸提示关闭限当前文档
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/web/src/===
 main.test.ts[TI5T]: F:验证Web启动请求顺序 | R:code:projects/web/src/main.ts | A:Vitest用例 | S:断言首次插件API请求发生在当前token加载并写入存储之后
@@ -1318,7 +1318,7 @@ api.d.ts[FE4T]: F:声明插件页面响应 | R:code:projects/web/src/api/plugins
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/web/src/workbench/===
 commands.ts[CU6S]: F:统一工作台命令绑定 | R:code:projects/web/src/layouts/root.ts,code:projects/web/src/components/command-editor.ts | A:commands,effectiveKeys,eventKey,matchesKey,editableTarget,conflicts | S:覆盖按逆序查找且上下文须相同；Mod按平台映射；组合键比较要求完整修饰键，ShadowDOM输入由composedPath识别
-editor.test.ts[TU6M]: F:验证Web命令编辑器 | R:code:projects/web/src/components/command-editor.ts | A:Vitest用例 | S:覆盖Enter与IME、反斜杠续行及屏蔽CmdEnter；重复Tab循环前缀候选且保留参数键；拒收旧终端补全
+editor.test.ts[TU6M]: F:验证独立终端输入交互 | R:code:projects/web/src/components/command-editor.ts | A:Vitest用例 | S:覆盖三类引号与IME续行、字素选区和单词快捷键、原生输入与终端间撤销隔离；Tab正反循环，旧终端补全拒收
 frames.test.ts[TU6M]: F:验证页面池视口生命周期和导航 | R:code:projects/web/src/workbench/frames.ts | A:Vitest用例 | S:覆盖横向滚动裁剪、不重建iframe、快照失败保留并resume，以及同文档URL兜底去重
 frames.ts[AU8L]: F:管理插件页面实例 | R:code:projects/shared/workbench-protocol.ts,code:projects/web/src/workbench/store.ts,code:projects/webUtils/lib/workbench.ts | A:FramePool,FrameRuntime | S:iframe父容器稳定，横向滚动按所属页面视口裁剪；握手验origin/source/nonce/epoch；导航报告串行；遍历委托SDK；快照绑定成功后才释放文档
 menu.test.ts[TU5T]: F:验证工作台菜单关闭 | R:code:projects/web/src/components/context-menu/wb-context-menu.ts | A:Vitest用例 | S:覆盖真实背景幂等关闭、原坐标重开、覆盖回调及禁用项拒选
@@ -1327,19 +1327,21 @@ protocol.test.ts[TN6T]: F:验证页面端口隔离 | R:code:projects/shared/work
 sdk-socket.test.ts[TN5T]: F:验证票据Socket代理 | R:code:projects/webUtils/lib/ticket-socket.ts | A:Vitest用例 | S:票据获取中保留回调和binaryType，提前close在连接建立后仍须执行
 search.test.ts[TU5T]: F:验证异步页面搜索 | R:code:projects/web/src/workbench/search.ts | A:Vitest用例 | S:查询切换丢弃迟到结果，各源独立翻页，同游标返回必须报错而非循环
 search.ts[AU7S]: F:汇聚在线页面搜索 | R:code:projects/web/src/workbench/frames.ts,code:projects/shared/workbench-protocol.ts | A:SearchCoordinator,SearchSource | S:有效性绑定查询代数、tab、epoch和注册revision；查询持有activity防休眠，取消传至页面；分页拒绝停滞游标并按id合并
-store.test.ts[TD6M]: F:验证工作区保存与认证 | R:code:projects/web/src/workbench/store.ts,code:projects/web/src/api/workbench.ts | A:Vitest用例 | S:手动TOKEN仅成功连接后保存；CAS失败保留草稿和原幂等操作，关闭失败不得移除标签
-store.ts[PD9L]: F:同步工作台持久状态 | R:code:projects/web/src/api/workbench.ts,code:projects/web/src/workbench/model.ts,code:projects/web/src/workbench/types.ts,code:projects/web/src/workbench/dialogs.ts | A:WorkbenchStore,authenticate,dialog,notificationItems | S:写入串行CAS且失败保留操作草稿，HTTP回执拥有revision；重启重新取租约不重放命令；输出按seq去重限1万条或10MiB；弹层排队；到期提示归档，手动关闭排除，聚焦暂停计时并已读
+store.test.ts[TD6M]: F:验证临时工作区隔离与恢复 | R:code:projects/web/src/workbench/store.ts,code:projects/web/src/api/workbench.ts,code:projects/web/src/workbench/browser-workspace.ts | A:Vitest用例 | S:TOKEN仅连接成功后保存；离线保留最新编辑，CAS自动重绑revision；新文档从全局种子初始化，旧窗口保持独立；关闭失败不删标签
+store.ts[PD9L]: F:协调临时工作区与服务端状态 | R:code:projects/web/src/api/workbench.ts,code:projects/web/src/workbench/model.ts,code:projects/web/src/workbench/browser-workspace.ts,code:projects/web/src/workbench/dialogs.ts | A:WorkbenchStore,authenticate,dialog,notificationItems | S:每文档新建工作区并从浏览器全局种子初始化，已有页面不跟随；本地变更立即发布种子，串行CAS失败保留最新草稿并重试，HTTP回执拥有revision；重启只取租约不重放命令；输出按seq去重限1万条或10MiB；弹层排队，通知聚焦暂停并已读
 terminal-output.test.ts[TO5T]: F:验证安全ANSI渲染 | R:code:projects/web/src/workbench/terminal-output.ts | A:Vitest用例 | S:颜色跨同执行记录续传，其他执行隔离；OSC链接和屏幕控制剥除，HTML保留为普通文字
 terminal-output.ts[KU6S]: F:解析Web终端输出样式 | R:code:projects/web/src/workbench/types.ts,code:projects/web/src/components/terminal.ts | A:ansiSegments,terminalRows,AnsiStyle,AnsiSegment | S:只认SGR为样式，剥除其他控制序列；样式按executionId或streamId跨记录延续，command回显不污染样式状态
-terminal.test.ts[TU6S]: F:验证Web终端视图状态 | R:code:projects/web/src/components/terminal.ts,code:projects/web/src/workbench/store.ts | A:Vitest用例 | S:快速切换保存离开终端草稿但不覆盖新编辑；待答重复提交只执行一次，输出HomeEnd不拦截编辑器；jsdom补齐光标测量及聚焦接口
-types.ts[FG7M]: F:声明工作台共享模型 | R:code:projects/server/workbench/workspace.ts,code:projects/server/types/plugin-config.d.ts,code:projects/server/types/task.d.ts | A:Workspace,Lease,CatalogItem,Terminal,Bookmark,WorkbenchEvent | S:布局直接复用服务端类型；收藏文件夹定义随偏好，成员关系随收藏；本地终端视图独立于持久终端，事件含bootId和每流seq
-ui.ts[LU5M]: F:复用工作台展示片段 | R:code:projects/web/src/workbench/types.ts,code:projects/web/src/components/icon.ts,code:projects/web/src/workbench/store.ts | A:icon,iconButton,pluginCard,pluginOpenButtons,bookmarkList,tabNavigation | S:打开要求运行与UI双ready；侧栏及中心共享收藏和组合打开按钮；原生details状态切换文件夹图标；键盘导航跳过禁用项
-workbench.css[ZU6L]: F:定义工作台视图布局 | R:code:projects/web/var.css,code:projects/web/src/layouts/root.ts | A:.center-canvas,.page-viewport,.tab-bar,.sidebar-plugin,.window-size-warning | S:池化iframe与页面视口共同裁剪；标签不收缩且独立滚动；窄屏保留浮层空间；活动栏40px、状态栏32px，提示距底36px
+terminal.test.ts[TU6S]: F:验证Web终端视图状态 | R:code:projects/web/src/components/terminal.ts,code:projects/web/src/workbench/store.ts | A:Vitest用例 | S:快速切换保存离开终端草稿而不覆盖新编辑；待答重复提交只执行一次；输出HomeEnd不拦截输入，点击输出区不触发输入blur
+types.ts[FG7M]: F:声明工作台共享模型 | R:code:projects/server/workbench/workspace.ts,code:projects/server/types/plugin-config.d.ts,code:projects/server/types/task.d.ts | A:Workspace,Lease,CatalogItem,Terminal,Bookmark,WorkbenchEvent | S:布局复用服务端类型；收藏目录parentId和混合顺序随偏好，成员folderId随收藏；本地终端视图独立于持久终端；事件含bootId及流seq
+ui.ts[LU6M]: F:复用工作台展示及收藏树拖放 | R:code:projects/web/src/workbench/types.ts,code:projects/web/src/components/icon.ts,code:projects/web/src/workbench/store.ts | A:icon,iconButton,pluginCard,pluginOpenButtons,bookmarkList,tabNavigation | S:收藏按bookmarkOrder混排，parentId和folderId分别定义层级；中部悬停650ms展开，边缘插入，拒绝后代拖放；details按键复用保留展开状态
+workbench.css[ZU6L]: F:定义工作台视图布局 | R:code:projects/web/var.css,code:projects/web/src/layouts/root.ts | A:.center-canvas,.page-viewport,.tab-bar,.bookmark-tree,.topbar | S:池化iframe按页面视口裁剪；顶栏36px、状态栏32px，覆盖层同步避让；标签不收缩，细滚动条悬停显现；收藏落点分边缘线与目录边框
 dialogs.ts[FU4T]: F:声明工作台弹层表单 | R:code:projects/web/src/workbench/store.ts,code:projects/web/src/layouts/root.ts | A:DialogField,WorkbenchDialog | S:结果是字符串字段映射，null明确表示取消；选项只描述单选值
 focus-history.test.ts[TU5T]: F:验证工作台焦点遍历 | R:code:projects/web/src/workbench/focus-history.ts | A:Vitest用例 | S:关闭标签与归档终端必须跳过并移除；侧栏和单个终端分别记位，新焦点截断前进分支
 focus-history.ts[DU6T]: F:管理工作台焦点历史 | R:code:projects/web/src/layouts/root.ts | A:FocusLocation,FocusHistory | S:最多500项，连续同位置去重；canGo也会删除失效目标并修正游标；记录新位置会截断前进分支
 notifications.test.ts[TU5T]: F:验证通知倒计时归档 | R:code:projects/web/src/workbench/store.ts | A:Vitest用例 | S:伪时钟验证到期归档、手动关闭不归档；聚焦暂停且已读，失焦重新计时
-root.test.ts[TU5S]: F:验证工作台弹层搜索和输出交互 | R:code:projects/web/src/layouts/root.ts,code:projects/web/src/workbench/store.ts | A:Vitest用例 | S:布局尺寸由夹具提供；隐藏更新不能恢复跟随；验证重命名全选及四前缀选择后聚焦输入
+root.test.ts[TU5S]: F:验证工作台弹层和滚动交互 | R:code:projects/web/src/layouts/root.ts,code:projects/web/src/workbench/store.ts | A:Vitest用例 | S:布局尺寸由夹具提供；隐藏更新不恢复跟随；普通及Shift滚轮横移标签且保留缩放；重命名全选，前缀选择后聚焦
+bookmarks.test.ts[TU5T]: F:验证收藏树拖放反馈 | R:code:projects/web/src/workbench/ui.ts | A:Vitest用例 | S:伪时钟校验中部悬停650ms展开、边缘提示线和后代拒收；混合顺序由夹具提供
+browser-workspace.ts[PD7T]: F:持久化浏览器全局工作区种子 | R:code:projects/web/src/workbench/types.ts,code:projects/web/src/workbench/store.ts | A:WorkspacePersistence,BrowserWorkspace | S:按installationId隔离localStorage；只加载副本且不订阅跨页变化；存储不可用时降级，接口供未来本地路径适配
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/webUtils/===
 lib.d.ts[FE5T]: F:声明页面工具全局对象 | R:code:projects/webUtils/lib/index.ts | A:Window.scwcutils | S:以外部模块中的declare global确保各插件TS项目一致获得扩展

@@ -146,3 +146,20 @@ describe('workbench interactions', () => {
     },
   );
 });
+
+it('scrolls horizontal page tabs with both wheel modes and leaves zoom available', async () => {
+  const root = await fixture();
+  const bar = requireValue(root.querySelector<HTMLElement>('.tab-bar'));
+  Object.defineProperties(bar, { scrollWidth: { value: 1000 }, clientWidth: { value: 200 } });
+  const wheel = (extra: WheelEventInit = {}) =>
+    bar.dispatchEvent(
+      new WheelEvent('wheel', { deltaY: 60, bubbles: true, cancelable: true, ...extra }),
+    );
+  expect(wheel()).toBe(false);
+  expect(bar.scrollLeft).toBe(60);
+  expect(wheel({ shiftKey: true })).toBe(false);
+  expect(bar.scrollLeft).toBe(120);
+  expect(wheel({ ctrlKey: true })).toBe(true);
+  expect(bar.scrollLeft).toBe(120);
+  expect(root.textContent).not.toContain('工作区已保存');
+});

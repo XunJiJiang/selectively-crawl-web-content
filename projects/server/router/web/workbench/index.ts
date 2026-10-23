@@ -236,6 +236,7 @@ export function createWorkbenchRouter() {
       key(req),
     ),
   );
+  route('post', '/bookmarks/move', (req) => getWorkbench().workspace.moveBookmark(req.body));
   route('get', '/preferences', () => getWorkbench().workspace.preferences());
   route('post', '/preferences', (req) =>
     getWorkbench().workspace.setPreferences(

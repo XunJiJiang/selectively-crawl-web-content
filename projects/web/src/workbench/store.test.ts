@@ -153,34 +153,47 @@ describe('workspace writes and recovery', () => {
     expect(store.workspace?.snapshot.layout.mainSidebar.size).toBe(320);
     expect(store.workspace?.snapshot.layout.panel.dock).toBe('right');
   });
-  it('keeps a failed CAS draft and retries the identical idempotent operation without fabricating success', async () => {
-    const store = fixture(),
-      calls: unknown[] = [];
-    const request = vi.spyOn(store.api, 'request').mockImplementation(async (_path, body) => {
-      calls.push(body);
-      throw new ApiError('revision_conflict', '数据已更新', 409);
+  it('retains edits while offline and saves the latest draft on retry', async () => {
+    const store = fixture();
+    const request = vi.spyOn(store.api, 'request').mockRejectedValue(new Error('offline'));
+    await store.update((s) => {
+      s.layout.mainSidebar.size = 360;
     });
-    await expect(
-      store.update((s) => {
-        s.layout.mainSidebar.size = 360;
-      }),
-    ).rejects.toThrow('数据已更新');
-    expect(store.saveState).toBe('unsaved');
+    await store.update((s) => {
+      s.layout.panel.dock = 'right';
+    });
+    expect(store.workspace?.snapshot.layout.mainSidebar.size).toBe(360);
+    expect(store.workspace?.snapshot.layout.panel.dock).toBe('right');
     expect(store.exportDraft()).toContain('360');
-    await expect(
-      store.update((s) => {
-        s.layout.panel.visible = true;
-      }),
-    ).rejects.toThrow('未同步');
-    expect(request).toHaveBeenCalledTimes(1);
+    expect(store.toasts).toEqual([]);
     request.mockImplementation(async (_path, body) => {
-      calls.push(body);
-      const data = body as { snapshot: ReturnType<typeof defaultSnapshot> };
+      const data = body as { snapshot: WorkspaceSnapshot };
       return { workspaceId: 'ws', revision: 2, snapshot: data.snapshot } as never;
     });
     await store.retrySave();
-    expect(calls[1]).toEqual(calls[0]);
     expect(store.saveState).toBe('saved');
+    expect(store.workspace?.snapshot.layout.panel.dock).toBe('right');
+  });
+  it('automatically rebinds a conflicted save without losing the local draft', async () => {
+    const store = fixture();
+    const request = vi.spyOn(store.api, 'request');
+    request.mockRejectedValueOnce(new ApiError('revision_conflict', '数据已更新', 409));
+    request.mockResolvedValueOnce({ ...store.workspace, revision: 8 } as never);
+    request.mockImplementation(async (_path, body) => {
+      const data = body as { snapshot: WorkspaceSnapshot; baseRevision: number };
+      return {
+        workspaceId: 'ws',
+        revision: data.baseRevision + 1,
+        snapshot: data.snapshot,
+      } as never;
+    });
+    await store.update((s) => {
+      s.layout.mainSidebar.size = 400;
+    });
+    expect(store.workspace?.revision).toBe(9);
+    expect(store.workspace?.snapshot.layout.mainSidebar.size).toBe(400);
+    expect(request.mock.calls[2][1]).toMatchObject({ baseRevision: 8 });
+    expect(store.toasts).toEqual([]);
   });
   it('never locally removes a plugin tab when the atomic close transaction fails', async () => {
     const store = fixture(),
@@ -198,4 +211,74 @@ describe('workspace writes and recovery', () => {
     expect(store.workspace?.snapshot.tabs.some((t) => t.id === tab.id)).toBe(true);
     expect(store.saveState).toBe('unsaved');
   });
+});
+
+it('creates a fresh workspace per document, shares only the seed, and isolates existing windows', async () => {
+  const first = fixture();
+  first.lease = undefined;
+  first.workspace = undefined;
+  const snapshots = new Map<
+    string,
+    { workspaceId: string; revision: number; snapshot: WorkspaceSnapshot }
+  >();
+  vi.spyOn(EventConnection.prototype, 'connect').mockResolvedValue();
+  const setup = (store: WorkbenchStore) => {
+    vi.spyOn(store, 'refreshLists').mockResolvedValue();
+    vi.spyOn(store.api, 'request').mockImplementation(async (path, body) => {
+      if (path === '/bootstrap') {
+        return {
+          installationId: 'i',
+          coreBootId: 'boot',
+          preferences: { values: {}, revision: 0 },
+        } as never;
+      }
+      const id = path.split('/')[2];
+      if (path.endsWith('/lease')) {
+        if (!snapshots.has(id)) {
+          snapshots.set(id, { workspaceId: id, revision: 0, snapshot: defaultSnapshot() });
+        }
+        return { workspaceId: id, token: 'lease', expiresAt: Date.now() + 30000 } as never;
+      }
+      if (path.endsWith('/save')) {
+        const data = body as { snapshot: WorkspaceSnapshot; baseRevision: number };
+        const saved = {
+          workspaceId: id,
+          snapshot: structuredClone(data.snapshot),
+          revision: data.baseRevision + 1,
+        };
+        snapshots.set(id, saved);
+        return structuredClone(saved) as never;
+      }
+      return structuredClone(requireValue(snapshots.get(id))) as never;
+    });
+  };
+  setup(first);
+  await first.start();
+  await first.update((s) => {
+    s.layout.mainSidebar.size = 333;
+  });
+  sessionStorage.setItem(
+    'scwc.workspace',
+    requireValue((first as WorkbenchStore).workspace).workspaceId,
+  );
+  const second = new WorkbenchStore();
+  stores.push(second);
+  setup(second);
+  await second.start();
+  expect(second.workspace?.workspaceId).not.toBe(
+    requireValue((first as WorkbenchStore).workspace).workspaceId,
+  );
+  expect(second.workspace?.snapshot.layout.mainSidebar.size).toBe(333);
+  await first.update((s) => {
+    s.layout.mainSidebar.size = 444;
+  });
+  expect(second.workspace?.snapshot.layout.mainSidebar.size).toBe(333);
+  const third = new WorkbenchStore();
+  stores.push(third);
+  setup(third);
+  await third.start();
+  expect(third.workspace?.snapshot.layout.mainSidebar.size).toBe(444);
+  expect(third.workspace?.snapshot.binding).toEqual({ kind: 'browser-temporary', localPath: null });
+  expect(new Set([first, second, third].map((s) => s.workspace?.workspaceId)).size).toBe(3);
+  sessionStorage.clear();
 });

@@ -506,29 +506,6 @@ export class InternalPageView extends LitElement {
             ${icon('download')}导出
           </button>`,
         )}${this.setting(
-          '保存状态',
-          this.store.saveState === 'unsaved'
-            ? '当前存在未同步更改，请保留草稿后处理冲突。'
-            : '工作区更改已同步到本机数据库。',
-          html`<span class=${`badge ${this.store.saveState === 'unsaved' ? 'error' : 'success'}`}
-              >${this.store.saveState === 'unsaved' ? '尚未保存' : '已保存'}</span
-            >${this.store.saveState === 'unsaved'
-              ? html`<button
-                    class="btn secondary"
-                    @click=${() => this.run(() => this.store.retrySave())}
-                  >
-                    重试保存</button
-                  ><button
-                    class="text-button"
-                    @click=${async () =>
-                      (await this.store.confirm(
-                        '本地草稿将被服务端版本替换。请先导出需要保留的更改。继续？',
-                      )) && this.run(() => this.store.acceptRemote())}
-                  >
-                    接受服务端版本
-                  </button>`
-              : nothing}`,
-        )}${this.setting(
           '服务地址',
           '管理 API 需要精确同源，请从核心 /web/ 地址打开工作台。',
           html`<code>${location.origin}</code>`,

@@ -137,3 +137,21 @@ describe('inline Web command terminal', () => {
     expect(store.terminalView(store.terminals[0]).follow).toBe(true);
   });
 });
+
+it('preserves input focus before a click elsewhere in terminal output', async () => {
+  const { root } = await fixture();
+  const editor = requireValue(root.querySelector<CommandEditor>('wb-command-editor'));
+  await editor.updateComplete;
+  editor.focus();
+  const input = requireValue(editor.shadowRoot?.querySelector('textarea'));
+  const blur = vi.fn();
+  input.addEventListener('blur', blur);
+  const output = requireValue(root.querySelector('.terminal-output'));
+  expect(
+    output.dispatchEvent(
+      new MouseEvent('mousedown', { button: 0, bubbles: true, cancelable: true }),
+    ),
+  ).toBe(false);
+  expect(editor.shadowRoot?.activeElement).toBe(input);
+  expect(blur).not.toHaveBeenCalled();
+});

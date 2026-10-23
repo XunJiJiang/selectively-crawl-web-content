@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { requireValue } from '../../../shared/workbench-protocol.ts';
-import { CommandEditor } from '../components/command-editor.ts';
+import { CommandEditor, hasOpenQuote } from '../components/command-editor.ts';
 import type { WorkbenchStore } from './store.ts';
 import type { Terminal, TerminalViewState } from './types.ts';
 afterEach(() => {
@@ -9,7 +9,7 @@ afterEach(() => {
   Reflect.deleteProperty(document, 'execCommand');
 });
 describe('command editor keyboard precedence', () => {
-  it('submits Enter before CodeMirror defaults, preserves Shift+Enter and IME', async () => {
+  it('submits Enter from the independent input, preserves Shift+Enter and IME', async () => {
     vi.stubGlobal(
       'ResizeObserver',
       class {
@@ -34,7 +34,7 @@ describe('command editor keyboard precedence', () => {
     editor.value = 'help';
     document.body.append(editor);
     await editor.updateComplete;
-    const input = editor.shadowRoot?.querySelector<HTMLElement>('.cm-content');
+    const input = editor.shadowRoot?.querySelector<HTMLElement>('textarea');
     if (!input) {
       throw new Error('missing editor');
     }
@@ -119,7 +119,7 @@ async function fixture(value = '', entries: string[] = []) {
   editor.value = value;
   document.body.append(editor);
   await editor.updateComplete;
-  const input = requireValue(editor.shadowRoot?.querySelector<HTMLElement>('.cm-content'));
+  const input = requireValue(editor.shadowRoot?.querySelector<HTMLElement>('textarea'));
   const key = (key: string, extra: KeyboardEventInit = {}) =>
     input.dispatchEvent(
       new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...extra }),
@@ -229,4 +229,106 @@ it('preserves prefix filtering and the argument key on repeated Tab', async () =
   key('ArrowDown');
   key('Enter');
   expect(editor.value).toBe('crawl run --format=json');
+});
+
+it.each(["'", '"', '`'])(
+  'continues an unclosed %s quote and submits after closing it',
+  async (quote) => {
+    const { editor, key } = await fixture('echo ' + quote + '中文');
+    const submit = vi.fn();
+    editor.addEventListener('submit-command', submit);
+    key('Enter');
+    expect(editor.value).toBe('echo ' + quote + '中文\n');
+    expect(submit).not.toHaveBeenCalled();
+    editor.value += quote;
+    await editor.updateComplete;
+    key('End');
+    key('Enter');
+    expect(submit).toHaveBeenCalledTimes(1);
+  },
+);
+it('distinguishes escaped quotes and apostrophes inside other quote types', () => {
+  expect(hasOpenQuote('echo "it' + "'" + 's fine"')).toBe(false);
+  expect(hasOpenQuote('echo ' + String.fromCharCode(92) + '"')).toBe(false);
+  expect(hasOpenQuote('echo "a' + String.fromCharCode(92) + '"b')).toBe(true);
+});
+it('moves and selects whole graphemes, and renders a wide cursor character', async () => {
+  const { editor, key } = await fixture('a中文👨‍👩‍👧‍👦');
+  const input = requireValue(editor.shadowRoot?.querySelector<HTMLTextAreaElement>('textarea'));
+  key('ArrowLeft');
+  expect(input.selectionStart).toBe(3);
+  key('ArrowLeft');
+  expect(input.selectionStart).toBe(2);
+  await editor.updateComplete;
+  expect(editor.shadowRoot?.querySelector('.cursor')?.textContent).toBe('文');
+  key('ArrowLeft', { shiftKey: true });
+  expect(input.value.slice(input.selectionStart, input.selectionEnd)).toBe('中');
+  key('Home', { shiftKey: true });
+  expect(input.selectionStart).toBe(0);
+  expect(input.selectionEnd).toBe(2);
+});
+it.each([{ ctrlKey: true }, { metaKey: true }, { altKey: true }])(
+  'supports word movement, selection, deletion and undo with %j',
+  async (modifier) => {
+    const { editor, key } = await fixture('one two three');
+    const input = requireValue(editor.shadowRoot?.querySelector<HTMLTextAreaElement>('textarea'));
+    key('ArrowLeft', modifier);
+    expect(input.selectionStart).toBe(8);
+    key('ArrowLeft', { ...modifier, shiftKey: true });
+    expect(input.value.slice(input.selectionStart, input.selectionEnd)).toBe('two ');
+    key('Backspace', modifier);
+    expect(editor.value).toBe('one three');
+    key('z', { ctrlKey: true });
+    expect(editor.value).toBe('one two three');
+    key('z', { ctrlKey: true, shiftKey: true });
+    expect(editor.value).toBe('one three');
+    key('Delete', modifier);
+    expect(editor.value).toBe('one ');
+  },
+);
+it('cycles backward through suggestions with Shift+Tab and cancels them with Escape', async () => {
+  const { editor, key } = await fixture('h');
+  vi.mocked(editor.store.api.request).mockResolvedValueOnce({
+    from: 0,
+    to: 1,
+    items: [
+      { name: 'help', insertText: 'help' },
+      { name: 'hello', insertText: 'hello' },
+    ],
+  });
+  key('Tab');
+  await Promise.resolve();
+  await editor.updateComplete;
+  key('Tab', { shiftKey: true });
+  key('Enter');
+  expect(editor.value).toBe('hello');
+  key('Tab');
+  await Promise.resolve();
+  key('Escape');
+  await editor.updateComplete;
+  expect(editor.shadowRoot?.querySelector('[role="listbox"]')).toBeNull();
+});
+it('keeps undo history isolated between terminals and records native paste/input edits', async () => {
+  const { editor, key } = await fixture('a');
+  const input = requireValue(editor.shadowRoot?.querySelector<HTMLTextAreaElement>('textarea'));
+  input.value = 'a paste';
+  input.setSelectionRange(7, 7);
+  input.dispatchEvent(new InputEvent('input', { inputType: 'insertFromPaste' }));
+  expect(editor.value).toBe('a paste');
+  const original = editor.terminal;
+  editor.terminal = { ...original, id: 'b' };
+  editor.value = 'b';
+  await editor.updateComplete;
+  key('z', { ctrlKey: true });
+  expect(editor.value).toBe('b');
+  editor.terminal = original;
+  editor.value = 'a paste';
+  await editor.updateComplete;
+  key('z', { ctrlKey: true });
+  expect(editor.value).toBe('a');
+});
+it('leaves vertical movement in multiline input to the native editor instead of history', async () => {
+  const { editor, key } = await fixture('one\ntwo', ['old']);
+  expect(key('ArrowUp')).toBe(true);
+  expect(editor.value).toBe('one\ntwo');
 });

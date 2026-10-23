@@ -132,6 +132,14 @@ export const snapshotSchema = z
         focusedGroupId: identifier,
       })
       .strict(),
+    binding: z
+      .object({
+        kind: z.enum(['browser-temporary', 'local-path']),
+        localPath: z.string().max(32768).nullable(),
+        sourceWorkspaceId: identifier.nullable().optional(),
+      })
+      .strict()
+      .optional(),
     tabs: z.array(tabSchema).max(500),
     focusedPluginTabId: identifier.nullable().optional(),
   })
@@ -220,9 +228,18 @@ const preferenceSchema = z
   .object({
     theme: z.enum(['system', 'light-2026', 'dark-2026']).optional(),
     bookmarkFolders: z
-      .array(z.object({ id: identifier, name: z.string().min(1).max(200) }).strict())
+      .array(
+        z
+          .object({
+            id: identifier,
+            name: z.string().min(1).max(200),
+            parentId: identifier.nullable().optional(),
+          })
+          .strict(),
+      )
       .max(500)
       .optional(),
+    bookmarkOrder: z.array(z.string().min(1).max(220)).max(10000).optional(),
     keybindings: z
       .array(
         z
@@ -518,7 +535,9 @@ export class WorkspaceService {
   setPreferences(input: unknown, baseRevision: number, reset: string[] = []) {
     const values = preferenceSchema.parse(input);
     assert(
-      reset.every((k) => ['theme', 'keybindings', 'energy', 'bookmarkFolders'].includes(k)),
+      reset.every((k) =>
+        ['theme', 'keybindings', 'energy', 'bookmarkFolders', 'bookmarkOrder'].includes(k),
+      ),
       'invalid_preferences',
       '未知偏好字段',
     );
@@ -536,6 +555,95 @@ export class WorkspaceService {
       return this.preferences();
     })();
     this.events.publish('preferences.changed', result, 'local', result.revision);
+    return result;
+  }
+  moveBookmark(input: unknown) {
+    const move = z
+      .object({
+        source: z.string().min(1).max(220),
+        target: z.string().max(220).nullable(),
+        position: z.enum(['before', 'after', 'inside']),
+        baseRevision: z.number().int().nonnegative(),
+      })
+      .strict()
+      .parse(input);
+    const result = this.storage.db.transaction(() => {
+      const current = this.preferences();
+      this.cas(current, move.baseRevision);
+      const folders: { id: string; name: string; parentId?: string | null }[] = structuredClone(
+        current.values.bookmarkFolders ?? [],
+      );
+      const bookmarks = this.bookmarks();
+      const nodes = new Map<
+        string,
+        {
+          parent: string | null;
+          folder?: (typeof folders)[number];
+          bookmark?: (typeof bookmarks)[number];
+        }
+      >();
+      for (const folder of folders) {
+        nodes.set(`folder:${folder.id}`, {
+          parent: folder.parentId ? `folder:${folder.parentId}` : null,
+          folder,
+        });
+      }
+      for (const bookmark of bookmarks) {
+        nodes.set(`bookmark:${bookmark.id}`, {
+          parent:
+            bookmark.folderId && folders.some((f) => f.id === bookmark.folderId)
+              ? `folder:${bookmark.folderId}`
+              : null,
+          bookmark,
+        });
+      }
+      const source = nodes.get(move.source),
+        target = move.target ? nodes.get(move.target) : undefined;
+      assert(
+        source && (!move.target || target) && move.source !== move.target,
+        'invalid_move',
+        '收藏拖放目标无效',
+      );
+      assert(
+        move.position !== 'inside' || !target || target.folder,
+        'invalid_move',
+        '只能移动到文件夹内',
+      );
+      const parent = move.position === 'inside' ? move.target : (target?.parent ?? null);
+      const visited = new Set<string>([move.source]);
+      for (let id = parent; id; id = nodes.get(id)?.parent ?? null) {
+        assert(!visited.has(id), 'invalid_move', '不能把文件夹移入自身或子文件夹');
+        visited.add(id);
+      }
+      const order: string[] = [
+        ...new Set<string>([...(current.values.bookmarkOrder ?? []), ...nodes.keys()]),
+      ].filter((id) => nodes.has(id) && id !== move.source);
+      let index = move.target ? order.indexOf(move.target) : order.length;
+      if (move.position === 'after') {
+        index++;
+      }
+      if (move.position === 'inside') {
+        index = order.length;
+      }
+      order.splice(index, 0, move.source);
+      const parentId = parent?.slice('folder:'.length) ?? null;
+      if (source.folder) {
+        source.folder.parentId = parentId;
+      }
+      if (source.bookmark) {
+        const bookmark = source.bookmark;
+        const { id: _id, revision: _revision, ...value } = bookmark;
+        this.storage.db
+          .prepare('UPDATE bookmarks SET value_json=?,revision=? WHERE id=?')
+          .run(json({ ...value, folderId: parentId }), bookmark.revision + 1, bookmark.id);
+      }
+      const preferences = this.setPreferences(
+        { bookmarkFolders: folders, bookmarkOrder: order },
+        current.revision,
+      );
+      return { preferences, bookmarks: this.bookmarks() };
+    })();
+    this.events.publish('bookmarks.changed', {}, 'local');
     return result;
   }
   bookmarks() {

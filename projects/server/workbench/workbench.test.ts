@@ -393,3 +393,78 @@ describe('Web command execution', () => {
     await expect.poll(() => c.execution(busy.id).status).toBe('succeeded');
   });
 });
+
+describe('bookmark tree moves', () => {
+  it('atomically moves folders and bookmarks in a mixed sibling order, rejecting cycles and stale revisions', () => {
+    const { workspace } = fixture();
+    workspace.setPreferences(
+      {
+        bookmarkFolders: [
+          { id: 'a', name: 'A' },
+          { id: 'b', name: 'B' },
+          { id: 'c', name: 'C', parentId: 'a' },
+        ],
+      },
+      0,
+    );
+    workspace.bookmark(
+      {
+        pluginId: 'p',
+        url: 'http://localhost/web/page/plugin/p/',
+        locator: { installationId: 'i', pluginId: 'p', path: '/', search: '', hash: '' },
+        originalTitle: 'Page',
+      },
+      'page',
+    );
+    let result = workspace.moveBookmark({
+      source: 'bookmark:page',
+      target: 'folder:a',
+      position: 'inside',
+      baseRevision: 1,
+    });
+    expect(result.bookmarks[0].folderId).toBe('a');
+    result = workspace.moveBookmark({
+      source: 'folder:b',
+      target: 'bookmark:page',
+      position: 'before',
+      baseRevision: 2,
+    });
+    expect(
+      result.preferences.values.bookmarkFolders.find((f: { id: string }) => f.id === 'b').parentId,
+    ).toBe('a');
+    expect(result.preferences.values.bookmarkOrder.indexOf('folder:b')).toBeLessThan(
+      result.preferences.values.bookmarkOrder.indexOf('bookmark:page'),
+    );
+    expect(() =>
+      workspace.moveBookmark({
+        source: 'folder:a',
+        target: 'folder:c',
+        position: 'inside',
+        baseRevision: 3,
+      }),
+    ).toThrow('子文件夹');
+    expect(workspace.preferences().revision).toBe(3);
+    expect(() =>
+      workspace.moveBookmark({
+        source: 'folder:b',
+        target: null,
+        position: 'inside',
+        baseRevision: 1,
+      }),
+    ).toThrow('数据已更新');
+    result = workspace.moveBookmark({
+      source: 'folder:b',
+      target: null,
+      position: 'inside',
+      baseRevision: 3,
+    });
+    expect(
+      result.preferences.values.bookmarkFolders.find((f: { id: string }) => f.id === 'b').parentId,
+    ).toBeNull();
+  });
+  it('accepts browser and future desktop path bindings in workspace snapshots', () => {
+    const snapshot = defaultSnapshot();
+    snapshot.binding = { kind: 'local-path', localPath: 'F:/workspace/example.json' };
+    expect(validateSnapshot(snapshot).binding?.localPath).toBe('F:/workspace/example.json');
+  });
+});

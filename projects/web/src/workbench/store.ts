@@ -1,3 +1,4 @@
+import { BrowserWorkspace, type WorkspacePersistence } from './browser-workspace.ts';
 import { requireValue } from '../../../shared/workbench-protocol.ts';
 import { WorkbenchAPI, ApiError, EventConnection } from '../api/workbench.ts';
 import { ConfigController } from '../../../shared/store/config.ts';
@@ -110,6 +111,8 @@ export class WorkbenchStore extends EventTarget {
   private disposed = false;
   private pending?: { path: string; body: unknown };
   private executionGeneration = 0;
+  private persistence?: WorkspacePersistence;
+  private retryTimer?: ReturnType<typeof setTimeout>;
   private listGeneration: Record<string, number> = {};
   constructor() {
     super();
@@ -253,14 +256,38 @@ export class WorkbenchStore extends EventTarget {
     try {
       this.bootstrap = await this.api.request<Bootstrap>('/bootstrap');
       this.preferences = this.bootstrap.preferences;
-      const requested = sessionStorage.getItem('scwc.workspace') ?? uid();
+      const requested = this.lease?.workspaceId ?? uid();
+      const initialize = !this.lease;
+      this.persistence ??= new BrowserWorkspace(this.bootstrap.installationId);
       this.lease = await this.api.request<Lease>(
         `/workspaces/${encodeURIComponent(requested)}/lease`,
         { action: 'acquire' },
       );
-      sessionStorage.setItem('scwc.workspace', this.lease.workspaceId);
+
       this.workspace = await this.api.request<Workspace>(`/workspaces/${this.lease.workspaceId}`);
       this.applyExecutionState(this.workspace);
+      if (initialize) {
+        let seed = this.persistence.load();
+        if (!seed) {
+          try {
+            const legacyId = sessionStorage.getItem('scwc.workspace');
+            if (legacyId) {
+              seed = (
+                await this.api.request<Workspace>(`/workspaces/${encodeURIComponent(legacyId)}`)
+              ).snapshot;
+            }
+          } catch {
+            /* Migration is best effort if the legacy workspace no longer exists. */
+          }
+        }
+        // Each document gets a fresh ID, including duplicated browser tabs.
+        await this.update((snapshot) => {
+          if (seed) {
+            Object.assign(snapshot, seed);
+          }
+          snapshot.binding = { kind: 'browser-temporary', localPath: null };
+        });
+      }
       const relocated = clone(this.workspace.snapshot);
       if (this.relocate(relocated)) {
         await this.update((s) => {
@@ -288,13 +315,6 @@ export class WorkbenchStore extends EventTarget {
       void this.events.connect();
       clearInterval(this.renewTimer);
       this.renewTimer = setInterval(() => void this.renew(), 10000);
-      const recovery = localStorage.getItem(this.recoveryKey());
-      if (recovery) {
-        this.toast('发现尚未同步的工作区草稿。可在设置中导出草稿；接受服务端版本后清除。', 'warn');
-      }
-      if (this.lease.clonedFrom) {
-        this.toast('此工作区已由另一窗口使用，已自动克隆为独立工作区。');
-      }
     } catch (e) {
       this.error = this.message(e);
       this.connection = 'disconnected';
@@ -348,6 +368,7 @@ export class WorkbenchStore extends EventTarget {
     return `scwc.workspace.draft.${this.lease?.workspaceId ?? 'local'}`;
   }
   private preserve(snapshot: WorkspaceSnapshot) {
+    this.persistence?.publish(snapshot);
     try {
       localStorage.setItem(
         this.recoveryKey(),
@@ -397,9 +418,6 @@ export class WorkbenchStore extends EventTarget {
       if (!this.workspace) {
         throw new Error('工作区尚未连接');
       }
-      if (this.saveState === 'unsaved') {
-        throw new Error('工作区有未同步更改，请先重试保存或导出并接受服务端版本。');
-      }
       const next = clone(this.workspace.snapshot);
       mutate(next);
       if (JSON.stringify(next) === JSON.stringify(this.workspace.snapshot)) {
@@ -414,7 +432,7 @@ export class WorkbenchStore extends EventTarget {
         baseRevision: this.workspace.revision,
         lease: this.session().lease,
         operationId: uid(),
-      });
+      }).catch(() => undefined);
     });
   }
   private async commit(path: string, body: unknown) {
@@ -423,8 +441,26 @@ export class WorkbenchStore extends EventTarget {
     }
     this.pending = { path, body };
     try {
-      const saved = await this.api.request<Workspace>(path, body);
+      let saved: Workspace;
+      try {
+        saved = await this.api.request<Workspace>(path, body);
+      } catch (error) {
+        if (!(error instanceof ApiError) || error.code !== 'revision_conflict') {
+          throw error;
+        }
+        // This page is the sole writer. Preserve its draft and bind a new operation to the current revision.
+        const remote = await this.api.request<Workspace>(
+          `/workspaces/${this.session().workspaceId}`,
+        );
+        body = { ...(body as object), baseRevision: remote.revision, operationId: uid() };
+        this.pending = { path, body };
+        saved = await this.api.request<Workspace>(path, body);
+      }
       this.workspace = saved;
+      if (!path.endsWith('/save')) {
+        this.persistence?.publish(saved.snapshot);
+      }
+      clearTimeout(this.retryTimer);
       if (path === '/history/restore') {
         const snapshot = clone(saved.snapshot);
         if (this.relocate(snapshot)) {
@@ -446,7 +482,10 @@ export class WorkbenchStore extends EventTarget {
       }
     } catch (e) {
       this.saveState = 'unsaved';
-      this.toast(`${this.message(e)}。更改尚未保存，可重试或导出。`, 'error');
+      clearTimeout(this.retryTimer);
+      if (!this.disposed) {
+        this.retryTimer = setTimeout(() => void this.retrySave().catch(() => undefined), 2000);
+      }
       throw e;
     } finally {
       this.changed();
@@ -477,8 +516,8 @@ export class WorkbenchStore extends EventTarget {
       if (!this.workspace || !tabIds.length) {
         return;
       }
-      if (this.saveState === 'unsaved') {
-        throw new Error('请先处理尚未保存的工作区更改。');
+      if (this.pending) {
+        await this.commit(this.pending.path, this.pending.body);
       }
       const path = `/workspaces/${this.workspace.workspaceId}/close-tabs`,
         body = {
@@ -493,8 +532,8 @@ export class WorkbenchStore extends EventTarget {
   }
   restore(closeIds: string[], groupId: string) {
     return this.serial(async () => {
-      if (this.saveState === 'unsaved') {
-        throw new Error('请先处理尚未保存的工作区更改。');
+      if (this.pending) {
+        await this.commit(this.pending.path, this.pending.body);
       }
       await this.commit('/history/restore', {
         ...this.session(),
@@ -747,7 +786,7 @@ export class WorkbenchStore extends EventTarget {
           action: 'acquire',
         });
       }
-      sessionStorage.setItem('scwc.workspace', this.session().workspaceId);
+
       this.bootstrap = boot;
       this.dispatchEvent(new Event('core-restarted'));
     }
@@ -773,6 +812,7 @@ export class WorkbenchStore extends EventTarget {
     this.disposed = true;
     clearInterval(this.renewTimer);
     clearTimeout(this.refreshTimer);
+    clearTimeout(this.retryTimer);
     for (const timer of this.toastTimers.values()) {
       clearTimeout(timer);
     }

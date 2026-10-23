@@ -402,6 +402,19 @@ export class WorkbenchTerminal extends LitElement {
           aria-label="终端输出"
           tabindex="0"
           @scroll=${() => this.rememberScroll(performance.now() < this.userScrollUntil)}
+          @mousedown=${(event: MouseEvent) => {
+            const editor = this.renderRoot.querySelector<CommandEditor>('wb-command-editor');
+            const target = event.composedPath()[0] as HTMLElement;
+            if (
+              event.button === 0 &&
+              editor &&
+              !event.composedPath().includes(editor) &&
+              !target.closest?.('button, a, input, textarea')
+            ) {
+              event.preventDefault();
+              editor.focus();
+            }
+          }}
           @pointerdown=${() => {
             this.userScrollUntil = performance.now() + 1000;
           }}

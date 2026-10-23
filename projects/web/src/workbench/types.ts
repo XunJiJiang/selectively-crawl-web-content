@@ -24,7 +24,8 @@ export interface CatalogItem {
   revision: number;
 }
 export interface PreferenceValues {
-  bookmarkFolders?: { id: string; name: string }[];
+  bookmarkFolders?: { id: string; name: string; parentId?: string | null }[];
+  bookmarkOrder?: string[];
   theme?: 'system' | 'light-2026' | 'dark-2026';
   keybindings?: Keybinding[];
   energy?: { enabled: boolean; idleMinutes: number };

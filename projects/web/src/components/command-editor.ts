@@ -1,10 +1,9 @@
+/// <reference lib="es2022.intl" />
 import { completionSource } from '../../../terminal/command-text.ts';
 import { requireValue } from '../../../shared/workbench-protocol.ts';
 import { LitElement, html, css, nothing, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { EditorState, Prec } from '@codemirror/state';
-import { EditorView, keymap, drawSelection, gutter, GutterMarker } from '@codemirror/view';
-import { defaultKeymap, history, historyKeymap, insertNewline } from '@codemirror/commands';
+import { live } from 'lit/directives/live.js';
 import type { WorkbenchStore } from '../workbench/store.ts';
 import type { Terminal } from '../workbench/types.ts';
 import { commands, effectiveKeys, matchesKey } from '../workbench/commands.ts';
@@ -14,16 +13,29 @@ type Completion = {
   to: number;
   items: { name: string; insertText: string; description?: string }[];
 };
-
-class PromptMarker extends GutterMarker {
-  toDOM() {
-    const prompt = document.createElement('span');
-    prompt.textContent = '>';
-    prompt.setAttribute('aria-hidden', 'true');
-    return prompt;
+type Edit = { value: string; anchor: number; head: number };
+const graphemes = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+export function hasOpenQuote(text: string) {
+  let quote = '';
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (c === '\\' && quote !== "'") {
+      const next = text[i + 1];
+      if (next === quote || next === '\\' || (!quote && ['"', "'", '`'].includes(next))) {
+        i++;
+      }
+      continue;
+    }
+    if (quote) {
+      if (c === quote) {
+        quote = '';
+      }
+    } else if (['"', "'", '`'].includes(c)) {
+      quote = c;
+    }
   }
+  return Boolean(quote);
 }
-const promptMarker = new PromptMarker();
 
 @customElement('wb-command-editor')
 export class CommandEditor extends LitElement {
@@ -34,91 +46,101 @@ export class CommandEditor extends LitElement {
   @property() accessor value = '';
   @state() private accessor candidates: Completion | null = null;
   @state() private accessor candidateIndex = 0;
-  @state() private accessor completing = false;
-  private position = { line: 1, column: 1, lines: 1 };
-  private editor?: EditorView;
+  @state() private accessor focused = false;
+  private completing = false;
   private completion?: AbortController;
-  private applying = false;
   private terminalId = '';
-  // Undo stacks belong to a terminal, never to the previously selected terminal.
-  private states = new Map<string, EditorState>();
+  private anchor = 0;
+  private head = 0;
+  private composing = false;
+  private resizeObserver?: ResizeObserver;
+  private measuredWidth = -1;
+  private position = { line: 1, column: 1, lines: 1 };
+  private states = new Map<string, { undo: Edit[]; redo: Edit[] }>();
   static styles = css`
     :host {
       display: block;
       min-height: 0;
       font-family: var(--font-mono);
+      font-size: 1rem;
+      color: var(--terminal-foreground);
     }
-    .terminal-input-prompt-line {
-      display: flex;
-      align-items: center;
-      background: var(--surface-0);
+    .input-surface {
+      position: relative;
+      line-height: var(--leading-relaxed);
+      overflow: hidden;
     }
-    .cm-editor .cm-gutters {
-      background: transparent;
-      border: 0;
+    .input-mirror {
+      position: absolute;
+      top: 0;
+      left: 2ch;
+      margin: 0;
+      white-space: normal;
+      overflow-wrap: anywhere;
+      tab-size: 4;
+      pointer-events: none;
     }
-    .terminal-input-prompts .cm-gutterElement {
-      padding: 0 var(--space-2) 0 0;
+    .input-line {
+      white-space: pre-wrap;
+      min-height: 1lh;
+      position: relative;
+    }
+    .input-line::before {
+      content: '>';
+      position: absolute;
+      right: calc(100% + 1ch);
       color: var(--accent-primary);
       font-weight: var(--font-semibold);
-      line-height: var(--leading-relaxed);
-      font-size: 1rem;
-      user-select: none;
     }
-    .terminal-input-editor {
-      flex: 1;
-      min-width: 0;
-    }
-    .cm-editor .cm-line {
-      padding: 0 !important;
-    }
-    .cm-editor {
+    textarea {
+      position: relative;
+      display: block;
+      width: calc(100% - 2ch);
       min-height: 1lh;
       max-height: 50vh;
-      background: var(--surface-0);
-      color: var(--text-primary);
-      font-size: 1rem;
-    }
-    .cm-scroller {
+      margin: 0 0 0 2ch;
+      padding: 0;
+      border: 0;
+      outline: 0;
+      resize: none;
       overflow: auto;
-      font-family: var(--font-mono);
-      line-height: var(--leading-relaxed);
-    }
-    .cm-editor .cm-content {
-      padding: 0 !important;
-      caret-color: transparent;
-    }
-    .cm-focused {
-      outline: none !important;
-    }
-    .cm-cursor {
-      display: block !important;
-      width: 1ch !important;
-      border: 1px solid var(--terminal-cursor) !important;
-      box-sizing: border-box;
+      scrollbar-width: thin;
+      scrollbar-gutter: stable;
+      border-radius: 0;
       background: transparent;
-      margin-left: 0 !important;
+      color: transparent;
+      caret-color: transparent;
+      font: inherit;
+      line-height: inherit;
+      letter-spacing: inherit;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      tab-size: 4;
     }
-    .cm-focused .cm-cursor {
+    textarea::selection {
+      background: transparent;
+      color: transparent;
+    }
+    .selected {
+      background: var(--accent-subtle);
+    }
+    .cursor {
+      display: inline-block;
+      vertical-align: top;
+      height: 1lh;
+      outline: 1px solid var(--terminal-cursor);
+      outline-offset: -1px;
+    }
+    :host(:focus-within) .cursor {
       background: var(--terminal-cursor);
-    }
-    .cm-cursorLayer {
-      animation: none !important;
-      opacity: 1 !important;
-    }
-    .cm-selectionBackground {
-      background: var(--accent-subtle) !important;
-    }
-    .completion-container {
-      position: relative;
+      color: var(--surface-0);
     }
     .terminal-completion-list {
       position: fixed;
       z-index: 5;
       max-height: 200px;
       overflow: auto;
-      margin: 0;
-      padding: var(--space-1);
+      padding: 4px;
       background: var(--surface-1);
       border: 1px solid var(--border-default);
       border-radius: 4px;
@@ -126,34 +148,152 @@ export class CommandEditor extends LitElement {
     }
     .terminal-completion-item {
       display: flex;
-      gap: var(--space-3);
-      padding: var(--space-1) var(--space-2);
-      color: var(--text-primary);
-      font-size: 1rem;
+      gap: 12px;
+      padding: 4px 8px;
       cursor: pointer;
     }
     .terminal-completion-item[data-selected='true'] {
       background: var(--surface-3);
       color: var(--accent-primary);
     }
-    .terminal-completion-item small {
+    small {
       color: var(--text-secondary);
       font: inherit;
       overflow-wrap: anywhere;
     }
   `;
+  private get input() {
+    return this.renderRoot.querySelector<HTMLTextAreaElement>('textarea');
+  }
+  private get stacks() {
+    let stacks = this.states.get(this.terminal.id);
+    if (!stacks) {
+      this.states.set(this.terminal.id, (stacks = { undo: [], redo: [] }));
+    }
+    return stacks;
+  }
+  private snapshot(): Edit {
+    return { value: this.value, anchor: this.anchor, head: this.head };
+  }
+  private emitDraft(history = false) {
+    const local = this.store.terminalView(this.terminal);
+    local.draft = this.value;
+    local.selectionAnchor = this.anchor;
+    local.selectionHead = this.head;
+    if (!history) {
+      local.historyLocked = local.historyCursor >= 0 && this.value.includes('\n');
+      if (!local.historyLocked) {
+        local.historyCursor = -1;
+      }
+    }
+    this.closeCompletion();
+    this.updatePosition();
+    this.dispatchEvent(
+      new CustomEvent('draft-change', { detail: this.value, bubbles: true, composed: true }),
+    );
+  }
+  private select(anchor: number, head = anchor) {
+    this.anchor = Math.max(0, Math.min(this.value.length, anchor));
+    this.head = Math.max(0, Math.min(this.value.length, head));
+    this.input?.setSelectionRange(
+      Math.min(this.anchor, this.head),
+      Math.max(this.anchor, this.head),
+      this.anchor > this.head ? 'backward' : 'forward',
+    );
+    const local = this.store.terminalView(this.terminal);
+    local.selectionAnchor = this.anchor;
+    local.selectionHead = this.head;
+    this.updatePosition();
+    this.requestUpdate();
+  }
+  private readSelection = () => {
+    const input = this.input;
+    if (!input) {
+      return;
+    }
+    const backward = input.selectionDirection === 'backward';
+    const anchor = backward ? input.selectionEnd : input.selectionStart;
+    const head = backward ? input.selectionStart : input.selectionEnd;
+    if (anchor !== this.anchor || head !== this.head) {
+      this.closeCompletion();
+      this.select(anchor, head);
+    }
+  };
+  private replace(from: number, to: number, text: string, history = false) {
+    this.stacks.undo.push(this.snapshot());
+    this.stacks.redo = [];
+    this.value = this.value.slice(0, from) + text + this.value.slice(to);
+    if (this.input) {
+      this.input.value = this.value;
+    }
+    this.select(from + text.length);
+    this.emitDraft(history);
+  }
+  private insert(text: string) {
+    this.replace(Math.min(this.anchor, this.head), Math.max(this.anchor, this.head), text);
+  }
+  private undo(redo = false) {
+    const stacks = this.stacks,
+      source = redo ? stacks.redo : stacks.undo,
+      target = redo ? stacks.undo : stacks.redo;
+    const edit = source.pop();
+    if (!edit) {
+      return;
+    }
+    target.push(this.snapshot());
+    this.value = edit.value;
+    if (this.input) {
+      this.input.value = this.value;
+    }
+    this.select(edit.anchor, edit.head);
+    this.emitDraft();
+  }
+  private onInput = () => {
+    const input = this.input;
+    if (!input || input.value === this.value) {
+      return;
+    }
+    this.stacks.undo.push(this.snapshot());
+    this.stacks.redo = [];
+    this.value = input.value;
+    this.anchor =
+      input.selectionDirection === 'backward' ? input.selectionEnd : input.selectionStart;
+    this.head = input.selectionDirection === 'backward' ? input.selectionStart : input.selectionEnd;
+    this.emitDraft();
+  };
+  private renderLine(line: string, offset: number) {
+    const start = Math.min(this.anchor, this.head),
+      end = Math.max(this.anchor, this.head);
+    const parts = Array.from(graphemes.segment(line), (part) => {
+      const index = offset + part.index;
+      const selected = start !== end && index < end && index + part.segment.length > start;
+      const cursor = start === end && index === this.head && !this.composing;
+      return html`<span class=${selected ? 'selected' : cursor ? 'cursor' : ''}
+        >${part.segment}</span
+      >`;
+    });
+    const tail =
+      this.head === offset + line.length && start === end && !this.composing
+        ? html`<span class="cursor"> </span>`
+        : !line
+          ? html`<br />`
+          : nothing;
+    return html`<div class="input-line">${parts}${tail}</div>`;
+  }
+
   render() {
-    return html`<div class="completion-container">
-        ${this.candidates
-          ? html`<div
-              class="terminal-completion-list"
-              id="completions"
-              role="listbox"
-              aria-label="命令补全"
-            >
-              ${this.candidates.items.length
-                ? this.candidates.items.map(
-                    (item, i) => html`<div
+    let offset = 0;
+    return html`${this.candidates
+        ? html`<div
+            class="terminal-completion-list"
+            id="completions"
+            role="listbox"
+            aria-label="命令补全"
+          >
+            ${this.candidates.items.length
+              ? this.candidates.items.map(
+                  (item, i) =>
+                    html`<div
                       class="terminal-completion-item"
                       id=${`completion-${i}`}
                       role="option"
@@ -168,139 +308,135 @@ export class CommandEditor extends LitElement {
                         ? html`<small>${item.description}</small>`
                         : nothing}
                     </div>`,
-                  )
-                : html`<div class="terminal-completion-item">没有匹配的命令候选</div>`}
-            </div>`
-          : nothing}
-      </div>
-      <div class="terminal-input-prompt-line">
-        <div id="editor" class="terminal-input-editor"></div>
-      </div> `;
-  }
-  private extensions() {
-    return [
-      history(),
-      gutter({ class: 'terminal-input-prompts', lineMarker: () => promptMarker }),
-      drawSelection({ cursorBlinkRate: 0, drawRangeCursor: false }),
-      EditorView.lineWrapping,
-      EditorView.contentAttributes.of({
-        'aria-label': '命令输入',
-        role: 'textbox',
-        'aria-multiline': 'true',
-      }),
-      keymap.of([{ key: 'Shift-Enter', run: insertNewline }, ...defaultKeymap, ...historyKeymap]),
-      Prec.highest(
-        EditorView.domEventHandlers({
-          keydown: (e, view) => this.keydown(e, view),
-          blur: () => {
+                )
+              : html`<div>没有匹配的命令候选</div>`}
+          </div>`
+        : nothing}
+      <div class="input-surface">
+        <div class="input-mirror" aria-hidden="true">
+          ${this.value.split('\n').map((line) => {
+            const result = this.renderLine(line, offset);
+            offset += line.length + 1;
+            return result;
+          })}
+        </div>
+        <textarea
+          aria-label="命令输入"
+          aria-multiline="true"
+          aria-expanded=${Boolean(this.candidates)}
+          aria-controls=${this.candidates ? 'completions' : nothing}
+          aria-activedescendant=${this.candidates?.items.length
+            ? `completion-${this.candidateIndex}`
+            : nothing}
+          spellcheck="false"
+          autocapitalize="off"
+          autocomplete="off"
+          .value=${live(this.value)}
+          @scroll=${this.syncScroll}
+          @input=${this.onInput}
+          @select=${this.readSelection}
+          @keyup=${this.readSelection}
+          @pointerup=${this.readSelection}
+          @keydown=${this.keydown}
+          @compositionstart=${() => {
+            this.composing = true;
+            this.requestUpdate();
+          }}
+          @compositionend=${() => {
+            this.composing = false;
+            this.onInput();
+            this.requestUpdate();
+          }}
+          @focus=${() => {
+            this.focused = true;
+          }}
+          @blur=${() => {
+            this.focused = false;
             this.closeCompletion();
-            return false;
-          },
-        }),
-      ),
-      EditorView.updateListener.of((update) => {
-        if (this.applying) {
-          return;
-        }
-        const selection = update.state.selection.main;
-        const local = this.store.terminalView(this.terminal);
-        local.selectionAnchor = selection.anchor;
-        local.selectionHead = selection.head;
-        if (update.docChanged) {
-          this.closeCompletion();
-          this.value = update.state.doc.toString();
-          local.draft = this.value;
-          if (local.historyCursor >= 0 && local.historyCursor < this.terminal.history.length) {
-            local.historyLocked = this.value.includes('\n');
-          } else {
-            local.historyCursor = -1;
-          }
-          this.dispatchEvent(
-            new CustomEvent('draft-change', { detail: this.value, bubbles: true, composed: true }),
-          );
-        } else if (update.selectionSet) {
-          this.closeCompletion();
-        }
-        this.updatePosition();
-      }),
-    ];
+          }}
+        ></textarea>
+      </div>`;
   }
   firstUpdated() {
-    this.editor = new EditorView({
-      parent: requireValue(this.renderRoot.querySelector('#editor')),
-      state: this.newState(),
+    this.resizeObserver = new ResizeObserver((entries) => {
+      const width = entries[0]?.contentRect.width;
+      if (width !== undefined && width !== this.measuredWidth) {
+        this.measuredWidth = width;
+        this.resizeInput();
+      }
     });
-    this.terminalId = this.terminal.id;
-    this.updatePosition();
+    this.resizeObserver.observe(this);
   }
-  private newState() {
-    const local = this.store.terminalView(this.terminal);
-    return EditorState.create({
-      doc: this.value,
-      selection: {
-        anchor: Math.min(this.value.length, local.selectionAnchor),
-        head: Math.min(this.value.length, local.selectionHead),
-      },
-      extensions: this.extensions(),
-    });
-  }
-  updated(changed: PropertyValues) {
-    if (!this.editor) {
+  private syncScroll = () => {
+    const mirror = this.renderRoot.querySelector<HTMLElement>('.input-mirror');
+    if (mirror && this.input) {
+      mirror.style.transform = `translate(${-this.input.scrollLeft}px, ${-this.input.scrollTop}px)`;
+    }
+  };
+  private resizeInput() {
+    const input = this.input,
+      mirror = this.renderRoot.querySelector<HTMLElement>('.input-mirror');
+    if (!input || !mirror) {
       return;
     }
+    const top = input.scrollTop;
+    input.style.height = '0px';
+    input.style.height = `${input.scrollHeight}px`;
+    mirror.style.width = `${input.clientWidth}px`;
+    input.scrollTop = top;
+    this.syncScroll();
+  }
+  updated(changed: PropertyValues) {
     if (this.terminalId !== this.terminal.id) {
-      this.states.set(this.terminalId, this.editor.state);
       this.terminalId = this.terminal.id;
       this.closeCompletion();
-      const saved = this.states.get(this.terminal.id);
-      this.editor.setState(saved?.doc.toString() === this.value ? saved : this.newState());
-      this.updatePosition();
-    } else if (changed.has('value') && this.editor.state.doc.toString() !== this.value) {
-      this.applying = true;
-      this.editor.dispatch({
-        changes: { from: 0, to: this.editor.state.doc.length, insert: this.value },
-        selection: { anchor: this.value.length },
-      });
-      this.applying = false;
-      this.closeCompletion();
-      this.updatePosition();
+      const local = this.store.terminalView(this.terminal);
+      this.select(local.selectionAnchor, local.selectionHead);
+    } else if (changed.has('value')) {
+      this.select(this.anchor, this.head);
     }
-    if ((this.busy || this.waiting) && this.completion) {
+    if (changed.has('value') || changed.has('terminal')) {
+      this.resizeInput();
+    }
+    if (this.focused && this.anchor === this.head) {
+      const input = this.input;
+      const cursor = this.renderRoot.querySelector<HTMLElement>('.cursor');
+      if (input && cursor) {
+        const viewport = input.getBoundingClientRect(),
+          caret = cursor.getBoundingClientRect();
+        if (caret.top < viewport.top) {
+          input.scrollTop += caret.top - viewport.top;
+        } else if (caret.bottom > viewport.bottom) {
+          input.scrollTop += caret.bottom - viewport.bottom;
+        }
+        this.syncScroll();
+      }
+    }
+    if (this.busy || this.waiting) {
       this.closeCompletion();
     }
-    const content = this.editor.contentDOM;
     const list = this.renderRoot.querySelector<HTMLElement>('.terminal-completion-list');
     if (list) {
       const rect = this.getBoundingClientRect();
-      const viewport = this.closest('.terminal-output')?.getBoundingClientRect();
-      const above = rect.top - (viewport?.top ?? 0);
-      const below = (viewport?.bottom ?? window.innerHeight) - rect.bottom;
-      const height = Math.min(200, list.scrollHeight, Math.max(above, below));
-      list.style.left = `${rect.left}px`;
-      list.style.width = `${rect.width}px`;
-      list.style.maxHeight = `${height}px`;
-      list.style.top = `${above >= height ? rect.top - height : rect.bottom}px`;
-    }
-    content.setAttribute('aria-expanded', String(Boolean(this.candidates)));
-    if (this.candidates?.items.length) {
-      content.setAttribute('aria-controls', 'completions');
-      content.setAttribute('aria-activedescendant', `completion-${this.candidateIndex}`);
-      this.renderRoot
+      const height = Math.min(
+        200,
+        list.scrollHeight,
+        Math.max(rect.top, window.innerHeight - rect.bottom),
+      );
+      list.style.cssText = `left:${rect.left}px;width:${rect.width}px;max-height:${height}px;top:${rect.top >= height ? rect.top - height : rect.bottom}px`;
+      list
         .querySelector<HTMLElement>('[data-selected="true"]')
         ?.scrollIntoView?.({ block: 'nearest' });
-    } else {
-      content.removeAttribute('aria-activedescendant');
-      content.removeAttribute('aria-controls');
     }
   }
   private updatePosition() {
-    if (!this.editor) {
-      return;
-    }
-    const doc = this.editor.state.doc,
-      cursor = this.editor.state.selection.main.head,
-      line = doc.lineAt(cursor);
-    const position = { line: line.number, column: cursor - line.from + 1, lines: doc.lines };
+    const before = this.value.slice(0, this.head),
+      lines = before.split('\n');
+    const position = {
+      line: lines.length,
+      column: lines[lines.length - 1].length + 1,
+      lines: this.value.split('\n').length,
+    };
     if (JSON.stringify(position) !== JSON.stringify(this.position)) {
       this.position = position;
       this.dispatchEvent(
@@ -315,36 +451,31 @@ export class CommandEditor extends LitElement {
     this.completing = false;
   }
   private async complete() {
-    if (!this.editor || this.busy || this.waiting) {
+    if (this.busy || this.waiting) {
       return;
     }
     this.closeCompletion();
-    const view = this.editor,
-      original = view.state.doc.toString(),
-      cursor = view.state.selection.main.head;
-    const source = completionSource(original, cursor);
-    const command = source.command;
+    const original = this.value,
+      cursor = this.head,
+      terminalId = this.terminal.id;
+    const source = completionSource(original, cursor),
+      command = source.command;
     const controller = (this.completion = new AbortController());
     this.completing = true;
     try {
       const result = await this.store.api.request<Completion & { command?: string }>(
         '/commands/complete',
-        {
-          ...this.store.session(),
-          terminalId: this.terminal.id,
-          command,
-          cursor: source.cursor,
-        },
+        { ...this.store.session(), terminalId, command, cursor: source.cursor },
         controller.signal,
       );
       if (
         controller.signal.aborted ||
         this.completion !== controller ||
-        view.state.doc.toString() !== original
+        this.value !== original ||
+        this.head !== cursor ||
+        this.terminal.id !== terminalId ||
+        (result.command !== undefined && result.command !== command)
       ) {
-        return;
-      }
-      if (result.command !== undefined && result.command !== command) {
         return;
       }
       const prefix = command.slice(result.from, source.cursor);
@@ -366,39 +497,48 @@ export class CommandEditor extends LitElement {
   }
   private accept(index = this.candidateIndex) {
     const result = this.candidates,
-      item = result?.items[index],
-      view = this.editor;
-    if (!result || !item || !view) {
-      return false;
+      item = result?.items[index];
+    if (!result || !item) {
+      return;
     }
-    const from = Math.max(0, Math.min(result.from, view.state.doc.length));
-    const to = Math.max(from, Math.min(result.to, view.state.doc.length));
-    view.dispatch({
-      changes: { from, to, insert: item.insertText },
-      selection: { anchor: from + item.insertText.length },
-    });
-    this.closeCompletion();
-    view.focus();
-    return true;
+    this.replace(result.from, result.to, item.insertText);
+    this.focus();
   }
-  private keydown(event: KeyboardEvent, view: EditorView) {
-    if (event.isComposing) {
-      return false;
+  private wordPosition(direction: number) {
+    const before = this.value.slice(0, this.head),
+      after = this.value.slice(this.head);
+    return direction < 0
+      ? this.head -
+          (before.match(/(?:[\p{L}\p{N}_]+|[^\p{L}\p{N}_\s]+)\s*$|\s+$/u)?.[0].length ?? 1)
+      : this.head +
+          (after.match(/^\s*(?:[\p{L}\p{N}_]+|[^\p{L}\p{N}_\s]+)|^\s+/u)?.[0].length ?? 1);
+  }
+  private keydown = (event: KeyboardEvent) => {
+    if (event.isComposing || this.composing || event.keyCode === 229) {
+      return;
     }
+    this.readSelection();
     const overrides = this.store.preferences.values.keybindings ?? [];
     const matches = (id: string) =>
       effectiveKeys(requireValue(commands.find((c) => c.id === id)), overrides).some((key) =>
         matchesKey(key, event),
       );
-    const handled = () => {
-      event.preventDefault();
-      return true;
-    };
-    if (matches('terminal.complete') && !event.shiftKey) {
+    const handled = () => event.preventDefault();
+    const mod = event.metaKey || event.ctrlKey,
+      mac = /Mac|iPhone|iPad/.test(navigator.platform);
+    if (mod && event.key.toLowerCase() === 'z') {
+      this.undo(event.shiftKey);
+      return handled();
+    }
+    if (mod && event.key.toLowerCase() === 'a') {
+      this.select(0, this.value.length);
+      return handled();
+    }
+    if (matches('terminal.complete') || (event.key === 'Tab' && !mod && !event.altKey)) {
       if (this.candidates) {
-        const count = this.candidates.items.length;
-        if (count) {
-          this.candidateIndex = (this.candidateIndex + 1) % count;
+        const n = this.candidates.items.length;
+        if (n) {
+          this.candidateIndex = (this.candidateIndex + (event.shiftKey ? -1 : 1) + n) % n;
         }
       } else if (!this.completing) {
         void this.complete();
@@ -406,37 +546,37 @@ export class CommandEditor extends LitElement {
       return handled();
     }
     if (this.candidates && ['ArrowUp', 'ArrowDown'].includes(event.key)) {
-      const count = this.candidates.items.length;
-      if (count) {
-        this.candidateIndex =
-          (this.candidateIndex + (event.key === 'ArrowUp' ? -1 : 1) + count) % count;
+      const n = this.candidates.items.length;
+      if (n) {
+        this.candidateIndex = (this.candidateIndex + (event.key === 'ArrowUp' ? -1 : 1) + n) % n;
       }
       return handled();
     }
     if (event.key === 'Enter' && event.metaKey) {
       return handled();
     }
+    if (event.key === 'Enter' && event.shiftKey) {
+      this.insert('\n');
+      return handled();
+    }
     if (matches('terminal.submit') && !event.shiftKey) {
-      const text = view.state.doc.toString();
-      if (view.state.selection.main.head === text.length && text.endsWith('\\')) {
-        insertNewline(view);
-        return handled();
-      }
       if (this.candidates) {
         this.accept();
-        return handled();
-      }
-      if (this.completing) {
-        return handled();
-      }
-      if (!this.busy || this.waiting) {
-        this.dispatchEvent(
-          new CustomEvent('submit-command', {
-            detail: view.state.doc.toString(),
-            bubbles: true,
-            composed: true,
-          }),
-        );
+      } else if (!this.completing) {
+        if (
+          hasOpenQuote(this.value) ||
+          (this.head === this.value.length && this.value.endsWith('\\'))
+        ) {
+          this.insert('\n');
+        } else if (!this.busy || this.waiting) {
+          this.dispatchEvent(
+            new CustomEvent('submit-command', {
+              detail: this.value,
+              bubbles: true,
+              composed: true,
+            }),
+          );
+        }
       }
       return handled();
     }
@@ -444,89 +584,104 @@ export class CommandEditor extends LitElement {
       if (this.candidates || this.completing) {
         this.closeCompletion();
       } else {
-        this.clear(view);
+        this.clear();
       }
       return handled();
     }
     if (
       matches('terminal.cancel') &&
       !event.metaKey &&
-      view.state.selection.main.empty &&
-      !window.getSelection()?.toString()
+      (mac || (this.anchor === this.head && !window.getSelection()?.toString()))
     ) {
       this.closeCompletion();
       if (this.busy) {
         this.dispatchEvent(new CustomEvent('cancel-command', { bubbles: true, composed: true }));
       } else {
-        this.clear(view);
+        this.clear();
       }
+      return handled();
+    }
+    if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
+      const left = event.key === 'ArrowLeft',
+        lineStart = this.value.lastIndexOf('\n', this.head - 1) + 1;
+      const nextLine = this.value.indexOf('\n', this.head),
+        lineEnd = nextLine < 0 ? this.value.length : nextLine;
+      let next = this.head;
+      if (event.key === 'Home') {
+        next = lineStart;
+      } else if (event.key === 'End') {
+        next = lineEnd;
+      } else if (mod || event.altKey) {
+        next = this.wordPosition(left ? -1 : 1);
+      } else if (!event.shiftKey && this.anchor !== this.head) {
+        next = left ? Math.min(this.anchor, this.head) : Math.max(this.anchor, this.head);
+      } else {
+        const boundaries = [
+          0,
+          ...Array.from(graphemes.segment(this.value), (p) => p.index + p.segment.length),
+        ];
+        next = left
+          ? (boundaries.filter((p) => p < this.head).pop() ?? 0)
+          : (boundaries.find((p) => p > this.head) ?? this.value.length);
+      }
+      this.closeCompletion();
+      this.select(event.shiftKey ? this.anchor : next, next);
+      return handled();
+    }
+    if ((mod || event.altKey) && ['Backspace', 'Delete'].includes(event.key)) {
+      const next =
+        this.anchor !== this.head
+          ? this.anchor
+          : this.wordPosition(event.key === 'Backspace' ? -1 : 1);
+      this.replace(
+        Math.max(0, Math.min(next, this.head)),
+        Math.min(this.value.length, Math.max(next, this.head)),
+        '',
+      );
       return handled();
     }
     if (
       !this.busy &&
       !this.waiting &&
-      ['ArrowUp', 'ArrowDown'].includes(event.key) &&
       !event.shiftKey &&
+      !mod &&
       !event.altKey &&
-      !event.ctrlKey &&
-      !event.metaKey
+      ['ArrowUp', 'ArrowDown'].includes(event.key) &&
+      !this.value.includes('\n') &&
+      this.anchor === this.head
     ) {
       const local = this.store.terminalView(this.terminal),
-        entries = this.terminal.history,
-        selection = view.state.selection.main;
-      const text = view.state.doc.toString(),
-        line = view.state.doc.lineAt(selection.head),
-        up = event.key === 'ArrowUp';
-      if (
-        !entries.length ||
-        !selection.empty ||
-        local.historyLocked ||
-        (text.includes('\n') && (up ? line.number !== 1 : line.number !== view.state.doc.lines))
-      ) {
-        return false;
+        entries = this.terminal.history;
+      if (!entries.length) {
+        return;
       }
       if (local.historyCursor < 0) {
-        local.historyDraft = text;
+        local.historyDraft = this.value;
         local.historyCursor = entries.length;
       }
       local.historyCursor = Math.max(
         0,
-        Math.min(entries.length, local.historyCursor + (up ? -1 : 1)),
+        Math.min(entries.length, local.historyCursor + (event.key === 'ArrowUp' ? -1 : 1)),
       );
       const recalled =
         local.historyCursor === entries.length ? local.historyDraft : entries[local.historyCursor];
-      this.applying = true;
-      view.dispatch({
-        changes: { from: 0, to: view.state.doc.length, insert: recalled },
-        selection: {
-          anchor: up && recalled.includes('\n') ? recalled.indexOf('\n') : recalled.length,
-        },
-      });
-      this.applying = false;
-      this.value = local.draft = recalled;
-      local.selectionAnchor = local.selectionHead = view.state.selection.main.head;
-      this.updatePosition();
-      this.dispatchEvent(
-        new CustomEvent('draft-change', { detail: recalled, bubbles: true, composed: true }),
-      );
+      this.replace(0, this.value.length, recalled, true);
       return handled();
     }
-    return false;
-  }
-  private clear(view: EditorView) {
+  };
+  private clear() {
     const local = this.store.terminalView(this.terminal);
     local.historyCursor = -1;
     local.historyDraft = '';
     local.historyLocked = false;
-    view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: '' } });
+    this.replace(0, this.value.length, '');
   }
   focus() {
-    this.editor?.focus();
+    this.input?.focus({ preventScroll: true });
   }
   disconnectedCallback() {
+    this.resizeObserver?.disconnect();
     this.closeCompletion();
-    this.editor?.destroy();
-    this.editor = undefined;
     super.disconnectedCallback();
   }
 }
