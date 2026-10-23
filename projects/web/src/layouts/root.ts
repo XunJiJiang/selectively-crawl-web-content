@@ -1584,19 +1584,21 @@ export class AppRoot extends LitElement {
   }
   private shellStyle() {
     const layout = (this.resizeSnapshot ?? this.snapshot).layout,
-      narrow = innerWidth < 1024,
-      medium = innerWidth < 1280,
-      mainVisible = layout.mainSidebar.visible && !narrow && !this.focusedOnly,
-      auxVisible = layout.auxiliarySidebar.visible && !medium && !this.focusedOnly,
-      panelVisible = layout.panel.visible && !narrow && !this.focusedOnly;
+      layoutWidth = Math.max(1024, innerWidth),
+      mainVisible = this.visible('main'),
+      auxVisible = this.visible('aux'),
+      panelVisible = this.visible('panel'),
+      mainWidth = mainVisible
+        ? Math.min(layout.mainSidebar.size, layoutWidth < 1280 ? 360 : 480)
+        : 0,
+      auxWidth = auxVisible ? layout.auxiliarySidebar.size : 0,
+      panelWidth = panelVisible ? Math.min(layout.panel.width, layoutWidth * 0.45) : 0;
     const widths: Record<string, string> = {
       activity: '40px',
-      main: mainVisible
-        ? `${Math.min(layout.mainSidebar.size, innerWidth < 1280 ? 360 : 480)}px`
-        : '0px',
-      aux: auxVisible ? `${layout.auxiliarySidebar.size}px` : '0px',
+      main: `${mainWidth}px`,
+      aux: `${auxWidth}px`,
       center: 'minmax(0,1fr)',
-      panel: panelVisible ? `${Math.min(layout.panel.width, innerWidth * 0.45)}px` : '0px',
+      panel: `${panelWidth}px`,
     };
     let columns =
       layout.mainSidebar.side === 'left'
@@ -1630,6 +1632,8 @@ export class AppRoot extends LitElement {
       '--panel-width': `${layout.panel.width}px`,
       '--main-visible-width': mainVisible ? widths.main : '0px',
       '--aux-visible-width': auxVisible ? widths.aux : '0px',
+      // Keep page content at its 1024px allocation; the tab strip still fits its group.
+      '--center-min-width': `${Math.max(0, 1024 - 40 - mainWidth - auxWidth - (layout.panel.dock === 'bottom' ? 0 : panelWidth))}px`,
       '--terminal-list-width': `${layout.panel.terminalListSize}px`,
     };
   }
@@ -1702,7 +1706,6 @@ export class AppRoot extends LitElement {
             : html`<div
                 class="shell-body"
                 data-side=${this.snapshot.layout.mainSidebar.side}
-                data-main-overlay=${this.visible('main')}
                 data-panel-dock=${this.snapshot.layout.panel.dock}
                 data-main-visible=${this.visible('main')}
                 data-aux-visible=${this.visible('aux')}
@@ -1724,12 +1727,7 @@ export class AppRoot extends LitElement {
                     ></div>`
                   : nothing}
 
-                <main
-                  id="workspace-center"
-                  tabindex="-1"
-                  class="center-area"
-                  @scroll=${() => this.pool?.position()}
-                >
+                <main id="workspace-center" tabindex="-1" class="center-area">
                   ${groups(this.snapshot.layout.center).length > 1
                     ? html`<nav class="group-switcher" aria-label="切换页面组">
                         ${groups(this.snapshot.layout.center).map(

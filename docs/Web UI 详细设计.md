@@ -708,7 +708,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: var(--space-2) var(--space-1);
+  padding: var(--space-1) var(--space-1);
   gap: var(--space-1);
 }
 

@@ -1,6 +1,6 @@
 {
   "name": "selectively-crawl-web-content",
-  "version": "3.1.10",
+  "version": "3.1.11",
   "description": "A web extension for selectively crawling web content.",
   "bugs": {
     "url": "https://github.com/XunJiJinag/selectively-crawl-web-content/issues"
