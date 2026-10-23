@@ -7831,49 +7831,49 @@
       "size": 1894,
       "normalized_sha256": "ed8e2e6dec63cc8e48c2c26b0a23af5b98ad1ea1da02003f8dc54a6f6a609c1d"
     },
-    "projects/webUtils/README.md": {
+    "projects/webutils/README.md": {
       "role": "observe",
       "sha256": "45ee531ce1f8a51954ad3eff73ba7d90604e69174ed22c835391ab9e49567546",
       "size": 59,
       "normalized_sha256": "45ee531ce1f8a51954ad3eff73ba7d90604e69174ed22c835391ab9e49567546"
     },
-    "projects/webUtils/lib.d.ts": {
+    "projects/webutils/lib.d.ts": {
       "role": "index",
       "sha256": "4b2d57f893fa5d2917ad212a881cc42b4c9bb60142b336eddd09078269841ab0",
       "size": 266,
       "normalized_sha256": "4b2d57f893fa5d2917ad212a881cc42b4c9bb60142b336eddd09078269841ab0"
     },
-    "projects/webUtils/lib/index.ts": {
+    "projects/webutils/lib/index.ts": {
       "role": "index",
       "sha256": "4403d5761449ffc3dddf75d881291e3accc36bc04b0666e277649efc85462269",
       "size": 1100,
       "normalized_sha256": "4403d5761449ffc3dddf75d881291e3accc36bc04b0666e277649efc85462269"
     },
-    "projects/webUtils/lib/ticket-socket.ts": {
+    "projects/webutils/lib/ticket-socket.ts": {
       "role": "index",
       "sha256": "9cee518eb0d7c4fa315da67e1b9c78bcbc165fe744f6f7a69cd9fd61ca00b031",
       "size": 4527,
       "normalized_sha256": "9cee518eb0d7c4fa315da67e1b9c78bcbc165fe744f6f7a69cd9fd61ca00b031"
     },
-    "projects/webUtils/lib/utils/fetch.ts": {
+    "projects/webutils/lib/utils/fetch.ts": {
       "role": "index",
       "sha256": "ff98dc1acf6b6c1f2221e802d80fb3296f80f67aceb18f2112a8a7a848cf240e",
       "size": 3315,
       "normalized_sha256": "ff98dc1acf6b6c1f2221e802d80fb3296f80f67aceb18f2112a8a7a848cf240e"
     },
-    "projects/webUtils/lib/workbench.ts": {
+    "projects/webutils/lib/workbench.ts": {
       "role": "index",
       "sha256": "c8e552ee178a4416037a4ad89825702794b66fdea850bc0d0d76f94940207dad",
       "size": 31672,
       "normalized_sha256": "c8e552ee178a4416037a4ad89825702794b66fdea850bc0d0d76f94940207dad"
     },
-    "projects/webUtils/package.json": {
+    "projects/webutils/package.json": {
       "role": "index",
       "sha256": "babff800bce39bb41a2be0e563dba310a3afb3fb5d9b3b2fc656a78bd4824592",
       "size": 528,
       "normalized_sha256": "babff800bce39bb41a2be0e563dba310a3afb3fb5d9b3b2fc656a78bd4824592"
     },
-    "projects/webUtils/vite.config.ts": {
+    "projects/webutils/vite.config.ts": {
       "role": "index",
       "sha256": "56c5e8437a0d5e2f0d1e73f125cde33d05200ff52267be20f80d4c04e225f7df",
       "size": 1000,

@@ -42,7 +42,7 @@
 | UI 缺失时当前启动流程会尝试构建，构建失败可导致插件加载失败 | 需将后端可用状态与 UI 准备状态拆开，见技术契约的迁移设计 | [build.ts](../projects/server/plugin/web/build.ts) |
 | 构建支持去重、串行、取消、5 分钟期限；只接受受限的 `vite build` 声明 | Web 按钮应复用构建器，增加任务状态和订阅，不能执行任意 package 脚本 | [build.ts](../projects/server/plugin/web/build.ts)、[options.ts](../projects/server/plugin/web/options.ts) |
 | 页面有 SPA 深链回退，但缺失资源的启发式依赖文件名是否含点；SDK 在 `</body>` 前注入 | 完整导航需要明确入口、资源和路由边界；SDK 引导需早于应用代码 | [page/index.ts](../projects/server/router/web/page/index.ts) |
-| webutils 现有 fetch/resource/websocket；初始化消息不验证来源，父页面以 `*` 发送配置 | 扩展 SDK 前先建立有版本、带实例身份的握手，避免向任意接收者发送连接凭证 | [webutils](../projects/webUtils/lib/index.ts)、[content.ts](../projects/web/src/layouts/content.ts) |
+| webutils 现有 fetch/resource/websocket；初始化消息不验证来源，父页面以 `*` 发送配置 | 扩展 SDK 前先建立有版本、带实例身份的握手，避免向任意接收者发送连接凭证 | [webutils](../projects/webutils/lib/index.ts)、[content.ts](../projects/web/src/layouts/content.ts) |
 | 插件类型的导出 `name` 可选，尚无插件级标题、描述字段；现有页面清单也没有展示元数据 | 新增可选字段与 package 静态配置，由目录投影统一计算标题和描述，避免用标识充当展示文案 | [plugin-env.d.ts](../projects/server/plugins/plugin-env.d.ts)、[protocol.ts](../projects/server/plugin/process/protocol.ts)、[api/index.ts](../projects/server/router/web/api/index.ts) |
 | 终端通过父子进程 IPC 控制核心；日志 sink、输入 handler 和默认输出身份为单一全局状态 | Web 不能直接复刻 IPC 入口或再次覆盖这些单例；必须增加分发服务 | [ipc.ts](../projects/server/command/ipc.ts)、[log.ts](../projects/server/utils/log.ts) |
 | `logger.toWeb` 位于采集请求的特定 logger 上，通过请求结果返回通知 | 保留其语义；工作台通知新增独立方法及事件路径 | [host.ts](../projects/server/plugin/process/host.ts)、[router/index.ts](../projects/server/router/index.ts) |

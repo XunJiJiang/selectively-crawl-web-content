@@ -11,7 +11,7 @@ bun run --cwd projects/web build
 bun run test --run --project selectively-crawl-web-content-web
 ```
 
-核心持久化工作区、收藏、统一关闭历史、通知与 Web 终端。前端的租约/CAS、事件恢复与实例池分别位于 `src/workbench/store.ts`、`src/api/workbench.ts`、`src/workbench/frames.ts`。浏览器 SDK 的源码位于 `projects/webUtils/lib/`，修改后需单独构建。
+核心持久化工作区、收藏、统一关闭历史、通知与 Web 终端。前端的租约/CAS、事件恢复与实例池分别位于 `src/workbench/store.ts`、`src/api/workbench.ts`、`src/workbench/frames.ts`。浏览器 SDK 的源码位于 `projects/webutils/lib/`，修改后需单独构建。
 
 开发模式下，核心的 `/web/` 跳转到 `--web-port` 指定的 Vite 端口（默认 3201，可用 `--web-host` 指定地址）。Vite 保留页面来源，将启动配置、API、插件页面、资源及 WebSocket 转发给核心，本机页面可自动加载当前 TOKEN；手动认证成功后也会保存 TOKEN。生产模式仍由核心直接提供 `/web/`。
 

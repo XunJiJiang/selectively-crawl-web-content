@@ -11,13 +11,13 @@ bun run dev:web
 bun run dev:server
 ```
 
-开发时从核心实际打印的 `http://localhost:<实际端口>/web/` 打开。3201 是 Vite 资源服务，管理 API、插件页、启动配置与事件仍由核心处理，不要将 Vite 端口当作核心端口。源插件页使用已构建的浏览器 SDK；修改 SDK 后另执行 `bun run --cwd projects/webUtils build`。
+开发时从核心实际打印的 `http://localhost:<实际端口>/web/` 打开。3201 是 Vite 资源服务，管理 API、插件页、启动配置与事件仍由核心处理，不要将 Vite 端口当作核心端口。源插件页使用已构建的浏览器 SDK；修改 SDK 后另执行 `bun run --cwd projects/webutils build`。
 
 生产产物：
 
 ```sh
 bun run --cwd projects/web build
-bun run --cwd projects/webUtils build
+bun run --cwd projects/webutils build
 ```
 
 产物进入既有 `projects/server/public/web` 与 `public/lib` 生成目录。SDK 明确构建为单个 IIFE，供核心在插件应用脚本之前注入；终端编辑器在首次使用终端时加载。
@@ -39,7 +39,7 @@ bun run --cwd projects/webUtils build
 
 ## 插件页面 SDK
 
-`projects/webUtils/lib/index.ts` 继续暴露 `fetch/resource/websocket`，并提供：
+`projects/webutils/lib/index.ts` 继续暴露 `fetch/resource/websocket`，并提供：
 
 ```ts
 await scwcutils.ready;

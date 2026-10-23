@@ -20,7 +20,7 @@
     "dev:terminal": "node projects/terminal/index.ts --mode=dev",
     "dev:us": "cd projects/user-script && bun run dev",
     "dev:web": "cd projects/web && bun run dev",
-    "build": "tsc -b && cd projects/user-script && bun run build && cd ../web && bun run build && cd ../webUtils && bun run build && cd ../server && bun run build",
+    "build": "tsc -b && cd projects/user-script && bun run build && cd ../web && bun run build && cd ../webutils && bun run build && cd ../server && bun run build",
     "build:core:bundled-node": "cd projects/server && bun run build:bundled-node --terminal-plugins=true",
     "build:core:bundled-node:windows": "bun run build:core:bundled-node --platform=win32",
     "build:core:bundled-node:linux": "bun run build:core:bundled-node --platform=linux",

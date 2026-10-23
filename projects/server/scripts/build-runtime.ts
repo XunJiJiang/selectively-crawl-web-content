@@ -15,7 +15,7 @@ export interface RuntimeAsset {
 }
 
 /** Produce the same physical runtime for SEA embedding and external Node releases. */
-export async function buildRuntime(directory: string): Promise<RuntimeAsset[]> {
+export async function buildRuntime (directory: string): Promise<RuntimeAsset[]> {
   await fs.mkdir(directory, { recursive: true });
   for (const [entry, output] of [
     ['index.ts', 'core.cjs'],
@@ -43,7 +43,7 @@ export async function buildRuntime(directory: string): Promise<RuntimeAsset[]> {
   const { build: buildVite } = await import('vite');
   for (const [config, output] of [
     ['projects/web/vite.config.ts', 'public/web'],
-    ['projects/webUtils/vite.config.ts', 'public/lib'],
+    ['projects/webutils/vite.config.ts', 'public/lib'],
   ]) {
     await buildVite({
       configFile: path.join(BUILD_ROOT, config),
@@ -84,7 +84,7 @@ export async function buildRuntime(directory: string): Promise<RuntimeAsset[]> {
     }),
   );
   const assets: RuntimeAsset[] = [];
-  async function collect(folder: string): Promise<void> {
+  async function collect (folder: string): Promise<void> {
     for (const item of await fs.readdir(folder, { withFileTypes: true })) {
       const filename = path.join(folder, item.name);
       if (item.isDirectory()) {
@@ -95,8 +95,8 @@ export async function buildRuntime(directory: string): Promise<RuntimeAsset[]> {
         const tool = relative.startsWith('node_modules/')
           ? !(relative in corePackages)
           : ['web-build-host.cjs', 'web-build-cli.cjs', 'plugin-sdk/browser.mjs'].includes(
-              relative,
-            );
+            relative,
+          );
         assets.push({
           path: relative,
           mode: stat.mode & 0o777,

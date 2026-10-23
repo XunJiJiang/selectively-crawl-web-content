@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { TicketSocket } from '../../../webUtils/lib/ticket-socket.ts';
+import { TicketSocket } from '../../../webutils/lib/ticket-socket.ts';
 class FakeSocket extends EventTarget {
   readyState = 0;
   binaryType: BinaryType = 'blob';

@@ -13,7 +13,7 @@ terminal-implementation-prompt.md[SU4M]: F:描述Web终端改造要求 | R:code:
 tsconfig.app.json[FQ5T]: F:检查浏览器应用源码 | R:code:projects/shared/store/config.ts,code:projects/user-script/src/main.ts,code:projects/web/src/main.ts | A:compilerOptions,include | S:启用旧装饰器和严格无输出检查；显式包含服务端插件全局声明以供SCWC类型使用
 tsconfig.json[FQ5T]: F:聚合工作区类型项目 | R:code:tsconfig.app.json,code:tsconfig.node.json,code:tsconfig.serve.json,code:tsconfig.terminal.json,code:tsconfig.plugin-web.json,code:projects/vite-plugin/tsconfig.json | A:references | S:根files为空，实际检查范围由各引用项目决定
 tsconfig.node.json[FQ4T]: F:检查Node构建配置与Web开发脚本 | R:code:tsconfig.json,code:projects/web/vite.config.ts,code:projects/web/scripts/dev.ts | A:compilerOptions,include | S:纳入根配置及Web配置、开发脚本和测试；严格无输出，采用bundler解析
-tsconfig.plugin-web.json[FQ5T]: F:检查插件前端源码 | R:code:projects/webUtils/lib.d.ts,code:projects/server/plugin/sdk/modules.d.ts | A:compilerOptions,include | S:插件Web单独按DOM及旧装饰器检查，加入全局SDK和SCWC声明
+tsconfig.plugin-web.json[FQ5T]: F:检查插件前端源码 | R:code:projects/webutils/lib.d.ts,code:projects/server/plugin/sdk/modules.d.ts | A:compilerOptions,include | S:插件Web单独按DOM及旧装饰器检查，加入全局SDK和SCWC声明
 tsconfig.serve.json[FQ5T]: F:检查核心Node源码 | R:code:tsconfig.json | A:compilerOptions,include,exclude | S:包含整个server的TS而只排除插件Web；允许JS和DOM类型但不输出
 tsconfig.terminal.json[FQ5T]: F:检查独立终端源码 | R:code:tsconfig.serve.json | A:extends,include,exclude | S:继承核心规则但清空exclude，纳入终端及插件全局声明以支持共享SDK类型
 vite-env.d.ts[FV3T]: F:提供Vite资源导入类型 | R:- | A:vite/client类型引用 | S:-
@@ -1172,11 +1172,11 @@ tryCatch.ts[CR5S]: F:归一浏览器调用错误 | R:- | A:default tryCatch,isPr
 updateLocalStorage.ts[PR5T]: F:迁移悬浮窗旧存储 | R:code:projects/shared/utils/common.ts | A:default updateLocalStorage | S:已有带version数据则跳过；旧pos以原字符串迁移，旧键仅在写入成功后删除
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/shared/===
-workbench-protocol.ts[IN8S]: F:隔离页面消息实例 | R:code:projects/web/src/workbench/frames.ts,code:projects/webUtils/lib/workbench.ts | A:PROTOCOL,Envelope,InstancePort,PageSearchBatch,PageRegistration,requireValue | S:按tabId和frameEpoch隔离且拒绝回退sequence；单消息按JSON字符长限256KiB、待答32；超时发送cancel，关闭拒绝全部待答
+workbench-protocol.ts[IN8S]: F:隔离页面消息实例 | R:code:projects/web/src/workbench/frames.ts,code:projects/webutils/lib/workbench.ts | A:PROTOCOL,Envelope,InstancePort,PageSearchBatch,PageRegistration,requireValue | S:按tabId和frameEpoch隔离且拒绝回退sequence；单消息按JSON字符长限256KiB、待答32；超时发送cancel，关闭拒绝全部待答
 workbench-layout.ts[DU6T]: F:收拢工作台空分组 | R:code:projects/server/workbench/workspace.ts,code:projects/web/src/workbench/model.ts | A:pruneEmptyGroups | S:全部为空时仍保留一个根分组；被删除焦点重定位到首个存活组，前后端共享同一收拢逻辑
 command-completion.ts[CU6T]: F:统一终端补全词边界 | R:code:projects/server/utils/command.ts,code:projects/web/src/components/command-editor.ts,code:projects/terminal/completion.ts | A:completionInput | S:按字面空格拆词而不使用执行分词；偏移为UTF16，命名参数等号后补值，深层仅允许末词范围
-managed-resources.ts[IN6T]: F:跟踪插件DOM资源生命周期 | R:code:projects/shared/request-lifecycle.ts,code:projects/webUtils/lib/workbench.ts | A:ManagedResources | S:创建URL不等于发起资源请求；观察src与href绑定，未标记加载保护空闲连接；标记资源暂停移除属性，恢复原URL
-request-lifecycle.ts[CN8T]: F:治理请求保护与可中断恢复 | R:code:projects/web/src/api/workbench.ts,code:projects/webUtils/lib/workbench.ts | A:RequestOptions,RequestLifecycle | S:默认请求阻止暂停；只有显式interruptible才被暂停中止并恢复重试，调用方取消和普通错误不重试；手动取消不触发恢复重放
+managed-resources.ts[IN6T]: F:跟踪插件DOM资源生命周期 | R:code:projects/shared/request-lifecycle.ts,code:projects/webutils/lib/workbench.ts | A:ManagedResources | S:创建URL不等于发起资源请求；观察src与href绑定，未标记加载保护空闲连接；标记资源暂停移除属性，恢复原URL
+request-lifecycle.ts[CN8T]: F:治理请求保护与可中断恢复 | R:code:projects/web/src/api/workbench.ts,code:projects/webutils/lib/workbench.ts | A:RequestOptions,RequestLifecycle | S:默认请求阻止暂停；只有显式interruptible才被暂停中止并恢复重试，调用方取消和普通错误不重试；手动取消不触发恢复重放
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/terminal/===
 clipboard.ts[IU4T]: F:写入系统剪贴板 | R:code:projects/terminal/controller.ts | A:copyText | S:按平台依次尝试原生工具，全部失败后向终端发送OSC52
@@ -1323,11 +1323,11 @@ api.d.ts[FE4T]: F:声明插件页面响应 | R:code:projects/web/src/api/plugins
 commands.ts[CU6S]: F:统一工作台命令绑定 | R:code:projects/web/src/layouts/root.ts,code:projects/web/src/components/command-editor.ts | A:commands,effectiveKeys,eventKey,matchesKey,editableTarget,conflicts | S:覆盖按逆序查找且上下文须相同；Mod按平台映射；组合键比较要求完整修饰键，ShadowDOM输入由composedPath识别
 editor.test.ts[TU6M]: F:验证独立终端输入交互 | R:code:projects/web/src/components/command-editor.ts | A:Vitest用例 | S:覆盖IME续行、字素选区、撤销隔离；Tab循环且二至四级均按前缀补全；旧终端补全拒收
 frames.test.ts[TU6M]: F:验证页面池视口生命周期和导航 | R:code:projects/web/src/workbench/frames.ts | A:Vitest用例 | S:覆盖横向滚动裁剪、不重建iframe、快照失败保留并resume，以及同文档URL兜底去重
-frames.ts[AU8L]: F:管理插件页面实例 | R:code:projects/shared/workbench-protocol.ts,code:projects/web/src/workbench/store.ts,code:projects/webUtils/lib/workbench.ts | A:FramePool,FrameRuntime | S:iframe父容器稳定，握手校验origin及实例身份；空闲暂停先逐页确认，未标记请求阻止后台暂停和休眠；重连仅续授权并退避重试，不重载文档；快照绑定后才释放
+frames.ts[AU8L]: F:管理插件页面实例 | R:code:projects/shared/workbench-protocol.ts,code:projects/web/src/workbench/store.ts,code:projects/webutils/lib/workbench.ts | A:FramePool,FrameRuntime | S:iframe父容器稳定，握手校验origin及实例身份；空闲暂停先逐页确认，未标记请求阻止后台暂停和休眠；重连仅续授权并退避重试，不重载文档；快照绑定后才释放
 menu.test.ts[TU5T]: F:验证工作台菜单关闭 | R:code:projects/web/src/components/context-menu/wb-context-menu.ts | A:Vitest用例 | S:覆盖真实背景幂等关闭、原坐标重开、覆盖回调及禁用项拒选
 model.ts[DU7M]: F:变换工作区布局数据 | R:code:projects/web/src/workbench/types.ts,code:projects/shared/workbench-layout.ts,code:projects/server/workbench/workspace.ts | A:addTab,focusTab,splitGroup,moveTab,navigateTab,relocatedUrl | S:限制200标签、8组、500导航项；移动拒绝缺失ID并收拢空源组；URL重定位核验installationId且精确保留重复query与hash
 protocol.test.ts[TN6T]: F:验证页面端口隔离 | R:code:projects/shared/workbench-protocol.ts | A:Vitest用例 | S:真实MessageChannel验证错误tab、旧epoch、重复序号拒收，关闭必须拒绝待答RPC
-sdk-socket.test.ts[TN5T]: F:验证票据Socket代理 | R:code:projects/webUtils/lib/ticket-socket.ts | A:Vitest用例 | S:票据等待保留回调及binaryType；暂停后拒收旧Socket关闭事件，恢复连接保留处理器；提前close传递至迟到原生Socket
+sdk-socket.test.ts[TN5T]: F:验证票据Socket代理 | R:code:projects/webutils/lib/ticket-socket.ts | A:Vitest用例 | S:票据等待保留回调及binaryType；暂停后拒收旧Socket关闭事件，恢复连接保留处理器；提前close传递至迟到原生Socket
 search.test.ts[TU5T]: F:验证异步页面搜索 | R:code:projects/web/src/workbench/search.ts | A:Vitest用例 | S:查询切换丢弃迟到结果，各源独立翻页，同游标返回必须报错而非循环
 search.ts[AU7S]: F:汇聚在线页面搜索 | R:code:projects/web/src/workbench/frames.ts,code:projects/shared/workbench-protocol.ts | A:SearchCoordinator,SearchSource | S:有效性绑定查询代数、tab、epoch和注册revision；查询持有activity防休眠，取消传至页面；分页拒绝停滞游标并按id合并
 store.test.ts[TD6M]: F:验证临时工作区隔离与恢复 | R:code:projects/web/src/workbench/store.ts,code:projects/web/src/api/workbench.ts,code:projects/web/src/workbench/browser-workspace.ts | A:Vitest用例 | S:全部保护请求结束后重启空闲倒计时，本地路径不空闲断连；恢复重绑租约而保留文档快照；TOKEN成功后才保存，CAS保留草稿
@@ -1347,17 +1347,17 @@ bookmarks.test.ts[TU5T]: F:验证收藏树拖放反馈 | R:code:projects/web/src
 browser-workspace.ts[PD7T]: F:持久化浏览器全局工作区种子 | R:code:projects/web/src/workbench/types.ts,code:projects/web/src/workbench/store.ts | A:WorkspacePersistence,BrowserWorkspace | S:按installationId隔离localStorage；只加载副本且不订阅跨页变化；存储不可用时降级，接口供未来本地路径适配
 request-lifecycle.test.ts[TN6T]: F:验证请求暂停恢复边界 | R:code:projects/shared/request-lifecycle.ts | A:Vitest用例 | S:未标记工作阻止暂停；只重发由暂停中止的标记请求，调用方取消在等待重连期间仍有效
 
-===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/webUtils/===
-lib.d.ts[FE5T]: F:声明页面工具全局对象 | R:code:projects/webUtils/lib/index.ts | A:Window.scwcutils | S:以外部模块中的declare global确保各插件TS项目一致获得扩展
-package.json[FV4T]: F:声明页面工具构建包 | R:code:projects/webUtils/vite.config.ts | A:build,test,lint,fmt | S:-
-vite.config.ts[FV6T]: F:打包页面工具IIFE | R:code:projects/webUtils/lib/index.ts,code:projects/server/router/web/page/index.ts | A:Vite defineConfig | S:输出全局名scwcutils，文件名含当前时间base36；构建清空核心public/lib
+===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/webutils/===
+lib.d.ts[FE5T]: F:声明页面工具全局对象 | R:code:projects/webutils/lib/index.ts | A:Window.scwcutils | S:以外部模块中的declare global确保各插件TS项目一致获得扩展
+package.json[FV4T]: F:声明页面工具构建包 | R:code:projects/webutils/vite.config.ts | A:build,test,lint,fmt | S:-
+vite.config.ts[FV6T]: F:打包页面工具IIFE | R:code:projects/webutils/lib/index.ts,code:projects/server/router/web/page/index.ts | A:Vite defineConfig | S:输出全局名scwcutils，文件名含当前时间base36；构建清空核心public/lib
 
-===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/webUtils/lib/===
-index.ts[LE7T]: F:暴露页面工具SDK | R:code:projects/webUtils/lib/workbench.ts,code:projects/webUtils/lib/utils/fetch.ts | A:default scwcutils,TSCWCUtils | S:fetch自动await ready；同步websocket必须先await ready；resource未就绪返回空串；三个代理均保留interruptible选项
-ticket-socket.ts[IN6S]: F:代理可恢复票据连接 | R:code:projects/webUtils/lib/workbench.ts | A:TicketSocket | S:保留WebSocket外观，未OPEN发送抛错；暂停关闭底层但不通知业务close，恢复保留处理器并拒收旧代事件；用户close阻止后续恢复
-workbench.ts[LE8L]: F:实现插件页面集成SDK | R:code:projects/shared/workbench-protocol.ts,code:projects/shared/request-lifecycle.ts,code:projects/shared/managed-resources.ts,code:projects/webUtils/lib/ticket-socket.ts | A:createWorkbenchSDK,externalState,navigation | S:授权校验parent及nonce；默认fetch、Socket和DOM资源保护活动，仅标记请求在断连中止并恢复；配置读取可中断而写入受保护；重连更换grant不刷新页面，未标记工作阻止暂停；Socket使用单次票据
+===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/webutils/lib/===
+index.ts[LE7T]: F:暴露页面工具SDK | R:code:projects/webutils/lib/workbench.ts,code:projects/webutils/lib/utils/fetch.ts | A:default scwcutils,TSCWCUtils | S:fetch自动await ready；同步websocket必须先await ready；resource未就绪返回空串；三个代理均保留interruptible选项
+ticket-socket.ts[IN6S]: F:代理可恢复票据连接 | R:code:projects/webutils/lib/workbench.ts | A:TicketSocket | S:保留WebSocket外观，未OPEN发送抛错；暂停关闭底层但不通知业务close，恢复保留处理器并拒收旧代事件；用户close阻止后续恢复
+workbench.ts[LE8L]: F:实现插件页面集成SDK | R:code:projects/shared/workbench-protocol.ts,code:projects/shared/request-lifecycle.ts,code:projects/shared/managed-resources.ts,code:projects/webutils/lib/ticket-socket.ts | A:createWorkbenchSDK,externalState,navigation | S:授权校验parent及nonce；默认fetch、Socket和DOM资源保护活动，仅标记请求在断连中止并恢复；配置读取可中断而写入受保护；重连更换grant不刷新页面，未标记工作阻止暂停；Socket使用单次票据
 
-===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/webUtils/lib/utils/===
+===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/webutils/lib/utils/===
 fetch.ts[IN5T]: F:声明插件请求面及旧版工厂 | R:code:projects/server/router/web/api/index.ts,code:projects/shared/request-lifecycle.ts | A:createFetch,TFetch,TResource,TWebSocket | S:公开请求选项允许显式interruptible；旧工厂仍以目录取得safeId并用Bearer，旧Socket把TOKEN放查询；当前入口使用页面会话
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/web/scripts/===
@@ -1366,5 +1366,5 @@ dev-options.ts[CV5T]: F:解析校验Web开发参数 | R:code:projects/web/script
 dev.ts[EV5T]: F:启动带核心端口覆盖的Vite | R:code:projects/web/scripts/dev-options.ts,code:projects/web/vite.config.ts | A:--core-port,Vite CLI | S:核心端口通过当前进程SCWC_WEB_CORE_PORT传递；不修改PORT，原生Vite参数继续生效
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/public/lib/===
-scwcutils.iife.mvkovsaa.js[LU6T]: F:分发插件页面集成SDK | R:code:projects/webUtils/lib/workbench.ts,code:projects/webUtils/lib/ticket-socket.ts | A:scwcutils全局对象 | S:这是既有构建，requests.abort仍中止全部托管fetch；新请求分类须重新构建方可供生产页使用
+scwcutils.iife.mvkovsaa.js[LU6T]: F:分发插件页面集成SDK | R:code:projects/webutils/lib/workbench.ts,code:projects/webutils/lib/ticket-socket.ts | A:scwcutils全局对象 | S:这是既有构建，requests.abort仍中止全部托管fetch；新请求分类须重新构建方可供生产页使用
 
