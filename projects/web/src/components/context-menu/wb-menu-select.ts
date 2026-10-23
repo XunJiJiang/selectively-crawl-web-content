@@ -96,6 +96,7 @@ export class WbMenuSelect extends LitElement {
         ? html`<wb-context-menu
             .x=${this.menu.x}
             .y=${this.menu.y}
+            alignment="right"
             .items=${this.menuItems()}
             .presentation=${this.presentation}
             .compact=${this.compact}
@@ -125,7 +126,7 @@ export class WbMenuSelect extends LitElement {
     event.stopPropagation();
     const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
     this.menu = {
-      x: Math.max(8, rect.right - 278),
+      x: rect.right,
       y: rect.bottom + 4,
     };
   };

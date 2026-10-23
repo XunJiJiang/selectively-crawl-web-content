@@ -23,6 +23,7 @@ import {
 } from '../workbench/ui.ts';
 import { ConfigController } from '../../../shared/store/config.ts';
 import { CONFIG_KEY } from '../../../shared/utils/common.ts';
+import './context-menu/wb-menu-select.ts';
 @customElement('wb-internal-page')
 export class InternalPageView extends LitElement {
   @property({ attribute: false }) accessor store!: WorkbenchStore;
@@ -344,19 +345,21 @@ export class InternalPageView extends LitElement {
         ${this.setting(
           '颜色主题',
           '统一应用于工作台、菜单、输出与终端。',
-          html`<select
-              aria-label="颜色主题"
+          html`<wb-menu-select
+              label="颜色主题"
               .value=${theme}
-              @change=${(e: Event) =>
+              .options=${[
+                { value: 'dark-2026', label: '2026 深色' },
+                { value: 'light-2026', label: '2026 浅色' },
+                { value: 'system', label: '跟随系统' },
+              ]}
+              @wb-menu-change=${(e: CustomEvent<{ value: string }>) =>
                 this.run(() =>
                   this.store.setPreferences({
-                    theme: (e.target as HTMLSelectElement).value as typeof theme,
+                    theme: e.detail.value as typeof theme,
                   }),
                 )}
-            >
-              <option value="dark-2026">2026 深色</option>
-              <option value="light-2026">2026 浅色</option>
-              <option value="system">跟随系统</option></select
+            ></wb-menu-select
             ><button
               class="text-button"
               @click=${() => this.run(() => this.store.setPreferences({}, ['theme']))}
@@ -370,83 +373,76 @@ export class InternalPageView extends LitElement {
         ${this.setting(
           '主侧栏位置',
           '活动栏跟随主侧栏，辅助侧栏位于对侧。',
-          html`<select
-            aria-label="主侧栏位置"
+          html`<wb-menu-select
+            label="主侧栏位置"
             .value=${s.layout.mainSidebar.side}
-            @change=${(e: Event) =>
+            .options=${[
+              { value: 'left', label: '左侧' },
+              { value: 'right', label: '右侧' },
+            ]}
+            @wb-menu-change=${(e: CustomEvent<{ value: string }>) =>
               this.run(() =>
                 this.store.update((s) => {
-                  s.layout.mainSidebar.side = (e.target as HTMLSelectElement).value as
-                    | 'left'
-                    | 'right';
+                  s.layout.mainSidebar.side = e.detail.value as 'left' | 'right';
                 }),
               )}
-          >
-            <option value="left">左侧</option>
-            <option value="right">右侧</option>
-          </select>`,
+          ></wb-menu-select>`,
         )}${this.setting(
           '标签栏位置',
           '应用到所有现有页面组。',
-          html`<select
-            aria-label="标签栏位置"
+          html`<wb-menu-select
+            label="标签栏位置"
             .value=${groups(s.layout.center)[0].tabBarPosition}
-            @change=${(e: Event) =>
+            .options=${[
+              { value: 'top', label: '顶部' },
+              { value: 'bottom', label: '底部' },
+              { value: 'left', label: '左侧' },
+              { value: 'right', label: '右侧' },
+            ]}
+            @wb-menu-change=${(e: CustomEvent<{ value: string }>) =>
               this.run(() =>
                 this.store.update((s) => {
                   for (const g of groups(s.layout.center)) {
-                    g.tabBarPosition = (e.target as HTMLSelectElement).value as
-                      | 'top'
-                      | 'bottom'
-                      | 'left'
-                      | 'right';
+                    g.tabBarPosition = e.detail.value as 'top' | 'bottom' | 'left' | 'right';
                   }
                 }),
               )}
-          >
-            ${[
-              ['top', '顶部'],
-              ['bottom', '底部'],
-              ['left', '左侧'],
-              ['right', '右侧'],
-            ].map(([v, l]) => html`<option value=${v}>${l}</option>`)}
-          </select>`,
+          ></wb-menu-select>`,
         )}${this.setting(
           '面板停靠',
           '输出与终端支持底部、左侧、右侧停靠。',
-          html`<select
-            aria-label="面板停靠"
+          html`<wb-menu-select
+            label="面板停靠"
             .value=${s.layout.panel.dock}
-            @change=${(e: Event) =>
+            .options=${[
+              { value: 'bottom', label: '底部' },
+              { value: 'left', label: '左侧' },
+              { value: 'right', label: '右侧' },
+            ]}
+            @wb-menu-change=${(e: CustomEvent<{ value: string }>) =>
               this.run(() =>
                 this.store.update((s) => {
-                  s.layout.panel.dock = (e.target as HTMLSelectElement).value as
-                    | 'bottom'
-                    | 'left'
-                    | 'right';
+                  s.layout.panel.dock = e.detail.value as 'bottom' | 'left' | 'right';
                 }),
               )}
-          >
-            <option value="bottom">底部</option>
-            <option value="left">左侧</option>
-            <option value="right">右侧</option>
-          </select>`,
+          ></wb-menu-select>`,
         )}${this.setting(
           '面板对齐',
           '面板占据中心区域或工作台全宽。',
-          html`<select
-            aria-label="面板对齐"
+          html`<wb-menu-select
+            label="面板对齐"
             .value=${s.layout.panel.align}
-            @change=${(e: Event) =>
+            .options=${[
+              { value: 'center', label: '对齐中心' },
+              { value: 'full', label: '全宽' },
+            ]}
+            @wb-menu-change=${(e: CustomEvent<{ value: string }>) =>
               this.run(() =>
                 this.store.update((s) => {
-                  s.layout.panel.align = (e.target as HTMLSelectElement).value as 'center' | 'full';
+                  s.layout.panel.align = e.detail.value as 'center' | 'full';
                 }),
               )}
-          >
-            <option value="center">对齐中心</option>
-            <option value="full">全宽</option>
-          </select>`,
+          ></wb-menu-select>`,
         )}${this.setting(
           '恢复默认布局',
           '重置区域位置与尺寸，合并分组并保留所有标签。',

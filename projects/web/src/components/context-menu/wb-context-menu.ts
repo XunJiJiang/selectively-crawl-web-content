@@ -25,6 +25,7 @@ export class WbContextMenu extends LitElement {
   @property({ type: Boolean }) accessor open = true;
   @property({ type: Number }) accessor x = -1;
   @property({ type: Number }) accessor y = -1;
+  @property({ type: String }) accessor alignment: 'left' | 'right' = 'left';
   @property({ attribute: false }) accessor items: ContextMenuItem[] = [];
   @property({ type: Boolean }) accessor loading = false;
   @property({ type: String }) accessor presentation: MenuPresentationMode = 'custom';
@@ -226,8 +227,9 @@ export class WbContextMenu extends LitElement {
     }
     const width = this.menuElement.offsetWidth || 278;
     const height = this.menuElement.offsetHeight || 300;
+    const left = this.alignment === 'right' ? this.x - width : this.x;
     const next = {
-      left: Math.max(8, Math.min(this.x, window.innerWidth - width - 8)),
+      left: Math.max(8, Math.min(left, window.innerWidth - width - 8)),
       top: Math.max(8, Math.min(this.y, window.innerHeight - height - 8)),
     };
     if (next.left !== this.position.left || next.top !== this.position.top) {
