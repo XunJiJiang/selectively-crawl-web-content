@@ -1,3 +1,5 @@
+import type { WorkbenchScrollContainer } from '../components/scroll-container.ts';
+import '../components/scroll-container.ts';
 import { requireValue } from '../../../shared/workbench-protocol.ts';
 import { LitElement, html, css, unsafeCSS, nothing, type PropertyValues } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
@@ -259,9 +261,15 @@ export class AppRoot extends LitElement {
     void work().catch((e) => this.store.toast(this.store.message(e), 'error'));
   }
   protected updated(_changed: PropertyValues) {
-    const output = this.renderRoot.querySelector<HTMLElement>('.output-content');
+    const output = this.renderRoot.querySelector<WorkbenchScrollContainer>('.output-content');
     if (output && this.followOutput) {
-      output.scrollTop = output.scrollHeight;
+      void output.updateComplete.then(() => {
+        const viewport = output.scrollElement;
+        if (viewport && this.followOutput) {
+          viewport.scrollTop = viewport.scrollHeight;
+          output.refresh();
+        }
+      });
     }
     if (!this.focusInitialized && this.store.workspace && !this.store.loading) {
       this.focusInitialized = true;
@@ -1997,7 +2005,10 @@ export class AppRoot extends LitElement {
                     },
                   )}打开的页面<span class="badge">${this.snapshot.tabs.length}</span>
                 </div>
-                <div class="sidebar-section-body" ?hidden=${this.openPagesCollapsed}>
+                <wb-scroll-container
+                  class="sidebar-section-body"
+                  ?hidden=${this.openPagesCollapsed}
+                >
                   ${groups(this.snapshot.layout.center).map(
                     (g, index) =>
                       html`<div
@@ -2050,7 +2061,7 @@ export class AppRoot extends LitElement {
                               </div>`,
                           )}`,
                   )}
-                </div>
+                </wb-scroll-container>
               </section>
               <div
                 class="sidebar-splitter"
@@ -2079,7 +2090,10 @@ export class AppRoot extends LitElement {
                     this.act(() => this.command('rescan')),
                   )}
                 </div>
-                <div class="sidebar-section-body" ?hidden=${this.pluginPagesCollapsed}>
+                <wb-scroll-container
+                  class="sidebar-section-body"
+                  ?hidden=${this.pluginPagesCollapsed}
+                >
                   ${pluginPages.map(
                     (p) =>
                       html`<div class="sidebar-plugin">
@@ -2124,20 +2138,20 @@ export class AppRoot extends LitElement {
                         加载更多插件
                       </button>`
                     : nothing}
-                </div>
+                </wb-scroll-container>
               </section>`
           : nothing}
         ${view === 'plugins'
-          ? html`<div class="sidebar-section-body sidebar-cards">
+          ? html`<wb-scroll-container class="sidebar-section-body sidebar-cards">
               ${this.store.catalog
                 .filter((p) => `${p.title} ${p.pluginId}`.toLowerCase().includes(query))
                 .map((p) =>
                   pluginCard(p, (id, args) => this.act(() => this.command(id, args)), true),
                 )}
-            </div>`
+            </wb-scroll-container>`
           : nothing}
         ${view === 'bookmarks'
-          ? html`<div
+          ? html`<wb-scroll-container
               class="sidebar-section-body"
               @click=${(e: MouseEvent) => {
                 if (e.target === e.currentTarget) {
@@ -2160,10 +2174,10 @@ export class AppRoot extends LitElement {
                     加载更多
                   </button>`
                 : nothing}
-            </div>`
+            </wb-scroll-container>`
           : nothing}
         ${view === 'history'
-          ? html`<div class="sidebar-section-body">
+          ? html`<wb-scroll-container class="sidebar-section-body">
               ${this.store.history
                 .filter((h) => `${titleOf(h.tab)} ${h.tab.url}`.toLowerCase().includes(query))
                 .map(
@@ -2192,12 +2206,12 @@ export class AppRoot extends LitElement {
                     加载更多
                   </button>`
                 : nothing}
-            </div>`
+            </wb-scroll-container>`
           : nothing}
         ${view === 'search'
-          ? html`<div class="sidebar-section-body">
+          ? html`<wb-scroll-container class="sidebar-section-body">
               ${this.renderSearchResults(this.sidebarQuery, true)}
-            </div>`
+            </wb-scroll-container>`
           : nothing}
       </div>
       <div class="sidebar-footer"></div>
@@ -2327,21 +2341,15 @@ export class AppRoot extends LitElement {
       }}
     >
       <div class="group-tab-strip">
-        <div
+        <wb-scroll-container
           class="tab-bar"
-          @wheel=${(e: WheelEvent) => {
-            if (e.ctrlKey || ['left', 'right'].includes(node.tabBarPosition)) {
-              return;
-            }
-            const bar = e.currentTarget as HTMLElement;
-            if (bar.scrollWidth <= bar.clientWidth) {
-              return;
-            }
-            e.preventDefault();
-            const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
-            bar.scrollLeft +=
-              delta * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? bar.clientWidth : 1);
-          }}
+          thin
+          wheel-direction=${['left', 'right'].includes(node.tabBarPosition)
+            ? 'vertical'
+            : 'horizontal'}
+          shift-wheel-direction=${['left', 'right'].includes(node.tabBarPosition)
+            ? 'vertical'
+            : 'horizontal'}
           role="tablist"
           aria-label="页面标签"
           aria-orientation=${['left', 'right'].includes(node.tabBarPosition)
@@ -2453,7 +2461,7 @@ export class AppRoot extends LitElement {
               </div>`;
             },
           )}
-        </div>
+        </wb-scroll-container>
         <div class="tab-bar-actions">
           ${!node.tabIds.length && groups(this.snapshot.layout.center).length > 1
             ? iconButton('close', '关闭空分组', () =>
@@ -2493,7 +2501,14 @@ export class AppRoot extends LitElement {
           })}
         </div>
       </div>
-      <div class="page-viewport" @scroll=${() => this.pool?.position()}>
+      <wb-scroll-container
+        class="page-viewport"
+        @scroll=${(event: Event) => {
+          if (event.target === event.currentTarget) {
+            this.pool?.position();
+          }
+        }}
+      >
         <div class="page-container" data-page-slot=${node.id}>
           ${!active
             ? html`<div class="empty empty-group">
@@ -2515,38 +2530,41 @@ export class AppRoot extends LitElement {
               </div>`
             : active.kind === 'internal'
               ? active.page === 'search'
-                ? html`<div class="internal-view search-view">
-                    <div class="page-heading">
-                      <span class="eyebrow">SEARCH</span>
-                      <h1>搜索工作台</h1>
-                      <p>查找页面、收藏与在线插件内容。</p>
-                    </div>
-                    <div class="page-search">
-                      ${icon('search')}<input
-                        aria-label="搜索工作台"
-                        placeholder="输入关键词…"
-                        .value=${live(this.searchQuery)}
-                        @input=${(e: Event) => this.setSearch((e.target as HTMLInputElement).value)}
-                      />
-                    </div>
-                    <label class="search-scope"
-                      ><input
-                        type="checkbox"
-                        .checked=${this.searchCurrent}
-                        @change=${(e: Event) => {
-                          this.searchCurrent = (e.target as HTMLInputElement).checked;
-                          this.setSearch(this.searchQuery);
-                        }}
-                      />仅搜索最近激活的插件页内容</label
-                    >${this.renderSearchResults(this.searchQuery)}
-                  </div>`
+                ? html`<wb-scroll-container class="internal-scroll"
+                    ><div class="internal-view search-view">
+                      <div class="page-heading">
+                        <span class="eyebrow">SEARCH</span>
+                        <h1>搜索工作台</h1>
+                        <p>查找页面、收藏与在线插件内容。</p>
+                      </div>
+                      <div class="page-search">
+                        ${icon('search')}<input
+                          aria-label="搜索工作台"
+                          placeholder="输入关键词…"
+                          .value=${live(this.searchQuery)}
+                          @input=${(e: Event) =>
+                            this.setSearch((e.target as HTMLInputElement).value)}
+                        />
+                      </div>
+                      <label class="search-scope"
+                        ><input
+                          type="checkbox"
+                          .checked=${this.searchCurrent}
+                          @change=${(e: Event) => {
+                            this.searchCurrent = (e.target as HTMLInputElement).checked;
+                            this.setSearch(this.searchQuery);
+                          }}
+                        />仅搜索最近激活的插件页内容</label
+                      >${this.renderSearchResults(this.searchQuery)}
+                    </div></wb-scroll-container
+                  >`
                 : html`<wb-internal-page
                     .store=${this.store}
                     .page=${active.page}
                   ></wb-internal-page>`
               : this.renderPageState(active)}
         </div>
-      </div>
+      </wb-scroll-container>
     </section>`;
   }
   private renderPageState(tab: PluginTab) {
@@ -2743,14 +2761,19 @@ export class AppRoot extends LitElement {
               this.act(() => navigator.clipboard.writeText(records.map((r) => r.text).join('\n'))),
             )}
           </div>
-          <div
+          <wb-scroll-container
             class="output-content"
+            scroll-behavior="instant"
+            line-scroll
             role="log"
             tabindex="0"
             aria-label="公共输出"
             @scroll=${(event: Event) => {
-              const output = event.currentTarget as HTMLElement;
-              if (output.clientHeight > 0) {
+              if (event.target !== event.currentTarget) {
+                return;
+              }
+              const output = (event.currentTarget as WorkbenchScrollContainer).scrollElement;
+              if (output && output.clientHeight > 0) {
                 this.followOutput =
                   output.scrollHeight - output.scrollTop - output.clientHeight <= 2;
               }
@@ -2779,7 +2802,7 @@ export class AppRoot extends LitElement {
                       >
                     </div>`,
                 )}
-          </div>
+          </wb-scroll-container>
         </div>
       </div>
       <div class="panel-content terminal-panel" ?hidden=${panel.activeView !== 'terminal'}>
@@ -3336,7 +3359,7 @@ export class AppRoot extends LitElement {
             }}
           /><kbd>ESC</kbd>
         </div>
-        <div class="quick-results" id="quick-results" role="listbox">
+        <wb-scroll-container class="quick-results" id="quick-results" role="listbox">
           ${results.map(
             (result, i) =>
               html`<button
@@ -3377,7 +3400,7 @@ export class AppRoot extends LitElement {
                     </button>`,
                 )
             : nothing}
-        </div>
+        </wb-scroll-container>
         <div class="quick-footer">
           <span>↑ ↓ 选择 · Enter 打开 · Ctrl/⌘+Enter 新标签 · Alt+Enter 拆分</span
           ><button
@@ -3414,7 +3437,7 @@ export class AppRoot extends LitElement {
               }),
           )}${iconButton('close', '关闭通知中心', () => this.toggleNotifications())}
         </div>
-        <div class="notification-filters">
+        <wb-scroll-container class="notification-filters">
           ${[
             ['all', '全部'],
             ['unread', '未读'],
@@ -3436,8 +3459,8 @@ export class AppRoot extends LitElement {
                 ${l}
               </button>`,
           )}
-        </div>
-        <div class="notification-list">
+        </wb-scroll-container>
+        <wb-scroll-container class="notification-list">
           ${items.map(
             (n) =>
               html`<article
@@ -3496,7 +3519,7 @@ export class AppRoot extends LitElement {
                 加载更多
               </button>`
             : nothing}
-        </div>
+        </wb-scroll-container>
       </section>`;
   }
   private renderJobs() {
@@ -3516,7 +3539,7 @@ export class AppRoot extends LitElement {
             () => (this.showJobs = false),
           )}
         </div>
-        <div class="jobs-list">
+        <wb-scroll-container class="jobs-list">
           ${[...this.store.jobs.values()].reverse().map(
             (job) =>
               html`<article class="job-card">
@@ -3529,7 +3552,9 @@ export class AppRoot extends LitElement {
                 </div>
                 <p class="muted">阶段：${job.phase}</p>
                 ${job.error ? html`<p class="error">${job.error}</p>` : nothing}
-                <pre>${job.logs.map((l) => l.text ?? l.message ?? '').join('\n')}</pre>
+                <wb-scroll-container class="job-log">
+                  <pre>${job.logs.map((l) => l.text ?? l.message ?? '').join('\n')}</pre>
+                </wb-scroll-container>
                 ${['queued', 'running'].includes(job.status)
                   ? html`<button
                       class="btn secondary"
@@ -3557,7 +3582,7 @@ export class AppRoot extends LitElement {
                 <span>启用、停止与构建任务将在这里显示。</span>
               </div>`
             : nothing}
-        </div>
+        </wb-scroll-container>
       </section>
     </div>`;
   }
@@ -3642,66 +3667,71 @@ export class AppRoot extends LitElement {
           })
         : nothing}
     >
-      <form
+      <wb-scroll-container
         class="workbench-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-label=${dialog.title}
-        @submit=${(event: SubmitEvent) => {
-          event.preventDefault();
-          dialog.resolve(
-            Object.fromEntries(new FormData(event.currentTarget as HTMLFormElement)) as Record<
-              string,
-              string
-            >,
-          );
-        }}
-        @keydown=${(event: KeyboardEvent) => {
-          if (event.key === 'Escape') {
-            event.stopPropagation();
-            dialog.resolve(null);
-          }
-          if (event.key === 'Tab') {
-            const items = [
-              ...(event.currentTarget as HTMLElement).querySelectorAll<HTMLElement>(
-                'input,select,button',
-              ),
-            ];
-            const first = items[0],
-              last = items[items.length - 1];
-            if (event.shiftKey && this.shadowRoot?.activeElement === first) {
-              event.preventDefault();
-              last?.focus();
-            } else if (!event.shiftKey && this.shadowRoot?.activeElement === last) {
-              event.preventDefault();
-              first?.focus();
-            }
-          }
-        }}
+        style=${styleMap({ maxHeight: `${Math.max(0, (rect?.height ?? innerHeight) - 32)}px` })}
       >
-        <h2>${dialog.title}</h2>
-        ${dialog.fields.map(
-          (field) =>
-            html`<label
-              >${field.label}${field.options
-                ? html`<select name=${field.name} .value=${field.value}>
-                    ${field.options.map(
-                      (option) => html`<option value=${option.value}>${option.label}</option>`,
-                    )}
-                  </select>`
-                : html`<input
-                    name=${field.name}
-                    .value=${field.value}
-                    autocomplete="off"
-                  />`}</label
-            >`,
-        )}
-        <div class="dialog-actions">
-          <button type="button" class="btn secondary" @click=${() => dialog.resolve(null)}>
-            取消</button
-          ><button type="submit" class="btn primary">确定</button>
-        </div>
-      </form>
+        <form
+          class="dialog-form"
+          role="dialog"
+          aria-modal="true"
+          aria-label=${dialog.title}
+          @submit=${(event: SubmitEvent) => {
+            event.preventDefault();
+            dialog.resolve(
+              Object.fromEntries(new FormData(event.currentTarget as HTMLFormElement)) as Record<
+                string,
+                string
+              >,
+            );
+          }}
+          @keydown=${(event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+              event.stopPropagation();
+              dialog.resolve(null);
+            }
+            if (event.key === 'Tab') {
+              const items = [
+                ...(event.currentTarget as HTMLElement).querySelectorAll<HTMLElement>(
+                  'input,select,button',
+                ),
+              ];
+              const first = items[0],
+                last = items[items.length - 1];
+              if (event.shiftKey && this.shadowRoot?.activeElement === first) {
+                event.preventDefault();
+                last?.focus();
+              } else if (!event.shiftKey && this.shadowRoot?.activeElement === last) {
+                event.preventDefault();
+                first?.focus();
+              }
+            }
+          }}
+        >
+          <h2>${dialog.title}</h2>
+          ${dialog.fields.map(
+            (field) =>
+              html`<label
+                >${field.label}${field.options
+                  ? html`<select name=${field.name} .value=${field.value}>
+                      ${field.options.map(
+                        (option) => html`<option value=${option.value}>${option.label}</option>`,
+                      )}
+                    </select>`
+                  : html`<input
+                      name=${field.name}
+                      .value=${field.value}
+                      autocomplete="off"
+                    />`}</label
+              >`,
+          )}
+          <div class="dialog-actions">
+            <button type="button" class="btn secondary" @click=${() => dialog.resolve(null)}>
+              取消</button
+            ><button type="submit" class="btn primary">确定</button>
+          </div>
+        </form>
+      </wb-scroll-container>
     </div>`;
   }
 }

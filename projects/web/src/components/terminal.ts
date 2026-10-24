@@ -1,3 +1,5 @@
+import type { WorkbenchScrollContainer } from './scroll-container.ts';
+import './scroll-container.ts';
 import { commandSource } from '../../../terminal/command-text.ts';
 import { tabNavigation } from '../workbench/ui.ts';
 import './context-menu/wb-context-menu.ts';
@@ -27,8 +29,7 @@ export class WorkbenchTerminal extends LitElement {
   private loadingId = '';
   private restoreScroll = false;
   private scrollFrame = 0;
-  private wheelRemainder = 0;
-  private lastWheel = 0;
+  private pendingCaret?: HTMLElement;
   private userScrollUntil = 0;
   private firstSeq = 0;
   private outputResize?: ResizeObserver;
@@ -96,7 +97,6 @@ export class WorkbenchTerminal extends LitElement {
     this.selected = t.id;
     this.loadingId = t.id;
     this.restoreScroll = true;
-    this.wheelRemainder = 0;
     this.act(() => this.store.loadOutput(t.id));
     void this.updateComplete.then(async () => {
       const editor = this.renderRoot.querySelector<CommandEditor>('wb-command-editor');
@@ -412,16 +412,25 @@ export class WorkbenchTerminal extends LitElement {
       }}
     >
       <div class="terminal-main" @contextmenu=${this.openMenu}>
-        <div
+        <wb-scroll-container
           class="terminal-output"
+          scroll-behavior="instant"
+          line-scroll
+          wheel-direction="vertical"
+          shift-wheel-direction="vertical"
           role="log"
           aria-label="终端输出"
           tabindex="0"
-          @scroll=${() => this.rememberScroll(performance.now() < this.userScrollUntil)}
+          @scroll=${(event: Event) => {
+            if (event.target === event.currentTarget) {
+              this.rememberScroll(performance.now() < this.userScrollUntil);
+            }
+          }}
           @mousedown=${(event: MouseEvent) => {
             const editor = this.renderRoot.querySelector<CommandEditor>('wb-command-editor');
             const target = event.composedPath()[0] as HTMLElement;
             if (
+              !this.scrollControl(event) &&
               event.button === 0 &&
               editor &&
               !event.composedPath().includes(editor) &&
@@ -441,6 +450,7 @@ export class WorkbenchTerminal extends LitElement {
           @keydown=${this.outputKeydown}
           @click=${(event: MouseEvent) => {
             if (
+              !this.scrollControl(event) &&
               !window.getSelection()?.toString() &&
               !(event.target as HTMLElement).closest('wb-command-editor')
             ) {
@@ -523,6 +533,11 @@ export class WorkbenchTerminal extends LitElement {
                       this.draftTimer = setTimeout(() => this.act(() => this.saveDraft()), 500);
                     }}
                     @editor-status-change=${() => this.requestUpdate()}
+                    @reveal-command-caret=${(event: CustomEvent<HTMLElement>) => {
+                      event.stopPropagation();
+                      this.pendingCaret = event.detail;
+                      this.scheduleScroll();
+                    }}
                     @submit-command=${(e: CustomEvent<string>) =>
                       this.act(() => this.submit(e.detail))}
                     @cancel-command=${() => execution && this.act(() => this.cancel(execution))}
@@ -530,7 +545,7 @@ export class WorkbenchTerminal extends LitElement {
                 </div>`
               : nothing}
           </div>
-        </div>
+        </wb-scroll-container>
         <div class="terminal-input-status" role="status" @contextmenu=${this.openMenu}>
           <span
             >${input
@@ -557,7 +572,7 @@ export class WorkbenchTerminal extends LitElement {
         </div>
       </div>
       ${terminals.length > 1
-        ? html`<aside
+        ? html`<wb-scroll-container
             class="terminal-list"
             role="tablist"
             aria-label="命令终端列表"
@@ -601,7 +616,7 @@ export class WorkbenchTerminal extends LitElement {
                 </button>
               </div>`;
             })}
-          </aside>`
+          </wb-scroll-container>`
         : nothing}
       ${this.menu
         ? html`<wb-context-menu
@@ -635,7 +650,13 @@ export class WorkbenchTerminal extends LitElement {
     </div>`;
   }
   private outputElement() {
-    return this.renderRoot.querySelector<HTMLElement>('.terminal-output');
+    return this.renderRoot.querySelector<WorkbenchScrollContainer>('.terminal-output')
+      ?.scrollElement;
+  }
+  private scrollControl(event: Event) {
+    return event
+      .composedPath()
+      .some((node) => node instanceof HTMLElement && node.getAttribute('role') === 'scrollbar');
   }
   private rememberScroll(user = false) {
     const t = this.terminal,
@@ -652,7 +673,7 @@ export class WorkbenchTerminal extends LitElement {
       local.follow = el.scrollHeight - el.scrollTop - el.clientHeight < this.lineHeight();
     }
     const top = el.getBoundingClientRect().top;
-    const rows = el.querySelectorAll<HTMLElement>('.terminal-output-line');
+    const rows = this.renderRoot.querySelectorAll<HTMLElement>('.terminal-output-line');
     let from = 0,
       to = rows.length;
     while (from < to) {
@@ -677,38 +698,9 @@ export class WorkbenchTerminal extends LitElement {
     return el ? Number.parseFloat(getComputedStyle(el).lineHeight) || 21 : 21;
   }
   private wheel = (event: WheelEvent) => {
-    if (
-      event
-        .composedPath()
-        .some(
-          (node) =>
-            node instanceof HTMLElement && node.classList.contains('terminal-completion-list'),
-        )
-    ) {
-      return;
-    }
-    if (event.ctrlKey || Math.abs(event.deltaX) > Math.abs(event.deltaY)) {
-      return;
-    }
-    const el = this.outputElement();
-    if (!el) {
-      return;
-    }
-    event.preventDefault();
-    const line = this.lineHeight(),
-      now = performance.now();
-    const delta =
-      event.deltaY * (event.deltaMode === 1 ? line : event.deltaMode === 2 ? el.clientHeight : 1);
-    const speed = Math.abs(delta) / Math.max(8, now - this.lastWheel);
-    this.lastWheel = now;
-    this.wheelRemainder += delta * Math.min(3, Math.max(1, speed / 4));
-    const steps = Math.trunc(this.wheelRemainder / line);
-    this.wheelRemainder -= steps * line;
-    if (steps) {
+    if (!event.defaultPrevented && !event.ctrlKey && !event.metaKey) {
       this.restoreScroll = false;
-      this.userScrollUntil = now + 200;
-      el.scrollTop += steps * line;
-      this.rememberScroll(true);
+      this.userScrollUntil = performance.now() + 200;
     }
   };
   private outputKeydown = (event: KeyboardEvent) => {
@@ -720,7 +712,14 @@ export class WorkbenchTerminal extends LitElement {
       return;
     }
     const el = this.outputElement();
-    if (!el || event.altKey || event.metaKey || event.ctrlKey || event.shiftKey) {
+    if (
+      !el ||
+      event.defaultPrevented ||
+      event.altKey ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey
+    ) {
       return;
     }
     const line = this.lineHeight(),
@@ -758,13 +757,26 @@ export class WorkbenchTerminal extends LitElement {
       } else if (this.restoreScroll) {
         el.scrollTop = local.scrollTop;
         const anchor = local.scrollAnchor;
-        const row = anchor && el.querySelector<HTMLElement>(`[data-seq="${anchor.seq}"]`);
+        const row =
+          anchor && this.renderRoot.querySelector<HTMLElement>(`[data-seq="${anchor.seq}"]`);
         if (row) {
           const top = el.getBoundingClientRect().top;
           el.scrollTop += row.getBoundingClientRect().top - top - anchor.offset;
         }
       }
       this.restoreScroll = false;
+      if (this.pendingCaret?.isConnected) {
+        const viewport = el.getBoundingClientRect(),
+          caret = this.pendingCaret.getBoundingClientRect();
+        if (caret.top < viewport.top) {
+          el.scrollTop += caret.top - viewport.top;
+        } else if (caret.bottom > viewport.bottom) {
+          el.scrollTop += caret.bottom - viewport.bottom;
+        }
+        local.follow = el.scrollHeight - el.scrollTop - el.clientHeight < this.lineHeight();
+      }
+      this.pendingCaret = undefined;
+      this.renderRoot.querySelector<WorkbenchScrollContainer>('.terminal-output')?.refresh();
     });
   }
   updated() {

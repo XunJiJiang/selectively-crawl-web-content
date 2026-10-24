@@ -1,3 +1,4 @@
+import type { WorkbenchScrollContainer } from '../components/scroll-container.ts';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { WorkbenchStore } from './store.ts';
 import type { CommandEditor } from '../components/command-editor.ts';
@@ -19,6 +20,9 @@ beforeEach(() => {
     class {
       observe() {
         /* No geometry in jsdom. */
+      }
+      unobserve() {
+        /* Geometry is supplied by the fixture. */
       }
       disconnect() {
         /* No resources. */
@@ -57,6 +61,48 @@ async function fixture() {
   return { terminal, root: requireValue(terminal.shadowRoot) };
 }
 describe('inline Web command terminal', () => {
+  it('grows multiline input and reveals its caret through the shared terminal viewport', async () => {
+    const { root } = await fixture();
+    const container = requireValue(
+      root.querySelector<WorkbenchScrollContainer>('.terminal-output'),
+    );
+    const editor = requireValue(root.querySelector<CommandEditor>('wb-command-editor'));
+    await container.updateComplete;
+    await editor.updateComplete;
+    const output = requireValue(container.scrollElement);
+    const input = requireValue(editor.shadowRoot?.querySelector<HTMLTextAreaElement>('textarea'));
+    Object.defineProperties(input, { scrollHeight: { value: 3000 }, clientWidth: { value: 400 } });
+    editor.value = Array.from({ length: 100 }, (_, i) => `line ${i}`).join('\n');
+    await editor.updateComplete;
+    expect(input.style.height).toBe('3000px');
+    expect(input.scrollTop).toBe(0);
+    await new Promise(requestAnimationFrame);
+    Object.defineProperties(requireValue(container.shadowRoot?.querySelector('.frame')), {
+      clientHeight: { value: 200 },
+      clientWidth: { value: 400 },
+    });
+    Object.defineProperty(
+      requireValue(container.shadowRoot?.querySelector('.content')),
+      'scrollHeight',
+      { value: 3000 },
+    );
+    Object.defineProperties(output, {
+      scrollHeight: { value: 3000 },
+      clientHeight: { value: 200 },
+    });
+    container.refresh();
+    store.terminalView(store.terminals[0]).follow = false;
+    output.scrollTop = 500;
+    vi.spyOn(output, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 100, 400, 200));
+    const caret = requireValue(editor.shadowRoot?.querySelector<HTMLElement>('.cursor'));
+    vi.spyOn(caret, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 50, 10, 20));
+    editor.dispatchEvent(
+      new CustomEvent('reveal-command-caret', { detail: caret, bubbles: true, composed: true }),
+    );
+    await new Promise(requestAnimationFrame);
+    expect(output.scrollTop).toBe(450);
+    expect(input.scrollTop).toBe(0);
+  });
   it('routes Ctrl+C from the output pane to cancellation while a command is running', async () => {
     const { terminal, root } = await fixture();
     store.executions = [
@@ -141,19 +187,28 @@ describe('inline Web command terminal', () => {
   });
   it('scrolls output with Home/End without intercepting editor navigation', async () => {
     const { root } = await fixture();
-    const output = requireValue(root.querySelector<HTMLElement>('.terminal-output'));
+    const container = requireValue(
+      root.querySelector<WorkbenchScrollContainer>('.terminal-output'),
+    );
+    await container.updateComplete;
+    const output = requireValue(container.scrollElement);
     Object.defineProperties(output, {
       scrollHeight: { value: 3000 },
       clientHeight: { value: 200 },
     });
     output.scrollTop = 1000;
     output.dispatchEvent(
-      new KeyboardEvent('keydown', { key: 'Home', bubbles: true, cancelable: true }),
+      new KeyboardEvent('keydown', {
+        key: 'Home',
+        bubbles: true,
+        composed: true,
+        cancelable: true,
+      }),
     );
     expect(output.scrollTop).toBe(0);
     expect(store.terminalView(store.terminals[0]).follow).toBe(false);
     output.dispatchEvent(
-      new KeyboardEvent('keydown', { key: 'End', bubbles: true, cancelable: true }),
+      new KeyboardEvent('keydown', { key: 'End', bubbles: true, composed: true, cancelable: true }),
     );
     expect(output.scrollTop).toBe(3000);
     expect(store.terminalView(store.terminals[0]).follow).toBe(true);

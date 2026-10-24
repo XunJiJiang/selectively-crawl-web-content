@@ -1,4 +1,6 @@
 /// <reference lib="es2022.intl" />
+import type { WorkbenchScrollContainer } from './scroll-container.ts';
+import './scroll-container.ts';
 import { completionInput } from '../../../shared/command-completion.ts';
 import { completionSource } from '../../../terminal/command-text.ts';
 import { requireValue } from '../../../shared/workbench-protocol.ts';
@@ -98,15 +100,12 @@ export class CommandEditor extends LitElement {
       display: block;
       width: calc(100% - 2ch);
       min-height: 1lh;
-      max-height: 50vh;
       margin: 0 0 0 2ch;
       padding: 0;
       border: 0;
       outline: 0;
       resize: none;
-      overflow: auto;
-      scrollbar-width: thin;
-      scrollbar-gutter: stable;
+      overflow: hidden;
       border-radius: 0;
       background: transparent;
       color: transparent;
@@ -141,12 +140,13 @@ export class CommandEditor extends LitElement {
       position: fixed;
       z-index: 5;
       max-height: 200px;
-      overflow: auto;
-      padding: 4px;
       background: var(--surface-1);
       border: 1px solid var(--border-default);
       border-radius: 4px;
       box-shadow: var(--shadow-menu);
+    }
+    .terminal-completion-list::part(content) {
+      padding: 4px;
     }
     .terminal-completion-item {
       display: flex;
@@ -166,6 +166,11 @@ export class CommandEditor extends LitElement {
   `;
   private get input() {
     return this.renderRoot.querySelector<HTMLTextAreaElement>('textarea');
+  }
+  connectedCallback() {
+    super.connectedCallback();
+    window.addEventListener('scroll', this.positionCompletion, true);
+    window.addEventListener('resize', this.positionCompletion);
   }
   private get stacks() {
     let stacks = this.states.get(this.terminal.id);
@@ -286,7 +291,7 @@ export class CommandEditor extends LitElement {
   render() {
     let offset = 0;
     return html`${this.candidates
-        ? html`<div
+        ? html`<wb-scroll-container
             class="terminal-completion-list"
             id="completions"
             role="listbox"
@@ -312,7 +317,7 @@ export class CommandEditor extends LitElement {
                     </div>`,
                 )
               : html`<div>没有匹配的命令候选</div>`}
-          </div>`
+          </wb-scroll-container>`
         : nothing}
       <div class="input-surface">
         <div class="input-mirror" aria-hidden="true">
@@ -381,11 +386,10 @@ export class CommandEditor extends LitElement {
     if (!input || !mirror) {
       return;
     }
-    const top = input.scrollTop;
     input.style.height = '0px';
     input.style.height = `${input.scrollHeight}px`;
     mirror.style.width = `${input.clientWidth}px`;
-    input.scrollTop = top;
+    input.scrollTop = 0;
     this.syncScroll();
   }
   updated(changed: PropertyValues) {
@@ -404,33 +408,55 @@ export class CommandEditor extends LitElement {
       const input = this.input;
       const cursor = this.renderRoot.querySelector<HTMLElement>('.cursor');
       if (input && cursor) {
-        const viewport = input.getBoundingClientRect(),
-          caret = cursor.getBoundingClientRect();
-        if (caret.top < viewport.top) {
-          input.scrollTop += caret.top - viewport.top;
-        } else if (caret.bottom > viewport.bottom) {
-          input.scrollTop += caret.bottom - viewport.bottom;
-        }
-        this.syncScroll();
+        this.dispatchEvent(
+          new CustomEvent('reveal-command-caret', {
+            detail: cursor,
+            bubbles: true,
+            composed: true,
+          }),
+        );
       }
     }
     if (this.busy || this.waiting) {
       this.closeCompletion();
     }
-    const list = this.renderRoot.querySelector<HTMLElement>('.terminal-completion-list');
+    const list = this.renderRoot.querySelector<WorkbenchScrollContainer>(
+      '.terminal-completion-list',
+    );
     if (list) {
-      const rect = this.getBoundingClientRect();
-      const height = Math.min(
-        200,
-        list.scrollHeight,
-        Math.max(rect.top, window.innerHeight - rect.bottom),
-      );
-      list.style.cssText = `left:${rect.left}px;width:${rect.width}px;max-height:${height}px;top:${rect.top >= height ? rect.top - height : rect.bottom}px`;
-      list
-        .querySelector<HTMLElement>('[data-selected="true"]')
-        ?.scrollIntoView?.({ block: 'nearest' });
+      void list.updateComplete.then(() => {
+        if (!list.isConnected) {
+          return;
+        }
+        this.positionCompletion();
+        const viewport = list.scrollElement;
+        const selected = list.querySelector<HTMLElement>('[data-selected="true"]');
+        if (viewport && selected) {
+          const bounds = viewport.getBoundingClientRect(),
+            item = selected.getBoundingClientRect();
+          if (item.top < bounds.top) {
+            viewport.scrollTop += item.top - bounds.top;
+          } else if (item.bottom > bounds.bottom) {
+            viewport.scrollTop += item.bottom - bounds.bottom;
+          }
+          list.refresh();
+        }
+      });
     }
   }
+  private positionCompletion = () => {
+    const list = this.renderRoot.querySelector<WorkbenchScrollContainer>(
+      '.terminal-completion-list',
+    );
+    if (!list) {
+      return;
+    }
+    const rect = this.getBoundingClientRect();
+    const caret =
+      this.renderRoot.querySelector<HTMLElement>('.cursor')?.getBoundingClientRect() ?? rect;
+    const height = Math.min(200, Math.max(caret.top, window.innerHeight - caret.bottom));
+    list.style.cssText = `left:${rect.left}px;width:${rect.width}px;max-height:${height}px;top:${caret.top >= height ? caret.top - height : caret.bottom}px`;
+  };
   private updatePosition() {
     const before = this.value.slice(0, this.head),
       lines = before.split('\n');
@@ -685,6 +711,8 @@ export class CommandEditor extends LitElement {
     this.input?.focus({ preventScroll: true });
   }
   disconnectedCallback() {
+    window.removeEventListener('scroll', this.positionCompletion, true);
+    window.removeEventListener('resize', this.positionCompletion);
     this.resizeObserver?.disconnect();
     this.closeCompletion();
     super.disconnectedCallback();

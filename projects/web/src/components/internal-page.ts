@@ -1,3 +1,4 @@
+import './scroll-container.ts';
 import { requireValue } from '../../../shared/workbench-protocol.ts';
 import { LitElement, html, css, unsafeCSS, nothing, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
@@ -38,7 +39,7 @@ export class InternalPageView extends LitElement {
     ${unsafeCSS(style)}:host {
       display: block;
       height: 100%;
-      overflow: auto;
+      overflow: hidden;
     }
     .internal-view {
       min-height: 100%;
@@ -68,6 +69,11 @@ export class InternalPageView extends LitElement {
     void work().catch((e) => this.store.toast(this.store.message(e), 'error'));
   }
   render() {
+    return html`<wb-scroll-container class="internal-scroll"
+      >${this.renderPage()}</wb-scroll-container
+    >`;
+  }
+  private renderPage() {
     if (!this.store) {
       return nothing;
     }
@@ -595,7 +601,7 @@ export class InternalPageView extends LitElement {
       <p class="notice">
         ${icon('info')}浏览器保留 Ctrl/Cmd+W、Ctrl+Tab 等按键。可使用 Alt+W、Alt+J/K 或界面按钮。
       </p>
-      <div class="keybindings-table">
+      <wb-scroll-container class="keybindings-table">
         <div class="keybinding-row table-head">
           <span>命令</span><span>快捷键</span><span>上下文 / 来源</span><span></span>
         </div>
@@ -629,9 +635,9 @@ export class InternalPageView extends LitElement {
             </div>
           </div>`;
         })}
-      </div>
+      </wb-scroll-container>
       ${this.editing
-        ? html`<div
+        ? html`<wb-scroll-container
             class="inline-editor"
             role="dialog"
             aria-modal="true"
@@ -682,7 +688,7 @@ export class InternalPageView extends LitElement {
                 ${collision.length ? '仍然使用' : '保存绑定'}</button
               ><button class="btn secondary" @click=${() => (this.editing = null)}>取消</button>
             </div>
-          </div>`
+          </wb-scroll-container>`
         : nothing}
     </div>`;
   }

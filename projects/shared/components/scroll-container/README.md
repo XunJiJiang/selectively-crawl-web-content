@@ -1,6 +1,6 @@
 # scwc-scroll-container
 
-独立的 Lit 滚动容器。提供组件、测试和独立参数演示页，未注册到共享组件总入口，也未替换工作台的滚动区域。
+独立的 Lit 滚动容器。提供组件、测试和独立参数演示页，未注册到共享组件总入口。工作台通过 `projects/web/src/components/scroll-container.ts` 适配默认外观与按行滚动；插件页面不受该适配影响。
 
 ```ts
 import '.../shared/components/scroll-container/index.ts';

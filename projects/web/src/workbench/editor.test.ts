@@ -16,6 +16,9 @@ describe('command editor keyboard precedence', () => {
         observe() {
           /* No browser geometry in this keyboard fixture. */
         }
+        unobserve() {
+          /* Geometry is supplied by the fixture. */
+        }
         disconnect() {
           /* No allocated observer. */
         }
@@ -100,6 +103,9 @@ async function fixture(value = '', entries: string[] = []) {
     class {
       observe() {
         /* No layout in jsdom. */
+      }
+      unobserve() {
+        /* Geometry is supplied by the fixture. */
       }
       disconnect() {
         /* No observer resources. */

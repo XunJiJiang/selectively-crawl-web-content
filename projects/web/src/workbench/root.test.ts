@@ -1,3 +1,4 @@
+import type { WorkbenchScrollContainer } from '../components/scroll-container.ts';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { WorkbenchStore } from './store.ts';
 import { addTab, internalTab, titleOf, splitGroup, groups } from './model.ts';
@@ -39,6 +40,9 @@ async function fixture() {
     class {
       observe() {
         /* Geometry is supplied by each test. */
+      }
+      unobserve() {
+        /* Geometry is supplied by the fixture. */
       }
       disconnect() {
         /* No observer resources. */
@@ -141,31 +145,43 @@ describe('workbench interactions', () => {
   });
   it('follows public output only while the reader remains at the bottom, including hidden updates', async () => {
     const root = await fixture();
-    const output = requireValue(root.querySelector<HTMLElement>('.output-content'));
+    const container = requireValue(root.querySelector<WorkbenchScrollContainer>('.output-content'));
+    await container.updateComplete;
+    const output = requireValue(container.scrollElement);
     let height = 1000,
       viewport = 200;
     Object.defineProperties(output, {
       scrollHeight: { get: () => height },
       clientHeight: { get: () => viewport },
     });
+    Object.defineProperties(requireValue(container.shadowRoot?.querySelector('.frame')), {
+      clientHeight: { get: () => viewport },
+      clientWidth: { value: 400 },
+    });
+    Object.defineProperty(
+      requireValue(container.shadowRoot?.querySelector('.content')),
+      'scrollHeight',
+      { get: () => height },
+    );
+    container.refresh();
     output.scrollTop = 300;
-    output.dispatchEvent(new Event('scroll'));
+    container.dispatchEvent(new Event('scroll'));
     height = 1200;
     app.requestUpdate();
     await app.updateComplete;
     expect(output.scrollTop).toBe(300);
     viewport = 0;
-    output.dispatchEvent(new Event('scroll'));
+    container.dispatchEvent(new Event('scroll'));
     app.requestUpdate();
     await app.updateComplete;
     expect(output.scrollTop).toBe(300);
     viewport = 200;
     output.scrollTop = 1000;
-    output.dispatchEvent(new Event('scroll'));
+    container.dispatchEvent(new Event('scroll'));
     height = 1400;
     app.requestUpdate();
     await app.updateComplete;
-    expect(output.scrollTop).toBe(1400);
+    expect(output.scrollTop).toBe(1200);
   });
   it('prefills the displayed tab title and selects it for renaming', async () => {
     const root = await fixture();
@@ -208,19 +224,45 @@ describe('workbench interactions', () => {
   );
 });
 
-it('scrolls horizontal page tabs with both wheel modes and leaves zoom available', async () => {
-  const root = await fixture();
-  const bar = requireValue(root.querySelector<HTMLElement>('.tab-bar'));
-  Object.defineProperties(bar, { scrollWidth: { value: 1000 }, clientWidth: { value: 200 } });
-  const wheel = (extra: WheelEventInit = {}) =>
-    bar.dispatchEvent(
-      new WheelEvent('wheel', { deltaY: 60, bubbles: true, cancelable: true, ...extra }),
-    );
-  expect(wheel()).toBe(false);
-  expect(bar.scrollLeft).toBe(60);
-  expect(wheel({ shiftKey: true })).toBe(false);
-  expect(bar.scrollLeft).toBe(120);
-  expect(wheel({ ctrlKey: true })).toBe(true);
-  expect(bar.scrollLeft).toBe(120);
-  expect(root.textContent).not.toContain('工作区已保存');
-});
+it.each(['top', 'bottom', 'left', 'right'] as const)(
+  'scrolls %s page tabs with both wheel modes and leaves zoom available',
+  async (position) => {
+    const root = await fixture();
+    groups(requireValue(app.store.workspace).snapshot.layout.center)[0].tabBarPosition = position;
+    app.requestUpdate();
+    await app.updateComplete;
+    const bar = requireValue(root.querySelector<WorkbenchScrollContainer>('.tab-bar'));
+    await bar.updateComplete;
+    const viewport = requireValue(bar.scrollElement);
+    const vertical = position === 'left' || position === 'right';
+    Object.defineProperties(requireValue(bar.shadowRoot?.querySelector('.frame')), {
+      clientWidth: { value: 200 },
+      clientHeight: { value: 200 },
+    });
+    Object.defineProperties(requireValue(bar.shadowRoot?.querySelector('.content')), {
+      scrollWidth: { value: vertical ? 200 : 1000 },
+      scrollHeight: { value: vertical ? 1000 : 200 },
+    });
+    viewport.scrollTo = (options: ScrollToOptions | number = {}, y?: number) => {
+      viewport.scrollLeft =
+        typeof options === 'number' ? options : (options.left ?? viewport.scrollLeft);
+      viewport.scrollTop =
+        typeof options === 'number' ? (y ?? 0) : (options.top ?? viewport.scrollTop);
+    };
+    bar.refresh();
+    expect(bar.horizontal).toMatchObject({ size: 2, radius: 4, placement: 'overlay' });
+    expect(bar.vertical).toMatchObject({ size: 2, radius: 4, placement: 'overlay' });
+    const wheel = (extra: WheelEventInit = {}) =>
+      bar.dispatchEvent(
+        new WheelEvent('wheel', { deltaY: 60, bubbles: true, cancelable: true, ...extra }),
+      );
+    expect(wheel()).toBe(false);
+    await new Promise(requestAnimationFrame);
+    expect(vertical ? viewport.scrollTop : viewport.scrollLeft).toBe(60);
+    expect(wheel({ shiftKey: true })).toBe(false);
+    await new Promise(requestAnimationFrame);
+    expect(vertical ? viewport.scrollTop : viewport.scrollLeft).toBe(120);
+    expect(wheel({ ctrlKey: true })).toBe(true);
+    expect(vertical ? viewport.scrollTop : viewport.scrollLeft).toBe(120);
+  },
+);

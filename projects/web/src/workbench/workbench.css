@@ -503,7 +503,6 @@ wb-icon {
 .sidebar-section-body {
   flex: 1;
   min-height: 0;
-  overflow: auto;
   overscroll-behavior: contain;
 }
 .plugin-section {
@@ -800,8 +799,6 @@ wb-icon {
   flex-shrink: 0;
 }
 .tab-bar {
-  display: flex;
-  overflow: auto;
   min-width: 0;
   flex: 1;
   scrollbar-width: thin;
@@ -815,7 +812,7 @@ wb-icon {
   flex: 0 0 auto;
   padding: 0 12px;
   border-right: 1px solid var(--border-subtle);
-  height: 32px;
+  height: 100%;
   white-space: nowrap;
   font-size: var(--text-xs);
   color: var(--text-secondary);
@@ -889,7 +886,6 @@ wb-icon {
   flex: 1;
   min-width: 0;
   min-height: 0;
-  overflow: auto;
 }
 .page-container {
   position: relative;
@@ -971,7 +967,6 @@ wb-icon {
 .center-group[data-position='left'] .tab-bar,
 .center-group[data-position='right'] .tab-bar {
   flex-direction: column;
-  overflow-y: auto;
 }
 .center-group[data-position='left'] .tab-item,
 .center-group[data-position='right'] .tab-item {
@@ -1041,8 +1036,6 @@ wb-icon {
   border-bottom-color: var(--accent-primary);
 }
 .inspector-content {
-  padding: 16px 12px;
-  overflow: auto;
   flex: 1;
   min-height: 0;
 }
@@ -1292,8 +1285,6 @@ wb-icon {
   flex: 1;
   min-height: 0;
   min-width: 0;
-  overflow: auto;
-  padding: 8px 12px;
   font: 0.857143rem/1.75 var(--font-mono);
   overflow-wrap: anywhere;
   overscroll-behavior: contain;
@@ -1355,7 +1346,6 @@ wb-icon {
 .terminal-output {
   background: var(--surface-0);
   padding: 0;
-  overflow: auto;
   overflow-anchor: none;
   color: var(--text-secondary);
   font-size: var(--text-xs);
@@ -1464,7 +1454,6 @@ wb-icon {
   flex-shrink: 0;
   background: var(--surface-2);
   border-left: 1px solid var(--border-subtle);
-  overflow: auto;
 }
 .terminal-row {
   display: flex;
@@ -1584,9 +1573,8 @@ wb-icon {
   white-space: nowrap;
 }
 .internal-view {
-  height: 100%;
+  min-height: 100%;
   padding: 28px 32px;
-  overflow: auto;
   background: var(--surface-0);
 }
 .page-heading {
@@ -2075,7 +2063,10 @@ wb-icon {
 .keybindings-table {
   border: 1px solid var(--border-subtle);
   border-radius: 4px;
-  overflow: hidden;
+  --keybindings-min-width: 540px;
+}
+.keybindings-table::part(content) {
+  min-width: max(100%, var(--keybindings-min-width));
 }
 .keybinding-row {
   display: grid;
@@ -2118,13 +2109,13 @@ wb-icon {
   height: 24px;
 }
 .inline-editor {
+  max-height: calc(100dvh - 32px);
   position: fixed;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
   z-index: 500;
   width: min(480px, calc(100vw - 32px));
-  padding: 24px;
   border: 1px solid var(--border-default);
   border-radius: 4px;
   background: var(--surface-elevated);
@@ -2244,8 +2235,6 @@ wb-icon {
   box-shadow: none;
 }
 .quick-results {
-  overflow: auto;
-  padding: 4px;
   flex: 1;
   min-height: 0;
 }
@@ -2281,16 +2270,13 @@ wb-icon {
   z-index: 400;
 }
 .notification-filters {
-  display: flex;
+  height: 45px;
   align-items: center;
   gap: 4px;
-  padding: 8px;
   border-bottom: 1px solid var(--border-default);
-  overflow: auto;
   flex-shrink: 0;
 }
 .notification-list {
-  overflow: auto;
   min-height: 0;
 }
 .notification {
@@ -2378,8 +2364,8 @@ wb-icon {
   overflow: hidden;
 }
 .jobs-list {
-  overflow: auto;
-  padding: 16px;
+  flex: 1;
+  min-height: 0;
 }
 .job-card {
   padding: 16px;
@@ -2393,11 +2379,9 @@ wb-icon {
   gap: 12px;
 }
 .job-card pre {
-  overflow: auto;
   font-size: 0.857143rem;
   white-space: pre-wrap;
-  max-height: 240px;
-  margin: 12px 0;
+  margin: 0;
   color: var(--text-secondary);
 }
 .boot-screen {
@@ -2828,13 +2812,11 @@ wb-icon {
   inset: 36px 0 32px;
 }
 .tab-bar {
-  overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: thin;
 }
 .center-group[data-position='left'] .tab-bar,
 .center-group[data-position='right'] .tab-bar {
-  overflow-y: auto;
   overflow-x: hidden;
 }
 .terminal-output,
@@ -2849,9 +2831,7 @@ wb-icon {
   word-break: break-word;
 }
 .output-content {
-  display: block;
   overflow-anchor: none;
-  padding-bottom: 16px;
 }
 .output-line {
   flex-shrink: 0;
@@ -2939,11 +2919,12 @@ wb-icon {
 .workbench-dialog {
   width: min(520px, 100%);
   max-height: 100%;
-  overflow: auto;
   background: var(--surface-elevated);
   border: 1px solid var(--border-default);
   border-radius: 4px;
   box-shadow: var(--shadow-modal);
+}
+.dialog-form {
   padding: 24px;
   display: flex;
   flex-direction: column;
@@ -3092,42 +3073,6 @@ wb-icon {
   font-size: 0.928571rem;
   --icon-size: 0.928571rem;
 }
-.tab-bar {
-  scrollbar-width: thin;
-  scrollbar-color: transparent transparent;
-}
-.tab-bar:hover {
-  scrollbar-color: var(--border-default) transparent;
-}
-/* Non-auto standard scrollbar styles override WebKit sizing and button styles. */
-@supports selector(::-webkit-scrollbar) {
-  .tab-bar,
-  .tab-bar:hover {
-    scrollbar-width: auto;
-    scrollbar-color: auto;
-  }
-}
-.tab-bar::-webkit-scrollbar {
-  height: 4px;
-  width: 4px;
-  background: transparent;
-}
-.tab-bar::-webkit-scrollbar-thumb {
-  background: transparent;
-  border-radius: 4px;
-}
-.tab-bar:hover::-webkit-scrollbar-thumb {
-  background: var(--border-default);
-}
-.tab-bar::-webkit-scrollbar-track,
-.tab-bar::-webkit-scrollbar-corner {
-  background: transparent;
-}
-.tab-bar::-webkit-scrollbar-button {
-  display: none;
-  width: 0;
-  height: 0;
-}
 .bookmark-tree {
   min-height: 24px;
   padding-bottom: 16px;
@@ -3275,4 +3220,99 @@ wb-icon {
 }
 [data-tab-drop='after']::after {
   bottom: 0;
+}
+
+/* 工作台滚动视口；菜单和配置 textarea 保持各自的原生滚动。 */
+.internal-scroll {
+  width: 100%;
+  height: 100%;
+  background: var(--surface-0);
+}
+.page-viewport::part(content) {
+  height: 100%;
+}
+.tab-bar::part(viewport) {
+  overflow-y: hidden;
+}
+.tab-bar::part(content) {
+  display: flex;
+  width: max-content;
+  height: 100%;
+}
+.center-group[data-position='left'] .tab-bar::part(viewport),
+.center-group[data-position='right'] .tab-bar::part(viewport) {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+.center-group[data-position='left'] .tab-bar::part(content),
+.center-group[data-position='right'] .tab-bar::part(content) {
+  flex-direction: column;
+  width: 100%;
+  height: auto;
+}
+.notification-filters::part(viewport) {
+  overflow-y: hidden;
+}
+.notification-filters::part(content) {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: max-content;
+}
+.job-log {
+  max-height: 240px;
+  margin: 12px 0;
+}
+.job-card pre {
+  overflow-wrap: anywhere;
+}
+.output-content::part(viewport),
+.terminal-output::part(viewport) {
+  overscroll-behavior: contain;
+  overflow-anchor: none;
+}
+@media (max-width: 1023px) {
+  .keybindings-table {
+    --keybindings-min-width: 348px;
+  }
+}
+@media (max-width: 767px) {
+  .keybindings-table {
+    --keybindings-min-width: 258px;
+  }
+}
+@media print {
+  .internal-scroll,
+  .page-viewport {
+    height: auto;
+  }
+  wb-scroll-container::part(frame),
+  wb-scroll-container::part(viewport) {
+    height: auto;
+    overflow: visible;
+  }
+}
+
+.inspector-content::part(content) {
+  padding: 16px 12px;
+}
+
+.quick-results::part(content) {
+  padding: 4px;
+}
+
+.notification-filters::part(content) {
+  padding: 8px;
+}
+
+.jobs-list::part(content) {
+  padding: 16px;
+}
+
+.inline-editor::part(content) {
+  padding: 24px;
+}
+
+.output-content::part(content) {
+  padding: 8px 12px 16px;
 }

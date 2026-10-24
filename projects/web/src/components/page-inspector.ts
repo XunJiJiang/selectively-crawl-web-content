@@ -1,3 +1,4 @@
+import './scroll-container.ts';
 import { requireValue } from '../../../shared/workbench-protocol.ts';
 import { LitElement, html, css, unsafeCSS, nothing, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
@@ -274,7 +275,7 @@ export class PageInspector extends LitElement {
             </button>`,
         )}
       </div>
-      <div class="inspector-content">
+      <wb-scroll-container class="inspector-content">
         ${this.view === 'properties'
           ? html`<div class="property-group">
                 <h3>页面</h3>
@@ -404,7 +405,7 @@ export class PageInspector extends LitElement {
             </div>`
           : nothing}
         ${this.errors ? html`<p role="alert" class="notice error">${this.errors}</p>` : nothing}
-      </div>`;
+      </wb-scroll-container>`;
   }
   private property(label: string, value: string) {
     return html`<div class="property-row"><span>${label}</span><span>${value}</span></div>`;
