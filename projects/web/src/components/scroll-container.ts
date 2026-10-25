@@ -42,8 +42,8 @@ export class WorkbenchScrollContainer extends SCWCScrollContainer {
 
   protected willUpdate(changed: PropertyValues<this>) {
     if (changed.has('thin')) {
-      this.horizontal = { ...this.horizontal, size: this.thin ? 2 : 6 };
-      this.vertical = { ...this.vertical, size: this.thin ? 2 : 6 };
+      this.horizontal = { ...this.horizontal, size: this.thin ? 2 : 4 };
+      this.vertical = { ...this.vertical, size: this.thin ? 2 : 4 };
     }
     this.updateLineStep();
     super.willUpdate(changed);

@@ -36,7 +36,7 @@ describe('scrollbar geometry', () => {
     expect(
       scrollbarOptions({ size: NaN, opacity: 3, radius: -2, hideDelay: Infinity }),
     ).toMatchObject({
-      size: 6,
+      size: 4,
       opacity: 1,
       radius: 0,
       hideDelay: 600,

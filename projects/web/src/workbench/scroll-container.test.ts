@@ -8,6 +8,8 @@ async function fixture() {
   const area = new WorkbenchScrollContainer();
   document.body.append(area);
   await area.updateComplete;
+  expect(area.horizontal.size).toBe(4);
+  expect(area.vertical.size).toBe(4);
   const viewport = requireValue(area.scrollElement);
   Object.defineProperties(requireValue(area.shadowRoot?.querySelector('.frame')), {
     clientWidth: { value: 300 },

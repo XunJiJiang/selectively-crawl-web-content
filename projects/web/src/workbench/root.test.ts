@@ -81,6 +81,148 @@ async function fixture() {
   await app.updateComplete;
   return requireValue(app.shadowRoot);
 }
+
+function resizePointer(target: EventTarget, type: string, x = 318, y = 100) {
+  target.dispatchEvent(
+    new MouseEvent(type, {
+      bubbles: true,
+      composed: true,
+      cancelable: true,
+      button: 0,
+      clientX: x,
+      clientY: y,
+    }),
+  );
+}
+
+async function resizeFixture() {
+  const root = await fixture();
+  vi.spyOn(app.store, 'update').mockImplementation(async (mutate) => {
+    mutate(requireValue(app.store.workspace).snapshot);
+    app.store.changed();
+  });
+  const main = requireValue(root.querySelector<HTMLElement>('.main-resize'));
+  const split = requireValue(root.querySelector<HTMLElement>('.sidebar-splitter'));
+  Object.defineProperty(requireValue(root.querySelector('.sidebar-content')), 'clientHeight', {
+    value: 400,
+  });
+  vi.spyOn(main, 'getBoundingClientRect').mockReturnValue(new DOMRect(316, 36, 4, 652));
+  vi.spyOn(split, 'getBoundingClientRect').mockReturnValue(new DOMRect(40, 300, 280, 4));
+  return { root, main, split, workbench: requireValue(root.querySelector('.workbench')) };
+}
+
+describe('layout resize feedback', () => {
+  it('highlights both intersecting handles whenever the cursor changes to move and clears on leave', async () => {
+    const { main, split, workbench } = await resizeFixture();
+    resizePointer(main, 'pointermove', 318, 302);
+    await app.updateComplete;
+    for (const handle of [main, split]) {
+      expect(handle.style.cursor).toBe('move');
+      expect(handle.hasAttribute('data-resize-active')).toBe(true);
+    }
+    resizePointer(main, 'pointermove', 318, 100);
+    await app.updateComplete;
+    for (const handle of [main, split]) {
+      expect(handle.style.cursor).toBe('');
+      expect(handle.hasAttribute('data-resize-active')).toBe(false);
+    }
+    resizePointer(main, 'pointermove', 318, 302);
+    resizePointer(workbench, 'pointerleave');
+    await app.updateComplete;
+    expect(main.style.cursor).toBe('');
+    expect(split.style.cursor).toBe('');
+    expect(main.hasAttribute('data-resize-active')).toBe(false);
+    expect(split.hasAttribute('data-resize-active')).toBe(false);
+  });
+
+  it.each(['pointerup', 'pointercancel'])(
+    'keeps both handles highlighted throughout a combined drag until %s',
+    async (finish) => {
+      const { root, main, split, workbench } = await resizeFixture();
+      resizePointer(main, 'pointerdown', 318, 302);
+      await app.updateComplete;
+      expect(document.documentElement.style.cursor).toBe('move');
+      expect(root.querySelector('.resize-shield')).not.toBeNull();
+      resizePointer(workbench, 'pointerleave');
+      resizePointer(window, 'pointermove', 338, 282);
+      await app.updateComplete;
+      for (const handle of [main, split]) {
+        expect(handle.hasAttribute('data-resize-active')).toBe(true);
+      }
+      resizePointer(window, finish, 900, 700);
+      await app.updateComplete;
+      expect(root.querySelector('.resize-shield')).toBeNull();
+      expect(document.documentElement.style.cursor).toBe('');
+      for (const handle of [main, split]) {
+        expect(handle.hasAttribute('data-resize-active')).toBe(false);
+      }
+      const sidebar = requireValue(app.store.workspace).snapshot.layout.mainSidebar;
+      expect(sidebar.size).toBe(finish === 'pointerup' ? 300 : 280);
+      expect(sidebar.openPagesRatio).toBeCloseTo(finish === 'pointerup' ? 0.55 : 0.6);
+    },
+  );
+
+  it('keeps a single handle active while the pointer leaves it and releases on disconnect', async () => {
+    const { main, split, workbench } = await resizeFixture();
+    resizePointer(main, 'pointerdown');
+    resizePointer(workbench, 'pointerleave');
+    await app.updateComplete;
+    expect(main.hasAttribute('data-resize-active')).toBe(true);
+    expect(split.hasAttribute('data-resize-active')).toBe(false);
+    expect(document.documentElement.style.cursor).toBe('col-resize');
+    app.remove();
+    await app.updateComplete;
+    expect(document.documentElement.style.cursor).toBe('');
+    resizePointer(window, 'pointermove', 500, 100);
+    expect(requireValue(app.store.workspace).snapshot.layout.mainSidebar.size).toBe(280);
+  });
+
+  it.each(['aux', 'panel', 'sidebar-split', 'split'])(
+    'forces the %s handle to stay highlighted until pointer cancellation',
+    async (key) => {
+      const { root, workbench } = await resizeFixture();
+      const snapshot = requireValue(app.store.workspace).snapshot;
+      snapshot.layout.auxiliarySidebar.visible = true;
+      if (key === 'split') {
+        addTab(snapshot, internalTab('bookmarks'));
+        splitGroup(snapshot, 'horizontal', snapshot.tabs[1].id);
+      }
+      app.requestUpdate();
+      await app.updateComplete;
+      const handle = requireValue(root.querySelector<HTMLElement>(`[data-resize-key="${key}"]`));
+      vi.spyOn(handle, 'getBoundingClientRect').mockReturnValue(new DOMRect(600, 100, 4, 100));
+      resizePointer(handle, 'pointerdown', 602, 150);
+      resizePointer(workbench, 'pointerleave');
+      await app.updateComplete;
+      expect(handle.hasAttribute('data-resize-active')).toBe(true);
+      resizePointer(window, 'pointercancel', 900, 700);
+      await app.updateComplete;
+      expect(handle.hasAttribute('data-resize-active')).toBe(false);
+    },
+  );
+
+  it('keeps the main handle highlighted when dragging switches between hidden and visible sidebars', async () => {
+    const { root } = await resizeFixture();
+    requireValue(app.store.workspace).snapshot.layout.mainSidebar.visible = false;
+    app.requestUpdate();
+    await app.updateComplete;
+    const hidden = requireValue(root.querySelector<HTMLElement>('.hidden-main-resize'));
+    vi.spyOn(hidden, 'getBoundingClientRect').mockReturnValue(new DOMRect(38, 36, 4, 652));
+    resizePointer(hidden, 'pointerdown', 40, 100);
+    await app.updateComplete;
+    expect(hidden.hasAttribute('data-resize-active')).toBe(true);
+    resizePointer(window, 'pointermove', 260, 100);
+    await app.updateComplete;
+    expect(root.querySelector('.hidden-main-resize')).toBeNull();
+    expect(root.querySelector('.main-resize')?.hasAttribute('data-resize-active')).toBe(true);
+    resizePointer(window, 'pointercancel', 260, 100);
+    await app.updateComplete;
+    expect(root.querySelector('.hidden-main-resize')?.hasAttribute('data-resize-active')).toBe(
+      false,
+    );
+  });
+});
+
 describe('workbench interactions', () => {
   it('creates a root bookmark folder after clicking the sidebar body outside the tree', async () => {
     const root = await fixture();

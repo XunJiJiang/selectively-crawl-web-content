@@ -132,6 +132,8 @@ export class AppRoot extends LitElement {
   private sidebarDrop?: HTMLElement;
   private previousTheme = '';
   private resizeSnapshot?: WorkspaceSnapshot;
+  private cancelResize?: () => void;
+  @state() private accessor highlightedResizers: ReadonlySet<string> = new Set();
   private focusHistory = new FocusHistory();
   private focusInitialized = false;
   private traversingFocus = false;
@@ -227,6 +229,7 @@ export class AppRoot extends LitElement {
     void this.store.start();
   }
   disconnectedCallback() {
+    this.cancelResize?.();
     this.store.removeEventListener('change', this.changed);
     window.removeEventListener('keydown', this.keydown);
     this.themeMedia.removeEventListener('change', this.themeChanged);
@@ -1393,6 +1396,11 @@ export class AppRoot extends LitElement {
     }
     const targets = this.resizeTargets(event);
     const axes = new Set(targets.map((el) => el.getAttribute('aria-orientation')));
+    this.setResizeHighlights(
+      axes.size > 1
+        ? targets.map((el) => ({ key: el.dataset.resizeKey ?? '', nodeId: el.dataset.resizeNode }))
+        : [],
+    );
     for (const el of this.renderRoot.querySelectorAll<HTMLElement>('[data-resize-key]')) {
       el.style.cursor = '';
     }
@@ -1402,13 +1410,33 @@ export class AppRoot extends LitElement {
       }
     }
   }
+  private setResizeHighlights(parts: { key: string; nodeId?: string }[]) {
+    const next = new Set(parts.map((part) => `${part.key}:${part.nodeId ?? ''}`));
+    if (
+      next.size !== this.highlightedResizers.size ||
+      [...next].some((key) => !this.highlightedResizers.has(key))
+    ) {
+      this.highlightedResizers = next;
+    }
+  }
+  private resizeHighlighted(key: string, nodeId?: string) {
+    return this.highlightedResizers.has(`${key}:${nodeId ?? ''}`);
+  }
+  private leaveResize() {
+    if (!this.dragging) {
+      this.setResizeHighlights([]);
+      for (const el of this.renderRoot.querySelectorAll<HTMLElement>('[data-resize-key]')) {
+        el.style.cursor = '';
+      }
+    }
+  }
   private resize(
     event: PointerEvent,
     key: 'main' | 'aux' | 'panel' | 'sidebar-split' | 'split' | 'terminal-list',
     nodeId?: string,
   ) {
     event.preventDefault();
-    if (event.button !== 0) {
+    if (event.button !== 0 || this.dragging) {
       return;
     }
     const initial = clone(this.snapshot),
@@ -1436,6 +1464,7 @@ export class AppRoot extends LitElement {
     this.resizeCursor = new Set(parts.map(orientation)).size > 1 ? 'move' : orientation(parts[0]);
     const oldCursor = document.documentElement.style.cursor;
     document.documentElement.style.cursor = this.resizeCursor;
+    this.setResizeHighlights(parts);
     this.dragging = true;
     this.resizeSnapshot = clone(initial);
     const side = initial.layout.mainSidebar.side;
@@ -1525,11 +1554,14 @@ export class AppRoot extends LitElement {
       window.removeEventListener('pointercancel', cancel);
       document.documentElement.style.cursor = oldCursor;
       this.dragging = false;
+      this.cancelResize = undefined;
+      this.leaveResize();
     };
-    const finish = () => {
+    const finish = (event: PointerEvent) => {
       const final = this.resizeSnapshot;
       this.resizeSnapshot = undefined;
       cleanup();
+      this.hoverResize(event);
       if (final) {
         this.act(() =>
           this.store.update((s) => {
@@ -1543,6 +1575,7 @@ export class AppRoot extends LitElement {
       cleanup();
       this.requestUpdate();
     };
+    this.cancelResize = cancel;
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', finish, { once: true });
     window.addEventListener('pointercancel', cancel, { once: true });
@@ -1670,6 +1703,7 @@ export class AppRoot extends LitElement {
       >
       <div
         @pointermove=${this.hoverResize}
+        @pointerleave=${this.leaveResize}
         class=${`workbench ${this.dragging ? 'is-dragging' : ''} ${this.focusedOnly ? 'is-focused' : ''}`}
       >
         ${this.renderTopbar()}
@@ -1724,6 +1758,7 @@ export class AppRoot extends LitElement {
                   ? html`<div
                       class="resize-handle hidden-main-resize"
                       data-resize-key="main"
+                      ?data-resize-active=${this.resizeHighlighted('main')}
                       role="separator"
                       aria-label="展开和调整主侧栏宽度"
                       aria-orientation="vertical"
@@ -1765,6 +1800,7 @@ export class AppRoot extends LitElement {
                   <div
                     class="resize-handle aux-resize"
                     data-resize-key="aux"
+                    ?data-resize-active=${this.resizeHighlighted('aux')}
                     role="separator"
                     tabindex="0"
                     aria-label="调整辅助侧栏宽度"
@@ -1932,6 +1968,7 @@ export class AppRoot extends LitElement {
       <div
         class="resize-handle main-resize"
         data-resize-key="main"
+        ?data-resize-active=${this.resizeHighlighted('main')}
         role="separator"
         tabindex="0"
         aria-label="调整主侧栏宽度"
@@ -2065,6 +2102,7 @@ export class AppRoot extends LitElement {
                 class="sidebar-splitter"
                 ?hidden=${this.openPagesCollapsed || this.pluginPagesCollapsed}
                 data-resize-key="sidebar-split"
+                ?data-resize-active=${this.resizeHighlighted('sidebar-split')}
                 role="separator"
                 tabindex="0"
                 aria-label="调整打开页面与插件列表比例"
@@ -2260,6 +2298,7 @@ export class AppRoot extends LitElement {
           class=${`center-splitter ${node.axis}`}
           data-resize-key="split"
           data-resize-node=${node.id}
+          ?data-resize-active=${this.resizeHighlighted('split', node.id)}
           role="separator"
           tabindex="0"
           aria-label="调整页面分组比例"
@@ -2647,6 +2686,7 @@ export class AppRoot extends LitElement {
       <div
         class=${`resize-handle panel-resize ${panel.dock}`}
         data-resize-key="panel"
+        ?data-resize-active=${this.resizeHighlighted('panel')}
         role="separator"
         tabindex="0"
         aria-label="调整面板尺寸"

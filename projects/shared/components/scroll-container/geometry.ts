@@ -1,7 +1,7 @@
 import type { ScrollbarOptions } from './types.ts';
 
 export const defaultScrollbar = {
-  size: 6,
+  size: 4,
   color: 'currentColor',
   radius: 3,
   opacity: 0.5,

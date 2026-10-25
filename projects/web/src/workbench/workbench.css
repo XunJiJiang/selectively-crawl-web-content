@@ -702,7 +702,8 @@ wb-icon {
   transition: background var(--transition-fast);
 }
 .resize-handle:hover,
-.resize-handle:focus-visible {
+.resize-handle:focus-visible,
+[data-resize-key][data-resize-active] {
   background: var(--accent-primary);
 }
 .main-resize {
@@ -2804,15 +2805,15 @@ wb-icon {
 }
 .hidden-main-resize {
   grid-area: main;
-  width: 6px;
+  width: 4px;
   height: 100%;
-  margin-left: -3px;
+  margin-left: -2px;
   cursor: col-resize;
   z-index: 90;
 }
 .shell-body[data-side='right'] .hidden-main-resize {
   justify-self: end;
-  margin-right: -3px;
+  margin-right: -2px;
 }
 .shell-body[data-side='left'] .panel-maximized {
   grid-area: auto;
@@ -3136,8 +3137,8 @@ wb-icon {
   background: var(--surface-0);
 }
 .internal-scroll::part(content) {
-  /* 内置页在 1024px 浏览器分配宽度处停止收缩，双轴滚动由页面自己承接。 */
-  min-width: calc(100% + max(0px, 1024px - 100vw));
+  /* 每个内置页按自己的宽度收缩到 440px，再由页面承接横向滚动。 */
+  min-width: max(100%, 440px);
 }
 .tab-bar::part(viewport) {
   overflow-y: hidden;
