@@ -50,6 +50,7 @@ it('accumulates wheel input into single rendered log lines and updates the step 
 
 it('lets native configuration textareas scroll until their boundary before scrolling the parent', async () => {
   const { area, viewport } = await fixture();
+  area.scrollBehavior = 'instant';
   const input = document.createElement('textarea');
   area.append(input);
   Object.defineProperties(input, { scrollHeight: { value: 500 }, clientHeight: { value: 100 } });
@@ -64,4 +65,24 @@ it('lets native configuration textareas scroll until their boundary before scrol
   expect(wheel()).toBe(false);
   await new Promise(requestAnimationFrame);
   expect(viewport.scrollTop).toBe(40);
+});
+
+it('keeps only whole rows and puts the remainder above the viewport without accumulating margins', async () => {
+  const { area } = await fixture();
+  area.innerHTML = '<div class="output-line" style="line-height:21px">one line</div>';
+  area.lineScroll = true;
+  area.wholeLines = true;
+  let available = 203;
+  area.getBoundingClientRect = () =>
+    new DOMRect(0, 0, 300, available - (Number.parseFloat(area.style.marginTop) || 0));
+  await area.updateComplete;
+  area.refresh();
+  expect(area.stepDistance).toBe(21);
+  expect(area.style.marginTop).toBe('14px');
+  area.refresh();
+  expect(area.style.marginTop).toBe('14px');
+  available = 219;
+  area.refresh();
+  expect(area.style.marginTop).toBe('9px');
+  expect(area.getBoundingClientRect().height).toBe(210);
 });

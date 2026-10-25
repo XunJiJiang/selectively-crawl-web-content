@@ -65,7 +65,7 @@ const pluginCommandMap = new Map<string, string>();
 const commandPluginMap = new Map<string, string[]>();
 
 /** 检查命令有没有非法字符 */
-function isValidCommandName(name: string) {
+function isValidCommandName (name: string) {
   return /^[a-zA-Z0-9-_]+$/.test(name);
 }
 
@@ -75,10 +75,17 @@ const reservedCommands = new Set<string>();
 export const SYSTEM_SYMBOL = Symbol('system');
 
 export class CommandError extends Error {
-  constructor(message: string, needPrintOriginal = true) {
+  public readonly code: string;
+
+  constructor (
+    message: string,
+    needPrintOriginal = true,
+    code = 'invalid_command',
+  ) {
     super(message);
     this.name = 'CommandError';
     this.needPrintOriginal = needPrintOriginal;
+    this.code = code;
   }
 
   /** 是否需要打印原始错误 */
@@ -110,7 +117,7 @@ export type TRegisterCommand = (
  * @param complete 三级及以上候选加载函数；不传则返回空候选
  * @throws {Error} 如果命令名称非法或多次注册命令
  */
-export function registerCommand(
+export function registerCommand (
   log: TLogger,
   commandName: string,
   execute: TCommandExecute,
@@ -197,7 +204,7 @@ export function registerCommand(
   commandEvents.emit('change', getCommands());
 }
 
-export function unregisterPluginCommand(pluginId: string) {
+export function unregisterPluginCommand (pluginId: string) {
   const name = pluginCommandMap.get(pluginId);
   const definition = name ? commandRegistry.get(name) : undefined;
   if (!name || !definition || definition.system) {
@@ -226,7 +233,7 @@ export function unregisterPluginCommand(pluginId: string) {
 }
 
 /** First two levels use metadata; deeper candidates are supplied by the owning command. */
-export async function completeCommand(
+export async function completeCommand (
   { command, cursor }: CompletionRequest,
   signal = new AbortController().signal,
 ): Promise<CompletionResult> {
@@ -303,7 +310,7 @@ export async function completeCommand(
  * @param rawCommand 原始命令字符串
  * @returns 拆分后的命令数组
  */
-export function splitCommand(rawCommand: string): string[] {
+export function splitCommand (rawCommand: string): string[] {
   const parts: string[] = [];
   let token = '';
   let quote = '';
@@ -346,7 +353,7 @@ export function splitCommand(rawCommand: string): string[] {
  * 只执行一个回调, 优先级: 子命令 > 主命令
  * @param originCommand 原始命令字符串
  */
-export function getCommands() {
+export function getCommands () {
   return [...commandRegistry].map(([name, value]) => ({
     name,
     description: value.description,
@@ -356,14 +363,14 @@ export function getCommands() {
   }));
 }
 
-function prepareCommand(raw: string) {
+function prepareCommand (raw: string) {
   const parts = splitCommand(raw);
   if (!parts.length) {
     throw new CommandError('未提供命令', false);
   }
   const definition = commandRegistry.get(parts[0]);
   if (!definition) {
-    throw new CommandError(`未知命令: ${parts[0]}`, false);
+    throw new CommandError(`未知命令: ${parts[0]}`, false, 'unknown_command');
   }
   if (definition.available && !definition.available()) {
     throw new CommandError('命令所属插件已停止，请使用 :r 重启核心后重新提交', false);
@@ -426,7 +433,7 @@ function prepareCommand(raw: string) {
     warnings,
   };
 }
-export function validateCommand(command: string) {
+export function validateCommand (command: string) {
   const prepared = prepareCommand(command);
   return {
     name: prepared.parts[0],
@@ -436,7 +443,7 @@ export function validateCommand(command: string) {
   };
 }
 
-export async function parseAndRunCommands(command: string, supplied?: InvocationContext) {
+export async function parseAndRunCommands (command: string, supplied?: InvocationContext) {
   const prepared = prepareCommand(command);
   const scope = supplied ? undefined : taskRegistry.create('core', currentIdentity());
   const context = supplied ?? scope?.context;
@@ -460,7 +467,7 @@ export async function parseAndRunCommands(command: string, supplied?: Invocation
 }
 
 /** 打印 help */
-export function printHelp(log: TLogger) {
+export function printHelp (log: TLogger) {
   log.info('可用命令列表:');
   for (const [commandName, commandDef] of commandRegistry.entries()) {
     log.info(`- ${commandName}${commandDef.description ? `: ${commandDef.description}` : ''}`);
@@ -472,7 +479,7 @@ export function printHelp(log: TLogger) {
  * 打印指定命令的 help
  * @param commandName 命令名称 [pluginId:]commandName
  */
-export function printCommandHelp(commandName: string) {
+export function printCommandHelp (commandName: string) {
   const commandDef = commandRegistry.get(commandName);
   if (!commandDef) {
     throw new CommandError(`未知命令: ${commandName}`, false);
@@ -490,8 +497,7 @@ export function printCommandHelp(commandName: string) {
     log.info('选项:');
     commandDef.options.forEach((opt) => {
       log.info(
-        `  --${opt.name}${opt.alias ? ` (-${opt.alias})` : ''}${opt.required ? ' [必填]' : ''}${
-          opt.defaultValue !== undefined ? ` [默认值: ${opt.defaultValue}]` : ''
+        `  --${opt.name}${opt.alias ? ` (-${opt.alias})` : ''}${opt.required ? ' [必填]' : ''}${opt.defaultValue !== undefined ? ` [默认值: ${opt.defaultValue}]` : ''
         } - ${opt.description ?? '无描述'}`,
       );
     });

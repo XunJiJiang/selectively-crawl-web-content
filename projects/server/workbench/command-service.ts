@@ -6,13 +6,14 @@ import {
   parseAndRunCommands,
   completeCommand,
   commandEvents,
+  CommandError,
 } from '../utils/command.ts';
 import { invocationStorage, taskRegistry, type TaskScope } from '../common/tasks.ts';
 import { registerInputSession, InvocationInputError } from '../common/interaction.ts';
 import { subscribeLog } from '../utils/log.ts';
 import { pluginClients } from '../plugin/process/client.ts';
 import type { InputRequest } from '../types/task.d.ts';
-import { assert, coreBootId, json, now, type WorkbenchStorage } from './storage.ts';
+import { assert, coreBootId, json, now, WorkbenchError, type WorkbenchStorage } from './storage.ts';
 import { identifier, type WorkspaceService } from './workspace.ts';
 import { workbenchEvents } from './events.ts';
 
@@ -158,7 +159,15 @@ export class CommandService {
       '终端正忙',
       409,
     );
-    const validated = validateCommand(command);
+    let validated: ReturnType<typeof validateCommand>;
+    try {
+      validated = validateCommand(command);
+    } catch (error) {
+      if (error instanceof CommandError) {
+        throw new WorkbenchError(error.code, error.message, 400);
+      }
+      throw error;
+    }
     const lifecycle = validated.system && ['exit', 'restart'].includes(validated.originalName);
     const id = randomUUID(),
       sessionId = `web:${workspaceId}`;

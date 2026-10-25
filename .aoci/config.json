@@ -217,6 +217,17 @@
         "created_by": "codex",
         "order": 6000,
         "enabled": true
+      },
+      {
+        "rule_id": "project-environment-constraints",
+        "action": "index",
+        "pattern": "docs/环境与限制.md",
+        "pattern_kind": "file",
+        "reason": "用户明确要求以独立文档持久保存环境与长期限制；仅索引此文档的读取维护入口，不将具体限制复制到AOCI",
+        "source": "user",
+        "created_by": "codex",
+        "order": 6000,
+        "enabled": true
       }
     ]
   },
@@ -285,6 +296,7 @@
   "automation": {
     "mode": "auto"
   },
+  "maintain_transport_budget_bytes": 65536,
   "ai": {
     "enabled": false,
     "provider": "openai-compatible",
@@ -296,6 +308,5 @@
     "max_input_tokens": 0,
     "token_accounting": "auto",
     "prompt_snapshot": "redacted"
-  },
-  "maintain_transport_budget_bytes": 65536
+  }
 }

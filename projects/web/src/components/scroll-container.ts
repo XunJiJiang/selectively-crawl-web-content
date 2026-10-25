@@ -6,6 +6,7 @@ import { SCWCScrollContainer } from '../../../shared/components/scroll-container
 @customElement('wb-scroll-container')
 export class WorkbenchScrollContainer extends SCWCScrollContainer {
   @property({ type: Boolean, attribute: 'line-scroll' }) accessor lineScroll = false;
+  @property({ type: Boolean, attribute: 'whole-lines' }) accessor wholeLines = false;
   @property({ type: Boolean }) accessor thin = false;
 
   constructor() {
@@ -51,17 +52,41 @@ export class WorkbenchScrollContainer extends SCWCScrollContainer {
       const number = (value: string) => Number.parseFloat(value) || 0;
       const padding = (value: CSSStyleDeclaration) =>
         number(value.paddingTop) + number(value.paddingBottom);
-      const childPadding = row
-        ? Math.max(0, ...[...row.children].map((child) => padding(getComputedStyle(child))))
-        : 0;
       // 使用单行的实际排版高度，长日志换行不改变最小步长。
       const line = number(style.lineHeight) || number(style.fontSize) * 1.5 || 21;
-      this.stepDistance = Math.max(line + padding(style) + childPadding, number(style.minHeight));
+      const childLine = row
+        ? Math.max(
+            line,
+            ...[...row.children].map((child) => {
+              const childStyle = getComputedStyle(child);
+              return (number(childStyle.lineHeight) || line) + padding(childStyle);
+            }),
+          )
+        : line;
+      this.stepDistance = Math.max(
+        childLine + padding(style) + number(style.borderTopWidth) + number(style.borderBottomWidth),
+        number(style.minHeight),
+      );
     }
   }
 
   refresh() {
     this.updateLineStep();
+    if (this.wholeLines && this.stepDistance > 0) {
+      const height = this.getBoundingClientRect().height;
+      if (height > 0) {
+        // flex 分配后的高度加回上次余量，避免 ResizeObserver 反复减去余量。
+        const available = height + (Number.parseFloat(this.style.marginTop) || 0);
+        const rows = Math.floor((available + 0.01) / this.stepDistance);
+        const gap = Math.max(0, available - rows * this.stepDistance);
+        const margin = `${gap}px`;
+        if (this.style.marginTop !== margin) {
+          this.style.marginTop = margin;
+        }
+      }
+    } else if (this.style.marginTop) {
+      this.style.marginTop = '';
+    }
     super.refresh();
   }
 

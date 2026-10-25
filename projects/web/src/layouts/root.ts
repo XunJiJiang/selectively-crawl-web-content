@@ -2765,6 +2765,7 @@ export class AppRoot extends LitElement {
             class="output-content"
             scroll-behavior="instant"
             line-scroll
+            whole-lines
             role="log"
             tabindex="0"
             aria-label="公共输出"

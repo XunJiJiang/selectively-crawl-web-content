@@ -17,6 +17,7 @@ import style from '../workbench/workbench.css?raw';
 import type { WorkbenchStore } from '../workbench/store.ts';
 import type { Execution, Terminal } from '../workbench/types.ts';
 import { uid } from '../workbench/model.ts';
+import { ApiError } from '../api/workbench.ts';
 @customElement('wb-terminal')
 export class WorkbenchTerminal extends LitElement {
   @property({ attribute: false }) accessor store!: WorkbenchStore;
@@ -36,6 +37,8 @@ export class WorkbenchTerminal extends LitElement {
   private lastRecords?: import('../workbench/types.ts').OutputRecord[];
   private rows: ReturnType<typeof terminalRows> = [];
   private creating?: Promise<void>;
+  private inputErrors = new Map<string, string>();
+  private resumeInputFocus = '';
   async activate(id?: string) {
     if (!this.terminal) {
       await this.create();
@@ -305,6 +308,8 @@ export class WorkbenchTerminal extends LitElement {
       return;
     }
     this.submitting = new Set([...this.submitting, terminal.id]);
+    this.inputErrors.delete(terminal.id);
+    this.resumeInputFocus = terminal.id;
     try {
       const input = this.store.inputs.find((i) => i.identity.windowId === terminal.id);
       if (input) {
@@ -340,6 +345,12 @@ export class WorkbenchTerminal extends LitElement {
       await this.store.refreshTerminals();
       await this.store.syncExecutions();
       await this.store.loadOutput(terminal.id);
+    } catch (error) {
+      if (error instanceof ApiError && error.code === 'unknown_command') {
+        this.inputErrors.set(terminal.id, '未知命令');
+      } else {
+        throw error;
+      }
     } finally {
       this.submitting = new Set([...this.submitting].filter((id) => id !== terminal.id));
     }
@@ -412,10 +423,25 @@ export class WorkbenchTerminal extends LitElement {
       }}
     >
       <div class="terminal-main" @contextmenu=${this.openMenu}>
+        ${pinnedCommand
+          ? html`<div class="terminal-pinned-command" title=${pinnedCommand}>
+              <span class="terminal-input-prompt">&gt;</span><span>${pinnedCommand}</span>
+              ${execution
+                ? html`<small
+                    >${this.cancelling.has(execution.id)
+                      ? '正在取消…'
+                      : execution.status === 'returned'
+                        ? '后台运行'
+                        : '执行中'}</small
+                  >`
+                : nothing}
+            </div>`
+          : nothing}
         <wb-scroll-container
           class="terminal-output"
           scroll-behavior="instant"
           line-scroll
+          whole-lines
           wheel-direction="vertical"
           shift-wheel-direction="vertical"
           role="log"
@@ -458,20 +484,6 @@ export class WorkbenchTerminal extends LitElement {
             }
           }}
         >
-          ${pinnedCommand
-            ? html`<div class="terminal-pinned-command" title=${pinnedCommand}>
-                <span class="terminal-input-prompt">&gt;</span><span>${pinnedCommand}</span>
-                ${execution
-                  ? html`<small
-                      >${this.cancelling.has(execution.id)
-                        ? '正在取消…'
-                        : execution.status === 'returned'
-                          ? '后台运行'
-                          : '执行中'}</small
-                    >`
-                  : nothing}
-              </div>`
-            : nothing}
           ${!t
             ? html`<div class="empty compact">
                 <wb-icon name="terminal"></wb-icon>
@@ -506,7 +518,10 @@ export class WorkbenchTerminal extends LitElement {
               )}
             </div>
             ${t
-              ? html`<div class="terminal-input-area">
+              ? html`<div
+                  class="terminal-input-area"
+                  ?hidden=${this.submitting.has(t.id) || (Boolean(execution) && !input)}
+                >
                   ${input
                     ? html`<div class="terminal-input-request">${input.message}</div>`
                     : nothing}
@@ -525,6 +540,8 @@ export class WorkbenchTerminal extends LitElement {
                     .waiting=${Boolean(input)}
                     .value=${local?.draft ?? ''}
                     @draft-change=${(e: CustomEvent<string>) => {
+                      this.inputErrors.delete(t.id);
+                      this.requestUpdate();
                       if (local) {
                         local.draft = e.detail;
                         local.follow = true;
@@ -547,6 +564,9 @@ export class WorkbenchTerminal extends LitElement {
           </div>
         </wb-scroll-container>
         <div class="terminal-input-status" role="status" @contextmenu=${this.openMenu}>
+          ${t && this.inputErrors.has(t.id)
+            ? html`<span class="terminal-input-error">${this.inputErrors.get(t.id)}</span>`
+            : nothing}
           <span
             >${input
               ? 'INPUT'
@@ -694,8 +714,10 @@ export class WorkbenchTerminal extends LitElement {
     this.requestUpdate();
   }
   private lineHeight() {
-    const el = this.outputElement();
-    return el ? Number.parseFloat(getComputedStyle(el).lineHeight) || 21 : 21;
+    return (
+      this.renderRoot.querySelector<WorkbenchScrollContainer>('.terminal-output')?.stepDistance ||
+      21
+    );
   }
   private wheel = (event: WheelEvent) => {
     if (!event.defaultPrevented && !event.ctrlKey && !event.metaKey) {
@@ -780,6 +802,14 @@ export class WorkbenchTerminal extends LitElement {
     });
   }
   updated() {
+    const area = this.renderRoot.querySelector<HTMLElement>('.terminal-input-area');
+    const editor = this.renderRoot.querySelector<CommandEditor>('wb-command-editor');
+    if (area?.hidden && this.shadowRoot?.activeElement === editor) {
+      this.renderRoot.querySelector<HTMLElement>('.terminal-output')?.focus();
+    } else if (area && !area.hidden && this.resumeInputFocus === this.terminal?.id) {
+      this.resumeInputFocus = '';
+      editor?.focus();
+    }
     if (!this.outputResize) {
       this.outputResize = new ResizeObserver(() => this.scheduleScroll());
       const content = this.renderRoot.querySelector('.terminal-scroll-content');

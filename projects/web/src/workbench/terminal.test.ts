@@ -4,6 +4,7 @@ import { WorkbenchStore } from './store.ts';
 import type { CommandEditor } from '../components/command-editor.ts';
 import { WorkbenchTerminal } from '../components/terminal.ts';
 import { requireValue } from '../../../shared/workbench-protocol.ts';
+import { ApiError } from '../api/workbench.ts';
 vi.mock('../../../shared/store/config.ts', () => ({
   ConfigController: { config: { api: { host: 'http://localhost', port: '3200', token: 'test' } } },
 }));
@@ -61,6 +62,63 @@ async function fixture() {
   return { terminal, root: requireValue(terminal.shadowRoot) };
 }
 describe('inline Web command terminal', () => {
+  it('hides ordinary input for running and returned tasks, but allows requested input and restores it on completion', async () => {
+    const { terminal, root } = await fixture();
+    const execution = {
+      id: 'running',
+      terminalId: 'a',
+      status: 'running',
+      coreBootId: 'boot',
+      command: 'long',
+    };
+    store.executions = [execution] as typeof store.executions;
+    store.changed();
+    await terminal.updateComplete;
+    const area = requireValue(root.querySelector<HTMLElement>('.terminal-input-area'));
+    expect(area.hidden).toBe(true);
+    execution.status = 'returned';
+    store.changed();
+    await terminal.updateComplete;
+    expect(area.hidden).toBe(true);
+    store.inputs = [
+      { id: 'input', identity: { windowId: 'a', executionId: 'running' }, message: 'Answer' },
+    ] as typeof store.inputs;
+    store.changed();
+    await terminal.updateComplete;
+    expect(area.hidden).toBe(false);
+    store.executions = [];
+    store.inputs = [];
+    store.changed();
+    await terminal.updateComplete;
+    expect(area.hidden).toBe(false);
+  });
+  it('reports unknown commands in the local status, retains the draft, and keeps unrelated errors visible', async () => {
+    const { terminal, root } = await fixture();
+    const toast = vi.spyOn(store, 'toast');
+    const request = vi
+      .spyOn(store.api, 'request')
+      .mockRejectedValue(new ApiError('unknown_command', '未知命令: help', 400));
+    const editor = requireValue(root.querySelector<CommandEditor>('wb-command-editor'));
+    const send = () =>
+      editor.dispatchEvent(
+        new CustomEvent('submit-command', { detail: 'help', bubbles: true, composed: true }),
+      );
+    send();
+    await expect
+      .poll(() => root.querySelector('.terminal-input-status')?.textContent)
+      .toContain('未知命令');
+    expect(toast).not.toHaveBeenCalled();
+    expect(store.terminalView(store.terminals[0]).draft).toBe('help');
+    expect(root.querySelector<HTMLElement>('.terminal-input-area')?.hidden).toBe(false);
+    editor.dispatchEvent(
+      new CustomEvent('draft-change', { detail: 'help', bubbles: true, composed: true }),
+    );
+    await terminal.updateComplete;
+    expect(root.querySelector('.terminal-input-status')?.textContent).not.toContain('未知命令');
+    request.mockRejectedValue(new ApiError('internal_error', '工作台服务错误', 500));
+    send();
+    await expect.poll(() => toast.mock.calls.length).toBe(1);
+  });
   it('grows multiline input and reveals its caret through the shared terminal viewport', async () => {
     const { root } = await fixture();
     const container = requireValue(

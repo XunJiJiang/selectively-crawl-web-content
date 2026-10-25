@@ -264,6 +264,31 @@ describe('events, tickets and notifications', () => {
 });
 
 describe('Web command execution', () => {
+  it('rejects unknown commands as a user error before accepting execution or clearing the draft', async () => {
+    const { storage, workspace } = fixture();
+    const lease = workspace.lease('unknown-workspace', 'owner', 'acquire');
+    assert('token' in lease, 'test', 'lease required');
+    const service = new CommandService(storage, workspace);
+    commands.push(service);
+    const terminal = service.saveTerminal('unknown-workspace', 'owner', lease.token, {
+      title: 'Unknown',
+      draft: 'missing-command',
+    });
+    await expect(
+      service.execute(
+        'unknown-workspace',
+        'owner',
+        lease.token,
+        terminal.id,
+        'missing-command',
+        'unknown-key',
+      ),
+    ).rejects.toMatchObject({ code: 'unknown_command', status: 400 });
+    expect(service.terminal(terminal.id, 'unknown-workspace').draft).toBe('missing-command');
+    expect(storage.db.prepare('SELECT count(*) AS count FROM executions').get()).toEqual({
+      count: 0,
+    });
+  });
   it('accepts exit and restart once and requests lifecycle after the execution receipt', async () => {
     const { storage, workspace } = fixture();
     const lease = workspace.lease('lifecycle-workspace', 'owner', 'acquire');

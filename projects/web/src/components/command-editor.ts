@@ -66,11 +66,12 @@ export class CommandEditor extends LitElement {
       min-height: 0;
       font-family: var(--font-mono);
       font-size: 1rem;
+      line-height: inherit;
       color: var(--terminal-foreground);
     }
     .input-surface {
       position: relative;
-      line-height: var(--leading-relaxed);
+      line-height: inherit;
       overflow: hidden;
     }
     .input-mirror {
@@ -144,6 +145,7 @@ export class CommandEditor extends LitElement {
       border: 1px solid var(--border-default);
       border-radius: 4px;
       box-shadow: var(--shadow-menu);
+      box-sizing: border-box;
     }
     .terminal-completion-list::part(content) {
       padding: 4px;
@@ -454,8 +456,19 @@ export class CommandEditor extends LitElement {
     const rect = this.getBoundingClientRect();
     const caret =
       this.renderRoot.querySelector<HTMLElement>('.cursor')?.getBoundingClientRect() ?? rect;
-    const height = Math.min(200, Math.max(caret.top, window.innerHeight - caret.bottom));
-    list.style.cssText = `left:${rect.left}px;width:${rect.width}px;max-height:${height}px;top:${caret.top >= height ? caret.top - height : caret.bottom}px`;
+    const margin = 4;
+    const above = Math.max(0, caret.top - margin * 2);
+    const below = Math.max(0, window.innerHeight - caret.bottom - margin * 2);
+    const width = Math.max(0, Math.min(rect.width, window.innerWidth - margin * 2));
+    const left = Math.max(margin, Math.min(rect.left, window.innerWidth - width - margin));
+    list.style.width = `${width}px`;
+    list.style.left = `${left}px`;
+    list.style.maxHeight = `${Math.min(200, Math.max(above, below))}px`;
+    // max-height 只是上限，短候选列表必须按实际高度贴近光标。
+    const height = list.getBoundingClientRect().height;
+    const top =
+      above >= height || above >= below ? caret.top - height - margin : caret.bottom + margin;
+    list.style.top = `${Math.max(margin, Math.min(top, window.innerHeight - height - margin))}px`;
   };
   private updatePosition() {
     const before = this.value.slice(0, this.head),

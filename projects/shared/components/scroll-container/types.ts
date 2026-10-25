@@ -2,6 +2,19 @@ export type ScrollAxis = 'horizontal' | 'vertical';
 export type WheelDirection = 'auto' | ScrollAxis | 'none';
 export type ScrollMode = 'smooth' | 'instant';
 
+export interface SmoothWheelOptions {
+  /** 总时长下限、上限和首次滚轮的预计间隔，单位 ms。 */
+  minDuration?: number;
+  maxDuration?: number;
+  initialInterval?: number;
+  /** 加减速各自占总时长的比例；总和过大时按比例收缩，保留匀速段。 */
+  accelerationRatio?: number;
+  decelerationRatio?: number;
+  /** 加减速时间下限，单位 ms。 */
+  minAcceleration?: number;
+  minDeceleration?: number;
+}
+
 export interface ScrollbarOptions {
   /** 滑块及轨道厚度，单位 px。 */
   size?: number;

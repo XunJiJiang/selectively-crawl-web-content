@@ -581,14 +581,17 @@ export class InternalPageView extends LitElement {
         '所有菜单、命令面板和快捷键使用同一份命令清单。',
       )}
       <div class="view-toolbar">
-        ${this.search('搜索名称、命令 ID、组合键或上下文…')}<select
-          aria-label="快捷键筛选"
+        ${this.search('搜索名称、命令 ID、组合键或上下文…')}<wb-menu-select
+          label="快捷键筛选"
+          presentation="custom"
           .value=${this.filter}
-          @change=${(e: Event) => (this.filter = (e.target as HTMLSelectElement).value)}
-        >
-          <option value="all">全部命令</option>
-          <option value="modified">已修改</option>
-          <option value="unbound">未绑定</option></select
+          .options=${[
+            { value: 'all', label: '全部命令' },
+            { value: 'modified', label: '已修改' },
+            { value: 'unbound', label: '未绑定' },
+          ]}
+          @wb-menu-change=${(e: CustomEvent<{ value: string }>) => (this.filter = e.detail.value)}
+        ></wb-menu-select
         ><button
           class="btn secondary"
           @click=${async () =>

@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
+import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import {
   splitCommand,
   registerCommand,
@@ -15,6 +17,11 @@ import type { TCommandComplete } from '../types/command.d.ts';
 
 const logger = { info: vi.fn(), pathInfo: vi.fn(), warn: vi.fn(), error: vi.fn() };
 describe('command invocation contract', () => {
+  it('can be parsed by native Node TypeScript stripping without a transpiler', () => {
+    expect(() =>
+      execFileSync(process.execPath, ['--check', fileURLToPath(new URL('./command.ts', import.meta.url))]),
+    ).not.toThrow();
+  });
   it('passes raw spacing, all completed words, value/key state and an isolated timestamped cache', async () => {
     const complete = vi.fn<TCommandComplete>(
       (command, _parents, cache, _sub, _isKey, isValue, _key) => {

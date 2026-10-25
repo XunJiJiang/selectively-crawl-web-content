@@ -30,7 +30,7 @@ beforeEach(() => {
   TestResizeObserver.instances = [];
   vi.stubGlobal('ResizeObserver', TestResizeObserver);
   vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
-    setTimeout(() => callback(0), 16),
+    setTimeout(() => callback(performance.now()), 16),
   );
   vi.stubGlobal('cancelAnimationFrame', clearTimeout);
   vi.stubGlobal('matchMedia', () => ({ matches: false }));
@@ -402,22 +402,27 @@ describe('SCWCScrollContainer', () => {
     expect(wheel(el).defaultPrevented).toBe(false);
   });
 
-  it('normalizes line/page deltas and applies their sum once per frame without smooth transitions', async () => {
+  it('normalizes line/page deltas and animates their sum with one write per frame', async () => {
     const { el, scrollTo } = await fixture();
     el.scrollBehavior = 'smooth';
     wheel(el, { deltaY: 2, deltaMode: 1 });
     wheel(el, { deltaY: 2, deltaMode: 1 });
     expect(scrollTo).not.toHaveBeenCalled();
     browserFrame();
-    expect(scrollTo).toHaveBeenCalledExactlyOnceWith({ left: 0, top: 64, behavior: 'instant' });
+    expect(scrollTo).toHaveBeenCalledOnce();
+    expect(el.scrollState.scrollTop).toBeGreaterThan(0);
+    expect(el.scrollState.scrollTop).toBeLessThan(64);
+    vi.advanceTimersByTime(300);
+    expect(el.scrollState.scrollTop).toBe(64);
     wheel(el, { deltaY: 1, deltaMode: 2 });
     browserFrame();
+    vi.advanceTimersByTime(300);
     expect(scrollTo).toHaveBeenLastCalledWith({ left: 0, top: 164, behavior: 'instant' });
     el.scrollTo({ top: 0, behavior: 'instant' });
     expect(scrollTo).toHaveBeenLastCalledWith({ left: 0, top: 0, behavior: 'instant' });
   });
 
-  it('combines high-frequency fractional trackpad events into one immediate update and notification', async () => {
+  it('combines high-frequency fractional input into one animation and emits once per frame', async () => {
     const { el, scrollTo, viewport } = await fixture();
     el.scrollBehavior = 'smooth';
     const outside = vi.fn(),
@@ -429,13 +434,15 @@ describe('SCWCScrollContainer', () => {
     }
     expect(scrollTo).not.toHaveBeenCalled();
     browserFrame();
-    expect(scrollTo).toHaveBeenCalledExactlyOnceWith({ left: 25, top: 50, behavior: 'instant' });
+    expect(scrollTo).toHaveBeenCalledOnce();
+    expect(el.scrollState.scrollTop).toBeGreaterThan(0);
+    expect(el.scrollState.scrollTop).toBeLessThan(50);
     expect(outside).toHaveBeenCalledOnce();
     expect(inside).toHaveBeenCalledOnce();
     viewport.dispatchEvent(new Event('scroll'));
     vi.advanceTimersByTime(1000);
-    expect(scrollTo).toHaveBeenCalledOnce();
-    expect(outside).toHaveBeenCalledOnce();
+    expect(scrollTo.mock.calls.length).toBeLessThanOrEqual(16);
+    expect(outside).toHaveBeenCalledTimes(scrollTo.mock.calls.length);
     expect(el.scrollState).toMatchObject({ scrollLeft: 25, scrollTop: 50 });
   });
 
@@ -591,6 +598,7 @@ describe('SCWCScrollContainer', () => {
     wheel(el, { deltaY: 10 });
     await settle(el);
     browserFrame();
+    vi.advanceTimersByTime(300);
     expect(el.scrollState.scrollTop).toBe(10);
     wheel(el, { deltaY: 90 });
     el.wheelDirection = 'none';
@@ -621,6 +629,24 @@ describe('SCWCScrollContainer', () => {
     el.scrollBehavior = 'smooth';
     el.scrollTo({ top: 100 });
     expect(scrollTo).toHaveBeenLastCalledWith({ left: 0, top: 100, behavior: 'instant' });
+    wheel(el, { deltaY: 13 });
+    browserFrame();
+    expect(el.scrollState.scrollTop).toBe(113);
+  });
+
+  it('cancels a smooth trajectory after resize clamps its target and lets reverse input move immediately', async () => {
+    const { el, dimensions } = await fixture();
+    el.scrollBehavior = 'smooth';
+    wheel(el, { deltaY: 400 });
+    vi.advanceTimersByTime(80);
+    dimensions.scrollHeight = 200;
+    el.refresh();
+    expect(el.scrollState.scrollTop).toBe(100);
+    wheel(el, { deltaY: -20 });
+    browserFrame();
+    expect(el.scrollState.scrollTop).toBeLessThan(100);
+    vi.advanceTimersByTime(300);
+    expect(el.scrollState.scrollTop).toBe(80);
   });
 
   it.each(['horizontal', 'vertical'] as const)(

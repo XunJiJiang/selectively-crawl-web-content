@@ -1285,15 +1285,15 @@ wb-icon {
   flex: 1;
   min-height: 0;
   min-width: 0;
-  font: 0.857143rem/1.75 var(--font-mono);
+  font: 0.857143rem/1.5rem var(--font-mono);
   overflow-wrap: anywhere;
   overscroll-behavior: contain;
 }
 .output-line {
   display: flex;
   gap: 12px;
-  min-height: 22px;
-  padding: 1px 0;
+  min-height: 1lh;
+  padding: 0;
   font-size: 0.857143rem;
 }
 .output-line:hover {
@@ -1304,7 +1304,7 @@ wb-icon {
   color: var(--text-tertiary);
   flex-shrink: 0;
   user-select: none;
-  padding-top: 2px;
+  padding-top: 0;
 }
 .output-line .level {
   font-size: 0.857143rem;
@@ -1312,7 +1312,7 @@ wb-icon {
   width: 42px;
   flex-shrink: 0;
   font-weight: 600;
-  padding-top: 2px;
+  padding-top: 0;
 }
 .output-line .level.warn {
   color: var(--status-warning);
@@ -1349,10 +1349,10 @@ wb-icon {
   overflow-anchor: none;
   color: var(--text-secondary);
   font-size: var(--text-xs);
-  line-height: var(--leading-relaxed);
+  line-height: 1.5rem;
 }
 .terminal-scroll-content {
-  padding: var(--space-2) var(--space-3);
+  padding: 0 var(--space-3);
 }
 .terminal-output-lines {
   display: block;
@@ -1424,6 +1424,8 @@ wb-icon {
   color: var(--text-secondary);
   font-size: var(--text-xs);
   white-space: nowrap;
+  line-height: 1;
+  vertical-align: middle;
 }
 .terminal-input-area {
   background: var(--surface-0);
@@ -1446,6 +1448,12 @@ wb-icon {
 }
 .terminal-multiline-indicator {
   color: var(--accent-primary);
+}
+.terminal-input-error {
+  color: var(--terminal-color-error);
+}
+.terminal-input-area[hidden] {
+  display: none;
 }
 .terminal-list {
   width: var(--terminal-list-width, 200px);
@@ -3314,5 +3322,5 @@ wb-icon {
 }
 
 .output-content::part(content) {
-  padding: 8px 12px 16px;
+  padding: 0 12px;
 }

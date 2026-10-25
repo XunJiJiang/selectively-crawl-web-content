@@ -3,12 +3,14 @@ import { property, state } from 'lit/decorators.js';
 import { styleMap } from 'lit/directives/style-map.js';
 import { customElement } from '../../utils/customElement.ts';
 import { clamp, nonNegative, scrollbarOptions, thumbGeometry } from './geometry.ts';
+import { SmoothWheelMotion } from './wheel-motion.ts';
 import type {
   ScrollAxis,
   ScrollbarOptions,
   ScrollContent,
   ScrollMetrics,
   ScrollMode,
+  SmoothWheelOptions,
   ScrollState,
   UpdateScrollMetrics,
   WheelDirection,
@@ -34,6 +36,7 @@ export class SCWCScrollContainer extends LitElement {
   @property({ attribute: false }) accessor horizontal: ScrollbarOptions = {};
   @property({ attribute: false }) accessor vertical: ScrollbarOptions = {};
   @property({ attribute: 'scroll-behavior' }) accessor scrollBehavior: ScrollMode = 'smooth';
+  @property({ attribute: false }) accessor smoothWheel: SmoothWheelOptions = {};
   /** 跳跃滚动的最小距离（px）；滚轮按累计距离整步移动，0 表示不量化。 */
   @property({ type: Number, attribute: 'step-distance' }) accessor stepDistance = 40;
   @property({ attribute: 'wheel-direction' }) accessor wheelDirection: WheelDirection = 'auto';
@@ -70,6 +73,7 @@ export class SCWCScrollContainer extends LitElement {
   private wheelFrame?: number;
   private wheelIdleTimer?: ReturnType<typeof setTimeout>;
   private wheelDistance = { x: 0, y: 0 };
+  private wheelMotion?: SmoothWheelMotion;
   private wheelConfiguration?: string;
   private drag?: { axis: ScrollAxis; pointerId: number; anchor: number; thumb: HTMLElement };
 
@@ -249,6 +253,12 @@ export class SCWCScrollContainer extends LitElement {
     extent.style.height = `${virtualExtent ? scrollHeight : 0}px`;
     const maxScrollLeft = Math.max(0, scrollWidth - width);
     const maxScrollTop = Math.max(0, scrollHeight - height);
+    if (
+      (this.wheelMotion?.target.x ?? 0) > maxScrollLeft ||
+      (this.wheelMotion?.target.y ?? 0) > maxScrollTop
+    ) {
+      this.clearWheel();
+    }
     const nextLeft = clamp(left, maxScrollLeft);
     const nextTop = clamp(top, maxScrollTop);
     if (viewport.scrollLeft !== nextLeft) {
@@ -435,10 +445,28 @@ export class SCWCScrollContainer extends LitElement {
     // 允许反向输入抵消本帧尚未应用的距离；真实边界上的向外输入交给祖先。
     const canMove = (position: number, max: number, pending: number, delta: number) =>
       delta > 0 ? position < max || pending < 0 : delta < 0 && (position > 0 || pending > 0);
-    if (!canMove(viewport.scrollLeft, this.position.maxScrollLeft, this.wheelDistance.x, x)) {
+    if (
+      !canMove(
+        viewport.scrollLeft,
+        this.position.maxScrollLeft,
+        (this.wheelMotion?.target.x ?? viewport.scrollLeft) -
+          viewport.scrollLeft +
+          this.wheelDistance.x,
+        x,
+      )
+    ) {
       x = 0;
     }
-    if (!canMove(viewport.scrollTop, this.position.maxScrollTop, this.wheelDistance.y, y)) {
+    if (
+      !canMove(
+        viewport.scrollTop,
+        this.position.maxScrollTop,
+        (this.wheelMotion?.target.y ?? viewport.scrollTop) -
+          viewport.scrollTop +
+          this.wheelDistance.y,
+        y,
+      )
+    ) {
       y = 0;
     }
     if (x === 0 && y === 0) {
@@ -446,8 +474,23 @@ export class SCWCScrollContainer extends LitElement {
     }
     // 即使尚未累计到一次跳跃，也必须拦截原生滚轮，防止逐事件滚动。
     event.preventDefault();
-    this.wheelDistance.x += x;
-    this.wheelDistance.y += y;
+    if (
+      this.scrollBehavior === 'smooth' &&
+      !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    ) {
+      this.wheelMotion ??= new SmoothWheelMotion();
+      this.wheelMotion.add(
+        x,
+        y,
+        performance.now(),
+        { x: viewport.scrollLeft, y: viewport.scrollTop },
+        { x: this.position.maxScrollLeft, y: this.position.maxScrollTop },
+        this.smoothWheel,
+      );
+    } else {
+      this.wheelDistance.x += x;
+      this.wheelDistance.y += y;
+    }
     if (this.wheelFrame === undefined) {
       this.wheelFrame = requestAnimationFrame(this.flushWheel);
     }
@@ -466,7 +509,7 @@ export class SCWCScrollContainer extends LitElement {
   };
 
   private wheelKey() {
-    return `${this.scrollBehavior}:${nonNegative(this.stepDistance, 40)}:${this.wheelDirection}:${this.shiftWheelDirection}`;
+    return `${this.scrollBehavior}:${nonNegative(this.stepDistance, 40)}:${this.wheelDirection}:${this.shiftWheelDirection}:${JSON.stringify(this.smoothWheel)}:${Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)}`;
   }
 
   private readonly flushWheel = () => {
@@ -474,6 +517,21 @@ export class SCWCScrollContainer extends LitElement {
     const viewport = this.scrollElement;
     if (!this.isConnected || !viewport || this.wheelConfiguration !== this.wheelKey()) {
       this.clearWheel();
+      return;
+    }
+    const motion = this.wheelMotion?.sample(performance.now());
+    if (motion) {
+      const left = clamp(motion.x, this.position.maxScrollLeft);
+      const top = clamp(motion.y, this.position.maxScrollTop);
+      if (left !== viewport.scrollLeft || top !== viewport.scrollTop) {
+        viewport.scrollTo({ left, top, behavior: 'instant' });
+        this.syncPosition();
+      }
+      if (motion.done) {
+        this.wheelMotion = undefined;
+      } else {
+        this.wheelFrame = requestAnimationFrame(this.flushWheel);
+      }
       return;
     }
     const step = this.scrollBehavior === 'instant' ? nonNegative(this.stepDistance, 40) : 0;
@@ -514,6 +572,7 @@ export class SCWCScrollContainer extends LitElement {
     clearTimeout(this.wheelIdleTimer);
     this.wheelIdleTimer = undefined;
     this.wheelDistance = { x: 0, y: 0 };
+    this.wheelMotion = undefined;
     this.wheelConfiguration = undefined;
   }
 

@@ -5,6 +5,7 @@ export type {
   ScrollContent,
   ScrollMetrics,
   ScrollMode,
+  SmoothWheelOptions,
   ScrollState,
   UpdateScrollMetrics,
   WheelDirection,
