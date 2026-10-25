@@ -115,6 +115,38 @@ function pointer(target: EventTarget, type: string, x: number, y: number, id = 1
 }
 
 describe('SCWCScrollContainer', () => {
+  it.each(['instant', 'smooth'] as const)(
+    'filters minor-axis drift in %s mode while preserving diagonal and explicit direction input',
+    async (mode) => {
+      const { el, viewport } = await fixture();
+      el.scrollBehavior = mode;
+      el.stepDistance = 0;
+      el.wheelAxisLockRatio = 0.5;
+      await settle(el);
+      const finish = () => vi.advanceTimersByTime(300);
+      wheel(el, { deltaX: 10, deltaY: 40 });
+      finish();
+      expect(viewport.scrollLeft).toBe(0);
+      expect(viewport.scrollTop).toBe(40);
+      wheel(el, { deltaX: 40, deltaY: 10 });
+      finish();
+      expect(viewport.scrollLeft).toBe(40);
+      expect(viewport.scrollTop).toBe(40);
+      wheel(el, { deltaX: 20, deltaY: 40 });
+      finish();
+      expect(viewport.scrollLeft).toBe(60);
+      expect(viewport.scrollTop).toBe(80);
+      wheel(el, { shiftKey: true, deltaX: 1, deltaY: 40 });
+      finish();
+      expect(viewport.scrollLeft).toBe(100);
+      expect(viewport.scrollTop).toBe(80);
+      // 主方向抵达边界时不把微小抖动转成另一轴滚动。
+      el.scrollTo({ top: 400, left: 0, behavior: 'instant' });
+      expect(wheel(el, { deltaX: 1, deltaY: 40 }).defaultPrevented).toBe(false);
+      finish();
+      expect(viewport.scrollLeft).toBe(0);
+    },
+  );
   it('renders only overflowing axes and never reserves space in overlay mode', async () => {
     const { el, frame, track, dimensions } = await fixture({ scrollHeight: 80 });
     expect(track('horizontal')).not.toBeNull();
@@ -185,7 +217,7 @@ describe('SCWCScrollContainer', () => {
     await settle(el);
     expect(track('horizontal')?.style.opacity).toBe('0.7');
     expect(track('horizontal')?.style.transitionDuration).toBe('50ms');
-    expect(thumb('horizontal')?.style.backgroundColor).toBe('red');
+    expect(thumb('horizontal')?.style.getPropertyValue('--scrollbar-color')).toBe('red');
     expect(thumb('horizontal')?.style.borderRadius).toBe('7px');
     expect(track('vertical')?.style.width).toBe('5px');
     vi.advanceTimersByTime(10000);
@@ -660,6 +692,8 @@ describe('SCWCScrollContainer', () => {
       }
       vi.spyOn(bar, 'getBoundingClientRect').mockReturnValue({ left: 10, top: 20 } as DOMRect);
       pointer(handle, 'pointerdown', 10, 20);
+      await settle(el);
+      expect(track(axis)?.classList.contains('dragging')).toBe(true);
       pointer(document, 'pointermove', 500, 500, 2);
       expect(el.scrollState.scrollLeft).toBe(0);
       pointer(document, 'pointermove', 500, 500);
@@ -673,6 +707,8 @@ describe('SCWCScrollContainer', () => {
       await settle(el);
       expect(track(axis)?.style.opacity).toBe('0.5');
       pointer(document, 'pointerup', 500, 500);
+      await settle(el);
+      expect(track(axis)?.classList.contains('dragging')).toBe(false);
       vi.advanceTimersByTime(600);
       await settle(el);
       expect(track(axis)?.style.opacity).toBe('0');

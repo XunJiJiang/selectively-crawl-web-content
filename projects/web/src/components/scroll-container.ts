@@ -11,6 +11,8 @@ export class WorkbenchScrollContainer extends SCWCScrollContainer {
 
   constructor() {
     super();
+    this.smoothWheel = { accelerationRatio: 0, minAcceleration: 0 };
+    this.wheelAxisLockRatio = 0.5;
     this.horizontal = { placement: 'overlay', radius: 4, color: 'var(--border-strong)' };
     this.vertical = { ...this.horizontal };
   }
@@ -18,6 +20,8 @@ export class WorkbenchScrollContainer extends SCWCScrollContainer {
   static styles = css`
     ${SCWCScrollContainer.styles}
     :host {
+      --scrollbar-hover-color: var(--text-tertiary);
+      --scrollbar-active-color: var(--text-secondary);
       display: grid;
       grid-template-columns: minmax(0, 1fr);
       grid-template-rows: minmax(0, 1fr);

@@ -886,6 +886,7 @@ wb-icon {
   flex: 1;
   min-width: 0;
   min-height: 0;
+  overflow: hidden;
 }
 .page-container {
   position: relative;
@@ -1824,7 +1825,7 @@ wb-icon {
   color: var(--status-error);
 }
 .welcome-view {
-  padding: 36px clamp(24px, 5vw, 64px);
+  padding: 36px clamp(51.2px, 5vw, 64px);
   max-width: 1100px;
   margin: 0 auto;
 }
@@ -1865,7 +1866,8 @@ wb-icon {
 .welcome-columns {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 32px;
+  /* 保留桌面 1280px 分界的间距，窄窗口沿用 1024px 时的间距。 */
+  gap: calc(20px + 12px * max(0, sign(100vw - 1279px)));
   margin-bottom: 32px;
 }
 .welcome-columns h2 {
@@ -2488,9 +2490,6 @@ wb-icon {
   }
 }
 @media (min-width: 1024px) and (max-width: 1279px) {
-  .welcome-columns {
-    gap: 20px;
-  }
   .status-runtime {
     display: none;
   }
@@ -2506,34 +2505,9 @@ wb-icon {
   .group-switcher {
     display: flex;
   }
-  .plugin-grid {
-    grid-template-columns: 1fr;
-  }
   .status-plugin,
   .status-runtime {
     display: none;
-  }
-  .keybinding-row {
-    grid-template-columns: minmax(140px, 1fr) minmax(90px, 0.6fr) 74px;
-    gap: 10px;
-    padding: 12px;
-  }
-  .keybinding-row > div:nth-child(3),
-  .keybinding-row.table-head > span:nth-child(3) {
-    display: none;
-  }
-  .welcome-intro {
-    padding: 0 0 24px;
-  }
-  .welcome-intro h1 {
-    font-size: 2.28571rem;
-  }
-  .setting-row {
-    align-items: flex-start;
-    gap: 16px;
-  }
-  .setting-control {
-    max-width: 48%;
   }
 }
 @media (max-width: 767px) {
@@ -2587,66 +2561,6 @@ wb-icon {
   }
   .status-bar-left .status-item span {
     display: none;
-  }
-  .welcome-columns {
-    grid-template-columns: 1fr;
-    gap: 24px;
-  }
-  .welcome-intro h1 {
-    font-size: 2rem;
-  }
-  .welcome-symbol {
-    width: 36px;
-    height: 36px;
-    margin-bottom: 16px;
-  }
-  .welcome-footer {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
-  }
-  .view-toolbar {
-    gap: 8px;
-  }
-  .view-toolbar select {
-    font-size: 0.857143rem;
-  }
-  .setting-row {
-    flex-direction: column;
-    gap: 12px;
-  }
-  .setting-control {
-    max-width: 100%;
-    justify-content: flex-start;
-  }
-  .setting-control form input {
-    max-width: 140px;
-  }
-  .record-card {
-    padding: 12px;
-    gap: 8px;
-  }
-  .record-card > .btn {
-    padding: 0 10px;
-    font-size: 0.857143rem;
-  }
-  .record-card > .icon-button {
-    width: 20px;
-  }
-  .keybinding-row {
-    grid-template-columns: minmax(100px, 1fr) minmax(80px, 0.7fr) 50px;
-    padding: 10px 8px;
-    gap: 6px;
-  }
-  .keybinding-row .row-actions {
-    flex-wrap: wrap;
-  }
-  .keybinding-row .row-actions .icon-button {
-    width: 16px;
-    height: 20px;
-  }
-  .keybinding-row kbd {
-    font-size: 0.857143rem;
   }
   .terminal-list {
     min-width: 100px;
@@ -2960,21 +2874,6 @@ wb-icon {
   min-width: 0;
   flex: 1;
 }
-@media (max-width: 1023px) {
-  .page-container {
-    min-width: var(--center-min-width, 0px);
-  }
-  .center-group[data-position='left'] .page-container,
-  .center-group[data-position='right'] .page-container {
-    min-width: max(
-      0px,
-      calc(
-        var(--center-min-width, 0px) - clamp(100px, calc(var(--center-min-width, 0px) * 0.4), 160px)
-      )
-    );
-  }
-}
-
 .sidebar-plugin {
   display: grid;
   grid-template-columns: 16px minmax(0, 1fr) auto 12px 28px;
@@ -3236,8 +3135,9 @@ wb-icon {
   height: 100%;
   background: var(--surface-0);
 }
-.page-viewport::part(content) {
-  height: 100%;
+.internal-scroll::part(content) {
+  /* 内置页在 1024px 浏览器分配宽度处停止收缩，双轴滚动由页面自己承接。 */
+  min-width: calc(100% + max(0px, 1024px - 100vw));
 }
 .tab-bar::part(viewport) {
   overflow-y: hidden;
@@ -3278,16 +3178,6 @@ wb-icon {
 .terminal-output::part(viewport) {
   overscroll-behavior: contain;
   overflow-anchor: none;
-}
-@media (max-width: 1023px) {
-  .keybindings-table {
-    --keybindings-min-width: 348px;
-  }
-}
-@media (max-width: 767px) {
-  .keybindings-table {
-    --keybindings-min-width: 258px;
-  }
 }
 @media print {
   .internal-scroll,

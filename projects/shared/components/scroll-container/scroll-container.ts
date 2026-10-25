@@ -40,6 +40,8 @@ export class SCWCScrollContainer extends LitElement {
   /** 跳跃滚动的最小距离（px）；滚轮按累计距离整步移动，0 表示不量化。 */
   @property({ type: Number, attribute: 'step-distance' }) accessor stepDistance = 40;
   @property({ attribute: 'wheel-direction' }) accessor wheelDirection: WheelDirection = 'auto';
+  /** 自动方向下，较小/较大轴距离低于此比值时忽略较小轴；0 表示禁用。 */
+  @property({ type: Number, attribute: 'wheel-axis-lock-ratio' }) accessor wheelAxisLockRatio = 0;
   @property({ attribute: 'shift-wheel-direction' })
   accessor shiftWheelDirection: WheelDirection = 'horizontal';
 
@@ -75,7 +77,9 @@ export class SCWCScrollContainer extends LitElement {
   private wheelDistance = { x: 0, y: 0 };
   private wheelMotion?: SmoothWheelMotion;
   private wheelConfiguration?: string;
-  private drag?: { axis: ScrollAxis; pointerId: number; anchor: number; thumb: HTMLElement };
+  @state() private accessor drag:
+    | { axis: ScrollAxis; pointerId: number; anchor: number; thumb: HTMLElement }
+    | undefined;
 
   /** 原生滚动视口，可用于 focus、scrollIntoView 等 DOM 协作。 */
   get scrollElement(): HTMLElement | null {
@@ -442,6 +446,19 @@ export class SCWCScrollContainer extends LitElement {
     if (!Number.isFinite(y)) {
       y = 0;
     }
+    if (direction === 'auto') {
+      const largest = Math.max(Math.abs(x), Math.abs(y));
+      if (
+        largest > 0 &&
+        Math.min(Math.abs(x), Math.abs(y)) / largest < clamp(this.wheelAxisLockRatio, 1)
+      ) {
+        if (Math.abs(x) > Math.abs(y)) {
+          y = 0;
+        } else {
+          x = 0;
+        }
+      }
+    }
     // 允许反向输入抵消本帧尚未应用的距离；真实边界上的向外输入交给祖先。
     const canMove = (position: number, max: number, pending: number, delta: number) =>
       delta > 0 ? position < max || pending < 0 : delta < 0 && (position > 0 || pending > 0);
@@ -509,7 +526,7 @@ export class SCWCScrollContainer extends LitElement {
   };
 
   private wheelKey() {
-    return `${this.scrollBehavior}:${nonNegative(this.stepDistance, 40)}:${this.wheelDirection}:${this.shiftWheelDirection}:${JSON.stringify(this.smoothWheel)}:${Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)}`;
+    return `${this.scrollBehavior}:${nonNegative(this.stepDistance, 40)}:${this.wheelDirection}:${this.shiftWheelDirection}:${this.wheelAxisLockRatio}:${JSON.stringify(this.smoothWheel)}:${Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)}`;
   }
 
   private readonly flushWheel = () => {
@@ -701,7 +718,7 @@ export class SCWCScrollContainer extends LitElement {
     const opacity = this.revealed[axis] ? options.opacity : 0;
     return html`<div
       part=${`${axis}-track`}
-      class=${`track ${axis}`}
+      class=${`track ${axis}${this.drag?.axis === axis ? ' dragging' : ''}`}
       role="scrollbar"
       tabindex="0"
       aria-label=${horizontal ? '横向滚动' : '纵向滚动'}
@@ -732,7 +749,7 @@ export class SCWCScrollContainer extends LitElement {
         part=${`${axis}-thumb`}
         class="thumb"
         style=${styleMap({
-          backgroundColor: options.color,
+          '--scrollbar-color': options.color,
           borderRadius: `${options.radius}px`,
           width: horizontal ? `${geometry.size}px` : undefined,
           height: horizontal ? undefined : `${geometry.size}px`,

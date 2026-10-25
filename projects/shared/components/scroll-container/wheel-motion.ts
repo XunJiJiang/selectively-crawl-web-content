@@ -7,7 +7,7 @@ const finite = (value: number | undefined, fallback: number, min: number, max: n
   );
 
 export function wheelTiming(interval: number, options: SmoothWheelOptions = {}) {
-  const accelerationMin = finite(options.minAcceleration, 8, 1, 1000);
+  const accelerationMin = finite(options.minAcceleration, 8, 0, 1000);
   const decelerationMin = finite(options.minDeceleration, 8, 1, 1000);
   const minimum = Math.max(
     finite(options.minDuration, 80, 16, 2000),
@@ -44,7 +44,10 @@ function axis(start: number, target: number, velocity: number, timing: Timing): 
   const sign = Math.sign(distance);
   // 反向立即响应；同向保留速度，短距离时限制初速度以防过冲。
   const initial =
-    sign * Math.min(Math.max(0, velocity * sign), (2 * Math.abs(distance)) / timing.acceleration);
+    timing.acceleration === 0
+      ? 0
+      : sign *
+        Math.min(Math.max(0, velocity * sign), (2 * Math.abs(distance)) / timing.acceleration);
   const peak =
     (distance - (initial * timing.acceleration) / 2) /
     (timing.duration - (timing.acceleration + timing.deceleration) / 2);

@@ -1640,8 +1640,6 @@ export class AppRoot extends LitElement {
       '--panel-width': `${layout.panel.width}px`,
       '--main-visible-width': mainVisible ? widths.main : '0px',
       '--aux-visible-width': auxVisible ? widths.aux : '0px',
-      // Keep page content at its 1024px allocation; the tab strip still fits its group.
-      '--center-min-width': `${Math.max(0, 1024 - 40 - mainWidth - auxWidth - (layout.panel.dock === 'bottom' ? 0 : panelWidth))}px`,
       '--terminal-list-width': `${layout.panel.terminalListSize}px`,
     };
   }
@@ -2501,14 +2499,7 @@ export class AppRoot extends LitElement {
           })}
         </div>
       </div>
-      <wb-scroll-container
-        class="page-viewport"
-        @scroll=${(event: Event) => {
-          if (event.target === event.currentTarget) {
-            this.pool?.position();
-          }
-        }}
-      >
+      <div class="page-viewport">
         <div class="page-container" data-page-slot=${node.id}>
           ${!active
             ? html`<div class="empty empty-group">
@@ -2564,7 +2555,7 @@ export class AppRoot extends LitElement {
                   ></wb-internal-page>`
               : this.renderPageState(active)}
         </div>
-      </wb-scroll-container>
+      </div>
     </section>`;
   }
   private renderPageState(tab: PluginTab) {

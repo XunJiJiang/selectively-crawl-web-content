@@ -12,6 +12,31 @@ const sample = (motion: SmoothWheelMotion, time: number) => {
 };
 
 describe('adaptive wheel trajectory', () => {
+  it('supports zero acceleration on stationary axes, reversal, and high-frequency continuation', () => {
+    const options = { accelerationRatio: 0, minAcceleration: 0 };
+    expect(wheelTiming(120, options)).toMatchObject({
+      acceleration: 0,
+      deceleration: wheelTiming(120).deceleration,
+    });
+    const motion = new SmoothWheelMotion();
+    motion.add(0, 120, 0, position, bounds, options);
+    const start = sample(motion, 0);
+    expect(start).toMatchObject({ x: 0, y: 0, vx: 0 });
+    expect(start.vy).toBeGreaterThan(0);
+    expect(sample(motion, 4).vy).toBe(start.vy);
+    for (let t = 8; t <= 80; t += 8) {
+      const before = sample(motion, t);
+      motion.add(0, 2, t, position, bounds, options);
+      const after = sample(motion, t);
+      expect(after.x).toBe(0);
+      expect(after.y).toBeCloseTo(before.y);
+      expect(Number.isFinite(after.vy)).toBe(true);
+    }
+    expect(sample(motion, 400)).toMatchObject({ x: 0, y: 140, done: true });
+    motion.add(0, -40, 500, { x: 0, y: 140 }, bounds, options);
+    expect(sample(motion, 501).y).toBeLessThan(140);
+    expect(sample(motion, 800)).toMatchObject({ x: 0, y: 100, done: true });
+  });
   it('accelerates, cruises at constant speed, then decelerates to the exact distance', () => {
     const motion = new SmoothWheelMotion();
     motion.add(60, 120, 0, position, bounds, {});

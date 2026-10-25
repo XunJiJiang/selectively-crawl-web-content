@@ -66,6 +66,15 @@
 .thumb {
   position: absolute;
   touch-action: none;
+  background-color: var(--scrollbar-color);
+}
+
+.track:hover .thumb {
+  background-color: var(--scrollbar-hover-color, var(--scrollbar-color));
+}
+
+.track.dragging .thumb {
+  background-color: var(--scrollbar-active-color, var(--scrollbar-hover-color, var(--scrollbar-color)));
 }
 
 .horizontal .thumb {
