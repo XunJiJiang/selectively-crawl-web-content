@@ -88,3 +88,60 @@ it('keeps only whole rows and puts the remainder above the viewport without accu
   expect(area.style.marginTop).toBe('9px');
   expect(area.getBoundingClientRect().height).toBe(210);
 });
+
+it('allows only thumb dragging for layout scrollbars while preserving inner controls and zoom', async () => {
+  const { area, viewport } = await fixture();
+  Object.defineProperties(viewport, { clientWidth: { value: 300 }, clientHeight: { value: 100 } });
+  area.refresh();
+  area.dragOnly = true;
+  area.wheelDirection = 'none';
+  area.shiftWheelDirection = 'none';
+  await area.updateComplete;
+  const event = (key: string) =>
+    new KeyboardEvent('keydown', { key, bubbles: true, composed: true, cancelable: true });
+  expect(viewport.dispatchEvent(event('ArrowDown'))).toBe(false);
+  expect(viewport.dispatchEvent(event('Tab'))).toBe(true);
+  const input = document.createElement('textarea');
+  area.append(input);
+  expect(input.dispatchEvent(event('ArrowDown'))).toBe(true);
+  const track = requireValue(area.shadowRoot?.querySelector<HTMLElement>('.track'));
+  expect(
+    track.dispatchEvent(
+      new MouseEvent('pointerdown', { bubbles: true, composed: true, cancelable: true, button: 0 }),
+    ),
+  ).toBe(false);
+  expect(track.classList.contains('dragging')).toBe(false);
+  Object.defineProperty(track, 'getBoundingClientRect', {
+    value: () => new DOMRect(296, 0, 4, 100),
+  });
+  const thumb = requireValue(track.querySelector('.thumb'));
+  thumb.dispatchEvent(
+    new MouseEvent('pointerdown', {
+      bubbles: true,
+      composed: true,
+      cancelable: true,
+      button: 0,
+      clientY: 10,
+    }),
+  );
+  document.dispatchEvent(
+    new MouseEvent('pointermove', { bubbles: true, cancelable: true, clientY: 50 }),
+  );
+  expect(viewport.scrollTop).toBeGreaterThan(0);
+  document.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, clientY: 50 }));
+  area.scrollTo({ top: 0 });
+  for (const shiftKey of [false, true]) {
+    expect(
+      area.dispatchEvent(
+        new WheelEvent('wheel', { deltaY: 40, shiftKey, bubbles: true, cancelable: true }),
+      ),
+    ).toBe(false);
+  }
+  expect(
+    area.dispatchEvent(
+      new WheelEvent('wheel', { deltaY: 40, ctrlKey: true, bubbles: true, cancelable: true }),
+    ),
+  ).toBe(true);
+  await new Promise(requestAnimationFrame);
+  expect(viewport.scrollTop).toBe(0);
+});

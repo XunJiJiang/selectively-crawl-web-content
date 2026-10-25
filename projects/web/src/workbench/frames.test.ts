@@ -202,3 +202,31 @@ it('reports a same-document route change when a router bypasses the SDK', async 
   await vi.advanceTimersByTimeAsync(250);
   expect(command).toHaveBeenCalledTimes(1);
 });
+
+it('clips plugin frames to the group, center and application viewports and hides zero-width centers', () => {
+  vi.useFakeTimers();
+  const { pool, tab, root } = fixture();
+  const slot = requireValue(root.querySelector<HTMLElement>('[data-page-slot]'));
+  const center = document.createElement('main');
+  center.className = 'center-area';
+  slot.replaceWith(center);
+  center.append(slot);
+  let width = 100;
+  Object.defineProperty(center, 'getBoundingClientRect', {
+    value: () => new DOMRect(0, 0, width, 400),
+  });
+  pool.position();
+  vi.advanceTimersByTime(20);
+  const frame = requireValue(pool.runtimes.get(tab.id)?.frame);
+  expect(frame.style.width).toBe('500px');
+  expect(frame.style.clipPath).toBe('inset(0px 400px 0px 0px)');
+  width = 0;
+  pool.position();
+  vi.advanceTimersByTime(20);
+  expect(frame.hidden).toBe(true);
+  width = 100;
+  center.hidden = true;
+  pool.position();
+  vi.advanceTimersByTime(20);
+  expect(frame.hidden).toBe(true);
+});

@@ -3293,9 +3293,7 @@
 ```css
 .plugin-card {
   padding: var(--space-4);
-  background: var(--surface-1);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
+  background: var(--surface-1);(--border-subtle);
   display: flex;
   flex-direction: column;
   gap: var(--space-3);

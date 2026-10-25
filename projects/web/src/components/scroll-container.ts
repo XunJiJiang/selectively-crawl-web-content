@@ -8,6 +8,7 @@ export class WorkbenchScrollContainer extends SCWCScrollContainer {
   @property({ type: Boolean, attribute: 'line-scroll' }) accessor lineScroll = false;
   @property({ type: Boolean, attribute: 'whole-lines' }) accessor wholeLines = false;
   @property({ type: Boolean }) accessor thin = false;
+  @property({ type: Boolean, attribute: 'drag-only', reflect: true }) accessor dragOnly = false;
 
   constructor() {
     super();
@@ -37,6 +38,15 @@ export class WorkbenchScrollContainer extends SCWCScrollContainer {
     }
     .content {
       box-sizing: border-box;
+    }
+    :host([drag-only]) .track {
+      z-index: 100;
+      opacity: 1 !important;
+      pointer-events: auto !important;
+    }
+    :host([drag-only]) .viewport {
+      touch-action: none;
+      overscroll-behavior: none;
     }
   `;
 
@@ -97,12 +107,43 @@ export class WorkbenchScrollContainer extends SCWCScrollContainer {
   connectedCallback() {
     super.connectedCallback();
     this.addEventListener('wheel', this.nativeInputWheel, true);
+    this.addEventListener('pointerdown', this.dragOnlyInput, true);
+    this.addEventListener('keydown', this.dragOnlyInput, true);
   }
 
   disconnectedCallback() {
     this.removeEventListener('wheel', this.nativeInputWheel, true);
+    this.removeEventListener('pointerdown', this.dragOnlyInput, true);
+    this.removeEventListener('keydown', this.dragOnlyInput, true);
     super.disconnectedCallback();
   }
+
+  private dragOnlyInput = (event: Event) => {
+    if (!this.dragOnly) {
+      return;
+    }
+    const target = event.composedPath()[0];
+    if (!(target instanceof HTMLElement) || target.getRootNode() !== this.shadowRoot) {
+      return;
+    }
+    const keyboard =
+      event instanceof KeyboardEvent &&
+      [
+        'ArrowUp',
+        'ArrowDown',
+        'ArrowLeft',
+        'ArrowRight',
+        'PageUp',
+        'PageDown',
+        'Home',
+        'End',
+        ' ',
+      ].includes(event.key);
+    if (keyboard || (event.type === 'pointerdown' && target.classList.contains('track'))) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    }
+  };
 
   private nativeInputWheel = (event: WheelEvent) => {
     if (event.ctrlKey || event.metaKey) {

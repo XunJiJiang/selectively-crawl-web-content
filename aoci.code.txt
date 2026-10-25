@@ -1292,7 +1292,7 @@ icon.ts[LU4T]: F:适配工作台图标名 | R:code:projects/web/src/workbench/ui
 internal-page.ts[AU7L]: F:渲染工作台内置页面 | R:code:projects/web/src/workbench/store.ts,code:projects/web/src/workbench/commands.ts,code:projects/web/src/components/context-menu/wb-menu-select.ts | A:wb-internal-page,workbench-command | S:收藏操作经中心命令；键绑定按平台与上下文覆盖，null禁用默认；快捷键筛选用自绘菜单；宿主统一滚动，录键弹层与命令表独立滚动
 page-inspector.ts[AU7L]: F:检查页面并编辑配置 | R:code:projects/web/src/workbench/store.ts,code:projects/web/src/workbench/frames.ts,code:projects/web/src/components/scroll-container.ts | A:wb-page-inspector | S:字符串草稿按数据/schema双revision提交；page-required须原页面票据；代数拒收迟到结果，远端冲突保留草稿，textarea保留原生滚动
 terminal.ts[AU8L]: F:管理Web终端视图 | R:code:projects/web/src/components/command-editor.ts,code:projects/web/src/workbench/store.ts,code:projects/web/src/components/scroll-container.ts | A:wb-terminal,activate,closeCurrent,cancel,alter | S:草稿串行CAS、命令幂等；执行去续行而待答保留原文；执行或提交中隐藏普通输入，请求作答除外；未知命令保留草稿并仅在本终端状态栏提示；Ctrl+C取消，强停须确认；输入输出共用整行视口及seq锚点
-scroll-container.ts[LU6S]: F:适配工作台滚动与整行视口 | R:code:projects/shared/components/scroll-container/index.ts,code:projects/web/src/workbench/workbench.css | A:wb-scroll-container,WorkbenchScrollContainer,lineScroll,wholeLines,thin | S:普通4px、thin为2px；默认零加速和轴比0.5；行余量上置并加回旧余量；textarea到边界才交外层
+scroll-container.ts[LU6S]: F:适配工作台滚动与整行视口 | R:code:projects/shared/components/scroll-container/index.ts,code:projects/web/src/workbench/workbench.css | A:wb-scroll-container,WorkbenchScrollContainer,lineScroll,wholeLines,thin,dragOnly | S:默认4px、thin2px、零加速和轴比0.5；整行余量上置且不累积；dragOnly轨道常显，仅许滑块并放行内部控件，滚轮需另设none
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/web/src/components/context-menu/===
 SOURCE.md[SG4T]: F:记录菜单复制来源 | R:code:projects/web/src/components/context-menu/wb-context-menu.ts,code:projects/web/src/components/context-menu/wb-menu-select.ts | A:菜单组件来源说明 | S:来自插件的独立副本无运行时导入依赖，后续行为修复需考虑两份实现
@@ -1311,7 +1311,7 @@ header.css[ZU3T]: F:排版旧版顶栏 | R:code:projects/web/src/layouts/header.
 header.ts[IU4T]: F:提供旧版侧栏切换 | R:code:projects/web/src/layouts/header.css | A:app-header,toggle-left-bar | S:仅派发事件，展开状态由外部属性决定
 index.ts[EU4T]: F:注册工作台根组件 | R:code:projects/web/src/layouts/root.ts | A:副作用导入入口 | S:-
 root.css[ZU2T]: F:保留根布局基础样式 | R:- | A::host | S:当前工作台根组件直接导入workbench.css，本文件未被其使用
-root.ts[AU9L]: F:编排插件工作台界面 | R:code:projects/web/src/workbench/store.ts,code:projects/web/src/workbench/frames.ts,code:projects/web/src/workbench/model.ts,code:projects/web/src/components/scroll-container.ts | A:app-root,command | S:同URL优先聚焦；关闭检查脏页及快照；侧栏拖放仅落下提交，索引先移除源；收藏创建保留父级；中心外层无滚动，插件按slot收缩；标签同轴滚动；输出整行量化且仅在底部跟随；布局交点光标与联动高亮同源，拖拽高亮按key和nodeId保留至结束，断开组件取消
+root.ts[AU9L]: F:编排插件工作台界面 | R:code:projects/web/src/workbench/store.ts,code:projects/web/src/workbench/frames.ts,code:projects/web/src/workbench/model.ts,code:projects/web/src/workbench/layout-geometry.ts,code:projects/web/src/components/scroll-container.ts | A:app-root,command | S:同URL先聚焦，关闭保护脏页与快照；侧栏拖放仅落下提交且先移除源，收藏创建保留父级；布局取宿主及栏高实测，首次回退CSS令牌，区域最小值由尺寸模块注入；隐藏边界仍可拖，松手持久化，取消还原最大化与分组尺寸；布局视口只许滑块，内容自行滚动；标签同轴滚动，输出整行且仅底部跟随；交点联动高亮保留至结束，断开组件取消
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/web/src/===
 main.test.ts[TI5T]: F:验证Web启动请求顺序 | R:code:projects/web/src/main.ts | A:Vitest用例 | S:断言首次插件API请求发生在当前token加载并写入存储之后
@@ -1323,8 +1323,8 @@ api.d.ts[FE4T]: F:声明插件页面响应 | R:code:projects/web/src/api/plugins
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/web/src/workbench/===
 commands.ts[CU6S]: F:统一工作台命令绑定 | R:code:projects/web/src/layouts/root.ts,code:projects/web/src/components/command-editor.ts | A:commands,effectiveKeys,eventKey,matchesKey,editableTarget,conflicts | S:覆盖按逆序查找且上下文须相同；Mod按平台映射；组合键比较要求完整修饰键，ShadowDOM输入由composedPath识别
 editor.test.ts[TU6M]: F:验证独立终端输入交互 | R:code:projects/web/src/components/command-editor.ts | A:Vitest用例 | S:覆盖IME续行、字素选区和撤销隔离；Tab循环及多级前缀补全，旧终端候选拒收
-frames.test.ts[TU6M]: F:验证页面池视口生命周期和导航 | R:code:projects/web/src/workbench/frames.ts | A:Vitest用例 | S:覆盖横向滚动裁剪、不重建iframe、快照失败保留并resume，以及同文档URL兜底去重
-frames.ts[AU8L]: F:管理插件页面实例 | R:code:projects/shared/workbench-protocol.ts,code:projects/web/src/workbench/store.ts,code:projects/webUtils/lib/workbench.ts | A:FramePool,FrameRuntime | S:iframe父容器稳定，握手校验origin及实例身份；空闲暂停先逐页确认，未标记请求阻止后台暂停和休眠；重连仅续授权并退避重试，不重载文档；快照绑定后才释放
+frames.test.ts[TU6M]: F:验证页面池视口生命周期和导航 | R:code:projects/web/src/workbench/frames.ts | A:Vitest用例 | S:夹具提供几何，覆盖分组与中心交集裁剪、零宽和隐藏中心；验证iframe不重建、快照失败保留并resume及同文档URL兜底去重
+frames.ts[AU8L]: F:管理插件页面实例 | R:code:projects/shared/workbench-protocol.ts,code:projects/web/src/workbench/store.ts,code:projects/webUtils/lib/workbench.ts | A:FramePool,FrameRuntime | S:iframe父容器稳定，按页面、中心及宿主交集裁剪，中心隐藏或零面积时隐藏；握手校验origin与实例；空闲暂停先逐页确认，未标记请求保护暂停和休眠；重连仅续授权不刷新；快照绑定后才释放
 menu.test.ts[TU5T]: F:验证工作台菜单关闭 | R:code:projects/web/src/components/context-menu/wb-context-menu.ts | A:Vitest用例 | S:覆盖真实背景幂等关闭、原坐标重开、覆盖回调及禁用项拒选
 model.ts[DU7M]: F:变换工作区布局数据 | R:code:projects/web/src/workbench/types.ts,code:projects/shared/workbench-layout.ts,code:projects/server/workbench/workspace.ts | A:addTab,focusTab,splitGroup,moveTab,navigateTab,relocatedUrl | S:限制200标签、8组、500导航项；移动拒绝缺失ID并收拢空源组；URL重定位核验installationId且精确保留重复query与hash
 protocol.test.ts[TN6T]: F:验证页面端口隔离 | R:code:projects/shared/workbench-protocol.ts | A:Vitest用例 | S:真实MessageChannel验证错误tab、旧epoch、重复序号拒收，关闭必须拒绝待答RPC
@@ -1338,16 +1338,18 @@ terminal-output.ts[KU6S]: F:解析Web终端输出样式 | R:code:projects/web/sr
 terminal.test.ts[TU6M]: F:验证Web终端视图状态 | R:code:projects/web/src/components/terminal.ts,code:projects/web/src/workbench/store.ts | A:Vitest用例 | S:覆盖运行和后台任务隐藏输入、待答恢复；未知命令状态栏提示且保留草稿，其他错误仍通知；验证多行共享视口、切换草稿及输出Ctrl+C
 types.ts[FG7M]: F:声明工作台共享模型 | R:code:projects/server/workbench/workspace.ts,code:projects/server/types/plugin-config.d.ts,code:projects/server/types/task.d.ts | A:Workspace,Lease,CatalogItem,Terminal,Bookmark,WorkbenchEvent | S:布局复用服务端类型；收藏目录parentId和混合顺序随偏好，成员folderId随收藏；本地终端视图独立于持久终端；事件含bootId及流seq
 ui.ts[LU6L]: F:复用工作台展示及收藏树交互 | R:code:projects/web/src/workbench/types.ts,code:projects/web/src/workbench/store.ts | A:icon,iconButton,pluginCard,bookmarkFolderButton,bookmarkList,tabNavigation | S:收藏混排用bookmarkOrder，层级由parentId和folderId定义；650ms悬停展开且拒绝后代拖放；按键复用details保留展开；目录选择留在Store，创建按钮mousedown保留焦点
-workbench.css[ZU6L]: F:定义工作台视图布局 | R:code:projects/web/var.css,code:projects/web/src/layouts/root.ts,code:projects/web/src/components/scroll-container.ts | A:.internal-scroll,.tab-bar,.keybindings-table,.output-content,.terminal-output | S:布局拖拽由TS标记强制高亮，隐藏主侧栏拖拽条4px；内置页最小440px自行滚动；padding放content part；输出与终端共用21px行高
+workbench.css[ZU6L]: F:定义工作台视图布局 | R:code:projects/web/var.css,code:projects/web/src/layouts/root.ts,code:projects/web/src/components/scroll-container.ts | A:.application-scroll,.center-scroll,.panel-scroll,.center-group,.tab-bar,.output-content | S:栏高、活动栏及分隔条用统一CSS变量；区域最小值由根注入，网格预留须匹配状态栏高度；布局溢出分层承接，iframe保留逻辑宽度；隐藏边界仍可拖
 dialogs.ts[FU4T]: F:声明工作台弹层表单 | R:code:projects/web/src/workbench/store.ts,code:projects/web/src/layouts/root.ts | A:DialogField,WorkbenchDialog | S:结果是字符串字段映射，null明确表示取消；选项只描述单选值
 focus-history.test.ts[TU5T]: F:验证工作台焦点遍历 | R:code:projects/web/src/workbench/focus-history.ts | A:Vitest用例 | S:关闭标签与归档终端必须跳过并移除；侧栏和单个终端分别记位，新焦点截断前进分支
 focus-history.ts[DU6T]: F:管理工作台焦点历史 | R:code:projects/web/src/layouts/root.ts | A:FocusLocation,FocusHistory | S:最多500项，连续同位置去重；canGo也会删除失效目标并修正游标；记录新位置会截断前进分支
 notifications.test.ts[TU5T]: F:验证通知倒计时归档 | R:code:projects/web/src/workbench/store.ts | A:Vitest用例 | S:伪时钟验证到期归档、手动关闭不归档；聚焦暂停且已读，失焦重新计时
-root.test.ts[TU5L]: F:验证工作台布局与交互 | R:code:projects/web/src/layouts/root.ts,code:projects/web/src/workbench/store.ts | A:Vitest用例 | S:几何由夹具供给；覆盖布局交点高亮、拖拽释放及取消、隐藏侧栏展开、弹层聚焦和四种标签位置同轴滚轮
+root.test.ts[TU6L]: F:验证工作台布局与交互 | R:code:projects/web/src/layouts/root.ts,code:projects/web/src/workbench/store.ts | A:Vitest用例 | S:夹具供给几何和CSS尺寸令牌；覆盖交点高亮、侧栏联动固化、隐藏面板展开最大化、分组滚动和更多菜单、聚焦与标签滚轮；网格和中心分配必须同时扣除状态栏实测高度
 bookmarks.test.ts[TU5T]: F:验证收藏树拖放反馈 | R:code:projects/web/src/workbench/ui.ts | A:Vitest用例 | S:伪时钟校验中部悬停650ms展开、边缘提示线和后代拒收；混合顺序由夹具提供
 browser-workspace.ts[PD7T]: F:持久化浏览器全局工作区种子 | R:code:projects/web/src/workbench/types.ts,code:projects/web/src/workbench/store.ts | A:WorkspacePersistence,BrowserWorkspace | S:按installationId隔离localStorage；只加载副本且不订阅跨页变化；存储不可用时降级，接口供未来本地路径适配
 request-lifecycle.test.ts[TN6T]: F:验证请求暂停恢复边界 | R:code:projects/shared/request-lifecycle.ts | A:Vitest用例 | S:未标记工作阻止暂停；只重发由暂停中止的标记请求，调用方取消在等待重连期间仍有效
-scroll-container.test.ts[TU5S]: F:验证工作台滚轮与整行视口 | R:code:projects/web/src/components/scroll-container.ts | A:Vitest用例 | S:夹具验证4px默认厚度、排版变更与整行余量不累积；textarea到边界才交外层
+scroll-container.test.ts[TU5S]: F:验证工作台滚轮与整行视口 | R:code:projects/web/src/components/scroll-container.ts | A:Vitest用例 | S:夹具验证4px厚度、整行余量不累积和textarea边界；仅拖动模式阻止布局滚轮、轨道点击及导航键，保留滑块拖拽、内部输入与缩放
+layout-geometry.test.ts[TU6M]: F:验证工作台尺寸分配与拖拽阈值 | R:code:projects/web/src/workbench/layout-geometry.ts | A:Vitest用例 | S:覆盖168宽侧栏与78高面板的半尺寸显隐、中心半高最大化、窗口压缩顺序、联动释放固化、最小叶组冻结均分、实测栏高与旧偏好钳制
+layout-geometry.ts[KU7M]: F:计算工作台压缩与拖拽尺寸 | R:code:projects/web/src/workbench/types.ts,code:projects/web/src/layouts/root.ts | A:fitWorkbench,applySidebarDrag,dragBottomPanel,minimumNode,splitExtent,activitySlots | S:显隐阈值取各自最小尺寸一半，最大化取中心高度一半；栏高和分隔条由测量输入；窗口适配保留偏好；联动显隐仅同次拖拽可逆，最小叶组冻结
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/webUtils/===
 lib.d.ts[FE5T]: F:声明页面工具全局对象 | R:code:projects/webUtils/lib/index.ts | A:Window.scwcutils | S:以外部模块中的declare global确保各插件TS项目一致获得扩展

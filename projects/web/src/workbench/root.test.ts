@@ -52,6 +52,17 @@ async function fixture() {
   vi.spyOn(WorkbenchStore.prototype, 'start').mockResolvedValue();
   vi.spyOn(WorkbenchStore.prototype, 'loadOutput').mockResolvedValue();
   app = new Root();
+  for (const [name, value] of Object.entries({
+    '--activity-width': 40,
+    '--topbar-height': 36,
+    '--statusbar-height': 32,
+    '--resize-handle-size': 4,
+    '--activity-item-size': 28,
+    '--activity-gap': 4,
+    '--activity-padding': 4,
+  })) {
+    app.style.setProperty(name, `${value}px`);
+  }
   app.store.loading = false;
   app.store.workspace = {
     workspaceId: 'w',
@@ -408,3 +419,250 @@ it.each(['top', 'bottom', 'left', 'right'] as const)(
     expect(vertical ? viewport.scrollTop : viewport.scrollLeft).toBe(120);
   },
 );
+
+describe('constrained workbench layout', () => {
+  async function sizedFixture(width = 1280, height = 800) {
+    const fixture = await resizeFixture();
+    Object.defineProperties(app, {
+      clientWidth: { value: width },
+      clientHeight: { value: height },
+    });
+    app.requestUpdate();
+    await app.updateComplete;
+    return fixture;
+  }
+  it('reverses coupled sidebar collapse during a drag and preserves it after release', async () => {
+    const { root, main } = await sizedFixture();
+    const snapshot = requireValue(app.store.workspace).snapshot;
+    snapshot.layout.auxiliarySidebar.visible = true;
+    app.requestUpdate();
+    await app.updateComplete;
+    resizePointer(main, 'pointerdown', 318, 100);
+    resizePointer(window, 'pointermove', 670, 100);
+    await app.updateComplete;
+    const shell = requireValue(root.querySelector<HTMLElement>('.shell-body'));
+    expect(shell.style.gridTemplateColumns).toBe('40px 632px 440px 168px');
+    resizePointer(window, 'pointermove', 754, 100);
+    await app.updateComplete;
+    expect(shell.dataset.auxVisible).toBe('false');
+    expect(shell.style.gridTemplateColumns).toBe('40px 716px 524px 0px');
+    resizePointer(window, 'pointermove', 753, 100);
+    await app.updateComplete;
+    expect(shell.dataset.auxVisible).toBe('true');
+    resizePointer(window, 'pointermove', 754, 100);
+    resizePointer(window, 'pointerup', 754, 100);
+    await app.updateComplete;
+    expect(snapshot.layout.auxiliarySidebar.visible).toBe(false);
+    resizePointer(main, 'pointerdown', 318, 100);
+    resizePointer(window, 'pointermove', 218, 100);
+    resizePointer(window, 'pointerup', 218, 100);
+    await app.updateComplete;
+    expect(snapshot.layout.mainSidebar.size).toBe(616);
+    expect(snapshot.layout.auxiliarySidebar.visible).toBe(false);
+  });
+  it('drags a hidden bottom panel through reveal, plateau and maximization and cancels cleanly', async () => {
+    const { root } = await sizedFixture();
+    const snapshot = requireValue(app.store.workspace).snapshot;
+    snapshot.layout.panel.visible = false;
+    app.requestUpdate();
+    await app.updateComplete;
+    const handle = requireValue(root.querySelector<HTMLElement>('.hidden-panel-resize'));
+    const shell = requireValue(root.querySelector<HTMLElement>('.shell-body'));
+    resizePointer(handle, 'pointerdown', 600, 768);
+    resizePointer(window, 'pointermove', 600, 730);
+    await app.updateComplete;
+    expect(shell.dataset.panelVisible).toBe('false');
+    resizePointer(window, 'pointermove', 600, 729);
+    await app.updateComplete;
+    expect(shell.style.gridTemplateRows).toBe('654px 78px');
+    expect(root.querySelector('.hidden-panel-resize')).toBeNull();
+    resizePointer(window, 'pointermove', 600, 690);
+    await app.updateComplete;
+    expect(shell.style.gridTemplateRows).toBe('654px 78px');
+    resizePointer(window, 'pointermove', 600, 689);
+    await app.updateComplete;
+    expect(shell.style.gridTemplateRows).toBe('653px 79px');
+    resizePointer(window, 'pointermove', 600, 71);
+    await app.updateComplete;
+    expect(shell.dataset.panelMaximized).toBe('true');
+    expect(root.querySelector<HTMLElement>('.center-area')?.hidden).toBe(true);
+    resizePointer(window, 'pointermove', 600, 72);
+    await app.updateComplete;
+    expect(shell.dataset.panelMaximized).toBe('false');
+    resizePointer(window, 'pointercancel', 600, 72);
+    await app.updateComplete;
+    expect(shell.dataset.panelVisible).toBe('false');
+    expect(root.querySelector('.hidden-panel-resize')).not.toBeNull();
+    expect(root.querySelector<HTMLElement>('.center-area')?.hidden).toBe(false);
+  });
+  it('keeps all groups at their minima and places overflow on the root scroll containers', async () => {
+    const { root } = await sizedFixture(300, 100);
+    const snapshot = requireValue(app.store.workspace).snapshot;
+    snapshot.layout.auxiliarySidebar.visible = true;
+    addTab(snapshot, internalTab('bookmarks'));
+    splitGroup(snapshot, 'horizontal', snapshot.tabs[1].id);
+    app.requestUpdate();
+    await app.updateComplete;
+    expect(root.querySelectorAll('.center-group')).toHaveLength(2);
+    expect(root.querySelector<HTMLElement>('.center-canvas')?.style.width).toBe('444px');
+    expect(root.querySelector<HTMLElement>('.workbench')?.style.height).toBe('216px');
+    expect(root.querySelector('.window-size-warning')).toBeNull();
+    expect(root.querySelectorAll('.activity-bar-item')).toHaveLength(2);
+    const more = requireValue(root.querySelector<HTMLButtonElement>('[aria-label="更多视图"]'));
+    more.click();
+    await app.updateComplete;
+    const menu = root.querySelector('wb-context-menu');
+    expect(menu?.items.map((item) => ('label' in item ? item.label : ''))).toEqual([
+      '页面',
+      '收藏',
+      '关闭历史',
+      '插件管理',
+    ]);
+    for (const name of ['application-scroll', 'center-scroll', 'panel-scroll']) {
+      const scroll = requireValue(root.querySelector<WorkbenchScrollContainer>(`.${name}`));
+      expect(scroll.wheelDirection).toBe('none');
+      expect(scroll.shiftWheelDirection).toBe('none');
+      expect(scroll.dragOnly).toBe(true);
+    }
+  });
+});
+
+it('keeps the activity bar available when the bottom panel spans both sidebars', async () => {
+  const { root } = await resizeFixture();
+  Object.defineProperties(app, { clientWidth: { value: 1280 }, clientHeight: { value: 800 } });
+  requireValue(app.store.workspace).snapshot.layout.panel.align = 'full';
+  app.requestUpdate();
+  await app.updateComplete;
+  const shell = requireValue(root.querySelector<HTMLElement>('.shell-body'));
+  expect(shell.style.gridTemplateAreas).toBe(
+    '"activity main center aux" "activity panel panel panel"',
+  );
+  expect(root.querySelector<HTMLElement>('.panel-canvas')?.style.width).toBe('1240px');
+});
+
+it('reserves the measured statusbar height in both the outer grid and the shell calculation', async () => {
+  const { root } = await resizeFixture();
+  Object.defineProperties(app, { clientWidth: { value: 1280 }, clientHeight: { value: 800 } });
+  const status = requireValue(root.querySelector<HTMLElement>('.status-bar'));
+  Object.defineProperty(status, 'getBoundingClientRect', {
+    value: () => new DOMRect(0, 752, 1280, 48),
+  });
+  app.requestUpdate();
+  await app.updateComplete;
+  expect(root.querySelector<HTMLElement>('.workbench')?.style.gridTemplateRows).toBe(
+    '36px minmax(0, 1fr) 48px',
+  );
+  expect(root.querySelector<HTMLElement>('.shell-body')?.style.gridTemplateRows).toBe(
+    '476px 240px',
+  );
+  expect(root.querySelector<HTMLElement>('.workbench')?.style.height).toBe('800px');
+});
+
+describe('lateral panels and full-width maximization', () => {
+  it.each(['left', 'right'] as const)(
+    'retains a hidden %s panel sash and reveals it at 110px with a 220px minimum',
+    async (dock) => {
+      const { root } = await resizeFixture();
+      Object.defineProperties(app, { clientWidth: { value: 1840 }, clientHeight: { value: 800 } });
+      const snapshot = requireValue(app.store.workspace).snapshot;
+      snapshot.layout.auxiliarySidebar.visible = true;
+      snapshot.layout.panel.dock = dock;
+      snapshot.layout.panel.visible = false;
+      app.requestUpdate();
+      await app.updateComplete;
+      const handle = requireValue(root.querySelector<HTMLElement>('.hidden-panel-resize'));
+      expect(handle.getAttribute('aria-orientation')).toBe('vertical');
+      Object.defineProperty(handle, 'getBoundingClientRect', {
+        value: () => new DOMRect(600, 100, 4, 100),
+      });
+      const sign = dock === 'left' ? 1 : -1;
+      resizePointer(handle, 'pointerdown', 602, 150);
+      resizePointer(window, 'pointermove', 602 + sign * 109, 150);
+      await app.updateComplete;
+      expect(root.querySelector('.hidden-panel-resize')).not.toBeNull();
+      resizePointer(window, 'pointermove', 602 + sign * 110, 150);
+      await app.updateComplete;
+      expect(root.querySelector('.hidden-panel-resize')).toBeNull();
+      expect(root.querySelector<HTMLElement>('.panel-canvas')?.style.width).toBe('220px');
+      resizePointer(window, 'pointerup', 602 + sign * 110, 150);
+      await app.updateComplete;
+      expect(snapshot.layout.panel).toMatchObject({ visible: true, width: 220 });
+    },
+  );
+  it.each(['left', 'right'] as const)(
+    'couples a %s docked panel to sidebar expansion and restores the full draft on cancellation',
+    async (dock) => {
+      const { root, main } = await resizeFixture();
+      Object.defineProperties(app, { clientWidth: { value: 1840 }, clientHeight: { value: 800 } });
+      const snapshot = requireValue(app.store.workspace).snapshot;
+      snapshot.layout.auxiliarySidebar.visible = true;
+      snapshot.layout.panel.dock = dock;
+      snapshot.layout.panel.width = 360;
+      app.requestUpdate();
+      await app.updateComplete;
+      resizePointer(main, 'pointerdown', 318, 150);
+      resizePointer(window, 'pointermove', 1010, 150);
+      await app.updateComplete;
+      const shell = requireValue(root.querySelector<HTMLElement>('.shell-body'));
+      expect(shell.dataset.panelVisible).toBe('true');
+      expect(shell.style.gridTemplateColumns).toBe(
+        dock === 'left' ? '40px 972px 220px 440px 168px' : '40px 972px 440px 220px 168px',
+      );
+      resizePointer(window, 'pointermove', 1120, 150);
+      await app.updateComplete;
+      expect(shell.dataset.panelVisible).toBe('false');
+      expect(shell.dataset.auxVisible).toBe('true');
+      resizePointer(window, 'pointermove', 1314, 150);
+      await app.updateComplete;
+      expect(shell.dataset.auxVisible).toBe('false');
+      resizePointer(window, 'pointermove', 1119, 150);
+      await app.updateComplete;
+      expect(shell.dataset.panelVisible).toBe('true');
+      resizePointer(window, 'pointercancel', 1119, 150);
+      await app.updateComplete;
+      expect(snapshot.layout.mainSidebar.size).toBe(280);
+      expect(snapshot.layout.auxiliarySidebar.visible).toBe(true);
+      expect(snapshot.layout.panel).toMatchObject({ visible: true, width: 360 });
+    },
+  );
+  it.each(['left', 'right'] as const)(
+    'sizes a maximized full-width panel across both sidebars with the main sidebar on the %s',
+    async (side) => {
+      const { root } = await resizeFixture();
+      Object.defineProperties(app, { clientWidth: { value: 1280 }, clientHeight: { value: 800 } });
+      const snapshot = requireValue(app.store.workspace).snapshot;
+      snapshot.layout.mainSidebar.side = side;
+      snapshot.layout.auxiliarySidebar.visible = true;
+      snapshot.layout.panel.align = 'full';
+      app.requestUpdate();
+      await app.updateComplete;
+      requireValue(
+        root.querySelector<HTMLButtonElement>('[aria-label="最大化 / 还原面板"]'),
+      ).click();
+      await app.updateComplete;
+      expect(root.querySelector('.panel-maximized')).not.toBeNull();
+      expect(root.querySelector<HTMLElement>('.panel-canvas')?.style.width).toBe('1240px');
+      expect(root.querySelector<HTMLElement>('.shell-body')?.dataset.panelAlign).toBe('full');
+      expect(root.querySelector<HTMLElement>('.center-area')?.hidden).toBe(true);
+    },
+  );
+  it('does not resize two adjacent vertical sashes in the same gesture', async () => {
+    const { root, main } = await resizeFixture();
+    Object.defineProperties(app, { clientWidth: { value: 1840 }, clientHeight: { value: 800 } });
+    const snapshot = requireValue(app.store.workspace).snapshot;
+    snapshot.layout.panel.dock = 'left';
+    snapshot.layout.panel.visible = false;
+    app.requestUpdate();
+    await app.updateComplete;
+    const hidden = requireValue(root.querySelector<HTMLElement>('.hidden-panel-resize'));
+    Object.defineProperty(hidden, 'getBoundingClientRect', {
+      value: () => new DOMRect(320, 36, 4, 652),
+    });
+    resizePointer(main, 'pointerdown', 318, 150);
+    resizePointer(window, 'pointermove', 438, 150);
+    resizePointer(window, 'pointerup', 438, 150);
+    await app.updateComplete;
+    expect(snapshot.layout.mainSidebar.size).toBe(400);
+    expect(snapshot.layout.panel.visible).toBe(false);
+  });
+});

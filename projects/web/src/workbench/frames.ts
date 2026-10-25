@@ -213,17 +213,34 @@ export class FramePool extends EventTarget {
         const group = groups(snapshot.layout.center).find((g) => g.activeTabId === r.tabId),
           slot = group && this.slot(group.id),
           rect = slot?.getBoundingClientRect();
+        const centerArea = this.root.querySelector<HTMLElement>('.center-area');
+        const centerRect = centerArea?.getBoundingClientRect();
         const visible = Boolean(
           rect &&
           rect.width > 0 &&
           rect.height > 0 &&
+          !centerArea?.hidden &&
+          (!centerRect || (centerRect.width > 0 && centerRect.height > 0)) &&
           !['error', 'restore-error'].includes(r.state),
         );
         r.frame.hidden = !visible;
         if (visible && rect) {
-          const center = (
-            slot?.closest('.page-viewport') ?? this.root.querySelector('.center-area')
-          )?.getBoundingClientRect();
+          const clips = [
+            slot?.closest('.page-viewport'),
+            this.root.querySelector('.center-scroll'),
+            this.root.querySelector('.center-area'),
+            this.root.host,
+          ]
+            .filter((el): el is Element => Boolean(el))
+            .map((el) => el.getBoundingClientRect());
+          const center = clips.length
+            ? {
+                top: Math.max(...clips.map((r) => r.top)),
+                right: Math.min(...clips.map((r) => r.right)),
+                bottom: Math.min(...clips.map((r) => r.bottom)),
+                left: Math.max(...clips.map((r) => r.left)),
+              }
+            : undefined;
           Object.assign(r.frame.style, {
             left: `${rect.left - base.left}px`,
             top: `${rect.top - base.top}px`,

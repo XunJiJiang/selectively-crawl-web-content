@@ -1,3 +1,23 @@
+import {
+  MIN_CENTER_WIDTH,
+  MIN_CENTER_HEIGHT,
+  MIN_GROUP_WIDTH,
+  MIN_GROUP_HEIGHT,
+  MIN_SIDEBAR_WIDTH,
+  MIN_PANEL_WIDTH,
+  MIN_PANEL_HEIGHT,
+  MIN_DOCKED_PANEL_WIDTH,
+  fitWorkbench,
+  applyHorizontalDrag,
+  dragBottomPanel,
+  minimumNode,
+  splitExtent,
+  activitySlots,
+  type Sidebar,
+  type HorizontalDrag,
+  type SplitExtent,
+  type WorkbenchMetrics,
+} from '../workbench/layout-geometry.ts';
 import type { WorkbenchScrollContainer } from '../components/scroll-container.ts';
 import '../components/scroll-container.ts';
 import { requireValue } from '../../../shared/workbench-protocol.ts';
@@ -132,6 +152,68 @@ export class AppRoot extends LitElement {
   private sidebarDrop?: HTMLElement;
   private previousTheme = '';
   private resizeSnapshot?: WorkspaceSnapshot;
+  private splitExtents = new Map<string, SplitExtent>();
+  private centerCanvasHeight = MIN_CENTER_HEIGHT;
+  private layoutMetrics(): WorkbenchMetrics {
+    const hostStyle = getComputedStyle(this);
+    const number = (value: string) => Number.parseFloat(value) || 0;
+    const token = (name: string) => number(hostStyle.getPropertyValue(name));
+    const activity = this.renderRoot.querySelector<HTMLElement>('.activity-bar');
+    const activityStyle = activity && getComputedStyle(activity);
+    const extent = (selector: string, axis: 'width' | 'height', fallback: string) =>
+      this.renderRoot.querySelector(selector)?.getBoundingClientRect()[axis] || token(fallback);
+    return {
+      activityWidth: extent('.activity-bar', 'width', '--activity-width'),
+      topbarHeight: extent('.topbar', 'height', '--topbar-height'),
+      statusbarHeight: extent('.status-bar', 'height', '--statusbar-height'),
+      splitterSize: extent('.center-splitter.horizontal', 'width', '--resize-handle-size'),
+      activityItemHeight: extent('.activity-bar-item', 'height', '--activity-item-size'),
+      activityGap: activityStyle
+        ? number(activityStyle.rowGap) || token('--activity-gap')
+        : token('--activity-gap'),
+      activityPadding: activityStyle
+        ? number(activityStyle.paddingTop) + number(activityStyle.paddingBottom) ||
+          token('--activity-padding') * 2
+        : token('--activity-padding') * 2,
+    };
+  }
+  private geometry() {
+    return fitWorkbench(
+      (this.resizeSnapshot ?? this.store.workspace?.snapshot)?.layout,
+      this.clientWidth || innerWidth,
+      this.clientHeight || innerHeight,
+      this.layoutMetrics(),
+      this.focusedOnly,
+      this.panelMaximized,
+    );
+  }
+  private horizontalStart(snapshot = this.snapshot): HorizontalDrag {
+    const metrics = this.layoutMetrics();
+    const g = fitWorkbench(
+      snapshot.layout,
+      this.clientWidth || innerWidth,
+      this.clientHeight || innerHeight,
+      metrics,
+    );
+    return {
+      availableWidth: g.shellWidth - metrics.activityWidth,
+      mainSide: snapshot.layout.mainSidebar.side,
+      panelDock: snapshot.layout.panel.dock,
+      mainSidebar: { visible: snapshot.layout.mainSidebar.visible, size: g.mainWidth },
+      auxiliarySidebar: { visible: snapshot.layout.auxiliarySidebar.visible, size: g.auxWidth },
+      panel: { visible: snapshot.layout.panel.visible, size: g.panelWidth },
+    };
+  }
+  private revealSidebar(snapshot: WorkspaceSnapshot, part: Sidebar) {
+    const start = this.horizontalStart(snapshot);
+    start[part].visible = false;
+    applyHorizontalDrag(
+      snapshot.layout,
+      part,
+      start,
+      Math.max(MIN_SIDEBAR_WIDTH, snapshot.layout[part].size),
+    );
+  }
   private cancelResize?: () => void;
   @state() private accessor highlightedResizers: ReadonlySet<string> = new Set();
   private focusHistory = new FocusHistory();
@@ -318,6 +400,10 @@ export class AppRoot extends LitElement {
         const bar = this.renderRoot.querySelector('.topbar');
         if (bar) {
           this.observer.observe(bar);
+        }
+        const status = this.renderRoot.querySelector('.status-bar');
+        if (status) {
+          this.observer.observe(status);
         }
         this.observer.observe(this);
         queueMicrotask(() => this.act(() => this.store.loadOutput('public')));
@@ -525,7 +611,7 @@ export class AppRoot extends LitElement {
     this.recordFocus({ kind: 'sidebar', view });
     await this.store.update((s) => {
       s.layout.mainSidebar.view = view;
-      s.layout.mainSidebar.visible = true;
+      this.revealSidebar(s, 'mainSidebar');
     });
     await this.updateComplete;
     this.renderRoot.querySelector<HTMLElement>('.sidebar-content')?.focus();
@@ -915,7 +1001,11 @@ export class AppRoot extends LitElement {
       this.focusedOnly = false;
       const wasVisible = this.snapshot.layout[part].visible;
       await this.store.update((s) => {
-        s.layout[part].visible = !wasVisible;
+        if (!wasVisible && part !== 'panel' && args !== 'topbar') {
+          this.revealSidebar(s, part);
+        } else {
+          s.layout[part].visible = !wasVisible;
+        }
       });
       if (id === 'panel' && !wasVisible) {
         await this.selectPanel(this.snapshot.layout.panel.activeView);
@@ -1014,7 +1104,7 @@ export class AppRoot extends LitElement {
         hash: '',
       });
       await this.store.update((s) => {
-        s.layout.auxiliarySidebar.visible = true;
+        this.revealSidebar(s, 'auxiliarySidebar');
       });
       return;
     }
@@ -1449,7 +1539,7 @@ export class AppRoot extends LitElement {
     if (!targets.some((target) => target.key === key && target.nodeId === nodeId)) {
       targets.push({ key, nodeId });
     }
-    const parts = [
+    let parts = [
       ...new Map(targets.map((target) => [`${target.key}:${target.nodeId}`, target])).values(),
     ];
     const orientation = (part: (typeof parts)[number]) =>
@@ -1461,6 +1551,10 @@ export class AppRoot extends LitElement {
           ?.classList.contains('vertical'))
         ? 'row-resize'
         : 'col-resize';
+    const primaryAxis = orientation({ key, nodeId });
+    parts = parts.filter(
+      (part) => orientation(part) !== primaryAxis || (part.key === key && part.nodeId === nodeId),
+    );
     this.resizeCursor = new Set(parts.map(orientation)).size > 1 ? 'move' : orientation(parts[0]);
     const oldCursor = document.documentElement.style.cursor;
     document.documentElement.style.cursor = this.resizeCursor;
@@ -1468,6 +1562,10 @@ export class AppRoot extends LitElement {
     this.dragging = true;
     this.resizeSnapshot = clone(initial);
     const side = initial.layout.mainSidebar.side;
+    const initialGeometry = this.geometry();
+    const initiallyMaximized = this.panelMaximized;
+    const initialSplitExtents = new Map(this.splitExtents);
+    const horizontalStart = this.horizontalStart(initial);
     const rects = new Map(
       parts.map((part) => [
         part.nodeId,
@@ -1486,32 +1584,40 @@ export class AppRoot extends LitElement {
         dy = e.clientY - startY;
       for (const part of parts) {
         if (part.key === 'main') {
-          const size =
-            (initial.layout.mainSidebar.visible ? initial.layout.mainSidebar.size : 0) +
-            (side === 'left' ? dx : -dx);
-          s.layout.mainSidebar.visible = size >= 200;
-          s.layout.mainSidebar.size = clamp(size, 200, 480);
+          applyHorizontalDrag(s.layout, 'mainSidebar', horizontalStart, side === 'left' ? dx : -dx);
         }
         if (part.key === 'aux') {
-          const size =
-            (initial.layout.auxiliarySidebar.visible ? initial.layout.auxiliarySidebar.size : 0) +
-            (side === 'left' ? -dx : dx);
-          s.layout.auxiliarySidebar.visible = size >= 240;
-          s.layout.auxiliarySidebar.size = clamp(size, 240, 480);
+          applyHorizontalDrag(
+            s.layout,
+            'auxiliarySidebar',
+            horizontalStart,
+            side === 'left' ? -dx : dx,
+          );
         }
         if (part.key === 'panel') {
-          const panel = s.layout.panel,
-            before = initial.layout.panel;
-          const size =
-            (before.visible ? (before.dock === 'bottom' ? before.height : before.width) : 0) +
-            (before.dock === 'bottom' ? -dy : before.dock === 'left' ? dx : -dx);
-          panel.visible = size >= (before.dock === 'bottom' ? 120 : 280);
+          const before = initial.layout.panel;
           if (before.dock === 'bottom') {
-            panel.height = clamp(size, 120, Math.max(120, Math.min(600, innerHeight - 100)));
+            const result = dragBottomPanel(
+              {
+                visible: before.visible,
+                height: initialGeometry.panelHeight,
+                maximized: initiallyMaximized,
+                availableHeight: initialGeometry.bodyHeight,
+              },
+              -dy,
+            );
+            s.layout.panel.visible = result.visible;
+            s.layout.panel.height = result.height;
+            this.panelMaximized = result.maximized;
           } else {
-            panel.width = clamp(size, 280, 640);
+            applyHorizontalDrag(
+              s.layout,
+              'panel',
+              horizontalStart,
+              before.dock === 'left' ? dx : -dx,
+            );
+            this.panelMaximized = false;
           }
-          this.panelMaximized = false;
         }
         if (part.key === 'sidebar-split') {
           s.layout.mainSidebar.openPagesRatio = clamp(
@@ -1530,20 +1636,24 @@ export class AppRoot extends LitElement {
         }
         const rect = rects.get(part.nodeId);
         if (part.key === 'split' && rect) {
-          s.layout.center = visit(s.layout.center, (n) =>
-            n.kind === 'split' && n.id === part.nodeId
-              ? {
-                  ...n,
-                  ratio: clamp(
-                    n.axis === 'horizontal'
-                      ? (e.clientX - rect.left) / rect.width
-                      : (e.clientY - rect.top) / rect.height,
-                    0.2,
-                    0.8,
-                  ),
-                }
-              : n,
-          );
+          s.layout.center = visit(s.layout.center, (n) => {
+            if (n.kind !== 'split' || n.id !== part.nodeId) {
+              return n;
+            }
+            const horizontal = n.axis === 'horizontal';
+            const available =
+              (horizontal ? rect.width : rect.height) - this.layoutMetrics().splitterSize;
+            const axis = horizontal ? 'width' : 'height';
+            if (available <= 0) {
+              return n;
+            }
+            const first = clamp(
+              horizontal ? e.clientX - rect.left : e.clientY - rect.top,
+              minimumNode(n.first, this.layoutMetrics().splitterSize)[axis],
+              available - minimumNode(n.second, this.layoutMetrics().splitterSize)[axis],
+            );
+            return { ...n, ratio: first / available };
+          });
         }
       }
       this.requestUpdate();
@@ -1571,6 +1681,8 @@ export class AppRoot extends LitElement {
       }
     };
     const cancel = () => {
+      this.panelMaximized = initiallyMaximized;
+      this.splitExtents = initialSplitExtents;
       this.resizeSnapshot = undefined;
       cleanup();
       this.requestUpdate();
@@ -1592,26 +1704,41 @@ export class AppRoot extends LitElement {
     const delta = (['ArrowRight', 'ArrowDown'].includes(event.key) ? 1 : -1) * direction;
     this.act(() =>
       this.store.update((s) => {
-        if (key === 'main') {
-          s.layout.mainSidebar.size = Math.max(
-            200,
-            Math.min(480, s.layout.mainSidebar.size + delta * 16),
-          );
-        }
-        if (key === 'aux') {
-          s.layout.auxiliarySidebar.size = Math.max(
-            240,
-            Math.min(480, s.layout.auxiliarySidebar.size + delta * 16),
+        if (key === 'main' || key === 'aux') {
+          const part = key === 'main' ? 'mainSidebar' : 'auxiliarySidebar';
+          const growth = key === 'main' ? delta : -delta;
+          const start = this.horizontalStart(s);
+          applyHorizontalDrag(
+            s.layout,
+            part,
+            start,
+            start[part].visible ? growth * 16 : growth > 0 ? MIN_SIDEBAR_WIDTH : 0,
           );
         }
         if (key === 'panel') {
           if (s.layout.panel.dock === 'bottom') {
-            s.layout.panel.height = Math.max(
-              120,
-              Math.min(600, s.layout.panel.height - delta * 16),
+            const g = this.geometry();
+            const result = dragBottomPanel(
+              {
+                visible: s.layout.panel.visible,
+                height: g.panelHeight,
+                maximized: this.panelMaximized,
+                availableHeight: g.bodyHeight,
+              },
+              s.layout.panel.visible ? -delta * 16 : delta < 0 ? MIN_PANEL_HEIGHT : 0,
             );
+            s.layout.panel.visible = result.visible;
+            s.layout.panel.height = result.height;
+            this.panelMaximized = result.maximized;
           } else {
-            s.layout.panel.width = Math.max(280, Math.min(640, s.layout.panel.width + delta * 16));
+            const growth = s.layout.panel.dock === 'left' ? delta : -delta;
+            const start = this.horizontalStart(s);
+            applyHorizontalDrag(
+              s.layout,
+              'panel',
+              start,
+              start.panel.visible ? growth * 16 : growth > 0 ? MIN_DOCKED_PANEL_WIDTH : 0,
+            );
           }
         }
         if (key === 'sidebar-split') {
@@ -1624,22 +1751,14 @@ export class AppRoot extends LitElement {
     );
   }
   private shellStyle() {
-    const layout = (this.resizeSnapshot ?? this.snapshot).layout,
-      layoutWidth = Math.max(1024, innerWidth),
-      mainVisible = this.visible('main'),
-      auxVisible = this.visible('aux'),
-      panelVisible = this.visible('panel'),
-      mainWidth = mainVisible
-        ? Math.min(layout.mainSidebar.size, layoutWidth < 1280 ? 360 : 480)
-        : 0,
-      auxWidth = auxVisible ? layout.auxiliarySidebar.size : 0,
-      panelWidth = panelVisible ? Math.min(layout.panel.width, layoutWidth * 0.45) : 0;
+    const layout = (this.resizeSnapshot ?? this.snapshot).layout;
+    const g = this.geometry();
     const widths: Record<string, string> = {
-      activity: '40px',
-      main: `${mainWidth}px`,
-      aux: `${auxWidth}px`,
-      center: 'minmax(0,1fr)',
-      panel: `${panelWidth}px`,
+      activity: `${this.layoutMetrics().activityWidth}px`,
+      main: `${g.mainWidth}px`,
+      aux: `${g.auxWidth}px`,
+      center: `${g.centerWidth}px`,
+      panel: `${g.panelWidth}px`,
     };
     let columns =
       layout.mainSidebar.side === 'left'
@@ -1657,173 +1776,237 @@ export class AppRoot extends LitElement {
     const rows = [`"${columns.join(' ')}"`];
     if (layout.panel.dock === 'bottom') {
       rows.push(
-        `"${columns.map((n) => (layout.panel.align === 'full' ? 'panel' : n === 'center' ? 'panel' : n)).join(' ')}"`,
+        `"${columns.map((n) => (n === 'activity' ? n : layout.panel.align === 'full' || n === 'center' ? 'panel' : n)).join(' ')}"`,
       );
     }
     return {
       'grid-template-columns': columns.map((c) => widths[c]).join(' '),
       'grid-template-rows':
         layout.panel.dock === 'bottom'
-          ? `minmax(0,1fr) ${panelVisible ? `${Math.min(layout.panel.height, innerWidth < 1280 ? 400 : 600, Math.max(120, innerHeight - 200))}px` : '0px'}`
-          : 'minmax(0,1fr)',
+          ? `${g.centerHeight}px ${g.panelHeight}px`
+          : `${g.bodyHeight}px`,
       'grid-template-areas': rows.join(' '),
-      '--main-sidebar-width': `${layout.mainSidebar.size}px`,
-      '--aux-sidebar-width': `${layout.auxiliarySidebar.size}px`,
-      '--panel-height': `${layout.panel.height}px`,
-      '--panel-width': `${layout.panel.width}px`,
-      '--main-visible-width': mainVisible ? widths.main : '0px',
-      '--aux-visible-width': auxVisible ? widths.aux : '0px',
+      '--main-visible-width': widths.main,
+      '--aux-visible-width': widths.aux,
       '--terminal-list-width': `${layout.panel.terminalListSize}px`,
     };
   }
-  @state() private accessor sizeWarningDismissed = false;
   private followOutput = true;
   render() {
-    return html`${this.sizeWarningDismissed
-        ? nothing
-        : html`<div class="window-size-warning">
-            <span class="width-warning"
-              >当前窗口宽度过低，部分功能可能不可用。建议窗口宽度 ≥1024px。</span
-            >
-            <span class="height-warning"
-              >当前窗口高度过低，部分功能可能不可用。建议窗口高度 ≥480px。</span
-            >
-            ${iconButton('close', '关闭窗口尺寸提示', () => {
-              this.sizeWarningDismissed = true;
-            })}
-          </div>`}
-      <a
-        href="#workspace-center"
-        class="skip-nav"
-        @click=${(e: Event) => {
-          e.preventDefault();
-          this.renderRoot.querySelector<HTMLElement>('#workspace-center')?.focus();
-        }}
-        >跳过导航，进入页面区域</a
+    const metrics = this.layoutMetrics();
+    const geometry = this.geometry();
+    const center = this.store.workspace
+      ? (this.resizeSnapshot ?? this.snapshot).layout.center
+      : undefined;
+    const minimum = center
+      ? minimumNode(
+          this.focusedOnly ? findGroup(this.snapshot) : center,
+          this.layoutMetrics().splitterSize,
+        )
+      : { width: MIN_CENTER_WIDTH, height: MIN_CENTER_HEIGHT };
+    const centerWidth = Math.max(MIN_CENTER_WIDTH, geometry.centerWidth, minimum.width);
+    const centerHeight = Math.max(
+      MIN_CENTER_HEIGHT,
+      geometry.centerHeight || this.centerCanvasHeight,
+      minimum.height,
+    );
+    if (geometry.centerHeight > 0) {
+      this.centerCanvasHeight = centerHeight;
+    }
+    return html`<wb-scroll-container
+        drag-only
+        class="application-scroll"
+        wheel-direction="none"
+        shift-wheel-direction="none"
+        @scroll=${() => this.pool?.position()}
       >
-      <div
-        @pointermove=${this.hoverResize}
-        @pointerleave=${this.leaveResize}
-        class=${`workbench ${this.dragging ? 'is-dragging' : ''} ${this.focusedOnly ? 'is-focused' : ''}`}
-      >
-        ${this.renderTopbar()}
-        ${this.store.loading
-          ? html`<main class="boot-screen" aria-busy="true">
-              <div class="skeleton large"></div>
-              <p>正在连接本机工作台…</p>
-            </main>`
-          : this.store.error
-            ? html`<main class="boot-screen">
-                <div class="error-symbol">${icon('network')}</div>
-                <h1>无法连接工作台</h1>
-                <p role="alert">${this.store.error}</p>
-                <p class="muted">
-                  请从核心服务的 ${location.origin}/web/ 地址打开，确认服务与令牌有效。
-                </p>
-                <button class="btn primary" @click=${() => void this.store.start()}>
-                  重新连接
-                </button>
-                <details>
-                  <summary>手动输入当前核心令牌</summary>
-                  <form
-                    @submit=${(e: SubmitEvent) => {
-                      e.preventDefault();
-                      const input = requireValue(
-                        (e.currentTarget as HTMLFormElement).querySelector('input'),
-                      );
-                      this.act(() => this.store.authenticate(input.value));
-                    }}
-                  >
-                    <input type="password" aria-label="核心令牌" autocomplete="off" /><button
-                      class="btn secondary"
-                      type="submit"
-                    >
-                      连接
-                    </button>
-                  </form>
-                </details>
+        <a
+          href="#workspace-center"
+          class="skip-nav"
+          @click=${(e: Event) => {
+            e.preventDefault();
+            this.renderRoot.querySelector<HTMLElement>('#workspace-center')?.focus();
+          }}
+          >跳过导航，进入页面区域</a
+        >
+        <div
+          @pointermove=${this.hoverResize}
+          @pointerleave=${this.leaveResize}
+          style=${styleMap({
+            width: `${geometry.shellWidth}px`,
+            height: `${geometry.height}px`,
+            'grid-template-rows': `${metrics.topbarHeight}px minmax(0, 1fr) ${metrics.statusbarHeight}px`,
+            '--center-min-width': `${MIN_CENTER_WIDTH}px`,
+            '--group-min-width': `${MIN_GROUP_WIDTH}px`,
+            '--group-min-height': `${MIN_GROUP_HEIGHT}px`,
+            '--panel-min-width': `${(this.store.workspace?.snapshot.layout.panel.dock ?? 'bottom') === 'bottom' ? MIN_PANEL_WIDTH : MIN_DOCKED_PANEL_WIDTH}px`,
+          })}
+          class=${`workbench ${this.dragging ? 'is-dragging' : ''} ${this.focusedOnly ? 'is-focused' : ''}`}
+        >
+          ${this.renderTopbar()}
+          ${this.store.loading
+            ? html`<main class="boot-screen" aria-busy="true">
+                <div class="skeleton large"></div>
+                <p>正在连接本机工作台…</p>
               </main>`
-            : html`<div
-                class="shell-body"
-                data-side=${this.snapshot.layout.mainSidebar.side}
-                data-panel-dock=${this.snapshot.layout.panel.dock}
-                data-main-visible=${this.visible('main')}
-                data-aux-visible=${this.visible('aux')}
-                data-panel-visible=${this.visible('panel')}
-                data-panel-maximized=${this.panelMaximized && this.visible('panel')}
-                style=${styleMap(this.shellStyle())}
-              >
-                ${this.renderActivity()}${this.renderSidebar()}
-                ${!this.visible('main')
-                  ? html`<div
-                      class="resize-handle hidden-main-resize"
-                      data-resize-key="main"
-                      ?data-resize-active=${this.resizeHighlighted('main')}
-                      role="separator"
-                      aria-label="展开和调整主侧栏宽度"
-                      aria-orientation="vertical"
-                      tabindex="0"
-                      @pointerdown=${(e: PointerEvent) => this.resize(e, 'main')}
-                      @keydown=${(e: KeyboardEvent) => this.resizeKey(e, 'main')}
-                    ></div>`
-                  : nothing}
-
-                <main id="workspace-center" tabindex="-1" class="center-area">
-                  ${groups(this.snapshot.layout.center).length > 1
-                    ? html`<nav class="group-switcher" aria-label="切换页面组">
-                        ${groups(this.snapshot.layout.center).map(
-                          (g, i) =>
-                            html`<button
-                              class="btn ghost small"
-                              aria-pressed=${g.id === this.snapshot.layout.focusedGroupId}
-                              @click=${() =>
-                                this.act(() =>
-                                  this.store.update((s) => {
-                                    s.layout.focusedGroupId = g.id;
-                                  }),
-                                )}
-                            >
-                              分组 ${i + 1}
-                            </button>`,
-                        )}
-                      </nav>`
-                    : nothing}
-                  <div class="center-canvas">
-                    ${this.renderNode((this.resizeSnapshot ?? this.snapshot).layout.center)}
-                  </div>
-                </main>
-                <aside
-                  class="auxiliary-sidebar"
-                  data-visible=${this.visible('aux')}
-                  aria-label="当前页面属性"
+            : this.store.error
+              ? html`<main class="boot-screen">
+                  <div class="error-symbol">${icon('network')}</div>
+                  <h1>无法连接工作台</h1>
+                  <p role="alert">${this.store.error}</p>
+                  <p class="muted">
+                    请从核心服务的 ${location.origin}/web/ 地址打开，确认服务与令牌有效。
+                  </p>
+                  <button class="btn primary" @click=${() => void this.store.start()}>
+                    重新连接
+                  </button>
+                  <details>
+                    <summary>手动输入当前核心令牌</summary>
+                    <form
+                      @submit=${(e: SubmitEvent) => {
+                        e.preventDefault();
+                        const input = requireValue(
+                          (e.currentTarget as HTMLFormElement).querySelector('input'),
+                        );
+                        this.act(() => this.store.authenticate(input.value));
+                      }}
+                    >
+                      <input type="password" aria-label="核心令牌" autocomplete="off" /><button
+                        class="btn secondary"
+                        type="submit"
+                      >
+                        连接
+                      </button>
+                    </form>
+                  </details>
+                </main>`
+              : html`<div
+                  class="shell-body"
+                  data-side=${this.snapshot.layout.mainSidebar.side}
+                  data-panel-dock=${this.snapshot.layout.panel.dock}
+                  data-panel-align=${this.snapshot.layout.panel.align}
+                  data-main-visible=${this.visible('main')}
+                  data-aux-visible=${this.visible('aux')}
+                  data-panel-visible=${this.visible('panel')}
+                  data-panel-maximized=${this.panelMaximized && this.visible('panel')}
+                  style=${styleMap(this.shellStyle())}
                 >
-                  <div
-                    class="resize-handle aux-resize"
-                    data-resize-key="aux"
-                    ?data-resize-active=${this.resizeHighlighted('aux')}
-                    role="separator"
-                    tabindex="0"
-                    aria-label="调整辅助侧栏宽度"
-                    aria-orientation="vertical"
-                    @pointerdown=${(e: PointerEvent) => this.resize(e, 'aux')}
-                    @keydown=${(e: KeyboardEvent) => this.resizeKey(e, 'aux')}
-                  ></div>
-                  <div class="sidebar-header">
-                    <strong>当前页面</strong>${iconButton('close', '隐藏辅助侧栏', () =>
-                      this.act(() => this.command('auxiliary')),
-                    )}
-                  </div>
-                  <wb-page-inspector
-                    .store=${this.store}
-                    .pool=${this.pool}
-                    .tab=${this.inspectedTab ?? this.current}
-                  ></wb-page-inspector>
-                </aside>
-                ${this.renderPanel()}
-                <div class="frame-pool" aria-label="插件页面实例"></div>
-              </div>`}
-        ${this.renderStatus()}
-      </div>
+                  ${this.renderActivity()}${this.renderSidebar()}
+                  ${!this.visible('main')
+                    ? html`<div
+                        class="resize-handle hidden-main-resize"
+                        data-resize-key="main"
+                        ?data-resize-active=${this.resizeHighlighted('main')}
+                        role="separator"
+                        aria-label="展开和调整主侧栏宽度"
+                        aria-orientation="vertical"
+                        tabindex="0"
+                        @pointerdown=${(e: PointerEvent) => this.resize(e, 'main')}
+                        @keydown=${(e: KeyboardEvent) =>
+                          this.resizeKey(
+                            e,
+                            'main',
+                            this.snapshot.layout.mainSidebar.side === 'left' ? 1 : -1,
+                          )}
+                      ></div>`
+                    : nothing}
+                  ${!this.visible('aux')
+                    ? html`<div
+                        class="resize-handle hidden-aux-resize"
+                        data-resize-key="aux"
+                        ?data-resize-active=${this.resizeHighlighted('aux')}
+                        role="separator"
+                        aria-label="展开和调整辅助侧栏宽度"
+                        aria-orientation="vertical"
+                        tabindex="0"
+                        @pointerdown=${(e: PointerEvent) => this.resize(e, 'aux')}
+                        @keydown=${(e: KeyboardEvent) =>
+                          this.resizeKey(
+                            e,
+                            'aux',
+                            this.snapshot.layout.mainSidebar.side === 'left' ? 1 : -1,
+                          )}
+                      ></div>`
+                    : nothing}
+                  ${!this.visible('panel')
+                    ? html`<div
+                        class=${`resize-handle hidden-panel-resize ${this.snapshot.layout.panel.dock}`}
+                        data-resize-key="panel"
+                        ?data-resize-active=${this.resizeHighlighted('panel')}
+                        role="separator"
+                        aria-label=${this.snapshot.layout.panel.dock === 'bottom'
+                          ? '展开和调整底部面板高度'
+                          : '展开和调整停靠面板宽度'}
+                        aria-orientation=${this.snapshot.layout.panel.dock === 'bottom'
+                          ? 'horizontal'
+                          : 'vertical'}
+                        tabindex="0"
+                        @pointerdown=${(e: PointerEvent) => this.resize(e, 'panel')}
+                        @keydown=${(e: KeyboardEvent) => this.resizeKey(e, 'panel')}
+                      ></div>`
+                    : nothing}
+                  <main
+                    id="workspace-center"
+                    tabindex="-1"
+                    class="center-area"
+                    ?hidden=${this.panelMaximized && this.visible('panel')}
+                  >
+                    <wb-scroll-container
+                      drag-only
+                      class="center-scroll"
+                      wheel-direction="none"
+                      shift-wheel-direction="none"
+                      @scroll=${() => this.pool?.position()}
+                    >
+                      <div
+                        class="center-canvas"
+                        style=${styleMap({
+                          width: `${centerWidth}px`,
+                          height: `${centerHeight}px`,
+                        })}
+                      >
+                        ${this.renderNode(requireValue(center), centerWidth, centerHeight)}
+                      </div>
+                    </wb-scroll-container>
+                  </main>
+                  <aside
+                    class="auxiliary-sidebar"
+                    data-visible=${this.visible('aux')}
+                    aria-label="当前页面属性"
+                  >
+                    <div
+                      class="resize-handle aux-resize"
+                      data-resize-key="aux"
+                      ?data-resize-active=${this.resizeHighlighted('aux')}
+                      role="separator"
+                      tabindex="0"
+                      aria-label="调整辅助侧栏宽度"
+                      aria-orientation="vertical"
+                      @pointerdown=${(e: PointerEvent) => this.resize(e, 'aux')}
+                      @keydown=${(e: KeyboardEvent) =>
+                        this.resizeKey(
+                          e,
+                          'aux',
+                          this.snapshot.layout.mainSidebar.side === 'left' ? 1 : -1,
+                        )}
+                    ></div>
+                    <div class="sidebar-header">
+                      <strong>当前页面</strong>${iconButton('close', '隐藏辅助侧栏', () =>
+                        this.act(() => this.command('auxiliary')),
+                      )}
+                    </div>
+                    <wb-page-inspector
+                      .store=${this.store}
+                      .pool=${this.pool}
+                      .tab=${this.inspectedTab ?? this.current}
+                    ></wb-page-inspector>
+                  </aside>
+                  ${this.renderPanel()}
+                  <div class="frame-pool" aria-label="插件页面实例"></div>
+                </div>`}
+          ${this.renderStatus()}
+        </div>
+      </wb-scroll-container>
       ${this.quickOpen ? this.renderQuickOpen() : nothing}${this.notificationOpen
         ? this.renderNotifications()
         : nothing}${this.showJobs ? this.renderJobs() : nothing}${this.renderToasts()}
@@ -1900,7 +2083,7 @@ export class AppRoot extends LitElement {
         ${iconButton(
           leftVisible ? 'layout-sidebar-left' : 'layout-sidebar-left-off',
           right ? '切换辅助侧栏' : '切换主侧栏',
-          () => this.act(() => this.command(right ? 'auxiliary' : 'sidebar')),
+          () => this.act(() => this.command(right ? 'auxiliary' : 'sidebar', 'topbar')),
           disabled,
         )}${iconButton(
           !disabled && this.visible('panel') ? 'layout-panel' : 'layout-panel-off',
@@ -1910,7 +2093,7 @@ export class AppRoot extends LitElement {
         )}${iconButton(
           rightVisible ? 'layout-sidebar-right' : 'layout-sidebar-right-off',
           right ? '切换主侧栏' : '切换辅助侧栏',
-          () => this.act(() => this.command(right ? 'sidebar' : 'auxiliary')),
+          () => this.act(() => this.command(right ? 'sidebar' : 'auxiliary', 'topbar')),
           disabled,
         )}
       </div>
@@ -1921,24 +2104,53 @@ export class AppRoot extends LitElement {
   }
   private renderActivity() {
     const view = this.snapshot.layout.mainSidebar.view;
+    const entries = Object.entries(viewNames);
+    const slots = activitySlots(this.geometry().bodyHeight, entries.length, this.layoutMetrics());
     return html`<nav class="activity-bar" aria-label="工作台视图">
-      ${Object.entries(viewNames).map(
-        ([id, label]) =>
-          html`<button
+      ${entries
+        .slice(0, slots.visible)
+        .map(
+          ([id, label]) =>
+            html`<button
+              class="activity-bar-item"
+              title=${label}
+              aria-label=${label}
+              aria-pressed=${this.visible('main') && view === id}
+              @click=${() =>
+                this.act(() =>
+                  this.visible('main') && view === id
+                    ? this.command('sidebar')
+                    : this.setView(id as keyof typeof viewNames),
+                )}
+            >
+              ${icon(id)}
+            </button>`,
+        )}
+      ${slots.overflow
+        ? html`<button
             class="activity-bar-item"
-            title=${label}
-            aria-label=${label}
-            aria-pressed=${this.visible('main') && view === id}
-            @click=${() =>
-              this.act(() =>
-                this.visible('main') && view === id
-                  ? this.command('sidebar')
-                  : this.setView(id as keyof typeof viewNames),
-              )}
+            title="更多视图"
+            aria-label="更多视图"
+            @click=${(event: MouseEvent) => {
+              const trigger = event.currentTarget as HTMLElement;
+              const rect = trigger.getBoundingClientRect();
+              this.menu = {
+                x: rect.right,
+                y: rect.top,
+                trigger,
+                items: entries.slice(slots.visible).map(([id, label]) => ({
+                  kind: 'checkbox' as const,
+                  id,
+                  label,
+                  checked: this.visible('main') && view === id,
+                  action: () => this.setView(id as keyof typeof viewNames),
+                })),
+              };
+            }}
           >
-            ${icon(id)}
-          </button>`,
-      )}
+            ${icon('more')}
+          </button>`
+        : nothing}
       <div class="activity-bar-bottom">
         ${iconButton('keyboard', '快捷键设置', () =>
           this.act(() => this.command('keybindings')),
@@ -2285,14 +2497,28 @@ export class AppRoot extends LitElement {
       this.act(() => this.store.update((s) => moveTab(s, source, group.id, index)));
     }
   }
-  private renderNode(node: LayoutNode): unknown {
+  private renderNode(node: LayoutNode, width: number, height: number): unknown {
     if (node.kind === 'split') {
-      if (innerWidth < 1024 || this.focusedOnly) {
-        return this.renderNode(findGroup(this.snapshot));
+      if (this.focusedOnly) {
+        return this.renderNode(findGroup(this.snapshot), width, height);
       }
+      const horizontal = node.axis === 'horizontal';
+      const sizes = splitExtent(
+        node,
+        horizontal ? width : height,
+        this.layoutMetrics().splitterSize,
+        this.splitExtents.get(node.id),
+        this.splitExtents,
+      );
+      this.splitExtents.set(node.id, sizes);
+      const second = sizes.available - sizes.first;
       return html`<div class=${`center-split ${node.axis}`} data-split=${node.id}>
-        <div class="split-child" style=${`flex:${node.ratio} 1 0%`}>
-          ${this.renderNode(node.first)}
+        <div class="split-child" style=${`flex:0 0 ${sizes.first}px`}>
+          ${this.renderNode(
+            node.first,
+            horizontal ? sizes.first : width,
+            horizontal ? height : sizes.first,
+          )}
         </div>
         <div
           class=${`center-splitter ${node.axis}`}
@@ -2313,12 +2539,19 @@ export class AppRoot extends LitElement {
                     n.kind === 'split' && n.id === node.id
                       ? {
                           ...n,
-                          ratio: Math.min(
-                            0.8,
-                            Math.max(
-                              0.2,
-                              n.ratio +
-                                (['ArrowRight', 'ArrowDown'].includes(e.key) ? 0.05 : -0.05),
+                          ratio: Math.max(
+                            minimumNode(n.first, this.layoutMetrics().splitterSize)[
+                              horizontal ? 'width' : 'height'
+                            ] / sizes.available,
+                            Math.min(
+                              1 -
+                                minimumNode(n.second, this.layoutMetrics().splitterSize)[
+                                  horizontal ? 'width' : 'height'
+                                ] /
+                                  sizes.available,
+                              sizes.first / sizes.available +
+                                (['ArrowRight', 'ArrowDown'].includes(e.key) ? 16 : -16) /
+                                  sizes.available,
                             ),
                           ),
                         }
@@ -2329,8 +2562,8 @@ export class AppRoot extends LitElement {
             }
           }}
         ></div>
-        <div class="split-child" style=${`flex:${1 - node.ratio} 1 0%`}>
-          ${this.renderNode(node.second)}
+        <div class="split-child" style=${`flex:0 0 ${second}px`}>
+          ${this.renderNode(node.second, horizontal ? second : width, horizontal ? height : second)}
         </div>
       </div>`;
     }
@@ -2664,6 +2897,27 @@ export class AppRoot extends LitElement {
   private renderPanel() {
     const panel = (this.resizeSnapshot ?? this.snapshot).layout.panel,
       visible = this.visible('panel');
+    const geometry = this.geometry();
+    const panelHeight = this.panelMaximized
+      ? geometry.bodyHeight
+      : panel.dock === 'bottom'
+        ? geometry.panelHeight
+        : geometry.bodyHeight;
+    const panelMinimum = panel.dock === 'bottom' ? MIN_PANEL_WIDTH : MIN_DOCKED_PANEL_WIDTH;
+    const panelWidth = this.panelMaximized
+      ? panel.align === 'full'
+        ? geometry.shellWidth - this.layoutMetrics().activityWidth
+        : geometry.centerWidth + geometry.panelWidth
+      : panel.dock === 'bottom'
+        ? panel.align === 'full'
+          ? geometry.shellWidth - this.layoutMetrics().activityWidth
+          : geometry.centerWidth
+        : geometry.panelWidth;
+    const panelElement = this.renderRoot.querySelector('.bottom-panel');
+    const panelStyle = panelElement && getComputedStyle(panelElement);
+    const border = (value: string | undefined) => Number.parseFloat(value ?? '') || 0;
+    const borderWidth = border(panelStyle?.borderLeftWidth) + border(panelStyle?.borderRightWidth);
+    const borderHeight = border(panelStyle?.borderTopWidth) + border(panelStyle?.borderBottomWidth);
     const records = (this.store.outputs.get('public') ?? []).filter(
       (r) =>
         (this.outputFilter === 'all' || r.level === this.outputFilter) &&
@@ -2694,152 +2948,175 @@ export class AppRoot extends LitElement {
         @pointerdown=${(e: PointerEvent) => this.resize(e, 'panel')}
         @keydown=${(e: KeyboardEvent) => this.resizeKey(e, 'panel')}
       ></div>
-      <div class="panel-tab-bar">
-        <div class="panel-tabs" role="tablist" @keydown=${tabNavigation}>
-          ${[
-            ['output', '输出'],
-            ['terminal', '终端'],
-          ].map(
-            ([id, label]) =>
-              html`<button
-                role="tab"
-                tabindex=${panel.activeView === id ? 0 : -1}
-                aria-selected=${panel.activeView === id}
-                @click=${() => this.act(() => this.selectPanel(id as 'output' | 'terminal'))}
-              >
-                ${icon(id)}${label}${id === 'terminal' &&
-                this.store.terminals.filter((t) => !t.archivedAt).length
-                  ? html`<span class="badge"
-                      >${this.store.terminals.filter((t) => !t.archivedAt).length}</span
-                    >`
-                  : nothing}
-              </button>`,
-          )}
-        </div>
-        <div class="panel-actions">
-          ${panel.activeView === 'terminal' &&
-          this.store.terminals.filter((t) => !t.archivedAt).length === 1
-            ? iconButton('trash', '关闭当前终端', () =>
-                this.act(() => this.command('closeTerminal')),
-              )
-            : nothing}
-          ${iconButton('plus', '新建命令终端', () =>
-            this.act(() => this.command('newTerminal')),
-          )}${iconButton(this.panelMaximized ? 'collapse' : 'expand', '最大化 / 还原面板', () => {
-            this.panelMaximized = !this.panelMaximized;
-          })}${iconButton('more', '面板停靠选项', () => {
-            const trigger = this.shadowRoot ? deepActiveElement(this.shadowRoot) : undefined,
-              rect = (trigger ?? this).getBoundingClientRect();
-            this.menu = {
-              x: rect.left,
-              y: rect.bottom,
-              trigger,
-              items: [
-                ...(['bottom', 'left', 'right'] as const).map((dock, i) => ({
-                  kind: 'checkbox' as const,
-                  id: dock,
-                  label: ['停靠底部', '停靠左侧', '停靠右侧'][i],
-                  checked: panel.dock === dock,
-                  action: () =>
-                    this.store.update((s) => {
-                      s.layout.panel.dock = dock;
-                    }),
-                })),
-                {
-                  kind: 'checkbox',
-                  id: 'panel-align',
-                  label: '全宽对齐',
-                  checked: panel.align === 'full',
-                  action: () =>
-                    this.store.update((s) => {
-                      s.layout.panel.align = s.layout.panel.align === 'full' ? 'center' : 'full';
-                    }),
+      <wb-scroll-container
+        drag-only
+        class="panel-scroll"
+        wheel-direction="none"
+        shift-wheel-direction="none"
+      >
+        <div
+          class="panel-canvas"
+          style=${styleMap({
+            width: `${Math.max(panelMinimum, panelWidth - borderWidth)}px`,
+            height: `${Math.max(MIN_PANEL_HEIGHT, panelHeight) - borderHeight}px`,
+          })}
+        >
+          <div class="panel-tab-bar">
+            <div class="panel-tabs" role="tablist" @keydown=${tabNavigation}>
+              ${[
+                ['output', '输出'],
+                ['terminal', '终端'],
+              ].map(
+                ([id, label]) =>
+                  html`<button
+                    role="tab"
+                    tabindex=${panel.activeView === id ? 0 : -1}
+                    aria-selected=${panel.activeView === id}
+                    @click=${() => this.act(() => this.selectPanel(id as 'output' | 'terminal'))}
+                  >
+                    ${icon(id)}${label}${id === 'terminal' &&
+                    this.store.terminals.filter((t) => !t.archivedAt).length
+                      ? html`<span class="badge"
+                          >${this.store.terminals.filter((t) => !t.archivedAt).length}</span
+                        >`
+                      : nothing}
+                  </button>`,
+              )}
+            </div>
+            <div class="panel-actions">
+              ${panel.activeView === 'terminal' &&
+              this.store.terminals.filter((t) => !t.archivedAt).length === 1
+                ? iconButton('trash', '关闭当前终端', () =>
+                    this.act(() => this.command('closeTerminal')),
+                  )
+                : nothing}
+              ${iconButton('plus', '新建命令终端', () =>
+                this.act(() => this.command('newTerminal')),
+              )}${iconButton(
+                this.panelMaximized ? 'collapse' : 'expand',
+                '最大化 / 还原面板',
+                () => {
+                  this.panelMaximized = !this.panelMaximized;
                 },
-              ],
-            };
-          })}${iconButton('close', '隐藏面板', () => this.act(() => this.command('panel')))}
-        </div>
-      </div>
-      <div class="panel-content" ?hidden=${panel.activeView !== 'output'}>
-        <div class="output-view">
-          <div class="output-toolbar">
-            <label class="output-channel">${icon('output')}公共输出</label
-            ><span class="spacer"></span
-            ><input
-              aria-label="搜索公共输出"
-              placeholder="筛选输出…"
-              .value=${live(this.outputQuery)}
-              @input=${(e: Event) => (this.outputQuery = (e.target as HTMLInputElement).value)}
-            /><select
-              aria-label="输出级别"
-              .value=${this.outputFilter}
-              @change=${(e: Event) => (this.outputFilter = (e.target as HTMLSelectElement).value)}
-            >
-              <option value="all">全部级别</option>
-              <option value="info">信息</option>
-              <option value="warn">警告</option>
-              <option value="error">错误</option></select
-            >${iconButton(
-              this.outputPaused ? 'play' : 'sleep',
-              this.outputPaused ? '恢复显示' : '暂停自动显示',
-              () => {
-                this.outputPaused = !this.outputPaused;
-                if (this.outputPaused) {
-                  this.pausedRecords = [...records];
-                }
-              },
-            )}${iconButton('copy', '复制当前输出', () =>
-              this.act(() => navigator.clipboard.writeText(records.map((r) => r.text).join('\n'))),
-            )}
+              )}${iconButton('more', '面板停靠选项', () => {
+                const trigger = this.shadowRoot ? deepActiveElement(this.shadowRoot) : undefined,
+                  rect = (trigger ?? this).getBoundingClientRect();
+                this.menu = {
+                  x: rect.left,
+                  y: rect.bottom,
+                  trigger,
+                  items: [
+                    ...(['bottom', 'left', 'right'] as const).map((dock, i) => ({
+                      kind: 'checkbox' as const,
+                      id: dock,
+                      label: ['停靠底部', '停靠左侧', '停靠右侧'][i],
+                      checked: panel.dock === dock,
+                      action: () =>
+                        this.store.update((s) => {
+                          s.layout.panel.dock = dock;
+                        }),
+                    })),
+                    {
+                      kind: 'checkbox',
+                      id: 'panel-align',
+                      label: '全宽对齐',
+                      checked: panel.align === 'full',
+                      action: () =>
+                        this.store.update((s) => {
+                          s.layout.panel.align =
+                            s.layout.panel.align === 'full' ? 'center' : 'full';
+                        }),
+                    },
+                  ],
+                };
+              })}${iconButton('close', '隐藏面板', () => this.act(() => this.command('panel')))}
+            </div>
           </div>
-          <wb-scroll-container
-            class="output-content"
-            scroll-behavior="instant"
-            line-scroll
-            whole-lines
-            role="log"
-            tabindex="0"
-            aria-label="公共输出"
-            @scroll=${(event: Event) => {
-              if (event.target !== event.currentTarget) {
-                return;
-              }
-              const output = (event.currentTarget as WorkbenchScrollContainer).scrollElement;
-              if (output && output.clientHeight > 0) {
-                this.followOutput =
-                  output.scrollHeight - output.scrollTop - output.clientHeight <= 2;
-              }
-            }}
-            @focus=${() => this.recordFocus({ kind: 'panel', view: 'output' })}
-          >
-            ${this.store.outputGaps.has('public')
-              ? html`<p class="notice">更早的输出已截断。</p>`
-              : nothing}${!records.length
-              ? html`<div class="empty compact">
-                  <p>暂无公共输出</p>
-                  <span>核心与插件后台日志将在这里显示。</span>
-                </div>`
-              : repeat(
-                  terminalRows(this.outputPaused ? this.pausedRecords : records),
-                  (r) => r.seq,
-                  (r) =>
-                    html`<div class="output-line">
-                      <time>${new Date(r.timestamp).toLocaleTimeString()}</time>
-                      <span class=${`level ${r.level ?? 'info'}`}>${r.level ?? 'info'}</span>
-                      <span class="output-text"
-                        >${r.segments.map(
-                          (segment) =>
-                            html`<span style=${styleMap(segment.style)}>${segment.text}</span>`,
-                        )}</span
-                      >
-                    </div>`,
+          <div class="panel-content" ?hidden=${panel.activeView !== 'output'}>
+            <div class="output-view">
+              <div class="output-toolbar">
+                <label class="output-channel">${icon('output')}公共输出</label
+                ><span class="spacer"></span
+                ><input
+                  aria-label="搜索公共输出"
+                  placeholder="筛选输出…"
+                  .value=${live(this.outputQuery)}
+                  @input=${(e: Event) => (this.outputQuery = (e.target as HTMLInputElement).value)}
+                /><select
+                  aria-label="输出级别"
+                  .value=${this.outputFilter}
+                  @change=${(e: Event) =>
+                    (this.outputFilter = (e.target as HTMLSelectElement).value)}
+                >
+                  <option value="all">全部级别</option>
+                  <option value="info">信息</option>
+                  <option value="warn">警告</option>
+                  <option value="error">错误</option></select
+                >${iconButton(
+                  this.outputPaused ? 'play' : 'sleep',
+                  this.outputPaused ? '恢复显示' : '暂停自动显示',
+                  () => {
+                    this.outputPaused = !this.outputPaused;
+                    if (this.outputPaused) {
+                      this.pausedRecords = [...records];
+                    }
+                  },
+                )}${iconButton('copy', '复制当前输出', () =>
+                  this.act(() =>
+                    navigator.clipboard.writeText(records.map((r) => r.text).join('\n')),
+                  ),
                 )}
-          </wb-scroll-container>
+              </div>
+              <wb-scroll-container
+                class="output-content"
+                scroll-behavior="instant"
+                line-scroll
+                whole-lines
+                role="log"
+                tabindex="0"
+                aria-label="公共输出"
+                @scroll=${(event: Event) => {
+                  if (event.target !== event.currentTarget) {
+                    return;
+                  }
+                  const output = (event.currentTarget as WorkbenchScrollContainer).scrollElement;
+                  if (output && output.clientHeight > 0) {
+                    this.followOutput =
+                      output.scrollHeight - output.scrollTop - output.clientHeight <= 2;
+                  }
+                }}
+                @focus=${() => this.recordFocus({ kind: 'panel', view: 'output' })}
+              >
+                ${this.store.outputGaps.has('public')
+                  ? html`<p class="notice">更早的输出已截断。</p>`
+                  : nothing}${!records.length
+                  ? html`<div class="empty compact">
+                      <p>暂无公共输出</p>
+                      <span>核心与插件后台日志将在这里显示。</span>
+                    </div>`
+                  : repeat(
+                      terminalRows(this.outputPaused ? this.pausedRecords : records),
+                      (r) => r.seq,
+                      (r) =>
+                        html`<div class="output-line">
+                          <time>${new Date(r.timestamp).toLocaleTimeString()}</time>
+                          <span class=${`level ${r.level ?? 'info'}`}>${r.level ?? 'info'}</span>
+                          <span class="output-text"
+                            >${r.segments.map(
+                              (segment) =>
+                                html`<span style=${styleMap(segment.style)}>${segment.text}</span>`,
+                            )}</span
+                          >
+                        </div>`,
+                    )}
+              </wb-scroll-container>
+            </div>
+          </div>
+          <div class="panel-content terminal-panel" ?hidden=${panel.activeView !== 'terminal'}>
+            <wb-terminal .store=${this.store}></wb-terminal>
+          </div>
         </div>
-      </div>
-      <div class="panel-content terminal-panel" ?hidden=${panel.activeView !== 'terminal'}>
-        <wb-terminal .store=${this.store}></wb-terminal>
-      </div>
+      </wb-scroll-container>
     </section>`;
   }
   private renderStatus() {
