@@ -1,12 +1,18 @@
-let loadContext = {};
+import {
+  loadValidation,
+  unloadValidation,
+  validationApis,
+  validationResources,
+  validationSockets,
+} from './validation.ts';
 
 export default {
   // 插件名称, 目前可选. 建议和 package.json 中的 name 字段保持一致
   name: 'template',
   // 启动服务时调用, 可选, 支持异步
-  // 传入的参数 context: { createRetryGet, LimitPromise } 允许持久化保存
-  onLoad: async (logger, { createRetryGet, LimitPromise, cache }) => {
-    loadContext = { createRetryGet, LimitPromise, cache };
+  // workbench.logger / workbench.tasks 由宿主注入，可长期持有，勿与调用级 context.tasks 混淆。
+  onLoad: async (_logger, { workbench }) => {
+    loadValidation(workbench);
   },
   // 每次接收到抓取请求时调用, 必选, 支持异步
   onRequest: async (
@@ -19,7 +25,9 @@ export default {
     logger.toWeb('Send message to web', 'info');
   },
   // 卸载插件时调用, 例如服务停止或重启时, 可选, 支持异步
-  onUnload: async (logger, { isRestart }) => {},
+  onUnload: async () => {
+    await unloadValidation();
+  },
   // 插件配置, 可选
   pluginConfig: {
     // 插件命令, 可选. 可以在这里定义一些插件相关的命令, 供用户在控制台输入执行
@@ -214,9 +222,11 @@ export default {
   // 由插件提供的浏览器界面, 可选. 如果插件不需要提供浏览器界面, 可以不配置这个字段
   ui: {
     // 浏览器界面的入口文件
-    entry: './web/index.html',
+    // 源码在 web/；HTML 缺失时核心按 build:web 自动构建，已有产物需主动重建。
+    entry: './web/dist/index.html',
     // 浏览器界面的 API 接口, 可选. 可以在这里定义一些插件相关的 API 接口, 供浏览器界面通过 scwcutils.fetch 调用
     api: [
+      ...validationApis,
       {
         method: 'GET',
         path: '/api/test',
@@ -226,6 +236,7 @@ export default {
       },
     ],
     resources: [
+      ...validationResources,
       // 资源接口, 可选. 支持流式传输. 可以在这里定义一些插件相关的资源接口, 供浏览器界面通过 scwcutils.resource 调用. 例如返回 { kind: 'file', path: absolutePath } 提供静态文件, 图片, 视频等
       {
         method: 'GET',
@@ -233,5 +244,6 @@ export default {
         handler: async () => ({ kind: 'response', status: 404, body: 'Resource not configured' }),
       },
     ],
+    websocket: validationSockets,
   },
 } satisfies SCWC.IPluginHandler;

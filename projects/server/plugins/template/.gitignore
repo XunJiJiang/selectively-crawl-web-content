@@ -184,3 +184,6 @@ server/plugins/*
 
 data/
 resource/
+
+# Template integration test data
+/tests/.tmp-*/

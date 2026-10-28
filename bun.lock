@@ -32,6 +32,7 @@
         "cacheable": "^2.5.0",
         "chalk": "^5.6.2",
         "cheerio": "^1.2.0",
+        "css-tree": "^3.2.1",
         "dayjs": "^1.11.21",
         "dompurify": "^3.4.14",
         "dotenv": "^17.4.2",
@@ -64,6 +65,7 @@
         "@scwc/vite-plugin": "workspace:*",
         "@types/better-sqlite3": "^7.6.13",
         "@types/bun": "latest",
+        "@types/css-tree": "^3.2.0",
         "@types/opencc-js": "^1.0.3",
         "@types/ws": "^8.18.2",
         "esbuild": "^0.28.1",
@@ -79,10 +81,11 @@
     },
     "projects/server": {
       "name": "selectively-crawl-web-content-server",
-      "version": "2.0.0",
+      "version": "3.1.17",
     },
     "projects/terminal": {
       "name": "scwc-terminal",
+      "version": "1.5.0",
     },
     "projects/user-script": {
       "name": "selectively-crawl-web-content-server-user-script",
@@ -98,11 +101,11 @@
     },
     "projects/web": {
       "name": "selectively-crawl-web-content-web",
-      "version": "2.0.0",
+      "version": "3.1.17",
     },
     "projects/webutils": {
       "name": "selectively-crawl-web-content-web-utils",
-      "version": "2.0.0",
+      "version": "3.1.5",
     },
   },
   "packages": {
@@ -529,6 +532,8 @@
     "@types/chai": ["@types/chai@5.2.3", "", { "dependencies": { "@types/deep-eql": "*", "assertion-error": "^2.0.1" } }, "sha512-Mw558oeA9fFbv65/y4mHtXDs9bPnFMZAL/jxdPFUpOHHIXX91mcgEHbS5Lahr+pwZFR8A7GQleRWeI6cGFC2UA=="],
 
     "@types/connect": ["@types/connect@3.4.38", "", { "dependencies": { "@types/node": "*" } }, "sha512-K6uROf1LD88uDQqJCktA4yzL1YYAK6NgfsI0v/mTgyPKWsX1CnJ0XPSDhViejru1GcRkLWb8RlzFYJRqGUbaug=="],
+
+    "@types/css-tree": ["@types/css-tree@3.2.0", "", {}, "sha512-J5KXmk6BFIepOT7280FdFyNs4c5fh0Uee0otjKEvzchrRs38Ii9qminqc4ds0L19X8Zd/rT+brR9jkBthygjWw=="],
 
     "@types/deep-eql": ["@types/deep-eql@4.0.2", "", {}, "sha512-c9h9dVVMigMPc4bwTvC5dxqtqJZwQPePsWjPlpSOnojbor6pGqdk541lfA7AqFQr5pB1BRdq0juY9db81BwyFw=="],
 

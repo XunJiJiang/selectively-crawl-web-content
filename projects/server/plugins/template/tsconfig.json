@@ -1,5 +1,7 @@
 {
   "files": ["../plugin-env.d.ts", "../../plugin/sdk/modules.d.ts"],
+  "include": ["*.ts"],
+  "exclude": ["web", "tests"],
   "compilerOptions": {
     // Enable latest features
     "lib": ["ESNext", "DOM"],

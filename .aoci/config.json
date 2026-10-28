@@ -228,6 +228,39 @@
         "created_by": "codex",
         "order": 6000,
         "enabled": true
+      },
+      {
+        "rule_id": "template-plugin-source",
+        "action": "index",
+        "pattern": "projects/server/plugins/template",
+        "pattern_kind": "directory",
+        "reason": "用户本次明确要求维护template插件新增源码认知，为该模板单独恢复索引，其他插件仍保持排除",
+        "source": "user",
+        "created_by": "codex",
+        "order": 6100,
+        "enabled": true
+      },
+      {
+        "rule_id": "template-plugin-readme-observe",
+        "action": "observe",
+        "pattern": "projects/server/plugins/template/**/README*",
+        "pattern_kind": "glob",
+        "reason": "保留既有README仅观察且不作为索引语义证据的约定",
+        "source": "user",
+        "created_by": "codex",
+        "order": 6101,
+        "enabled": true
+      },
+      {
+        "rule_id": "template-plugin-docs-observe",
+        "action": "observe",
+        "pattern": "projects/server/plugins/template/docs",
+        "pattern_kind": "directory",
+        "reason": "保留既有docs仅观察且不作为索引语义证据的约定",
+        "source": "user",
+        "created_by": "codex",
+        "order": 6102,
+        "enabled": true
       }
     ]
   },

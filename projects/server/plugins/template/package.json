@@ -2,6 +2,11 @@
   "name": "template-plugin",
   "type": "module",
   "main": "index.ts",
+  "scripts": {
+    "build:web": "vite build --config vite.config.ts",
+    "check": "tsc -p tsconfig.json && tsc -p web/tsconfig.json",
+    "test:integration": "node --test tests/integration.test.mjs"
+  },
   "devDependencies": {
     "@types/bun": "latest"
   },
@@ -9,6 +14,18 @@
     "typescript": "~7.0.2"
   },
   "commandName": "template",
-  "enabled": false,
-  "link-with": []
+  "enabled": true,
+  "link-with": [],
+  "runtime": {
+    "requestTimeoutMs": 240000
+  },
+  "scwc": {
+    "ui": {
+      "title": "模板 · 接入验证",
+      "description": "页面状态、请求生命周期、任务与通知的最小验证",
+      "assetPrefix": [
+        "assets/"
+      ]
+    }
+  }
 }
