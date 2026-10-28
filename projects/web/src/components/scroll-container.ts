@@ -13,11 +13,13 @@ export class WorkbenchScrollContainer extends SCWCScrollContainer {
   constructor() {
     super();
     this.smoothWheel = {
-      accelerationRatio: 0,
-      minAcceleration: 0,
-      maxDuration: 200,
-      decelerationRatio: 0.28,
-      minDeceleration: 16,
+      // minDuration: 80, // 总时长下限，ms；越小，快速连续滚动越快
+      // initialInterval: 120, // 首次滚轮预计间隔；首次总时长约为它 × 1.25
+      accelerationRatio: 0, // 加速阶段占总时长的比例
+      minAcceleration: 0, // 加速时长下限，ms
+      maxDuration: 200, // 总时长上限，ms；越小，最慢滚动越快
+      decelerationRatio: 0.50, // 减速阶段占总时长的比例；越大，减速越久
+      minDeceleration: 16, // 减速时长下限，ms
     };
     this.wheelAxisLockRatio = 0.5;
     this.horizontal = { placement: 'overlay', radius: 4, color: 'var(--border-strong)' };
