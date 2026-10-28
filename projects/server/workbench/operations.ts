@@ -13,17 +13,25 @@ import { buildPluginWeb } from '../plugin/web/build.ts';
 import { pluginCatalog } from './catalog.ts';
 import { assert, json, now, type WorkbenchStorage } from './storage.ts';
 import { workbenchEvents } from './events.ts';
-export interface Job {
-  id: string;
-  pluginId: string;
-  type: string;
-  status: 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelling' | 'cancelled';
-  phase: string;
-  revision: number;
-  logs: { seq: number; level: string; text: string }[];
-  error?: string;
-  createdAt: string;
-}
+import { z } from 'zod';
+import { progressSchema } from './feedback-schema.ts';
+import type { FeedbackOwner, TaskState } from '../../shared/workbench-feedback.ts';
+export type Job = TaskState;
+const taskSchema = z
+  .object({
+    title: z.string().min(1).max(1000),
+    type: z.string().min(1).max(100).optional(),
+    status: z
+      .enum(['queued', 'running', 'succeeded', 'failed', 'cancelling', 'cancelled'])
+      .optional(),
+    phase: z.string().max(1000).optional(),
+    content: z.string().max(64000).optional(),
+    progress: progressSchema.optional(),
+    error: z.string().max(16000).optional(),
+  })
+  .strict();
+export const taskFinished = (job: Pick<Job, 'status'>) =>
+  ['succeeded', 'failed', 'cancelled'].includes(job.status);
 export class OperationService {
   private controllers = new Map<string, AbortController>();
   private running = new Map<string, Promise<void>>();
@@ -40,12 +48,112 @@ export class OperationService {
     assert(row, 'not_found', '任务不存在', 404);
     return JSON.parse(row.value_json) as Job;
   }
+  list() {
+    return (
+      this.storage.db.prepare('SELECT value_json FROM jobs ORDER BY updated_at,id').all() as {
+        value_json: string;
+      }[]
+    ).map((row) => JSON.parse(row.value_json) as Job);
+  }
+  owned(id: string, owner: FeedbackOwner) {
+    const job = this.get(id);
+    assert(
+      job.owner?.source === owner.source &&
+        job.owner?.pluginId === owner.pluginId &&
+        job.owner?.tabId === owner.tabId &&
+        job.owner?.ownerId === owner.ownerId,
+      'task_owner',
+      '任务不属于当前调用方',
+      403,
+    );
+    return job;
+  }
+  create(input: unknown, owner: FeedbackOwner) {
+    assert(!this.stopping, 'stopping', '核心正在退出', 503);
+    const options = taskSchema.parse(input);
+    const job: Job = {
+      ...options,
+      id: randomUUID(),
+      pluginId: owner.pluginId ?? '',
+      type: options.type ?? 'custom',
+      status: options.status ?? 'running',
+      phase: options.phase ?? '',
+      progress: options.progress === undefined ? null : options.progress,
+      revision: 1,
+      logs: [],
+      createdAt: now(),
+      readAt: null,
+      owner,
+    };
+    this.save(job);
+    return job;
+  }
+  update(id: string, input: unknown, owner: FeedbackOwner) {
+    const patch = taskSchema
+      .partial()
+      .extend({
+        log: z
+          .object({ level: z.string().max(40).optional(), text: z.string().max(8192) })
+          .strict()
+          .optional(),
+      })
+      .parse(input);
+    const job = this.owned(id, owner);
+    assert(
+      !taskFinished(job) || !patch.status || taskFinished({ status: patch.status }),
+      'task_finished',
+      '已完成任务不能重新运行',
+      409,
+    );
+    const { log, ...fields } = patch;
+    Object.assign(
+      job,
+      Object.fromEntries(Object.entries(fields).filter(([, field]) => field !== undefined)),
+    );
+    if (log) {
+      job.logs = [
+        ...job.logs,
+        { seq: (job.logs.at(-1)?.seq ?? 0) + 1, level: log.level ?? 'info', text: log.text },
+      ].slice(-500);
+    }
+    if (taskFinished(job) && patch.progress === undefined) {
+      job.progress = job.status === 'succeeded' ? 100 : false;
+    }
+    this.save(job);
+    return job;
+  }
+  acknowledge(ids: string[]) {
+    z.array(z.string()).max(1000).parse(ids);
+    for (const id of ids) {
+      const job = this.get(id);
+      if (taskFinished(job) && !job.readAt) {
+        job.readAt = now();
+        this.save(job);
+      }
+    }
+  }
+  releaseOwner(ownerId: string) {
+    for (const job of this.list()) {
+      if (job.owner?.ownerId === ownerId && !taskFinished(job)) {
+        job.status = 'failed';
+        job.error = '任务所属进程或页面已关闭';
+        job.progress = false;
+        this.save(job);
+      }
+    }
+  }
   private save(job: Job) {
     const row = this.storage.db.prepare('SELECT value_json FROM jobs WHERE id=?').get(job.id) as
       | { value_json: string }
       | undefined;
     if (row) {
-      job.revision = Math.max(job.revision, JSON.parse(row.value_json).revision + 1);
+      const previous = JSON.parse(row.value_json) as Job;
+      job.revision = Math.max(job.revision, previous.revision + 1);
+      if (!taskFinished(previous) && taskFinished(job)) {
+        job.readAt = null;
+      } else if (!job.readAt) {
+        job.readAt = previous.readAt ?? null;
+      }
     }
     this.storage.db
       .prepare(
@@ -78,6 +186,8 @@ export class OperationService {
         revision: 1,
         logs: [],
         createdAt: now(),
+        readAt: null,
+        progress: null,
       };
       this.save(value);
       return value;
@@ -144,9 +254,11 @@ export class OperationService {
         }
         job.status = 'succeeded';
         job.phase = 'done';
+        job.progress = 100;
       } catch (error) {
         job.error = error instanceof Error ? error.message : String(error);
         job.status = controller.signal.aborted ? 'cancelled' : 'failed';
+        job.progress = false;
       } finally {
         if (action === 'build-ui') {
           this.sharedBuilds.delete(pluginId);
@@ -170,6 +282,12 @@ export class OperationService {
     const job = this.get(id);
     assert(job.revision === revision, 'revision_conflict', '任务状态已变化', 409);
     assert(['queued', 'running'].includes(job.status), 'not_cancellable', '任务已结束', 409);
+    if (job.owner) {
+      job.status = 'cancelled';
+      job.progress = false;
+      this.save(job);
+      return job;
+    }
     assert(
       job.type === 'build-ui' || job.status === 'queued',
       'not_cancellable',

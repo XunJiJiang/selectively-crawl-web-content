@@ -8,6 +8,8 @@ import { pageSessions, requestOrigin, type PageSession } from '../../../workbenc
 import { plugins } from '../../../plugin/load.ts';
 import { assert, coreBootId, WorkbenchError } from '../../../workbench/storage.ts';
 import { identifier } from '../../../workbench/workspace.ts';
+import { feedbackRequest } from '../../../workbench/feedback.ts';
+import { workbenchEvents } from '../../../workbench/events.ts';
 
 export function resolvePluginUrl(value: string, pluginId: string | undefined, origin: string) {
   z.string().min(1).max(16384).parse(value);
@@ -43,6 +45,12 @@ function owner(req: Request) {
 function page(res: Response) {
   return res.locals.pageSession as PageSession | undefined;
 }
+function feedbackOwner(req: Request, res: Response) {
+  const s = page(res);
+  return s
+    ? { source: 'page' as const, pluginId: s.pluginId, tabId: s.tabId, ownerId: s.frameEpoch }
+    : { source: 'core' as const, pluginId: null, ownerId: owner(req) };
+}
 function lease(req: Request) {
   return z
     .string()
@@ -57,7 +65,7 @@ function key(req: Request) {
 }
 function pageList(
   req: Request,
-  items: { pluginId?: string; tab?: { pluginId?: string }; runtime?: { status?: string } }[],
+  items: { pluginId?: string | null; tab?: { pluginId?: string }; runtime?: { status?: string } }[],
 ) {
   const limit = z.coerce
     .number()
@@ -186,10 +194,35 @@ export function createWorkbenchRouter() {
       ),
     202,
   );
-  route('get', '/jobs/:id', (req) => getWorkbench().operations.get(String(req.params.id)));
-  route('post', '/jobs/:id/cancel', (req) =>
-    getWorkbench().operations.cancel(String(req.params.id), revision(req.body.baseRevision)),
+  route('get', '/jobs', () => getWorkbench().operations.list());
+  route('get', '/jobs/:id', (req, res) =>
+    page(res)
+      ? feedbackRequest(feedbackOwner(req, res), `/jobs/${req.params.id}`, undefined)
+      : getWorkbench().operations.get(String(req.params.id)),
   );
+  route('post', '/jobs/:id/cancel', (req, res) =>
+    page(res)
+      ? feedbackRequest(feedbackOwner(req, res), `/jobs/${req.params.id}/cancel`, req.body)
+      : getWorkbench().operations.cancel(String(req.params.id), revision(req.body.baseRevision)),
+  );
+  route('post', '/jobs/ack', (req) => {
+    getWorkbench().operations.acknowledge(req.body.ids);
+    return { acknowledged: true };
+  });
+  for (const path of ['/tasks/create', '/tasks/start', '/tasks/:id/update']) {
+    route('post', path, (req, res) => feedbackRequest(feedbackOwner(req, res), req.path, req.body));
+  }
+  route('get', '/tasks/:id', (req, res) =>
+    feedbackRequest(feedbackOwner(req, res), req.path, undefined),
+  );
+  route('post', '/feedback/release', (req, res) => {
+    const identity = feedbackOwner(req, res);
+    if (identity.ownerId) {
+      getWorkbench().notifications.releaseOwner(identity.ownerId);
+      getWorkbench().operations.releaseOwner(identity.ownerId);
+    }
+    return { released: true };
+  });
   route('post', '/url/resolve', async (req, res) => {
     const result = resolvePluginUrl(req.body.url, req.body.pluginId, res.locals.origin);
     await pluginCatalog.require(result.pluginId);
@@ -536,17 +569,25 @@ export function createWorkbenchRouter() {
     return { deleted: true };
   });
   route('post', '/notifications/publish', (req, res) => {
-    const s = page(res);
-    assert(s, 'page_grant_required', '页面通知需要页面授权', 403);
-    return getWorkbench().notifications.publish(
-      'page',
-      s.pluginId,
-      req.body.level,
-      req.body.title,
-      req.body.options,
-      { tabId: s.tabId },
-    );
+    const origin = feedbackOwner(req, res);
+    return feedbackRequest(origin, req.path, req.body, (id, actionId) => {
+      workbenchEvents.publish('notification.action', { id, actionId, ...origin }, id);
+    });
   });
+  route('post', '/notifications/visibility', (req) =>
+    getWorkbench().notifications.visibility(owner(req), req.body.ids),
+  );
+  for (const action of ['update', 'read', 'close']) {
+    route('post', `/notifications/:id/${action}`, (req, res) =>
+      feedbackRequest(feedbackOwner(req, res), req.path, req.body),
+    );
+  }
+  route('get', '/notifications/:id', (req, res) =>
+    feedbackRequest(feedbackOwner(req, res), req.path, undefined),
+  );
+  route('post', '/notifications/:id/actions/:actionId', (req) =>
+    getWorkbench().notifications.invoke(String(req.params.id), String(req.params.actionId)),
+  );
   route('post', '/stream-ticket', (req, res) => {
     const s = page(res);
     if (req.body.workspaceId) {

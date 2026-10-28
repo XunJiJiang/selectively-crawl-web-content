@@ -12,7 +12,13 @@ export class WorkbenchScrollContainer extends SCWCScrollContainer {
 
   constructor() {
     super();
-    this.smoothWheel = { accelerationRatio: 0, minAcceleration: 0 };
+    this.smoothWheel = {
+      accelerationRatio: 0,
+      minAcceleration: 0,
+      maxDuration: 200,
+      decelerationRatio: 0.28,
+      minDeceleration: 16,
+    };
     this.wheelAxisLockRatio = 0.5;
     this.horizontal = { placement: 'overlay', radius: 4, color: 'var(--border-strong)' };
     this.vertical = { ...this.horizontal };

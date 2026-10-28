@@ -37,6 +37,11 @@ namespace SCWC {
    * 允许插件长期持有该对象并在需要时调用其中的函数
    */
   export interface ILoadContext {
+    /** 可长期持有的工作台通知与任务控制器工厂。 */
+    workbench: {
+      logger: import('../types/notifications.d.ts').NotificationLogger;
+      tasks: import('../types/notifications.d.ts').TaskManager;
+    };
     /** 持久配置，仅接受字符串；宿主已绑定当前插件目录命名空间。 */
     config: import('../types/plugin-config.d.ts').PluginConfig;
     tasks?: import('../types/task.d.ts').TaskReporter;
@@ -206,6 +211,10 @@ namespace SCWC {
 
   export type TLogger = import('../types/log.d.ts').TLogger;
   export type TaskReporter = import('../types/task.d.ts').TaskReporter;
+  export type TaskManager = import('../types/notifications.d.ts').TaskManager;
+  export type TaskController = import('../types/notifications.d.ts').TaskController;
+  export type NotificationLogger = import('../types/notifications.d.ts').NotificationLogger;
+  export type NotificationController = import('../types/notifications.d.ts').NotificationController;
   export type PluginLogger = import('../types/task.d.ts').PluginLogger;
   export type InvocationContext = import('../types/task.d.ts').InvocationContext;
   export type InvocationInputError = import('../common/interaction.ts').InvocationInputError;

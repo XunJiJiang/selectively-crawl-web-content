@@ -559,6 +559,84 @@ it('reserves the measured statusbar height in both the outer grid and the shell 
 });
 
 describe('lateral panels and full-width maximization', () => {
+  it('renders controlled loading bars and operation buttons in both toast and notification history', async () => {
+    const root = await fixture();
+    const notice = {
+      id: 'notice',
+      source: 'plugin',
+      pluginId: 'alpha',
+      title: '下载',
+      message: '文件 A',
+      level: 'info',
+      readAt: null,
+      updatedAt: new Date().toISOString(),
+      count: 1,
+      actions: [{ type: 'callback', id: 'action', label: '重试' }],
+      progress: 0 as number | null,
+    };
+    app.store.notifications = [notice];
+    app.store.toast(notice.title, notice.level, notice);
+    await app.updateComplete;
+    expect(root.querySelector('.toast [role="progressbar"]')?.getAttribute('aria-valuenow')).toBe(
+      '0',
+    );
+    expect(root.querySelector('.toast .notification-buttons')?.textContent).toContain('重试');
+    notice.progress = null;
+    app.store.dismissToast(notice.id, false);
+    requireValue(root.querySelector<HTMLButtonElement>('.notification-button')).click();
+    await app.updateComplete;
+    expect(root.querySelector('.notification .feedback-progress.indeterminate')).not.toBeNull();
+    expect(
+      root.querySelector('.notification [role="progressbar"]')?.hasAttribute('aria-valuenow'),
+    ).toBe(false);
+    expect(root.querySelector('.notification .notification-buttons')?.textContent).toContain(
+      '重试',
+    );
+  });
+  it('opens tasks only on request and distinguishes idle, running and unread completion', async () => {
+    const root = await fixture();
+    vi.spyOn(app.store, 'ackJobs').mockImplementation(async (ids) => {
+      for (const id of ids) {
+        const job = app.store.jobs.get(id);
+        if (job) {
+          job.readAt = 'read';
+        }
+      }
+      app.store.changed();
+    });
+    const button = requireValue(root.querySelector<HTMLButtonElement>('.task-button'));
+    expect(button.dataset.state).toBe('idle');
+    expect(button.nextElementSibling?.classList.contains('notification-button')).toBe(true);
+    const job = {
+      id: 'custom',
+      pluginId: 'alpha',
+      type: 'custom',
+      title: '下载',
+      status: 'running' as const,
+      phase: '传输',
+      revision: 1,
+      logs: [],
+      progress: 25,
+    };
+    app.store.jobs.set(job.id, job);
+    app.store.changed();
+    await app.updateComplete;
+    expect(root.querySelector('.jobs-dialog')).toBeNull();
+    expect(button.dataset.state).toBe('running');
+    app.store.jobs.set(job.id, { ...job, status: 'succeeded', progress: 100, revision: 2 });
+    app.store.changed();
+    await app.updateComplete;
+    expect(button.dataset.state).toBe('unread');
+    button.click();
+    await app.updateComplete;
+    await app.updateComplete;
+    expect(root.querySelector('.jobs-dialog')?.getAttribute('aria-label')).toBe('任务');
+    expect(
+      root.querySelector('.job-card [role="progressbar"]')?.getAttribute('aria-valuenow'),
+    ).toBe('100');
+    expect(app.store.ackJobs).toHaveBeenCalledWith(['custom']);
+    expect(button.dataset.state).toBe('idle');
+  });
   it.each(['left', 'right'] as const)(
     'retains a hidden %s panel sash and reveals it at 110px with a 220px minimum',
     async (dock) => {
@@ -583,7 +661,7 @@ describe('lateral panels and full-width maximization', () => {
       resizePointer(window, 'pointermove', 602 + sign * 110, 150);
       await app.updateComplete;
       expect(root.querySelector('.hidden-panel-resize')).toBeNull();
-      expect(root.querySelector<HTMLElement>('.panel-canvas')?.style.width).toBe('220px');
+      expect(root.querySelector<HTMLElement>('.panel-canvas')?.style.width).toBe('440px');
       resizePointer(window, 'pointerup', 602 + sign * 110, 150);
       await app.updateComplete;
       expect(snapshot.layout.panel).toMatchObject({ visible: true, width: 220 });

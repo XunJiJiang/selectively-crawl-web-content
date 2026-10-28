@@ -814,6 +814,25 @@ export class FramePool extends EventTarget {
   }
   private serverEvent = (e: Event) => {
     const event = (e as CustomEvent<WorkbenchEvent>).detail;
+    if (event.type === 'job.changed') {
+      const value = event.payload as { owner?: { tabId?: string; ownerId?: string } };
+      const runtime = value.owner?.tabId ? this.runtimes.get(value.owner.tabId) : undefined;
+      if (runtime && runtime.epoch === value.owner?.ownerId) {
+        runtime.port?.event('task.changed', event.payload);
+      }
+    }
+    if (event.type === 'notification.action') {
+      const value = event.payload as {
+        tabId?: string;
+        ownerId?: string;
+        id: string;
+        actionId: string;
+      };
+      const runtime = value.tabId ? this.runtimes.get(value.tabId) : undefined;
+      if (runtime && runtime.epoch === value.ownerId) {
+        runtime.port?.event('notification.action', { ...value, eventId: event.eventId });
+      }
+    }
     if (event.type === 'preferences.changed') {
       for (const r of this.runtimes.values()) {
         r.port?.event('keybindings.changed', this.bindings());

@@ -1,8 +1,18 @@
 import { afterEach, expect, it } from 'vitest';
 import { WorkbenchScrollContainer } from '../components/scroll-container.ts';
 import { requireValue } from '../../../shared/workbench-protocol.ts';
+import { wheelTiming } from '../../../shared/components/scroll-container/wheel-motion.ts';
 
 afterEach(() => document.body.replaceChildren());
+
+it('finishes the slowest wheel gesture sooner while decelerating longer with zero acceleration', () => {
+  const area = new WorkbenchScrollContainer();
+  const previous = wheelTiming(1000, { accelerationRatio: 0, minAcceleration: 0 });
+  const current = wheelTiming(1000, area.smoothWheel);
+  expect(current.duration).toBeLessThan(previous.duration);
+  expect(current.deceleration).toBeGreaterThan(previous.deceleration);
+  expect(current.acceleration).toBe(0);
+});
 
 async function fixture() {
   const area = new WorkbenchScrollContainer();

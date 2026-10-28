@@ -135,6 +135,8 @@ export class WorkbenchStorage {
       if (['queued', 'running', 'cancelling'].includes(job.status)) {
         job.status = 'failed';
         job.error = '核心重启，操作已中断';
+        job.progress = false;
+        job.readAt = null;
         job.revision++;
         this.db
           .prepare('UPDATE jobs SET value_json=?,updated_at=? WHERE id=?')

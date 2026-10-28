@@ -3,6 +3,10 @@ import { formatWithOptions } from 'node:util';
 import { spawn } from 'node:child_process';
 import { createRetryGet, LimitPromise } from '../../utils/axios.ts';
 import { RpcPeer } from './rpc.ts';
+import {
+  createFeedbackClient,
+  type NotificationAction,
+} from '../../../shared/workbench-feedback.ts';
 import { TaskRegistry, TaskScope, invocationStorage } from '../../common/tasks.ts';
 import { createCommandCompletionCache } from '../../utils/commandCompletion.ts';
 import { abortable, withCompletionOutput } from '../../../terminal/completion.ts';
@@ -114,23 +118,26 @@ function log(level: LogLevel, identity?: InvocationIdentity, dynamic = true): SC
   };
 }
 let pluginId = 'plugin';
+const feedbackCallbacks = new Map<string, Map<string, NotificationAction['onClick']>>();
+const createHostFeedback = (identity?: InvocationIdentity) =>
+  createFeedbackClient(
+    (path, body) =>
+      peer.call(
+        'feedback',
+        {
+          path,
+          body,
+          executionId: (identity ?? invocationStorage.getStore())?.executionId,
+        },
+        10000,
+      ),
+    feedbackCallbacks,
+  );
+const feedback = createHostFeedback();
 function workbenchLogger(
   identity?: InvocationIdentity,
 ): import('../../workbench/notifications.ts').NotificationLogger {
-  return Object.freeze(
-    Object.fromEntries(
-      ['info', 'success', 'warn', 'error'].map((level) => [
-        level,
-        (title: string, options: unknown = {}) =>
-          peer.event('notification.workbench', {
-            level,
-            title,
-            options,
-            executionId: (identity ?? invocationStorage.getStore())?.executionId,
-          }),
-      ]),
-    ),
-  ) as unknown as import('../../workbench/notifications.ts').NotificationLogger;
+  return identity ? createHostFeedback(identity).logger : feedback.logger;
 }
 let logger: SCWC.PluginLogger & {
   workbench: import('../../types/notifications.d.ts').NotificationLogger;
@@ -273,6 +280,7 @@ async function initialize(args: Initialize): Promise<Manifest> {
     );
   }
   await plugin.onLoad?.(logger, {
+    workbench: { logger: feedback.logger, tasks: feedback.tasks },
     tasks: processTasks.reporter,
     signal: processTasks.controller.signal,
     cache,
@@ -583,6 +591,9 @@ async function dispatch(method: string, args: unknown, id: string): Promise<unkn
 }
 
 peer.onCall = async (method, envelope, id) => {
+  if (method === 'feedback.action') {
+    return feedback.dispatchAction(envelope as { id: string; actionId: string });
+  }
   if (method === 'command.complete') {
     const data = envelope as {
       values: [string, string[], string, boolean, boolean, string | undefined];

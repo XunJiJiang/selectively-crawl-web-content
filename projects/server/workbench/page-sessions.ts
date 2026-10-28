@@ -64,7 +64,13 @@ export class PageSessions {
       path === config ||
       path.startsWith(`${config}/`) ||
       path === `${prefix}/stream-ticket` ||
+      path === `${prefix}/feedback/release` ||
       path === `${prefix}/notifications/publish` ||
+      /^\/web\/api\/workbench\/notifications\/[0-9a-f-]{36}(?:\/(?:update|read|close))?$/.test(
+        path,
+      ) ||
+      /^\/web\/api\/workbench\/tasks\/(?:create|start|[^/]+(?:\/update)?)$/.test(path) ||
+      /^\/web\/api\/workbench\/jobs\/[0-9a-f-]{36}(?:\/cancel)?$/.test(path) ||
       path === `${prefix}/snapshots` ||
       /^\/web\/api\/workbench\/snapshots\/[^/]+(?:\/delete)?$/.test(path) ||
       path.startsWith(`/web/api/plugin/${session.safeId}/`);

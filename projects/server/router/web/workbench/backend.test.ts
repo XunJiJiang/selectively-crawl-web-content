@@ -55,7 +55,7 @@ beforeAll(async () => {
     );
     await fs.writeFile(
       path.join(directory, 'index.ts'),
-      `let config;let changes=[];export default {title:'Export ${id}',description:'Description',onRequest(){},async onLoad(logger,context){config=context.config;await config.set('persist','${id}');config.subscribe(change=>changes.push(change));logger.workbench.success('Ready ${id}');},ui:{entry:'./index.html',api:[{method:'GET',path:'/read',async handler(){return {value:await config.get('persist'),changes};}},{method:'POST',path:'/write',async handler(data){await config.set('persist',data.value);return await config.list();}}]}};`,
+      `let config;let changes=[];let feedback;let notice;let task;export default {title:'Export ${id}',description:'Description',onRequest(){},async onLoad(logger,context){config=context.config;feedback=context.workbench;await config.set('persist','${id}');config.subscribe(change=>changes.push(change));logger.workbench.success('Ready ${id}');},ui:{entry:'./index.html',api:[{method:'POST',path:'/feedback',async handler(){task=await feedback.tasks.create({title:'进程任务',progress:null});notice=await feedback.logger.info('进程通知',{progress:null,autoRead:false,actions:[{label:'完成',async onClick(){await task.succeed('完成');await notice.update({title:'已完成',level:'success',progress:100});}}]});await task.setProgress(35);return {notification:await notice.getState(),task:await task.getState()};}},{method:'GET',path:'/read',async handler(){return {value:await config.get('persist'),changes};}},{method:'POST',path:'/write',async handler(data){await config.set('persist',data.value);return await config.list();}}]}};`,
     );
   }
   getWorkbench();
@@ -117,6 +117,108 @@ it('exposes stable identities, complete metadata, strict origin and the runtime 
   expect((await fs.stat(path.join(root, 'data/scwc/plugin-config.sqlite'))).isFile()).toBe(true);
   expect((await api('/plugins/alpha/config')).data.effectiveValues.persist).toBe('alpha');
   expect((await api('/plugins/beta/config')).data.effectiveValues.persist).toBe('beta');
+});
+
+it('bridges backend control objects and scopes frontend task and notification controls', async () => {
+  const alpha = plugins.find((p) => p.pluginId === 'alpha');
+  if (!alpha) {
+    throw new Error('alpha missing');
+  }
+  const created = await fetch(
+    `${base}/web/api/plugin/${alpha.safeId}/feedback?site=${encodeURIComponent(base)}`,
+    {
+      method: 'POST',
+      headers: {
+        origin: base,
+        authorization: `Bearer ${TOKEN}`,
+        'content-type': 'application/json',
+      },
+      body: '{}',
+    },
+  );
+  const result = (await created.json()).data;
+  expect(result.task).toMatchObject({ status: 'running', progress: 35 });
+  expect(result.notification).toMatchObject({ source: 'plugin', progress: null, autoRead: false });
+  expect(
+    (
+      await api(
+        `/notifications/${result.notification.id}/actions/${result.notification.actions[0].id}`,
+        {},
+      )
+    ).status,
+  ).toBe(200);
+  expect((await api(`/jobs/${result.task.id}`)).data).toMatchObject({
+    status: 'succeeded',
+    progress: 100,
+  });
+  expect(getWorkbench().notifications.get(result.notification.id)).toMatchObject({
+    title: '已完成',
+    progress: 100,
+  });
+  const session = (
+    await api('/page-sessions', {
+      pluginId: 'alpha',
+      tabId: 'feedback-tab',
+      frameEpoch: 'feedback-one',
+      url: `${base}/web/page/plugin/alpha/`,
+    })
+  ).data;
+  const notice = await api(
+    '/notifications/publish',
+    { title: '页面通知', level: 'info', options: { progress: null, autoRead: false } },
+    session.grant,
+  );
+  expect(notice.status).toBe(200);
+  const id = notice.data.id;
+  expect(
+    (await api(`/notifications/${id}/update`, { progress: 60, message: '更新正文' }, session.grant))
+      .data,
+  ).toMatchObject({ progress: 60, message: '更新正文' });
+  expect((await api('/notifications/visibility', { ids: [id] })).status).toBe(200);
+  expect((await api(`/notifications/${id}`, undefined, session.grant)).data).toMatchObject({
+    visible: true,
+    readAt: null,
+  });
+  expect(
+    (await api(`/notifications/${id}/read`, { read: true }, session.grant)).data.readAt,
+  ).toBeTruthy();
+  const task = await api('/tasks/create', { title: '页面任务', progress: null }, session.grant);
+  expect(task.status).toBe(200);
+  expect(
+    (
+      await api(
+        `/tasks/${task.data.id}/update`,
+        { progress: 100, status: 'succeeded' },
+        session.grant,
+      )
+    ).status,
+  ).toBe(200);
+  expect(
+    (await api('/tasks/start', { pluginId: 'beta', type: 'reload' }, session.grant)).status,
+  ).toBe(403);
+  expect((await api('/notifications/ack', { ids: [id] }, session.grant)).status).toBe(403);
+  const other = (
+    await api('/page-sessions', {
+      pluginId: 'alpha',
+      tabId: 'feedback-other',
+      frameEpoch: 'feedback-two',
+      url: `${base}/web/page/plugin/alpha/`,
+    })
+  ).data;
+  expect((await api(`/notifications/${id}/update`, { title: '越权' }, other.grant)).status).toBe(
+    403,
+  );
+  expect(
+    (await api(`/tasks/${task.data.id}/update`, { content: '越权' }, other.grant)).status,
+  ).toBe(403);
+  const pending = await api('/tasks/create', { title: '页面离开' }, session.grant);
+  expect((await api('/feedback/release', {}, session.grant)).status).toBe(200);
+  expect((await api(`/jobs/${pending.data.id}`)).data).toMatchObject({
+    status: 'failed',
+    progress: false,
+  });
+  expect((await api(`/notifications/${id}/close`, {}, session.grant)).status).toBe(200);
+  expect((await api(`/notifications/${id}`, undefined, session.grant)).status).toBe(404);
 });
 
 it('scopes page grants and ticket streams, synchronizes backend string CRUD, rejects nonstrings and stale grants', async () => {
@@ -236,7 +338,9 @@ it('scopes page grants and ticket streams, synchronizes backend string CRUD, rej
     idempotencyKey: 'stop',
   });
   expect(job.status).toBe(202);
-  await expect.poll(async () => (await api('/jobs/' + job.data.id)).data.status).toBe('succeeded');
+  await expect
+    .poll(async () => (await api('/jobs/' + job.data.id)).data.status, { timeout: 5000 })
+    .toBe('succeeded');
   const repeated = await api('/plugins/alpha/actions', {
     action: 'once-disable',
     idempotencyKey: 'stop',

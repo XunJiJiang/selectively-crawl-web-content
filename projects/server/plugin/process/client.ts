@@ -68,6 +68,7 @@ export class PluginProcessClient {
   private readonly sockets = new Map<string, SCWC.THostedPluginWebSocketContext>();
   private heartbeat?: NodeJS.Timeout;
   private pinging = false;
+  private feedbackRuntime?: import('../../workbench/runtime.ts').WorkbenchRuntime;
   private stopping = false;
   private startupCallId?: string;
   private readonly startupBuildAbort = new AbortController();
@@ -157,6 +158,10 @@ export class PluginProcessClient {
   }
 
   private cleanup(): void {
+    if (this.feedbackRuntime) {
+      this.feedbackRuntime.notifications.releaseOwner(this.owner);
+      this.feedbackRuntime.operations.releaseOwner(this.owner);
+    }
     this.startupBuildAbort.abort(new Error('插件宿主已停止'));
     for (const input of this.inputs.values()) {
       input.abort(new Error('插件宿主已停止'));
@@ -203,6 +208,31 @@ export class PluginProcessClient {
   }
 
   private async cacheCall(method: string, args: unknown): Promise<unknown> {
+    if (method === 'feedback') {
+      const [{ feedbackRequest }, { getWorkbench }] = await Promise.all([
+        import('../../workbench/feedback.ts'),
+        import('../../workbench/runtime.ts'),
+      ]);
+      this.feedbackRuntime = getWorkbench();
+      const { path, body, executionId } = args as {
+        path: string;
+        body?: unknown;
+        executionId?: string;
+      };
+      return feedbackRequest(
+        {
+          source: 'plugin',
+          pluginId: this.options.pluginId ?? this.options.name,
+          ownerId: this.owner,
+          executionId: executionId ? this.identities.get(executionId)?.executionId : undefined,
+        },
+        path,
+        body,
+        async (id, actionId) => {
+          await this.peer.call('feedback.action', { id, actionId }, 10000);
+        },
+      );
+    }
     if (method.startsWith('config.')) {
       const service = getPluginConfig(),
         pluginId = this.options.pluginId ?? this.options.name;

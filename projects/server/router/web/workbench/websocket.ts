@@ -44,6 +44,31 @@ export function attachUpgradeDispatcher(server: Server) {
       }
       const visible = (event: WorkbenchEvent) => {
         if (ticket.page) {
+          if (event.type === 'job.changed') {
+            const value = event.payload as {
+              owner?: { source: string; pluginId: string; tabId: string; ownerId: string };
+            };
+            return (
+              value.owner?.source === 'page' &&
+              value.owner.pluginId === ticket.page.pluginId &&
+              value.owner.tabId === ticket.page.tabId &&
+              value.owner.ownerId === ticket.page.frameEpoch
+            );
+          }
+          if (event.type === 'notification.action') {
+            const value = event.payload as {
+              source: string;
+              pluginId: string;
+              tabId: string;
+              ownerId: string;
+            };
+            return (
+              value.source === 'page' &&
+              value.pluginId === ticket.page.pluginId &&
+              value.tabId === ticket.page.tabId &&
+              value.ownerId === ticket.page.frameEpoch
+            );
+          }
           return event.type === 'config.changed' && event.entityId === ticket.page.pluginId;
         }
         if (event.type.startsWith('input.') || event.type.startsWith('execution.')) {

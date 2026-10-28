@@ -4,7 +4,7 @@ import { invocationStorage, outputWindowId } from '../common/tasks.ts';
 import { outputColorLevel } from '../common/color.ts';
 import type { InvocationIdentity, PluginLogger } from '../types/task.d.ts';
 import type { TLogger } from '../types/log.d.ts';
-import { getNotifications, type NotificationLogger } from '../workbench/notifications.ts';
+import { createNotificationLogger } from '../workbench/notifications.ts';
 
 export type LogLevel = 'info' | 'pathInfo' | 'warn' | 'error';
 export type LogSink = (event: {
@@ -68,16 +68,11 @@ export function bindLogger(
     (...args: unknown[]) =>
       publishLog(identity, pluginId, level, args, () => base[level](...args));
   return Object.freeze({
-    workbench: Object.fromEntries(
-      ['info', 'success', 'warn', 'error'].map((level) => [
-        level,
-        (title: string, options: unknown) => {
-          getNotifications().publish('plugin', pluginId, level, title, options, {
-            executionId: identity.executionId,
-          });
-        },
-      ]),
-    ) as unknown as NotificationLogger,
+    workbench: createNotificationLogger({
+      source: 'plugin',
+      pluginId,
+      executionId: identity.executionId,
+    }),
     pluginId,
     ...identity,
     info: method('info'),

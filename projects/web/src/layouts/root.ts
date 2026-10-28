@@ -75,6 +75,7 @@ import type {
   WorkspaceSnapshot,
 } from '../workbench/types.ts';
 import type { ContextMenuItem } from '../components/context-menu/menu-types.ts';
+import type { FeedbackProgress, NotificationState } from '../../../shared/workbench-feedback.ts';
 import {
   icon,
   iconButton,
@@ -222,6 +223,7 @@ export class AppRoot extends LitElement {
   private unreadSnapshot = new Set<string>();
   private notificationObserver?: IntersectionObserver;
   private notificationObserved = new WeakSet<Element>();
+  private notificationVisible = new Set<string>();
   private dialogFocus?: HTMLElement;
   private dialogActive = false;
   @state() private accessor resizeCursor = 'col-resize';
@@ -380,6 +382,9 @@ export class AppRoot extends LitElement {
       this.dialogFocus?.focus();
     }
     this.observeNotifications();
+    if (this.showJobs && this.store.unreadJobs.length) {
+      this.act(() => this.store.ackJobs(this.store.unreadJobs.map((job) => job.id)));
+    }
     if (this.store.workspace && !this.pool) {
       const container = this.renderRoot.querySelector<HTMLElement>('.frame-pool');
       if (container) {
@@ -468,6 +473,10 @@ export class AppRoot extends LitElement {
       }
       if (this.notificationOpen) {
         this.notificationOpen = false;
+        return;
+      }
+      if (this.showJobs) {
+        this.showJobs = false;
         return;
       }
       if (this.menu) {
@@ -1112,7 +1121,6 @@ export class AppRoot extends LitElement {
       return this.store.pluginAction((args as CatalogItem).pluginId, 'enable');
     }
     if (id === 'buildPlugin') {
-      this.showJobs = true;
       return this.store.pluginAction((args as CatalogItem).pluginId, 'build-ui');
     }
     if (id.startsWith('plugin.')) {
@@ -1148,7 +1156,6 @@ export class AppRoot extends LitElement {
       ) {
         return;
       }
-      this.showJobs = true;
       return this.store.pluginAction(selected.pluginId, action);
     }
     if (id === 'rescan') {
@@ -1839,7 +1846,7 @@ export class AppRoot extends LitElement {
             '--center-min-width': `${MIN_CENTER_WIDTH}px`,
             '--group-min-width': `${MIN_GROUP_WIDTH}px`,
             '--group-min-height': `${MIN_GROUP_HEIGHT}px`,
-            '--panel-min-width': `${(this.store.workspace?.snapshot.layout.panel.dock ?? 'bottom') === 'bottom' ? MIN_PANEL_WIDTH : MIN_DOCKED_PANEL_WIDTH}px`,
+            '--panel-min-width': `${MIN_PANEL_WIDTH}px`,
           })}
           class=${`workbench ${this.dragging ? 'is-dragging' : ''} ${this.focusedOnly ? 'is-focused' : ''}`}
         >
@@ -2903,7 +2910,7 @@ export class AppRoot extends LitElement {
       : panel.dock === 'bottom'
         ? geometry.panelHeight
         : geometry.bodyHeight;
-    const panelMinimum = panel.dock === 'bottom' ? MIN_PANEL_WIDTH : MIN_DOCKED_PANEL_WIDTH;
+    const panelMinimum = MIN_PANEL_WIDTH;
     const panelWidth = this.panelMaximized
       ? panel.align === 'full'
         ? geometry.shellWidth - this.layoutMetrics().activityWidth
@@ -3269,6 +3276,25 @@ export class AppRoot extends LitElement {
               请求</span
             >`
           : nothing}<button
+          class="status-item task-button"
+          data-state=${this.store.runningJobs.length
+            ? 'running'
+            : this.store.unreadJobs.length
+              ? 'unread'
+              : 'idle'}
+          aria-label=${`任务，${this.store.runningJobs.length} 个执行中，${this.store.unreadJobs.length} 个已完成未读`}
+          title="任务"
+          aria-expanded=${this.showJobs}
+          @click=${() => (this.showJobs = !this.showJobs)}
+        >
+          ${icon(
+            this.store.runningJobs.length
+              ? 'loading'
+              : this.store.unreadJobs.length
+                ? 'pass-filled'
+                : 'tasklist',
+          )}</button
+        ><button
           class="status-item notification-button"
           aria-label=${`通知，${unread} 条未读`}
           @click=${() => this.toggleNotifications()}
@@ -3770,7 +3796,9 @@ export class AppRoot extends LitElement {
           )}
         </wb-scroll-container>
         <wb-scroll-container class="notification-list">
-          ${items.map(
+          ${repeat(
+            items,
+            (n) => n.id,
             (n) =>
               html`<article
                 data-notification-id=${n.id}
@@ -3784,21 +3812,7 @@ export class AppRoot extends LitElement {
                   <p>${n.message}</p>
                   <small
                     >${n.pluginId ?? n.source} · ${new Date(n.updatedAt).toLocaleString()}</small
-                  >${n.actions.map(
-                    (action) =>
-                      html`<button
-                        class="text-button"
-                        @click=${() =>
-                          this.act(() =>
-                            this.command(
-                              'openUrl',
-                              `/web/page/plugin/${encodeURIComponent(n.pluginId ?? '')}${action.path}`,
-                            ),
-                          )}
-                      >
-                        打开关联页面 ${icon('arrow')}
-                      </button>`,
-                  )}
+                  >${this.renderNotificationActions(n)}
                 </div>
                 <div class="notification-actions">
                   ${!n.readAt
@@ -3813,6 +3827,7 @@ export class AppRoot extends LitElement {
                     }),
                   )}
                 </div>
+                ${this.renderProgress(n.progress)}
               </article>`,
           )}${!items.length
             ? html`<div class="empty compact">
@@ -3840,26 +3855,26 @@ export class AppRoot extends LitElement {
         }
       }}
     >
-      <section class="jobs-dialog" role="dialog" aria-modal="true" aria-label="插件任务">
+      <section class="jobs-dialog" role="dialog" aria-modal="true" aria-label="任务">
         <div class="sidebar-header">
-          <strong>插件与构建任务</strong>${iconButton(
-            'close',
-            '关闭任务视图',
-            () => (this.showJobs = false),
-          )}
+          <strong>任务</strong>${iconButton('close', '关闭任务视图', () => (this.showJobs = false))}
         </div>
         <wb-scroll-container class="jobs-list">
-          ${[...this.store.jobs.values()].reverse().map(
+          ${repeat(
+            [...this.store.jobs.values()].reverse(),
+            (job) => job.id,
             (job) =>
               html`<article class="job-card">
                 <div>
-                  <strong>${job.pluginId || '插件目录'} · ${job.type}</strong
+                  <strong>${job.title ?? `${job.pluginId || '插件目录'} · ${job.type}`}</strong
                   ><span
                     class=${`badge ${job.status === 'failed' ? 'error' : job.status === 'succeeded' ? 'success' : 'warn'}`}
                     >${job.status}</span
                   >
                 </div>
                 <p class="muted">阶段：${job.phase}</p>
+                ${job.content ? html`<p class="job-content">${job.content}</p>` : nothing}
+                ${this.renderProgress(job.progress)}
                 ${job.error ? html`<p class="error">${job.error}</p>` : nothing}
                 <wb-scroll-container class="job-log">
                   <pre>${job.logs.map((l) => l.text ?? l.message ?? '').join('\n')}</pre>
@@ -3888,7 +3903,7 @@ export class AppRoot extends LitElement {
             ? html`<div class="empty compact">
                 ${icon('code')}
                 <p>当前会话暂无任务</p>
-                <span>启用、停止与构建任务将在这里显示。</span>
+                <span>插件、构建与自定义任务将在这里显示。</span>
               </div>`
             : nothing}
         </wb-scroll-container>
@@ -3897,7 +3912,9 @@ export class AppRoot extends LitElement {
   }
   private renderToasts() {
     return html`<div class="toast-container" aria-live="polite">
-      ${this.store.toasts.map(
+      ${repeat(
+        this.store.toasts,
+        (t) => t.id,
         (t) =>
           html`<div
             class=${`toast ${t.level} ${t.focused ? 'focused' : ''}`}
@@ -3912,9 +3929,57 @@ export class AppRoot extends LitElement {
             role=${t.level === 'error' ? 'alert' : 'status'}
           >
             <span>${icon(t.level === 'warn' ? 'warning' : t.level)}</span>
-            <div>${t.text}</div>
+            <div class="toast-body">
+              <strong>${t.text}</strong>${t.notification.message
+                ? html`<p>${t.notification.message}</p>`
+                : nothing}${this.renderNotificationActions(t.notification)}
+            </div>
             ${iconButton('close', '关闭提示', () => this.store.dismissToast(t.id))}
+            ${this.renderProgress(t.notification.progress)}
           </div>`,
+      )}
+    </div>`;
+  }
+  private renderProgress(progress: FeedbackProgress | undefined) {
+    if (progress === undefined || progress === false) {
+      return nothing;
+    }
+    return html`<div
+      class=${`feedback-progress ${progress === null ? 'indeterminate' : ''}`}
+      role="progressbar"
+      aria-label="进度"
+      aria-valuemin="0"
+      aria-valuemax="100"
+      aria-valuenow=${typeof progress === 'number' ? progress : nothing}
+      aria-valuetext=${progress === null ? '加载中' : `${progress}%`}
+    >
+      <span style=${styleMap({ width: progress === null ? '35%' : `${progress}%` })}></span>
+    </div>`;
+  }
+  private renderNotificationActions(notification: NotificationState) {
+    return html`<div class="notification-buttons">
+      ${notification.actions.map(
+        (action) => html`<button
+          class="btn secondary small"
+          @click=${(event: MouseEvent) => {
+            event.stopPropagation();
+            this.act(async () => {
+              if (action.type === 'callback' && action.id) {
+                await this.store.api.request(
+                  `/notifications/${notification.id}/actions/${action.id}`,
+                  {},
+                );
+              } else if (action.path) {
+                await this.command(
+                  'openUrl',
+                  `/web/page/plugin/${encodeURIComponent(notification.pluginId ?? '')}${action.path}`,
+                );
+              }
+            });
+          }}
+        >
+          ${action.label ?? '打开关联页面'}
+        </button>`,
       )}
     </div>`;
   }
@@ -3929,6 +3994,13 @@ export class AppRoot extends LitElement {
   }
   private observeNotifications() {
     if (!this.notificationOpen || typeof IntersectionObserver === 'undefined') {
+      if (this.notificationVisible.size) {
+        this.notificationVisible.clear();
+        this.store.setVisibleNotifications([]);
+      }
+      this.notificationObserver?.disconnect();
+      this.notificationObserver = undefined;
+      this.notificationObserved = new WeakSet();
       return;
     }
     const root = this.renderRoot.querySelector('.notification-list');
@@ -3937,10 +4009,26 @@ export class AppRoot extends LitElement {
     }
     this.notificationObserver ??= new IntersectionObserver(
       (entries) => {
+        for (const entry of entries) {
+          const id = (entry.target as HTMLElement).dataset.notificationId;
+          if (!id) {
+            continue;
+          }
+          if (entry.isIntersecting && entry.intersectionRatio > 0) {
+            this.notificationVisible.add(id);
+          } else {
+            this.notificationVisible.delete(id);
+          }
+        }
+        this.store.setVisibleNotifications([...this.notificationVisible]);
         const ids = entries
           .filter((e) => e.isIntersecting && e.intersectionRatio > 0)
           .map((e) => (e.target as HTMLElement).dataset.notificationId ?? '')
-          .filter((id) => this.store.notificationItems.some((n) => n.id === id && !n.readAt));
+          .filter((id) =>
+            this.store.notificationItems.some(
+              (n) => n.id === id && !n.readAt && n.autoRead !== false,
+            ),
+          );
         if (ids.length) {
           if (this.notificationFilter === 'unread') {
             for (const id of ids) {
@@ -3952,6 +4040,18 @@ export class AppRoot extends LitElement {
       },
       { root, threshold: 0.01 },
     );
+    const present = new Set(
+      [...root.querySelectorAll<HTMLElement>('[data-notification-id]')].map(
+        (node) => node.dataset.notificationId,
+      ),
+    );
+    const removed = [...this.notificationVisible].filter((id) => !present.has(id));
+    if (removed.length) {
+      for (const id of removed) {
+        this.notificationVisible.delete(id);
+      }
+      this.store.setVisibleNotifications([...this.notificationVisible]);
+    }
     for (const element of root.querySelectorAll('[data-notification-id]')) {
       if (!this.notificationObserved.has(element)) {
         this.notificationObserved.add(element);

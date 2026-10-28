@@ -1,4 +1,5 @@
 import { BrowserWorkspace, type WorkspacePersistence } from './browser-workspace.ts';
+import { createFeedbackClient } from '../../../shared/workbench-feedback.ts';
 import { requireValue } from '../../../shared/workbench-protocol.ts';
 import { WorkbenchAPI, ApiError, EventConnection } from '../api/workbench.ts';
 import { ConfigController } from '../../../shared/store/config.ts';
@@ -28,6 +29,24 @@ import type {
 } from './types.ts';
 export class WorkbenchStore extends EventTarget {
   readonly api = new WorkbenchAPI(ConfigController.config);
+  private readonly feedback = createFeedbackClient((path, body) => this.api.request(path, body));
+  readonly logger = this.feedback.logger;
+  readonly tasks = this.feedback.tasks;
+  private visibleNotifications: string[] = [];
+  private visibilityTimer?: ReturnType<typeof setInterval>;
+  private reportNotificationVisibility = () => {
+    if (this.connection === 'connected') {
+      void this.api
+        .request(
+          '/notifications/visibility',
+          { ids: document.visibilityState === 'hidden' ? [] : this.visibleNotifications },
+          undefined,
+          false,
+          true,
+        )
+        .catch(() => undefined);
+    }
+  };
   focusedLocation?: FocusLocation;
   focusedBookmarkFolder: string | null = null;
   bootstrap?: Bootstrap;
@@ -130,6 +149,7 @@ export class WorkbenchStore extends EventTarget {
       /* Storage is optional. */
     }
     window.addEventListener('pagehide', this.release);
+    document.addEventListener('visibilitychange', this.reportNotificationVisibility);
     for (const name of this.activityEvents) {
       window.addEventListener(name, this.activity, true);
     }
@@ -155,6 +175,7 @@ export class WorkbenchStore extends EventTarget {
     return (
       this.api.requests.blocking > 0 ||
       [...this.pageRequests.values()].some(Boolean) ||
+      this.runningJobs.length > 0 ||
       this.executions.some((e) => ['running', 'returned', 'cancelling'].includes(e.status))
     );
   }
@@ -375,6 +396,16 @@ export class WorkbenchStore extends EventTarget {
   }
   private scheduleToast(id: string) {
     clearTimeout(this.toastTimers.get(id));
+    const toast = this.toasts.find((t) => t.id === id);
+    if (
+      !toast ||
+      toast.focused ||
+      (toast.notification.progress !== undefined &&
+        toast.notification.progress !== false &&
+        toast.notification.progress !== 100)
+    ) {
+      return;
+    }
     this.toastTimers.set(
       id,
       setTimeout(() => this.dismissToast(id, false), 6000),
@@ -388,8 +419,10 @@ export class WorkbenchStore extends EventTarget {
     toast.focused = focused;
     if (focused) {
       clearTimeout(this.toastTimers.get(id));
-      toast.notification.readAt = new Date().toISOString();
-      if (toast.remote) {
+      if (toast.notification.autoRead !== false) {
+        toast.notification.readAt = new Date().toISOString();
+      }
+      if (toast.remote && toast.notification.autoRead !== false) {
         void this.ackNotifications([id]).catch(() => undefined);
       }
     } else {
@@ -413,7 +446,11 @@ export class WorkbenchStore extends EventTarget {
   }
   async ackNotifications(ids: string[]) {
     const readAt = new Date().toISOString();
-    for (const n of [...this.localNotifications, ...this.notifications]) {
+    for (const n of [
+      ...this.localNotifications,
+      ...this.notifications,
+      ...this.toasts.map((t) => t.notification),
+    ]) {
       if (ids.includes(n.id)) {
         n.readAt = readAt;
       }
@@ -424,6 +461,25 @@ export class WorkbenchStore extends EventTarget {
     if (remote.length) {
       await this.api.request('/notifications/ack', { ids: remote });
     }
+  }
+  setVisibleNotifications(ids: string[]) {
+    this.visibleNotifications = ids.filter((id) => this.notifications.some((n) => n.id === id));
+    clearInterval(this.visibilityTimer);
+    this.reportNotificationVisibility();
+    if (this.visibleNotifications.length) {
+      this.visibilityTimer = setInterval(this.reportNotificationVisibility, 10000);
+    }
+  }
+  private applyNotification(value: Notification) {
+    this.notifications = [value, ...this.notifications.filter((n) => n.id !== value.id)];
+    const toast = this.toasts.find((t) => t.id === value.id);
+    if (toast) {
+      toast.notification = value;
+      toast.text = value.title;
+      toast.level = value.level;
+      this.scheduleToast(value.id);
+    }
+    this.changed();
   }
   async deleteNotifications(ids: string[]) {
     const remote = ids.filter((id) => !this.localNotifications.some((n) => n.id === id));
@@ -821,6 +877,7 @@ export class WorkbenchStore extends EventTarget {
       this.loadList('bookmarks'),
       this.loadList('history'),
       this.loadList('notifications'),
+      this.refreshJobs(),
       this.refreshTerminals(),
     ]);
   }
@@ -884,13 +941,13 @@ export class WorkbenchStore extends EventTarget {
       action,
       idempotencyKey: uid(),
     });
-    this.jobs.set(job.id, job);
+    this.applyJob(job);
     this.changed();
     return this.trackJob(job.id);
   }
   async rescan() {
     const job = await this.api.request<Job>('/plugins/rescan', { idempotencyKey: uid() });
-    this.jobs.set(job.id, job);
+    this.applyJob(job);
     return this.trackJob(job.id);
   }
   private async trackJob(id: string) {
@@ -906,7 +963,7 @@ export class WorkbenchStore extends EventTarget {
           false,
           true,
         );
-        this.jobs.set(id, job);
+        this.applyJob(job);
         this.changed();
       }
       await this.loadList('catalog');
@@ -916,6 +973,49 @@ export class WorkbenchStore extends EventTarget {
       return job;
     } finally {
       release();
+    }
+  }
+  get runningJobs() {
+    return [...this.jobs.values()].filter((job) =>
+      ['queued', 'running', 'cancelling'].includes(job.status),
+    );
+  }
+  get unreadJobs() {
+    return [...this.jobs.values()].filter(
+      (job) => ['succeeded', 'failed', 'cancelled'].includes(job.status) && !job.readAt,
+    );
+  }
+  private applyJob(job: Job) {
+    const old = this.jobs.get(job.id);
+    if (!old || old.revision <= job.revision) {
+      this.jobs.set(job.id, job);
+      this.requestActivity();
+    }
+  }
+  async refreshJobs() {
+    const jobs = await this.api.request<Job[]>('/jobs', undefined, undefined, false, true);
+    for (const job of jobs) {
+      this.applyJob(job);
+    }
+    this.changed();
+  }
+  async ackJobs(ids: string[]) {
+    if (!ids.length) {
+      return;
+    }
+    const readAt = new Date().toISOString();
+    for (const id of ids) {
+      const job = this.jobs.get(id);
+      if (job) {
+        this.jobs.set(id, { ...job, readAt });
+      }
+    }
+    this.changed();
+    try {
+      await this.api.request('/jobs/ack', { ids });
+    } catch (error) {
+      await this.refreshJobs();
+      throw error;
     }
   }
   async syncExecutions() {
@@ -957,9 +1057,45 @@ export class WorkbenchStore extends EventTarget {
       return;
     }
     if (e.type === 'job.changed') {
+      this.dispatchEvent(new CustomEvent('server-event', { detail: e }));
       const job = e.payload as Job;
-      this.jobs.set(job.id, job);
+      this.applyJob(job);
       this.changed();
+      return;
+    }
+    if (e.type === 'notification.action') {
+      const value = e.payload as { id: string; actionId: string; ownerId?: string; source: string };
+      if (value.source === 'core' && value.ownerId === this.api.clientWindowId) {
+        void this.feedback
+          .dispatchAction(value)
+          .catch((error) => this.toast(this.message(error), 'error'));
+      }
+    }
+    if (e.type === 'notification.updated') {
+      const value = e.payload as Notification & { ids?: string[]; deleted?: boolean };
+      if (value.ids) {
+        const ids = value.ids;
+        if (value.deleted) {
+          this.notifications = this.notifications.filter((n) => !ids.includes(n.id));
+          this.toasts = this.toasts.filter((t) => {
+            if (!ids.includes(t.id)) {
+              return true;
+            }
+            clearTimeout(this.toastTimers.get(t.id));
+            this.toastTimers.delete(t.id);
+            return false;
+          });
+        } else {
+          for (const n of [...this.notifications, ...this.toasts.map((t) => t.notification)]) {
+            if (ids.includes(n.id)) {
+              n.readAt = new Date().toISOString();
+            }
+          }
+        }
+        this.changed();
+      } else {
+        this.applyNotification(value);
+      }
       return;
     }
     this.dispatchEvent(new CustomEvent('server-event', { detail: e }));
@@ -980,6 +1116,7 @@ export class WorkbenchStore extends EventTarget {
     } // This lease is the sole writer; HTTP receipts own local revision updates.
     if (e.type === 'notification.created') {
       const notification = e.payload as Notification;
+      this.applyNotification(notification);
       this.toast(notification.title, notification.level, notification);
     }
     clearTimeout(this.refreshTimer);
@@ -1023,6 +1160,14 @@ export class WorkbenchStore extends EventTarget {
     return error instanceof Error ? error.message : String(error);
   }
   dispose() {
+    this.feedback.dispose();
+    clearInterval(this.visibilityTimer);
+    document.removeEventListener('visibilitychange', this.reportNotificationVisibility);
+    if (this.visibleNotifications.length && this.connection === 'connected') {
+      void this.api
+        .request('/notifications/visibility', { ids: [] }, undefined, true, true)
+        .catch(() => undefined);
+    }
     window.removeEventListener('pagehide', this.release);
     this.disposed = true;
     clearInterval(this.renewTimer);

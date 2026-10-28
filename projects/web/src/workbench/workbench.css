@@ -1006,6 +1006,14 @@ wb-icon {
   flex: 1;
   min-height: 0;
 }
+.shell-body[data-side='right'] .main-sidebar {
+  border-right: 0;
+  border-left: 1px solid var(--border-subtle);
+}
+.shell-body[data-side='right'] .auxiliary-sidebar {
+  border-left: 0;
+  border-right: 1px solid var(--border-subtle);
+}
 .inspector-heading {
   padding: 16px 12px;
   border-bottom: 1px solid var(--border-subtle);
@@ -2360,6 +2368,7 @@ wb-icon {
   pointer-events: none;
 }
 .toast {
+  position: relative;
   pointer-events: auto;
   display: flex;
   align-items: flex-start;
@@ -2414,6 +2423,68 @@ wb-icon {
   white-space: pre-wrap;
   margin: 0;
   color: var(--text-secondary);
+}
+.notification {
+  position: relative;
+}
+.notification-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.notification-buttons:empty {
+  display: none;
+}
+.toast-body p,
+.job-content {
+  margin-top: 6px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.feedback-progress {
+  display: block;
+  flex: none;
+  height: 3px;
+  width: 100%;
+  overflow: hidden;
+  background: var(--surface-3);
+}
+.feedback-progress > span {
+  display: block;
+  height: 100%;
+  background: var(--accent-primary);
+  transition: width var(--transition-fast);
+}
+.notification > .feedback-progress,
+.toast > .feedback-progress {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+}
+.job-card > .feedback-progress {
+  display: block;
+  margin: 8px 0;
+}
+.feedback-progress.indeterminate > span {
+  animation: feedback-loading 1.4s ease-in-out infinite;
+}
+.task-button[data-state='running'] wb-icon {
+  animation: task-running 1s linear infinite;
+}
+.task-button[data-state='unread'] {
+  color: var(--status-success);
+}
+@keyframes task-running {
+  to { transform: rotate(360deg); }
+}
+@keyframes feedback-loading {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(286%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .feedback-progress.indeterminate > span,
+  .task-button[data-state='running'] wb-icon { animation: none; }
 }
 .boot-screen {
   display: flex;

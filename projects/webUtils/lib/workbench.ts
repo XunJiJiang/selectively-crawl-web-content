@@ -1,4 +1,6 @@
 import { TicketSocket } from './ticket-socket.ts';
+import { createFeedbackClient } from '../../shared/workbench-feedback.ts';
+import type { TaskState } from '../../shared/workbench-feedback.ts';
 import { RequestLifecycle, type RequestOptions } from '../../shared/request-lifecycle.ts';
 import { ManagedResources } from '../../shared/managed-resources.ts';
 import {
@@ -137,6 +139,47 @@ export function createWorkbenchSDK(install: (fetch: TFetch) => void) {
       themeMode = data.mode;
       themeTokens = data.tokens ?? {};
     }
+  };
+  const feedbackTasks = new Set<string>();
+  const feedbackTaskRevisions = new Map<string, number>();
+  const trackFeedbackTask = (task: TaskState) => {
+    if (task.owner?.source !== 'page') {
+      return;
+    }
+    if ((feedbackTaskRevisions.get(task.id) ?? 0) > task.revision) {
+      return;
+    }
+    feedbackTaskRevisions.set(task.id, task.revision);
+    const active = ['queued', 'running', 'cancelling'].includes(task.status);
+    if (active && !feedbackTasks.has(task.id)) {
+      feedbackTasks.add(task.id);
+      port?.event('activity.acquire', {
+        id: `feedback-task:${task.id}`,
+        reason: task.title ?? '任务',
+      });
+    } else if (!active && feedbackTasks.delete(task.id)) {
+      port?.event('activity.release', { id: `feedback-task:${task.id}` });
+    }
+  };
+  const feedback = createFeedbackClient(async <T>(path: string, body?: unknown) => {
+    const value = await request<T>(path, body);
+    if (value && (path.startsWith('/tasks/') || path.startsWith('/jobs/'))) {
+      trackFeedbackTask(value as unknown as TaskState);
+    }
+    return value;
+  });
+  const actionEvents = new Set<string>();
+  const dispatchFeedbackAction = (value: { id: string; actionId: string; eventId?: string }) => {
+    if (value.eventId && actionEvents.has(value.eventId)) {
+      return;
+    }
+    if (value.eventId) {
+      actionEvents.add(value.eventId);
+    }
+    if (actionEvents.size > 1000) {
+      actionEvents.delete(requireValue(actionEvents.values().next().value));
+    }
+    void feedback.dispatchAction(value).catch((error) => console.error('通知操作失败', error));
   };
   const api = {
     ready,
@@ -373,19 +416,8 @@ export function createWorkbenchSDK(install: (fetch: TFetch) => void) {
       },
       release: (id: string) => port?.event('activity.release', { id }),
     },
-    logger: Object.fromEntries(
-      ['info', 'success', 'warn', 'error'].map((level) => [
-        level,
-        (title: string, options?: unknown) =>
-          request('/notifications/publish', { level, title, options }),
-      ]),
-    ) as Record<
-      'info' | 'success' | 'warn' | 'error',
-      (
-        title: string,
-        options?: { message?: string; dedupeKey?: string; target?: { pluginPath: string } },
-      ) => Promise<unknown>
-    >,
+    logger: feedback.logger,
+    tasks: feedback.tasks,
     requests: {
       track: <T>(operation: (signal: AbortSignal) => Promise<T>, options?: RequestOptions) =>
         network.run(operation, options?.interruptible),
@@ -657,6 +689,12 @@ export function createWorkbenchSDK(install: (fetch: TFetch) => void) {
     port.onRequest = handle;
     port.onCancel = (id) => requests.get(id)?.abort();
     port.onEvent = (method, payload) => {
+      if (method === 'task.changed') {
+        trackFeedbackTask(payload as TaskState);
+      }
+      if (method === 'notification.action') {
+        dispatchFeedbackAction(payload as { id: string; actionId: string; eventId?: string });
+      }
       if (method === 'navigation.changed') {
         navigationBase = Number((payload as { index: number }).index) - navigationPosition;
       }
@@ -718,6 +756,9 @@ export function createWorkbenchSDK(install: (fetch: TFetch) => void) {
     installSession(message.session);
     readyResolve();
     port.event('ready', { title: document.title, url: location.href });
+    for (const id of feedbackTasks) {
+      port.event('activity.acquire', { id: `feedback-task:${id}`, reason: '任务' });
+    }
     if (network.blocking) {
       port.event('requests.changed', { delta: network.blocking });
     }
@@ -776,7 +817,8 @@ export function createWorkbenchSDK(install: (fetch: TFetch) => void) {
         body: JSON.stringify({
           pluginId: decodeURIComponent(location.pathname.split('/')[4]),
           url: location.href,
-          frameEpoch: crypto.randomUUID(),
+          frameEpoch: nonce,
+          tabId: nonce,
         }),
       });
       const result = await response.json();
@@ -803,6 +845,12 @@ export function createWorkbenchSDK(install: (fetch: TFetch) => void) {
       socket.onclose = retryStandalone;
       socket.onmessage = (event) => {
         const e = JSON.parse(event.data);
+        if (e.type === 'job.changed') {
+          trackFeedbackTask(e.payload);
+        }
+        if (e.type === 'notification.action') {
+          dispatchFeedbackAction({ ...e.payload, eventId: e.eventId });
+        }
         if (e.type === 'config.changed') {
           for (const fn of configListeners) {
             fn(e.payload);
@@ -911,6 +959,16 @@ export function createWorkbenchSDK(install: (fetch: TFetch) => void) {
     }
   });
   window.addEventListener('pagehide', () => {
+    if (session) {
+      void fetch('/web/api/workbench/feedback/release', {
+        method: 'POST',
+        keepalive: true,
+        headers: { Authorization: `Bearer ${session.grant}`, 'Content-Type': 'application/json' },
+        body: '{}',
+        referrerPolicy: 'same-origin',
+      }).catch(() => undefined);
+    }
+    feedback.dispose();
     disposed = true;
     network.pause();
     resources.dispose();

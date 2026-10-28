@@ -175,7 +175,7 @@ describe('workspace writes and recovery', () => {
         data = { workspaceId: 'workspace', token: 'lease', expiresAt: Date.now() + 30000 };
       } else if (pathname.endsWith('/workspaces/workspace')) {
         data = { workspaceId: 'workspace', revision: 1, snapshot };
-      } else if (pathname.endsWith('/terminals')) {
+      } else if (pathname.endsWith('/terminals') || pathname.endsWith('/jobs')) {
         data = [];
       }
       return { ok: true, json: async () => ({ success: true, data }) };

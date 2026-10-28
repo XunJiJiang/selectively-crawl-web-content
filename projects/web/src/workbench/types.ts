@@ -78,19 +78,10 @@ export interface ClosedTab {
   batchId: string;
   tab: PluginTab;
 }
-export interface Notification {
-  id: string;
-  source: string;
-  pluginId: string | null;
-  tabId?: string;
-  level: string;
-  title: string;
-  message: string;
-  readAt: string | null;
-  updatedAt: string;
-  count: number;
-  actions: { type: string; path: string }[];
-}
+export type {
+  NotificationState as Notification,
+  TaskState as Job,
+} from '../../../shared/workbench-feedback.ts';
 export interface Terminal {
   id: string;
   title: string;
@@ -130,16 +121,6 @@ export interface TerminalViewState {
   follow: boolean;
   scrollTop: number;
   scrollAnchor?: { seq: number; offset: number };
-}
-export interface Job {
-  id: string;
-  pluginId: string;
-  type: string;
-  status: string;
-  phase: string;
-  revision: number;
-  logs: { seq: number; text?: string; message?: string }[];
-  error?: string;
 }
 export interface PageSession {
   grant: string;

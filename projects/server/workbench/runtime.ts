@@ -4,7 +4,7 @@ import { getStorage, assert, json, now, type WorkbenchStorage } from './storage.
 import { WorkspaceService } from './workspace.ts';
 import { OperationService } from './operations.ts';
 import { CommandService } from './command-service.ts';
-import { NotificationService } from './notifications.ts';
+import { getNotifications, type NotificationService } from './notifications.ts';
 export class WorkbenchRuntime {
   readonly workspace: WorkspaceService;
   readonly operations: OperationService;
@@ -16,7 +16,7 @@ export class WorkbenchRuntime {
     this.workspace = new WorkspaceService(storage);
     this.operations = new OperationService(storage);
     this.commands = new CommandService(storage, this.workspace);
-    this.notifications = new NotificationService(storage);
+    this.notifications = getNotifications(storage);
   }
   snapshot(
     input: { kind: string; owner: string; pluginId: string; metadata?: unknown },
