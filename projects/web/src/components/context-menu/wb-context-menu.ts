@@ -47,6 +47,9 @@ export class WbContextMenu extends LitElement {
       return;
     }
     this.closed = true;
+    if (this.isConnected && this.popover === 'manual') {
+      this.hidePopover();
+    }
     this.style.setProperty('--wb-context-menu-pointer-events', 'none');
     this.stopScroll();
     if (this.loadingTimeout) {
@@ -82,7 +85,16 @@ export class WbContextMenu extends LitElement {
         display: block;
         width: 100%;
         height: 100%;
+        margin: 0;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        overflow: visible;
         pointer-events: var(--wb-context-menu-pointer-events, auto);
+      }
+
+      :host([popover]:not(:popover-open)) {
+        display: none;
       }
 
       .wb-menu,
@@ -146,6 +158,12 @@ export class WbContextMenu extends LitElement {
 
   connectedCallback(): void {
     super.connectedCallback();
+    // Keep the host in place for inherited styles and Lit event handlers, while
+    // the top layer lets its full-viewport backdrop escape ancestor clipping.
+    if (typeof this.showPopover === 'function') {
+      this.popover = 'manual';
+    }
+    this.requestUpdate();
     window.addEventListener('resize', this.resize);
     this.addEventListener('click', this.rootClick);
   }
@@ -195,6 +213,13 @@ export class WbContextMenu extends LitElement {
   }
 
   protected override updated(): void {
+    if (this.isConnected && this.popover === 'manual') {
+      if (this.closed || !this.open || this.x < 0 || this.y < 0) {
+        this.hidePopover();
+      } else {
+        this.showPopover();
+      }
+    }
     if (this.closed || !this.open) {
       return;
     }
