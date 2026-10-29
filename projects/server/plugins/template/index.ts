@@ -1,3 +1,4 @@
+import { registerDeclarativeDemo } from './declarative-ui.ts';
 import {
   loadValidation,
   unloadValidation,
@@ -9,10 +10,28 @@ import {
 export default {
   // 插件名称, 目前可选. 建议和 package.json 中的 name 字段保持一致
   name: 'template',
+  configuration: {
+    definitions: [
+      {
+        id: 'template-validation',
+        schemaVersion: '1',
+        items: [
+          {
+            id: 'note',
+            key: 'validation.note',
+            label: '验证说明',
+            control: 'text',
+            defaultValue: '声明式 UI 已接入',
+          },
+        ],
+      },
+    ],
+  },
   // 启动服务时调用, 可选, 支持异步
   // workbench.logger / workbench.tasks 由宿主注入，可长期持有，勿与调用级 context.tasks 混淆。
   onLoad: async (_logger, { workbench }) => {
     loadValidation(workbench);
+    await registerDeclarativeDemo(workbench.ui);
   },
   // 每次接收到抓取请求时调用, 必选, 支持异步
   onRequest: async (

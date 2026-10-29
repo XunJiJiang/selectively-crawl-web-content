@@ -1,3 +1,4 @@
+import { uiAsset } from './workbench/declarative-ui.ts';
 import { Router } from 'express';
 import path from 'node:path';
 import apiRouter from './api/index.ts';
@@ -11,6 +12,7 @@ import { redirectDevelopmentPage } from './workbench/dev-proxy.ts';
 /** /web */
 const router = Router();
 router.get('/local-config', localConfig);
+router.get('/ui/assets/:pluginId/:owner/{*path}', uiAsset);
 
 /** 当前程序启动文件路径 */
 

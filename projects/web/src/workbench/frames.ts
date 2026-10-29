@@ -1,9 +1,8 @@
+import { ConfigDispatchQueue } from '../../../shared/config-dispatch.ts';
+import { UI_UNAVAILABLE, uiValue, type UIValue } from '../../../shared/declarative-ui.ts';
+import type { ConfigChange } from '../../../server/types/plugin-config.d.ts';
 import { commands, effectiveKeys } from './commands.ts';
-import {
-  InstancePort,
-  PROTOCOL,
-  type PageRegistration,
-} from '../../../shared/workbench-protocol.ts';
+import { InstancePort, PROTOCOL } from '../../../shared/workbench-protocol.ts';
 import type { WorkbenchStore } from './store.ts';
 import type { ConfigSnapshot, PageSession, PluginTab, WorkbenchEvent } from './types.ts';
 import { uid, groups } from './model.ts';
@@ -22,7 +21,11 @@ export interface FrameRuntime {
   dirtyRevision?: number;
   checkpointTimer?: ReturnType<typeof setTimeout>;
   reconnectTimer?: ReturnType<typeof setTimeout>;
-  properties: { label: string; value: string }[];
+  configDispatch?: ConfigDispatchQueue;
+  frontendHandlers?: {
+    revision: number;
+    handlers: { name: string; readOnly: boolean; watch: boolean }[];
+  };
   capabilities: Record<string, boolean>;
   activity: Map<string, string>;
   requests: number;
@@ -168,7 +171,7 @@ export class FramePool extends EventTarget {
           if (r.state === 'suspended') {
             r.state = 'ready';
           }
-          r.port?.event('lifecycle.resume', {});
+          void r.configDispatch?.flush().then(() => r.port?.event('lifecycle.resume', {}));
         } else {
           r.lastBackgroundAt = Date.now();
         }
@@ -268,7 +271,6 @@ export class FramePool extends EventTarget {
       visible: true,
       focused: false,
       dirty: false,
-      properties: [],
       capabilities: {},
       activity: new Map(),
       requests: 0,
@@ -324,6 +326,9 @@ export class FramePool extends EventTarget {
     this.changed();
   }
   private invalidate(r: FrameRuntime) {
+    r.configDispatch?.dispose();
+    r.configDispatch = undefined;
+    r.frontendHandlers = undefined;
     clearTimeout(r.handshakeTimer);
     clearTimeout(r.checkpointTimer);
     r.port?.close();
@@ -340,7 +345,6 @@ export class FramePool extends EventTarget {
     r.observedRequests = 0;
     r.failedRequests = 0;
     r.dirty = false;
-    r.properties = [];
     this.changed();
   }
   private hello = async (event: MessageEvent) => {
@@ -358,6 +362,11 @@ export class FramePool extends EventTarget {
     const r = [...this.runtimes.values()].find((r) => r.frame.contentWindow === event.source);
     if (!r || (r.nonce === data.documentNonce && r.port)) {
       return;
+    }
+    if (r.nonce && r.nonce !== data.documentNonce) {
+      r.configDispatch?.dispose();
+      r.configDispatch = undefined;
+      r.frontendHandlers = undefined;
     }
     if (r.handshaking) {
       if (r.nonce !== data.documentNonce) {
@@ -447,38 +456,23 @@ export class FramePool extends EventTarget {
     if (method === 'ready') {
       r.state = 'ready';
       clearTimeout(r.handshakeTimer);
-      const data = payload as { title?: string; url?: string };
-      this.onEvent(r, 'page.update', { title: data.title });
+      this.configQueue(r);
+      void r.configDispatch?.flush();
       void this.restore(r);
+    }
+    if (method === 'ui.handlers.changed') {
+      r.frontendHandlers = payload as FrameRuntime['frontendHandlers'];
+      this.dispatchEvent(new Event('ui-handlers-changed'));
+    }
+    if (method === 'ui.value.changed') {
+      this.dispatchEvent(
+        new CustomEvent('ui-value-changed', {
+          detail: { ...(payload as object),tabId: r.tabId, frameEpoch: r.epoch },
+        }),
+      );
     }
     if (method === 'page.focus') {
       void this.command('focusPage', r.tabId).catch(() => undefined);
-    }
-    if (method === 'page.update') {
-      const data = payload as PageRegistration;
-      if (typeof data.dirty === 'boolean') {
-        r.dirty = data.dirty;
-        r.dirtyRevision = (r.dirtyRevision ?? 0) + 1;
-        r.transition = undefined;
-        if (r.dirty) {
-          this.scheduleCheckpoint(r);
-        }
-      }
-      if (Array.isArray(data.properties)) {
-        r.properties = data.properties
-          .slice(0, 100)
-          .filter((p) => typeof p.label === 'string' && typeof p.value === 'string');
-      }
-      if (data.title && typeof data.title === 'string') {
-        void this.store
-          .update((s) => {
-            const tab = s.tabs.find((t) => t.id === r.tabId);
-            if (tab?.kind === 'plugin') {
-              tab.originalPageTitle = String(data.title).slice(0, 1000);
-            }
-          })
-          .catch(() => undefined);
-      }
     }
     if (method === 'navigation.report') {
       const data = payload as { url: string; replace?: boolean; index?: number };
@@ -555,9 +549,7 @@ export class FramePool extends EventTarget {
     if (method === 'session.renew') {
       void this.renew(r).catch((e) => this.store.toast(this.store.message(e), 'warn'));
     }
-    if (method === 'settings.changed') {
-      this.dispatchEvent(new Event('settings-changed'));
-    }
+
     this.changed();
   }
   private async renew(r: FrameRuntime) {
@@ -842,11 +834,67 @@ export class FramePool extends EventTarget {
       for (const r of this.runtimes.values()) {
         const tab = this.store.workspace?.snapshot.tabs.find((t) => t.id === r.tabId);
         if (tab?.kind === 'plugin' && tab.pluginId === event.entityId) {
-          r.port?.event('config.changed', event.payload as ConfigSnapshot);
+          this.configQueue(r);
+          r.configDispatch?.enqueue({
+            ...(event.payload as ConfigChange),
+            coreBootId: event.coreBootId,
+          });
         }
       }
     }
   };
+  private configQueue(r: FrameRuntime) {
+    if (r.configDispatch) {
+      return;
+    }
+    r.configDispatch = new ConfigDispatchQueue(
+      () => Boolean(r.port && r.visible && r.state === 'ready' && !this.store.disconnectedForIdle),
+      async () => {
+        const tab = this.store.workspace?.snapshot.tabs.find((t) => t.id === r.tabId);
+        if (tab?.kind !== 'plugin') {
+          throw new Error('页面已释放');
+        }
+        const snapshot = await this.store.api.request<ConfigSnapshot>(
+          `/plugins/${encodeURIComponent(tab.pluginId)}/config`,
+        );
+        return {
+          pluginId: tab.pluginId,
+          changedKeys: Object.keys(snapshot.effectiveValues),
+          effectiveValues: snapshot.effectiveValues,
+          revision: snapshot.revision,
+          schemaRevision: snapshot.schemaRevision,
+          coreBootId: this.store.bootstrap?.coreBootId,
+        };
+      },
+      async (change) => {
+        if (!r.port) {
+          throw new Error('页面未连接');
+        }
+        return r.port.request('config.deliver', change);
+      },
+    );
+  }
+  async invokeUI(tabId: string | null, frameEpoch: string | null, data: Record<string, unknown>) {
+    if (!tabId) {
+      return { hasValue: true, value: UI_UNAVAILABLE, unavailable: true };
+    }
+    const runtime = this.runtimes.get(tabId);
+    if (!runtime?.port || runtime.epoch !== frameEpoch) {
+      return { hasValue: true, value: UI_UNAVAILABLE, unavailable: true };
+    }
+    if (runtime.state !== 'ready') {
+      throw new Error('插件页面尚未恢复');
+    }
+    const response = await runtime.port.request<{
+      hasValue: boolean;
+      value?: UIValue;
+      unavailable?: boolean;
+    }>('ui.invoke', { ...data, revision: runtime.frontendHandlers?.revision });
+    if (response.hasValue) {
+      uiValue(response.value);
+    }
+    return response;
+  }
   private restarted = () => {
     for (const r of this.runtimes.values()) {
       this.remove(r);
@@ -871,12 +919,17 @@ export class FramePool extends EventTarget {
     if (this.stopped || this.store.disconnectedForIdle || this.runtimes.get(r.tabId) !== r) {
       return;
     }
-    void this.renew(r).catch(() => {
-      r.reconnectTimer = setTimeout(
-        () => this.resumeRuntime(r, attempts + 1),
-        Math.min(15000, 1000 * 2 ** attempts),
-      );
-    });
+    void this.renew(r)
+      .then(() => {
+        this.configQueue(r);
+        r.configDispatch?.requireResync();
+      })
+      .catch(() => {
+        r.reconnectTimer = setTimeout(
+          () => this.resumeRuntime(r, attempts + 1),
+          Math.min(15000, 1000 * 2 ** attempts),
+        );
+      });
   }
   private async energy() {
     if (this.store.disconnectedForIdle || !this.store.preferences.values.energy?.enabled) {
@@ -913,6 +966,7 @@ export class FramePool extends EventTarget {
     clearTimeout(r.handshakeTimer);
     clearTimeout(r.checkpointTimer);
     clearTimeout(r.reconnectTimer);
+    r.configDispatch?.dispose();
     r.port?.close();
     this.store.setPageRequests(r.tabId, 0);
     r.frame.remove();

@@ -17,13 +17,6 @@ export interface PageSearchBatch {
   nextCursor: string | null;
   total?: number;
 }
-export interface PageRegistration {
-  title?: string;
-  dirty?: boolean;
-  contextKey?: string;
-  properties?: { label: string; value: string }[];
-  capabilities?: Record<string, boolean>;
-}
 export class InstancePort {
   private seq = 0;
   private received = 0;

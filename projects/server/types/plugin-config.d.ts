@@ -12,6 +12,7 @@ export interface ConfigSnapshot {
   revision: number;
   schemaRevision: number;
   definitions: ConfigDefinition[];
+  definitionSources?: Record<string, 'backend' | 'legacy-unverified'>;
 }
 export interface ConfigDefinition {
   id: string;

@@ -51,6 +51,7 @@ export default defineConfig(({ mode }) => {
         '/web/api': { target, changeOrigin: false },
         '/web/page': { target, changeOrigin: false },
         '/web/resource': { target, changeOrigin: false },
+        '/web/ui': { target, changeOrigin: false },
         '/web/websocket': { target, changeOrigin: false, ws: true },
       },
     },

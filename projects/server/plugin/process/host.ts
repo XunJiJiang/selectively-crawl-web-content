@@ -1,3 +1,4 @@
+import { HostUI } from './ui-host.ts';
 import { pathToFileURL } from 'node:url';
 import { formatWithOptions } from 'node:util';
 import { spawn } from 'node:child_process';
@@ -134,6 +135,11 @@ const createHostFeedback = (identity?: InvocationIdentity) =>
     feedbackCallbacks,
   );
 const feedback = createHostFeedback();
+const declarative = new HostUI(
+  (snapshot) => peer.call('ui.registry', snapshot, 10000),
+  (id, value) => peer.event('ui.watch.changed', { id, value }),
+  (data) => peer.call('ui.content', data, 10000),
+);
 function workbenchLogger(
   identity?: InvocationIdentity,
 ): import('../../workbench/notifications.ts').NotificationLogger {
@@ -280,7 +286,7 @@ async function initialize(args: Initialize): Promise<Manifest> {
     );
   }
   await plugin.onLoad?.(logger, {
-    workbench: { logger: feedback.logger, tasks: feedback.tasks },
+    workbench: { logger: feedback.logger, tasks: feedback.tasks, ui: declarative.api },
     tasks: processTasks.reporter,
     signal: processTasks.controller.signal,
     cache,
@@ -294,6 +300,7 @@ async function initialize(args: Initialize): Promise<Manifest> {
         cache,
       ),
   });
+  declarative.activate();
   const ui = plugin.ui;
   apis = [];
   channels = [];
@@ -321,6 +328,7 @@ async function initialize(args: Initialize): Promise<Manifest> {
   }
   const command = plugin.pluginConfig?.command;
   return {
+    declarativeUI: declarative.snapshot(),
     name: plugin.name,
     title: plugin.title,
     description: plugin.description,
@@ -383,6 +391,7 @@ async function dispatch(method: string, args: unknown, id: string): Promise<unkn
   }
   if (method === 'unload') {
     stopping = true;
+    declarative.dispose();
     for (const controller of completions.values()) {
       controller.abort();
     }
@@ -405,6 +414,8 @@ async function dispatch(method: string, args: unknown, id: string): Promise<unkn
   const invocationLogger = context ? scopedLogger(context) : logger;
   try {
     switch (method) {
+      case 'ui.invoke':
+        return declarative.invoke(args as Parameters<HostUI['invoke']>[0]);
       case 'config.validate': {
         const values =
           (await plugin.configuration?.normalize?.(args as Record<string, string>)) ??

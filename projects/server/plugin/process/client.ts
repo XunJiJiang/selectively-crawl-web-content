@@ -1,3 +1,4 @@
+import { declarativeUI } from '../../workbench/declarative-ui.ts';
 import { fork, spawn, type ChildProcess } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { Readable } from 'node:stream';
@@ -158,6 +159,7 @@ export class PluginProcessClient {
   }
 
   private cleanup(): void {
+    declarativeUI.releaseOwner(this.owner);
     if (this.feedbackRuntime) {
       this.feedbackRuntime.notifications.releaseOwner(this.owner);
       this.feedbackRuntime.operations.releaseOwner(this.owner);
@@ -208,6 +210,18 @@ export class PluginProcessClient {
   }
 
   private async cacheCall(method: string, args: unknown): Promise<unknown> {
+    if (method === 'ui.content') {
+      return declarativeUI.setContent(this.owner, args as never);
+    }
+    if (method === 'ui.registry') {
+      return declarativeUI.install(
+        this.options.pluginId ?? this.options.name,
+        this.owner,
+        path.dirname(this.options.entry),
+        args as import('../../../shared/declarative-ui.ts').UIWireRegistry,
+        (data) => this.call('ui.invoke', data),
+      );
+    }
     if (method === 'feedback') {
       const [{ feedbackRequest }, { getWorkbench }] = await Promise.all([
         import('../../workbench/feedback.ts'),
@@ -360,6 +374,10 @@ export class PluginProcessClient {
 
   private event(event: string, value: unknown): void {
     if (!value || typeof value !== 'object') {
+      return;
+    }
+    if (event === 'ui.watch.changed') {
+      declarativeUI.watchChanged(this.owner,(value as { id: string }).id);
       return;
     }
     if (event === 'notification.workbench') {
@@ -518,6 +536,15 @@ export class PluginProcessClient {
         this.options.runtime.startupTimeoutMs ?? 30_000,
         this.startupCallId,
       );
+      if (this.manifest.declarativeUI) {
+        await declarativeUI.install(
+          this.options.pluginId ?? this.options.name,
+          this.owner,
+          path.dirname(this.options.entry),
+          this.manifest.declarativeUI,
+          (data) => this.call('ui.invoke', data),
+        );
+      }
       this.html = this.manifest.ui?.html;
       this.info.status = 'ready';
       if (this.manifest.configuration?.hasValidator) {

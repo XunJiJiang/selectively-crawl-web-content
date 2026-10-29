@@ -125,7 +125,6 @@ export class PluginCatalog {
         return v.trim() || null;
       };
       const titles = [
-        [text(handler?.title, 'title'), 'export'],
         [text(ui?.title, 'scwc.ui.title'), 'package-ui'],
         [text(handler?.name, 'name'), 'exported-name'],
         [text(pkg.name, 'package.name'), 'package-name'],

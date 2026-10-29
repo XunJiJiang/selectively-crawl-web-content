@@ -35,9 +35,7 @@ const definitionSchema = z
               'readonly',
             ]),
             defaultValue: valueSchema.optional(),
-            validationPolicy: z
-              .enum(['declarative', 'page-required', 'backend-required'])
-              .optional(),
+            validationPolicy: z.enum(['declarative', 'backend-required']).optional(),
             rules: z
               .object({
                 codec: z.enum(['string', 'integer', 'number', 'boolean']).optional(),
@@ -57,6 +55,10 @@ const definitionSchema = z
 type Validator = (values: Record<string, string>) => Promise<Record<string, string>>;
 export class PluginConfigService {
   private validators = new Map<string, Validator>();
+  private confirmedDefinitions = new Set<string>();
+  definitionVerified(pluginId: string, id: string) {
+    return this.confirmedDefinitions.has(JSON.stringify([pluginId, id]));
+  }
   private storage: WorkbenchStorage;
   private events: WorkbenchEvents;
   constructor(storage: WorkbenchStorage, events: WorkbenchEvents = workbenchEvents) {
@@ -102,6 +104,12 @@ export class PluginConfigService {
       values,
       effectiveValues: { ...Object.fromEntries(defaults), ...values },
       definitions,
+      definitionSources: Object.fromEntries(
+        definitions.map((def) => [
+          def.id,
+          this.definitionVerified(pluginId, def.id) ? 'backend' : 'legacy-unverified',
+        ]),
+      ),
       schemaRevision,
       revision:
         (
@@ -121,6 +129,7 @@ export class PluginConfigService {
     const before = this.snapshot(pluginId);
     this.cas(before, baseRevision);
     if (json(before.definitions.find((d) => d.id === definition.id)) === json(definition)) {
+      this.confirmedDefinitions.add(JSON.stringify([pluginId, definition.id]));
       return before;
     }
     const db = this.storage.config;
@@ -166,11 +175,13 @@ export class PluginConfigService {
       this.revision(pluginId, revision);
       return this.snapshot(pluginId);
     })();
-    this.changed(
-      pluginId,
-      result,
-      definition.items.map((i) => i.key),
-    );
+    this.confirmedDefinitions.add(JSON.stringify([pluginId, definition.id]));
+    this.changed(pluginId, result, [
+      ...new Set([
+        ...(before.definitions.find((d) => d.id === definition.id)?.items.map((i) => i.key) ?? []),
+        ...definition.items.map((i) => i.key),
+      ]),
+    ]);
     return result;
   }
   private cas(current: ConfigSnapshot, baseRevision: number) {
@@ -232,7 +243,7 @@ export class PluginConfigService {
       schemaRevision?: number;
       reset?: string[];
       originRequestId?: string;
-      pageValidated?: boolean;
+      verifiedDefinitions?: boolean;
     } = {},
   ) {
     let values = z.record(keySchema, valueSchema).parse(input);
@@ -257,19 +268,30 @@ export class PluginConfigService {
     let backend = false;
     for (const key of keys) {
       const item = items.get(key);
+      if (options.verifiedDefinitions && item) {
+        const definitions = before.definitions.filter((def) =>
+          def.items.some((i) => i.key === key),
+        );
+        assert(
+          definitions.every((def) => this.definitionVerified(pluginId, def.id)),
+          'legacy_definition',
+          '旧配置定义需要插件后端确认后编辑',
+          409,
+        );
+      }
       if (!item) {
         continue;
       }
       assert(item.control !== 'readonly', 'readonly', '配置为只读', 403);
       assert(
-        item.validationPolicy !== 'page-required' || options.pageValidated,
+        item.validationPolicy !== 'page-required',
         'page_validation_required',
-        '需要在线页面校验',
+        '旧页面校验定义需由插件后端重新声明后编辑',
         409,
       );
       backend ||= item.validationPolicy === 'backend-required';
     }
-    if (backend) {
+    if (backend || this.validators.has(pluginId)) {
       const validator = this.validators.get(pluginId);
       assert(validator, 'backend_unavailable', '插件配置校验宿主不可用', 409);
       const proposed = { ...values };

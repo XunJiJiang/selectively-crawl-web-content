@@ -1,3 +1,4 @@
+import { createPageHandlers } from './ui-handlers.ts';
 import { TicketSocket } from './ticket-socket.ts';
 import { createFeedbackClient } from '../../shared/workbench-feedback.ts';
 import type { TaskState } from '../../shared/workbench-feedback.ts';
@@ -7,14 +8,9 @@ import {
   requireValue,
   InstancePort,
   PROTOCOL,
-  type PageRegistration,
   type PageSearchBatch,
 } from '../../shared/workbench-protocol.ts';
-import type {
-  ConfigChange,
-  ConfigDefinition,
-  ConfigSnapshot,
-} from '../../server/types/plugin-config.d.ts';
+import type { ConfigChange, ConfigSnapshot } from '../../server/types/plugin-config.d.ts';
 import type { TFetch } from './utils/fetch.ts';
 export interface Session {
   grant: string;
@@ -23,11 +19,6 @@ export interface Session {
   frameEpoch: string;
   expiresAt: number;
 }
-type LocalItem = ConfigDefinition['items'][number] & {
-  format?: (raw: string) => string;
-  normalize?: (raw: string) => string | Promise<string>;
-  validate?: (raw: string) => true | string | Promise<true | string>;
-};
 interface Lifecycle {
   canLeave?: (reason: string) => boolean | Promise<boolean>;
   onSuspend?: () => void | Promise<void>;
@@ -43,12 +34,6 @@ interface SearchOptions {
     limit: number;
     signal: AbortSignal;
   }) => Promise<PageSearchBatch>;
-}
-interface SettingsOptions {
-  schemaId: string;
-  schemaVersion: string;
-  contextKey?: string;
-  items: LocalItem[];
 }
 export function createWorkbenchSDK(install: (fetch: TFetch) => void) {
   let port: InstancePort | undefined,
@@ -86,10 +71,37 @@ export function createWorkbenchSDK(install: (fetch: TFetch) => void) {
   });
   const sockets = new Set<TicketSocket>();
   const resources = new ManagedResources(network);
-  const registrations = new Map<string, SettingsOptions>(),
-    requests = new Map<string, AbortController>(),
+  const requests = new Map<string, AbortController>(),
     configListeners = new Set<(change: ConfigChange) => void>();
   const listeners = new Map<string, Set<(value: unknown) => void>>();
+  const uiHandlers = createPageHandlers(
+    (value) => {
+      void ready.then(() => port?.event('ui.handlers.changed', value));
+    },
+    (value) => port?.event('ui.value.changed', value),
+  );
+  let configRevision = -1;
+  let configBoot = '';
+  let cachedConfig: ConfigChange | undefined;
+  const acceptConfig = (change: ConfigChange & { coreBootId?: string }) => {
+    if (change.coreBootId && change.coreBootId !== configBoot) {
+      configBoot = change.coreBootId;
+      configRevision = -1;
+    }
+    if (change.revision <= configRevision) {
+      return configRevision;
+    }
+    configRevision = change.revision;
+    cachedConfig = change;
+    for (const fn of configListeners) {
+      try {
+        fn(change);
+      } catch (error) {
+        console.error('配置监听失败', error);
+      }
+    }
+    return configRevision;
+  };
   let refreshTimer: ReturnType<typeof setTimeout> | undefined;
   const emit = (method: string, value: unknown) =>
     listeners.get(method)?.forEach((fn) => fn(value));
@@ -217,7 +229,15 @@ export function createWorkbenchSDK(install: (fetch: TFetch) => void) {
         on('theme.changed', () => fn({ mode: themeMode, tokens: { ...themeTokens } })),
     },
     host: {
-      capabilities: { workbench: hosted, search: hosted, configuration: true, lifecycle: hosted },
+      capabilities: {
+        workbench: hosted,
+        search: hosted,
+        configuration: true,
+        configurationWrite: false,
+        pageApiVersion: 2,
+        uiHandlers: true,
+        lifecycle: hosted,
+      },
       executeCommand: async (commandId: string, args?: unknown) => {
         await ready;
         if (!port) {
@@ -227,14 +247,6 @@ export function createWorkbenchSDK(install: (fetch: TFetch) => void) {
       },
     },
     page: {
-      register: async (value: PageRegistration) => {
-        await ready;
-        port?.event('page.update', value);
-      },
-      update: async (value: PageRegistration) => {
-        await ready;
-        port?.event('page.update', value);
-      },
       onVisibility: (fn: (visible: boolean) => void) =>
         on('visibility.changed', (v) => fn(Boolean(v))),
       onFocus: (fn: (focused: boolean) => void) => on('focus.changed', (v) => fn(Boolean(v))),
@@ -256,46 +268,6 @@ export function createWorkbenchSDK(install: (fetch: TFetch) => void) {
         return {
           dispose() {
             navigationAdapter = undefined;
-          },
-        };
-      },
-    },
-    settings: {
-      register: async (options: SettingsOptions) => {
-        await ready;
-        if (options.items.length > 200) {
-          throw new Error('配置项过多');
-        }
-        const define = async (value: SettingsOptions) => {
-          const current = await request<ConfigSnapshot>(configPath());
-          const definition: ConfigDefinition = {
-            id: value.schemaId,
-            schemaVersion: value.schemaVersion,
-            items: value.items.map(({ format: _, normalize: __, validate: ___, ...item }) => item),
-          };
-          await request(`${configPath()}/definitions`, {
-            definition,
-            baseRevision: current.revision,
-          });
-          port?.event('settings.changed', { schemaId: value.schemaId });
-        };
-        await define(options);
-        registrations.set(options.schemaId, options);
-        let current = options;
-        return {
-          update: async (value: SettingsOptions) => {
-            if (value.schemaId !== current.schemaId) {
-              throw new Error('配置注册 ID 不能在 update 中改变');
-            }
-            await define(value);
-            registrations.set(value.schemaId, value);
-            current = value;
-          },
-          dispose: async () => {
-            if (registrations.get(options.schemaId) === current) {
-              registrations.delete(options.schemaId);
-            }
-            port?.event('settings.changed', { schemaId: options.schemaId });
           },
         };
       },
@@ -333,53 +305,54 @@ export function createWorkbenchSDK(install: (fetch: TFetch) => void) {
               ...snapshot,
               values: Object.fromEntries(
                 keys
-                  .filter((k) => k in snapshot.effectiveValues)
+                  .filter((k) => Object.prototype.hasOwnProperty.call(snapshot.effectiveValues, k))
                   .map((k) => [k, snapshot.effectiveValues[k]]),
               ),
             }
           : snapshot;
       },
-      set: async (values: Record<string, string>, options?: { baseRevision?: number }) => {
-        const current = await request<ConfigSnapshot>(configPath());
-        const normalized = await validateValues(values);
-        const ticket = await validation(
-          normalized,
-          [],
-          options?.baseRevision ?? current.revision,
-          current.schemaRevision,
-        );
-        return request<ConfigSnapshot>(`${configPath()}/update`, {
-          values: normalized,
-          baseRevision: options?.baseRevision ?? current.revision,
-          schemaRevision: current.schemaRevision,
-          ...ticket,
-        });
-      },
-      reset: async (keys: string[], options?: { baseRevision?: number }) => {
-        const current = await request<ConfigSnapshot>(configPath());
-        const ticket = await validation(
-          {},
-          keys,
-          options?.baseRevision ?? current.revision,
-          current.schemaRevision,
-        );
-        return request<ConfigSnapshot>(`${configPath()}/reset`, {
-          keys,
-          baseRevision: options?.baseRevision ?? current.revision,
-          schemaRevision: current.schemaRevision,
-          ...ticket,
-        });
-      },
-      subscribe: (keys: string[], fn: (change: ConfigChange) => void) => {
+      subscribe: (
+        keys: string[] | undefined | ((change: ConfigChange) => void),
+        fn?: (change: ConfigChange) => void,
+      ) => {
+        const callback = typeof keys === 'function' ? keys : fn;
+        if (!callback) {
+          throw new Error('缺少配置监听回调');
+        }
+        const selected = typeof keys === 'function' ? undefined : keys;
+        let initialized = false;
         const listener = (change: ConfigChange) => {
-          if (change.changedKeys.some((k) => keys.includes(k))) {
-            fn(change);
+          if (!initialized) {
+            initialized = true;
+            callback({ ...change, changedKeys: selected ?? Object.keys(change.effectiveValues) });
+            return;
+          }
+          if (!selected || change.changedKeys.some((key) => selected.includes(key))) {
+            callback(change);
           }
         };
         configListeners.add(listener);
-        return () => configListeners.delete(listener);
+        if (cachedConfig) {
+          listener(cachedConfig);
+        } else {
+          void request<ConfigSnapshot>(configPath())
+            .then((snapshot) =>
+              acceptConfig({
+                pluginId: decodeURIComponent(location.pathname.split('/')[4]),
+                changedKeys: Object.keys(snapshot.effectiveValues),
+                effectiveValues: snapshot.effectiveValues,
+                revision: snapshot.revision,
+                schemaRevision: snapshot.schemaRevision,
+              }),
+            )
+            .catch((error) => console.error('配置初始读取失败', error));
+        }
+        return () => {
+          configListeners.delete(listener);
+        };
       },
     },
+    ui: uiHandlers.api,
     lifecycle: {
       checkpoint: async () => {
         await ready;
@@ -426,53 +399,6 @@ export function createWorkbenchSDK(install: (fetch: TFetch) => void) {
       managedSocket(url, protocols, options),
   };
   let navigationAdapter: ((url: string) => void | Promise<void>) | undefined;
-  async function validateValues(values: Record<string, string>) {
-    const next = { ...values };
-    for (const options of registrations.values()) {
-      for (const item of options.items) {
-        if (!(item.key in next)) {
-          continue;
-        }
-        if (item.normalize) {
-          next[item.key] = await item.normalize(next[item.key]);
-        }
-        if (typeof next[item.key] !== 'string') {
-          throw new Error('配置值必须为字符串');
-        }
-        if (item.validate) {
-          const result = await item.validate(next[item.key]);
-          if (result !== true) {
-            throw new Error(result);
-          }
-        }
-      }
-    }
-    return next;
-  }
-  async function validation(
-    values: Record<string, string>,
-    keys: string[],
-    baseRevision: number,
-    schemaRevision: number,
-  ) {
-    for (const options of registrations.values()) {
-      for (const item of options.items) {
-        if (keys.includes(item.key) && item.validate && item.defaultValue !== undefined) {
-          const result = await item.validate(item.defaultValue);
-          if (result !== true) {
-            throw new Error(result);
-          }
-        }
-      }
-    }
-    return request<{ validationTicket: string }>(`${configPath()}/validation`, {
-      accepted: true,
-      values,
-      keys,
-      baseRevision,
-      schemaRevision,
-    });
-  }
   function openSocket(path: string, ticket: string, protocols?: string | string[]) {
     if (!session) {
       throw new Error('页面尚未授权');
@@ -621,17 +547,17 @@ export function createWorkbenchSDK(install: (fetch: TFetch) => void) {
         return result.data.id;
       });
     }
-    if (method === 'config.validate') {
-      const values = await validateValues(data.values as Record<string, string>);
-      return {
-        values,
-        ...(await validation(
-          values,
-          data.keys as string[],
-          Number(data.baseRevision),
-          Number(data.schemaRevision),
-        )),
-      };
+    if (method === 'ui.invoke') {
+      const controller = new AbortController();
+      requests.set(id, controller);
+      try {
+        return await uiHandlers.handle(data as never, controller.signal);
+      } finally {
+        requests.delete(id);
+      }
+    }
+    if (method === 'config.deliver') {
+      return { revision: acceptConfig(data as unknown as ConfigChange) };
     }
     if (method === 'navigation.traverse') {
       const delta = Number(data.delta),
@@ -687,6 +613,7 @@ export function createWorkbenchSDK(install: (fetch: TFetch) => void) {
     port?.close();
     port = new InstancePort(event.ports[0], message.session.tabId, message.session.frameEpoch);
     port.onRequest = handle;
+    port.event('ui.handlers.changed', uiHandlers.descriptors());
     port.onCancel = (id) => requests.get(id)?.abort();
     port.onEvent = (method, payload) => {
       if (method === 'task.changed') {
@@ -733,9 +660,7 @@ export function createWorkbenchSDK(install: (fetch: TFetch) => void) {
         resources.resume();
       }
       if (method === 'config.changed') {
-        for (const fn of configListeners) {
-          fn(payload as ConfigChange);
-        }
+        acceptConfig(payload as ConfigChange);
       }
       if (method === 'lifecycle.resume') {
         void lifecycle.onResume?.();
@@ -852,9 +777,7 @@ export function createWorkbenchSDK(install: (fetch: TFetch) => void) {
           dispatchFeedbackAction({ ...e.payload, eventId: e.eventId });
         }
         if (e.type === 'config.changed') {
-          for (const fn of configListeners) {
-            fn(e.payload);
-          }
+          acceptConfig({ ...e.payload, coreBootId: e.coreBootId });
         }
         if (e.type === 'connection.resync-required') {
           void request<ConfigSnapshot>(configPath()).then((snapshot) => {
@@ -970,6 +893,8 @@ export function createWorkbenchSDK(install: (fetch: TFetch) => void) {
     }
     feedback.dispose();
     disposed = true;
+    uiHandlers.dispose();
+    configListeners.clear();
     network.pause();
     resources.dispose();
     for (const socket of sockets) {

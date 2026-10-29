@@ -141,7 +141,7 @@ export function defaultLayout(s: WorkspaceSnapshot) {
   const g = findGroup(s);
   mergeGroups(s);
   s.layout = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     mainSidebar: { side: 'left', visible: true, size: 280, view: 'pages', openPagesRatio: 0.6 },
     auxiliarySidebar: { visible: true, size: 280 },
     panel: {

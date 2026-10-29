@@ -1,4 +1,4 @@
-import { randomBytes, randomUUID, createHash } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import type { Request } from 'express';
 import { assert } from './storage.ts';
 export interface PageSession {
@@ -19,7 +19,6 @@ export class PageSessions {
     string,
     { origin: string; owner: string; page?: PageSession; workspaceId?: string; expiresAt: number }
   >();
-  private validations = new Map<string, { sessionId: string; digest: string; expiresAt: number }>();
   create(input: Omit<PageSession, 'id' | 'grant' | 'expiresAt'>) {
     this.prune();
     assert(this.sessions.size < 2000, 'quota_exceeded', '页面会话数量超限', 429);
@@ -61,8 +60,7 @@ export class PageSessions {
     const path = req.path;
     const config = `${prefix}/plugins/${encodeURIComponent(session.pluginId)}/config`;
     const allowed =
-      path === config ||
-      path.startsWith(`${config}/`) ||
+      (req.method === 'GET' && path === config) ||
       path === `${prefix}/stream-ticket` ||
       path === `${prefix}/feedback/release` ||
       path === `${prefix}/notifications/publish` ||
@@ -98,28 +96,6 @@ export class PageSessions {
     }
     return ticket;
   }
-  validation(session: PageSession, request: unknown) {
-    const token = randomBytes(32).toString('base64url');
-    this.validations.set(token, {
-      sessionId: session.id,
-      digest: createHash('sha256').update(JSON.stringify(request)).digest('hex'),
-      expiresAt: Date.now() + 5000,
-    });
-    return token;
-  }
-  consumeValidation(token: string, request: unknown) {
-    const v = this.validations.get(token);
-    this.validations.delete(token);
-    assert(
-      v &&
-        v.expiresAt > Date.now() &&
-        [...this.sessions.values()].some((s) => s.id === v.sessionId && s.expiresAt > Date.now()) &&
-        v.digest === createHash('sha256').update(JSON.stringify(request)).digest('hex'),
-      'invalid_validation',
-      '页面校验回执无效',
-      409,
-    );
-  }
   private prune() {
     for (const [k, v] of this.sessions) {
       if (v.expiresAt <= Date.now()) {
@@ -129,11 +105,6 @@ export class PageSessions {
     for (const [k, v] of this.tickets) {
       if (v.expiresAt <= Date.now()) {
         this.tickets.delete(k);
-      }
-    }
-    for (const [k, v] of this.validations) {
-      if (v.expiresAt <= Date.now()) {
-        this.validations.delete(k);
       }
     }
   }

@@ -1,3 +1,6 @@
+import type { DeclarativeView } from '../components/declarative-view.ts';
+import type { UIContribution, ClientEffect } from '../../../shared/declarative-ui.ts';
+import '../components/plugin-status.ts';
 import {
   MIN_CENTER_WIDTH,
   MIN_CENTER_HEIGHT,
@@ -112,6 +115,12 @@ export class AppRoot extends LitElement {
   `;
   readonly store = new WorkbenchStore();
   private pool?: FramePool;
+  @state() private accessor uiContributions: UIContribution[] = [];
+  private uiRegistryLoading = false;
+  private uiRegistryLoaded = false;
+  private uiCenterTab = '';
+  private uiExplicitExpired = false;
+  private uiWorkspace = '';
   private searcher?: SearchCoordinator;
   private observer?: ResizeObserver;
   private themeMedia = matchMedia('(prefers-color-scheme: dark)');
@@ -301,6 +310,9 @@ export class AppRoot extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     this.store.addEventListener('change', this.changed);
+    this.store.addEventListener('server-event', this.uiRegistryEvent);
+    this.store.addEventListener('core-restarted',this.uiRegistryEvent);
+    this.addEventListener('ui-effect', this.uiEffect);
     window.addEventListener('keydown', this.keydown);
     this.themeMedia.addEventListener('change', this.themeChanged);
     this.addEventListener('workbench-command', this.commandEvent as EventListener);
@@ -323,9 +335,35 @@ export class AppRoot extends LitElement {
     this.searcher?.dispose();
     this.pool?.dispose();
     this.store.dispose();
+    this.store.removeEventListener('server-event', this.uiRegistryEvent);
+    this.store.removeEventListener('core-restarted',this.uiRegistryEvent);
+    this.removeEventListener('ui-effect', this.uiEffect);
     super.disconnectedCallback();
   }
   private changed = () => {
+    if (this.store.workspace && !this.uiRegistryLoaded) {
+      void this.loadUIRegistry();
+    }
+    if (this.uiWorkspace !== this.store.workspace?.workspaceId) {
+      this.uiWorkspace = this.store.workspace?.workspaceId ?? '';
+      this.uiCenterTab = '';
+      this.uiExplicitExpired = false;
+    }
+    const center = this.current?.id ?? '';
+    if (this.uiCenterTab && this.uiCenterTab !== center) {
+      this.inspectedTab = undefined;
+      this.uiExplicitExpired = true;
+      if (this.store.workspace?.snapshot.layout.auxiliarySidebar.context?.mode === 'explicit') {
+        queueMicrotask(() =>
+          this.act(() =>
+            this.store.update((s) => {
+              s.layout.auxiliarySidebar.context = { mode: 'follow' };
+            }),
+          ),
+        );
+      }
+    }
+    this.uiCenterTab = center;
     this.applyTheme();
     this.requestUpdate();
   };
@@ -620,6 +658,7 @@ export class AppRoot extends LitElement {
     this.recordFocus({ kind: 'sidebar', view });
     await this.store.update((s) => {
       s.layout.mainSidebar.view = view;
+      s.layout.mainSidebar.selectedView = { kind: 'core', viewId: view };
       this.revealSidebar(s, 'mainSidebar');
     });
     await this.updateComplete;
@@ -1040,7 +1079,7 @@ export class AppRoot extends LitElement {
         await this.openInternal('search');
         return;
       }
-      return this.setView(id as keyof typeof viewNames);
+      return this.selectUIActivity(id);
     }
     if (['welcome', 'settings', 'keybindings', 'plugins'].includes(id)) {
       return this.openInternal(id as InternalPage);
@@ -1101,6 +1140,10 @@ export class AppRoot extends LitElement {
     }
     if (id === 'pluginConfig') {
       const plugin = args as CatalogItem;
+      this.uiExplicitExpired = false;
+      const custom = this.uiContributions.find(
+        (v) => v.pluginId === plugin.pluginId && v.surface === 'auxiliarySidebar',
+      );
       const url = new URL(
         plugin.ui.entryUrl ?? `/web/page/plugin/${encodeURIComponent(plugin.pluginId)}/`,
         location.origin,
@@ -1113,6 +1156,10 @@ export class AppRoot extends LitElement {
         hash: '',
       });
       await this.store.update((s) => {
+        s.layout.auxiliarySidebar.context = { mode: 'explicit', pluginId: plugin.pluginId };
+        s.layout.auxiliarySidebar.selectedView = custom
+          ? { kind: 'plugin', pluginId: custom.pluginId, viewId: custom.id }
+          : { kind: 'core', viewId: 'currentPage' };
         this.revealSidebar(s, 'auxiliarySidebar');
       });
       return;
@@ -1979,7 +2026,7 @@ export class AppRoot extends LitElement {
                   <aside
                     class="auxiliary-sidebar"
                     data-visible=${this.visible('aux')}
-                    aria-label="当前页面属性"
+                    aria-label="页面信息"
                   >
                     <div
                       class="resize-handle aux-resize"
@@ -1997,16 +2044,7 @@ export class AppRoot extends LitElement {
                           this.snapshot.layout.mainSidebar.side === 'left' ? 1 : -1,
                         )}
                     ></div>
-                    <div class="sidebar-header">
-                      <strong>当前页面</strong>${iconButton('close', '隐藏辅助侧栏', () =>
-                        this.act(() => this.command('auxiliary')),
-                      )}
-                    </div>
-                    <wb-page-inspector
-                      .store=${this.store}
-                      .pool=${this.pool}
-                      .tab=${this.inspectedTab ?? this.current}
-                    ></wb-page-inspector>
+                    ${this.renderAuxiliaryUI()}
                   </aside>
                   ${this.renderPanel()}
                   <div class="frame-pool" aria-label="插件页面实例"></div>
@@ -2033,6 +2071,231 @@ export class AppRoot extends LitElement {
       ${this.dragging
         ? html`<div class="resize-shield" style=${`cursor:${this.resizeCursor}`}></div>`
         : nothing} `;
+  }
+  private contributionIcon(id: string) {
+    const view = this.uiContributions.find((v) => 'plugin:' + v.pluginId + ':' + v.id === id);
+    return view?.icon?.kind === 'asset'
+      ? html`<img src=${view.icon.path} alt="" style="width:20px;height:20px;object-fit:contain" />`
+      : icon(view?.icon?.kind === 'builtin' ? view.icon.name : 'extensions');
+  }
+  private uiRegistryEvent = (event: Event) => {
+    if(event.type==='core-restarted'){this.uiRegistryLoaded=false;void this.loadUIRegistry();return;}
+    const type = (event as CustomEvent).detail?.type;
+    if (type === 'ui.registry.changed' || type === 'catalog.changed') {
+      void this.loadUIRegistry();
+    }
+  };
+  private async loadUIRegistry() {
+    if (this.uiRegistryLoading) {
+      return;
+    }
+    this.uiRegistryLoading = true;
+    try {
+      const result = await this.store.api.request<{ items: UIContribution[] }>('/ui/registry');
+      this.uiContributions = result.items;
+      this.uiRegistryLoaded = true;
+    } catch {
+      /* Reconnect retries through the next store change. */
+    } finally {
+      this.uiRegistryLoading = false;
+    }
+  }
+  private async selectUIActivity(id: string) {
+    if (!id.startsWith('plugin:')) {
+      return this.setView(id as keyof typeof viewNames);
+    }
+    const view = this.uiContributions.find((v) => 'plugin:' + v.pluginId + ':' + v.id === id);
+    if (view) {
+      await this.store.update((s) => {
+        s.layout.mainSidebar.selectedView = {
+          kind: 'plugin',
+          pluginId: view.pluginId,
+          viewId: view.id,
+        };
+        this.revealSidebar(s, 'mainSidebar');
+      });
+    }
+  }
+  private uiEffect = (event: Event) => {
+    this.act(() => this.applyUIEffect(event));
+  };
+  private async applyUIEffect(event: Event) {
+    const effect = (
+      event as CustomEvent<ClientEffect & { pluginId: string; sourceTabId?: string | null }>
+    ).detail;
+    if (effect.type === 'settings.open') {
+      const plugin = this.store.catalog.find((p) => p.pluginId === effect.pluginId);
+      if (plugin) {
+        if (effect.sourceTabId && this.current?.id === effect.sourceTabId) {
+          this.inspectedTab = undefined;
+          this.uiExplicitExpired = false;
+          const custom = this.uiContributions.find(
+            (v) => v.pluginId === plugin.pluginId && v.surface === 'auxiliarySidebar',
+          );
+          await this.store.update((s) => {
+            s.layout.auxiliarySidebar.context = { mode: 'follow' };
+            s.layout.auxiliarySidebar.selectedView = custom
+              ? { kind: 'plugin', pluginId: custom.pluginId, viewId: custom.id }
+              : { kind: 'core', viewId: 'currentPage' };
+            this.revealSidebar(s, 'auxiliarySidebar');
+          });
+        } else {
+          await this.command('pluginConfig', plugin);
+        }
+      }
+    }
+    if (effect.type === 'page.open') {
+      await this.openPlugin(
+        requireValue(this.store.catalog.find((p) => p.pluginId === effect.pluginId)),
+        new URL(
+          String(effect.args[0]).replace(/^\/+/, ''),
+          `${location.origin}/web/page/plugin/${encodeURIComponent(effect.pluginId)}/`,
+        ).href,
+      );
+    }
+    if (effect.type === 'view.open' || effect.type === 'view.refresh') {
+      const view = this.uiContributions.find(
+        (v) =>
+          v.pluginId === effect.pluginId && v.surface === effect.args[0] && v.id === effect.args[1],
+      );
+      if (!view) {
+        return;
+      }
+      await this.store.update((s) => {
+        if (view.surface === 'mainSidebar') {
+          s.layout.mainSidebar.selectedView = {
+            kind: 'plugin',
+            pluginId: view.pluginId,
+            viewId: view.id,
+          };
+          this.revealSidebar(s, 'mainSidebar');
+        } else {
+          s.layout.auxiliarySidebar.selectedView = {
+            kind: 'plugin',
+            pluginId: view.pluginId,
+            viewId: view.id,
+          };
+          this.revealSidebar(s, 'auxiliarySidebar');
+        }
+      });
+      if (effect.type === 'view.refresh') {
+        await this.updateComplete;
+        for (const view of this.renderRoot.querySelectorAll<DeclarativeView>(
+          'wb-declarative-view',
+        )) {
+          if (
+            view.pluginId === effect.pluginId &&
+            view.surface === effect.args[0] &&
+            view.viewId === effect.args[1]
+          ) {
+            await view.refresh();
+          }
+        }
+      }
+    }
+  }
+  private renderAuxiliaryUI() {
+    const context = this.snapshot.layout.auxiliarySidebar.context;
+    const explicit = !this.uiExplicitExpired && context?.mode === 'explicit';
+    const selectedPlugin = explicit
+      ? this.store.catalog.find((p) => p.pluginId === context.pluginId)
+      : undefined;
+    const placeholder = selectedPlugin
+      ? newPluginTab(
+          selectedPlugin.pluginId,
+          selectedPlugin.title,
+          selectedPlugin.ui.entryUrl ?? '',
+          {
+            installationId: this.store.bootstrap?.installationId ?? '',
+            pluginId: selectedPlugin.pluginId,
+            path: '/',
+            search: '',
+            hash: '',
+          },
+        )
+      : undefined;
+    const tab = this.inspectedTab ?? placeholder ?? this.current,
+      pluginId = tab?.kind === 'plugin' ? tab.pluginId : undefined;
+    const custom = this.uiContributions.find(
+      (v) => v.surface === 'auxiliarySidebar' && v.pluginId === pluginId,
+    );
+    const selected = this.snapshot.layout.auxiliarySidebar.selectedView;
+    const pluginTitle = this.store.catalog.find((item) => item.pluginId === pluginId)?.title ?? pluginId;
+    const showCustom = Boolean(
+      custom &&
+      (custom.hideCurrentPage ||
+        (selected?.kind === 'plugin' &&
+          selected.pluginId === custom.pluginId &&
+          selected.viewId === custom.id)),
+    );
+    return html`<div class="sidebar-header auxiliary-header" data-tabs=${Boolean(custom && !custom.hideCurrentPage)}>
+      ${custom && !custom.hideCurrentPage
+        ? html`<div class="auxiliary-tabs" role="tablist" aria-label="辅助侧栏页面"
+            @keydown=${(event: KeyboardEvent) => {
+              if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
+                return;
+              }
+              event.preventDefault();
+              const buttons = [...(event.currentTarget as HTMLElement).querySelectorAll<HTMLButtonElement>('[role=tab]')];
+              const index = buttons.indexOf(event.target as HTMLButtonElement);
+              const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : (index + (event.key === 'ArrowRight' ? 1 : -1) + buttons.length) % buttons.length;
+              buttons[next]?.click();
+              buttons[next]?.focus();
+            }}>
+            <button
+              class="tab-item auxiliary-page-info"
+              role="tab"
+              title="页面信息"
+              aria-selected=${!showCustom}
+              tabindex=${showCustom ? -1 : 0}
+              @click=${() =>
+                this.act(() =>
+                  this.store.update((s) => {
+                    s.layout.auxiliarySidebar.selectedView = {
+                      kind: 'core',
+                      viewId: 'currentPage',
+                    };
+                  }),
+                )}
+            >
+              <span class="tab-label">页面信息</span></button
+            ><button
+              class="tab-item auxiliary-plugin-tab"
+              role="tab"
+              title=${pluginTitle ?? ''}
+              aria-selected=${showCustom}
+              tabindex=${showCustom ? 0 : -1}
+              @click=${() =>
+                this.act(() =>
+                  this.store.update((s) => {
+                    s.layout.auxiliarySidebar.selectedView = {
+                      kind: 'plugin',
+                      pluginId: custom.pluginId,
+                      viewId: custom.id,
+                    };
+                  }),
+                )}
+            >
+              <span class="tab-label">${pluginTitle}</span>
+            </button>
+          </div>`
+        : html`<strong title=${showCustom ? pluginTitle ?? '' : '页面信息'}>${showCustom ? pluginTitle : '页面信息'}</strong>`}
+      ${iconButton('close', '隐藏辅助侧栏', () => this.act(() => this.command('auxiliary')))}
+      </div>
+      ${showCustom && custom
+        ? html`<wb-declarative-view
+            .store=${this.store}
+            .pool=${this.pool}
+            .pluginId=${custom.pluginId}
+            surface="auxiliarySidebar"
+            .viewId=${custom.id}
+            .sourceTabId=${this.inspectedTab || explicit
+              ? null
+              : tab?.kind === 'plugin'
+                ? tab.id
+                : null}
+          ></wb-declarative-view>`
+        : html`<wb-page-inspector .store=${this.store} .tab=${tab}></wb-page-inspector>`}`;
   }
   private renderTopbar() {
     const disabled = !this.store.workspace;
@@ -2110,8 +2373,17 @@ export class AppRoot extends LitElement {
     </header>`;
   }
   private renderActivity() {
-    const view = this.snapshot.layout.mainSidebar.view;
-    const entries = Object.entries(viewNames);
+    const selected = this.snapshot.layout.mainSidebar.selectedView;
+    const view =
+      selected?.kind === 'plugin'
+        ? 'plugin:' + selected.pluginId + ':' + selected.viewId
+        : this.snapshot.layout.mainSidebar.view;
+    const entries = [
+      ...Object.entries(viewNames),
+      ...this.uiContributions
+        .filter((v) => v.surface === 'mainSidebar')
+        .map((v) => ['plugin:' + v.pluginId + ':' + v.id, v.title]),
+    ];
     const slots = activitySlots(this.geometry().bodyHeight, entries.length, this.layoutMetrics());
     return html`<nav class="activity-bar" aria-label="工作台视图">
       ${entries
@@ -2127,10 +2399,10 @@ export class AppRoot extends LitElement {
                 this.act(() =>
                   this.visible('main') && view === id
                     ? this.command('sidebar')
-                    : this.setView(id as keyof typeof viewNames),
+                    : this.selectUIActivity(id),
                 )}
             >
-              ${icon(id)}
+              ${id.startsWith('plugin:') ? this.contributionIcon(id) : icon(id)}
             </button>`,
         )}
       ${slots.overflow
@@ -2150,7 +2422,7 @@ export class AppRoot extends LitElement {
                   id,
                   label,
                   checked: this.visible('main') && view === id,
-                  action: () => this.setView(id as keyof typeof viewNames),
+                  action: () => this.selectUIActivity(id),
                 })),
               };
             }}
@@ -2174,6 +2446,33 @@ export class AppRoot extends LitElement {
         !['none', 'unknown'].includes(p.ui.detection) &&
         (!query || `${p.title} ${p.description ?? ''}`.toLowerCase().includes(query)),
     );
+    const custom = this.uiContributions.find(
+      (v) =>
+        v.surface === 'mainSidebar' &&
+        layout.mainSidebar.selectedView?.kind === 'plugin' &&
+        v.pluginId === layout.mainSidebar.selectedView.pluginId &&
+        v.id === layout.mainSidebar.selectedView.viewId,
+    );
+    if (custom) {
+      return html`<aside class="main-sidebar" data-visible=${this.visible('main')}>
+        <div
+          class="resize-handle main-resize"
+          @pointerdown=${(e: PointerEvent) => this.resize(e, 'main')}
+        ></div>
+        <div class="sidebar-header"><strong>${custom.title}</strong></div>
+        <wb-declarative-view
+          .store=${this.store}
+          .pool=${this.pool}
+          .pluginId=${custom.pluginId}
+          surface="mainSidebar"
+          .viewId=${custom.id}
+          .sourceTabId=${this.current?.kind === 'plugin' &&
+          this.current.pluginId === custom.pluginId
+            ? this.current.id
+            : null}
+        ></wb-declarative-view>
+      </aside>`;
+    }
     return html`<aside
       class="main-sidebar"
       data-visible=${this.visible('main')}
@@ -3159,6 +3458,20 @@ export class AppRoot extends LitElement {
             >`
           : nothing}
       </div>
+      ${this.uiContributions
+        .filter((v) => v.surface === 'statusBar' && (v.alignment ?? 'left') === 'left')
+        .sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0))
+        .map(
+          (v) =>
+            html`<wb-plugin-status
+              .store=${this.store}
+              .pool=${this.pool}
+              .contribution=${v}
+              .sourceTabId=${this.current?.kind === 'plugin' && this.current.pluginId === v.pluginId
+                ? this.current.id
+                : null}
+            ></wb-plugin-status>`,
+        )}
       <div class="status-bar-center">
         <div class="browser-controls">
           ${iconButton(
@@ -3270,6 +3583,20 @@ export class AppRoot extends LitElement {
         )}
       </div>
       <div class="status-bar-right">
+        ${this.uiContributions
+          .filter((v) => v.surface === 'statusBar' && v.alignment === 'right')
+          .map(
+            (v) =>
+              html`<wb-plugin-status
+                .store=${this.store}
+                .pool=${this.pool}
+                .contribution=${v}
+                .sourceTabId=${this.current?.kind === 'plugin' &&
+                this.current.pluginId === v.pluginId
+                  ? this.current.id
+                  : null}
+              ></wb-plugin-status>`,
+          )}
         ${runtime
           ? html`<span class="status-runtime"
               >${pageStateNames[runtime.state] ?? runtime.state} · 已观测 ${runtime.requests}

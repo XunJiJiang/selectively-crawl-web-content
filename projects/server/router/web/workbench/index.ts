@@ -1,3 +1,5 @@
+import { declarativeUI } from '../../../workbench/declarative-ui.ts';
+import { declarativeRouter } from './declarative-ui.ts';
 import { Router, type Request, type Response, type NextFunction } from 'express';
 import { randomUUID, createHash } from 'node:crypto';
 import { z } from 'zod';
@@ -161,6 +163,9 @@ export function createWorkbenchRouter() {
         commands: true,
         events: true,
         snapshots: true,
+        declarativeUI: 1,
+        pluginPageAPI: 2,
+        configurationWriteFromPage: false,
       },
       catalogRevision: pluginCatalog.revision,
       preferences: w.workspace.preferences(),
@@ -322,48 +327,27 @@ export function createWorkbenchRouter() {
     );
   });
   route('get', '/plugins/:id/config', (req) => getPluginConfig().snapshot(String(req.params.id)));
-  route('post', '/plugins/:id/config/definitions', (req, res) => {
-    assert(page(res), 'page_grant_required', '定义注册需要页面授权', 403);
-    return getPluginConfig().define(
-      String(req.params.id),
-      req.body.definition,
-      revision(req.body.baseRevision),
-    );
-  });
-  route('post', '/plugins/:id/config/validation', (req, res) => {
-    const session = page(res);
-    assert(session, 'page_grant_required', '校验回执需要在线页面授权', 403);
-    assert(req.body.accepted === true, 'validation_failed', '页面校验未通过');
-    return {
-      validationTicket: pageSessions.validation(session, {
-        pluginId: session.pluginId,
-        values: req.body.values ?? {},
-        keys: req.body.keys ?? [],
-        baseRevision: req.body.baseRevision,
-        schemaRevision: req.body.schemaRevision,
-      }),
-    };
-  });
+  for (const path of ['/plugins/:id/config/definitions', '/plugins/:id/config/validation']) {
+    route('post', path, () => {
+      throw new WorkbenchError(
+        'page_configuration_removed',
+        '页面配置写入与校验能力已移除，请由插件后端注册定义和校验器',
+        410,
+      );
+    });
+  }
   for (const action of ['update', 'reset']) {
-    route('post', `/plugins/:id/config/${action}`, async (req) => {
+    route('post', `/plugins/:id/config/${action}`, async (req, res) => {
+      assert(!page(res), 'grant_scope', '页面授权不能写入配置', 403);
       const pluginId = String(req.params.id),
         values = action === 'reset' ? {} : req.body.values,
         keys = action === 'reset' ? req.body.keys : [];
-      if (req.body.validationTicket) {
-        pageSessions.consumeValidation(req.body.validationTicket, {
-          pluginId,
-          values,
-          keys,
-          baseRevision: req.body.baseRevision,
-          schemaRevision: req.body.schemaRevision,
-        });
-      }
       return getPluginConfig().update(pluginId, values, {
         baseRevision: revision(req.body.baseRevision),
         schemaRevision: revision(req.body.schemaRevision),
         reset: keys,
         originRequestId: req.body.originRequestId,
-        pageValidated: Boolean(req.body.validationTicket),
+        verifiedDefinitions: true,
       });
     });
   }
@@ -604,6 +588,27 @@ export function createWorkbenchRouter() {
       coreBootId,
     };
   });
+  route('get', '/inspector', async (req, res) => {
+    assert(!page(res), 'grant_scope', '普通页面授权不能读取 inspector', 403);
+    const workspaceId = identifier.parse(req.query.workspaceId),
+      tabId = req.query.tabId ? identifier.parse(req.query.tabId) : null;
+    const snapshot = getWorkbench().workspace.get(workspaceId).snapshot;
+    const tab = tabId ? snapshot.tabs.find((t) => t.id === tabId) : undefined;
+    const pluginId = tab?.kind === 'plugin' ? tab.pluginId : identifier.parse(req.query.pluginId);
+    assert(!tabId || tab?.kind === 'plugin', 'page_owner', '当前标签不是插件页面', 403);
+    await pluginCatalog.require(pluginId);
+    return declarativeUI.project({ pluginId, workspaceId, tabId, windowId: owner(req) });
+  });
+  for (const action of ['update', 'reset']) {
+    route('post', `/inspector/config/${action}`, async (req, res) => {
+      assert(!page(res), 'grant_scope', '普通页面授权不能写入 inspector', 403);
+      const instance = declarativeUI.get(identifier.parse(req.body.instanceId), owner(req));
+      assert(instance.surface === 'currentPage', 'page_owner', '需要核心当前页面模板实例', 403);
+      getWorkbench().workspace.checkLease(instance.workspaceId, owner(req), lease(req));
+      return declarativeUI.execute(instance.id, owner(req), req.body);
+    });
+  }
+  router.use('/ui', declarativeRouter());
   router.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
     const status =
       error instanceof WorkbenchError ? error.status : error instanceof z.ZodError ? 400 : 500;

@@ -41,6 +41,7 @@ namespace SCWC {
     workbench: {
       logger: import('../types/notifications.d.ts').NotificationLogger;
       tasks: import('../types/notifications.d.ts').TaskManager;
+      ui: import('../../shared/declarative-ui.ts').PluginUI;
     };
     /** 持久配置，仅接受字符串；宿主已绑定当前插件目录命名空间。 */
     config: import('../types/plugin-config.d.ts').PluginConfig;

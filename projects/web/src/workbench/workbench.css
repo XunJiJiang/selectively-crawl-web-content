@@ -455,9 +455,10 @@ wb-icon {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  height: 36px;
-  min-height: 36px;
-  padding: 0 12px;
+  height: var(--wb-tab-bar-height, 32px);
+  min-height: var(--wb-tab-bar-height, 32px);
+  flex-shrink: 0;
+  padding: 0 4px 0 12px;
   border-bottom: 1px solid var(--border-subtle);
 }
 .sidebar-header strong {
@@ -797,8 +798,8 @@ wb-icon {
 }
 .group-tab-strip {
   display: flex;
-  height: 32px;
-  min-height: 32px;
+  height: var(--wb-tab-bar-height, 32px);
+  min-height: var(--wb-tab-bar-height, 32px);
   background: var(--surface-2);
   border-bottom: 1px solid var(--border-subtle);
   z-index: 30;
@@ -3349,3 +3350,45 @@ wb-icon {
   right: 0;
   left: auto;
 }
+
+/* Declarative contributions share the existing tab and sidebar geometry. */
+.auxiliary-header {
+  min-width: 0;
+  overflow: hidden;
+  background: var(--surface-2);
+}
+.auxiliary-header[data-tabs='true'] {
+  padding: 0 4px 0 0;
+  gap: 4px;
+}
+.auxiliary-header > .auxiliary-tabs {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  align-items: stretch;
+  gap: 0;
+  overflow: hidden;
+}
+.auxiliary-tabs > .tab-item {
+  min-width: 0;
+  max-width: none;
+  overflow: hidden;
+  text-align: left;
+}
+.auxiliary-tabs > .auxiliary-page-info {
+  flex: 0 0 auto;
+}
+.auxiliary-tabs > .auxiliary-plugin-tab {
+  flex: 0 1 auto;
+}
+.auxiliary-header > strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.auxiliary-header > .icon-button {
+  flex: 0 0 24px;
+}
+.auxiliary-sidebar>wb-declarative-view,.main-sidebar>wb-declarative-view { flex:1; min-height:0; height:0; }
+.status-bar>wb-plugin-status { flex:0 1 auto; min-width:30px; max-width:180px; overflow:visible; }

@@ -108,7 +108,23 @@ class TemplateValidation extends LitElement {
         }).dispose,
       );
       this.feedback = new FeedbackDemo(sdk, '前端', (message) => this.log(`前端 ${message}`));
-      await sdk.page.register({ title: '模板 · 接入验证' });
+      const pageTitle = await sdk.ui.handlers.register('template.title', {
+        readOnly: true,
+        run() {
+          return document.title || '模板 · 接入验证';
+        },
+        watch(_args, emit) {
+          const observer = new MutationObserver(() => emit(document.title));
+          observer.observe(document.head, { childList: true, subtree: true, characterData: true });
+          return () => observer.disconnect();
+        },
+      });
+      this.disposers.push(() => void pageTitle.dispose());
+      this.disposers.push(
+        sdk.config.subscribe(['validation.note'], (change) =>
+          this.log(`配置通知 revision ${change.revision}`),
+        ),
+      );
       this.ready = true;
       this.startTicker();
       this.log('SDK ready；未自动创建任务、通知或网络轮询');

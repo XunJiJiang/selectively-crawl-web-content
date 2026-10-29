@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, expect, it, vi } from 'vitest';
 import WebSocket from 'ws';
+vi.mock('../../../common/environment.ts', () => ({ loadEnvironment: () => undefined }));
 vi.mock('../../../utils/cache.ts', () => ({
   addErrorHandler: () => {
     /* Cache is outside this HTTP fixture. */
@@ -55,7 +56,7 @@ beforeAll(async () => {
     );
     await fs.writeFile(
       path.join(directory, 'index.ts'),
-      `let config;let changes=[];let feedback;let notice;let task;export default {title:'Export ${id}',description:'Description',onRequest(){},async onLoad(logger,context){config=context.config;feedback=context.workbench;await config.set('persist','${id}');config.subscribe(change=>changes.push(change));logger.workbench.success('Ready ${id}');},ui:{entry:'./index.html',api:[{method:'POST',path:'/feedback',async handler(){task=await feedback.tasks.create({title:'进程任务',progress:null});notice=await feedback.logger.info('进程通知',{progress:null,autoRead:false,actions:[{label:'完成',async onClick(){await task.succeed('完成');await notice.update({title:'已完成',level:'success',progress:100});}}]});await task.setProgress(35);return {notification:await notice.getState(),task:await task.getState()};}},{method:'GET',path:'/read',async handler(){return {value:await config.get('persist'),changes};}},{method:'POST',path:'/write',async handler(data){await config.set('persist',data.value);return await config.list();}}]}};`,
+      `let config;let changes=[];let feedback;let notice;let task;export default {title:'Export ${id}',description:'Description',onRequest(){},configuration:{definitions:[{id:'config',schemaVersion:'1',items:[{id:'persist',key:'persist',label:'Persist',control:'text',defaultValue:''}]}]},async onLoad(logger,context){config=context.config;feedback=context.workbench;await config.set('persist','${id}');config.subscribe(change=>changes.push(change));const ui=context.workbench.ui;await ui.handlers.register('echo',{readOnly:true,run(...args){return args;}});await ui.registerMainSidebar({id:'overview',title:'Overview',icon:{kind:'builtin',name:'info'},content:{format:'html',version:1,html:'<input name="q"><button for="q" onclick="core:string.trim($for:q)|echo($prev)">Go</button>'}});await ui.registerAuxiliarySidebar({id:'details',title:'Details',icon:{kind:'builtin',name:'info'},content:{format:'html',version:1,html:'<p>Details</p>'}});await ui.registerStatusBar({id:'state',ariaLabel:'State',text:'Ready',tooltip:{content:{format:'text',text:'Details'}}});logger.workbench.success('Ready ${id}');},ui:{entry:'./index.html',api:[{method:'POST',path:'/feedback',async handler(){task=await feedback.tasks.create({title:'进程任务',progress:null});notice=await feedback.logger.info('进程通知',{progress:null,autoRead:false,actions:[{label:'完成',async onClick(){await task.succeed('完成');await notice.update({title:'已完成',level:'success',progress:100});}}]});await task.setProgress(35);return {notification:await notice.getState(),task:await task.getState()};}},{method:'GET',path:'/read',async handler(){return {value:await config.get('persist'),changes};}},{method:'POST',path:'/write',async handler(data){await config.set('persist',data.value);return await config.list();}}]}};`,
     );
   }
   getWorkbench();
@@ -108,7 +109,7 @@ it('exposes stable identities, complete metadata, strict origin and the runtime 
   ).toContainEqual({ code: 'invalid_package', message: 'package.json 缺失或格式错误' });
   expect(list.data.items[0]).toMatchObject({
     pluginId: 'alpha',
-    title: 'Export alpha',
+    title: 'Package alpha',
     runtime: { status: 'ready', pid: expect.any(Number) },
   });
   expect(JSON.stringify(list)).not.toContain(root);
@@ -221,6 +222,81 @@ it('bridges backend control objects and scopes frontend task and notification co
   expect((await api(`/notifications/${id}`, undefined, session.grant)).status).toBe(404);
 });
 
+it('registers declarative UI through real IPC and executes the core current-page JSON template', async () => {
+  const registry = (await api('/ui/registry')).data;
+  expect(registry.items.filter((v: { pluginId: string }) => v.pluginId === 'alpha')).toHaveLength(
+    3,
+  );
+  expect(JSON.stringify(registry)).not.toContain(root);
+  const lease = (await api('/workspaces/declarative/lease', { action: 'acquire' })).data;
+  const created = await api('/ui/instances', {
+    pluginId: 'alpha',
+    surface: 'mainSidebar',
+    viewId: 'overview',
+    workspaceId: lease.workspaceId,
+    lease: lease.token,
+  });
+  expect(created.status).toBe(200);
+  const view = created.data;
+  const invoked = await api(`/ui/instances/${view.id}/events`, {
+    lease: lease.token,
+    eventId: 'ui-call',
+    renderRevision: view.renderRevision,
+    bindingId: 'e0',
+    fields: { q: { value: '  query  ', editSequence: 1 } },
+  });
+  expect(invoked.status).toBe(200);
+  expect(invoked.data.result).toEqual(['query']);
+  const inspector = await api('/ui/instances', {
+    pluginId: 'alpha',
+    surface: 'currentPage',
+    viewId: 'currentPage',
+    workspaceId: lease.workspaceId,
+    lease: lease.token,
+  });
+  expect(inspector.status, JSON.stringify(inspector)).toBe(200);
+  const current = inspector.data;
+  expect(JSON.stringify(current.compiled)).not.toContain('ui:');
+  const collectNodes = (nodes: unknown[]): { attrs?: Record<string, string> }[] => {
+    const collected: { attrs?: Record<string, string> }[] = [];
+    for (const raw of nodes) {
+      const node = raw as { attrs?: Record<string, string>; children?: unknown[] };
+      collected.push(node, ...collectNodes(node.children ?? []));
+    }
+    return collected;
+  };
+  const currentNodes = collectNodes(current.compiled.nodes);
+  const currentTabs = currentNodes
+    .filter((node) => node.attrs?.['data-ui-tab-trigger'])
+    .map((node) => node.attrs?.['data-ui-tab-trigger']);
+  expect(currentTabs).toEqual(expect.arrayContaining(['properties', 'config', 'diagnostics']));
+  expect(currentNodes.filter((node) => node.attrs?.['data-ui-tabs'])).toHaveLength(2);
+  expect(current.compiled.events.some((event: { event: string }) => event.event === 'submit')).toBe(
+    true,
+  );
+  const configField = current.compiled.fields[0].name;
+  const values = await api(`/ui/instances/${current.id}/data`, {
+    renderRevision: current.renderRevision,
+    fields: { [configField]: 'alpha' },
+  });
+  expect(values.status).toBe(200);
+  expect(values.data.updates.some((u: { value: unknown }) => u.value === 'alpha')).toBe(true);
+  const submit = current.compiled.events.find((e: { event: string }) => e.event === 'submit');
+  const saved = await api(`/ui/instances/${current.id}/events`, {
+    lease: lease.token,
+    eventId: 'ui-save',
+    renderRevision: current.renderRevision,
+    bindingId: submit.id,
+    fields: { [configField]: { value: 'from core template', editSequence: 1 } },
+  });
+  expect(saved.status).toBe(200);
+  expect((await api('/plugins/alpha/config')).data.effectiveValues.persist).toBe(
+    'from core template',
+  );
+  expect((await api(`/ui/instances/${view.id}/release`, {})).status).toBe(200);
+  expect((await api(`/ui/instances/${current.id}/release`, {})).status).toBe(200);
+});
+
 it('scopes page grants and ticket streams, synchronizes backend string CRUD, rejects nonstrings and stale grants', async () => {
   const session = (
     await api('/page-sessions', {
@@ -274,6 +350,19 @@ it('scopes page grants and ticket streams, synchronizes backend string CRUD, rej
       }
     }),
   );
+  expect(
+    (
+      await api(
+        '/plugins/alpha/config/update',
+        {
+          values: { persist: 'forbidden' },
+          baseRevision: current.revision,
+          schemaRevision: current.schemaRevision,
+        },
+        session.grant,
+      )
+    ).status,
+  ).toBe(403);
   const written = await api(
     '/plugins/alpha/config/update',
     {
@@ -281,7 +370,7 @@ it('scopes page grants and ticket streams, synchronizes backend string CRUD, rej
       baseRevision: current.revision,
       schemaRevision: current.schemaRevision,
     },
-    session.grant,
+    TOKEN,
   );
   expect(written.status).toBe(200);
   expect((await changed).payload.effectiveValues.persist).toBe('');
@@ -306,7 +395,7 @@ it('scopes page grants and ticket streams, synchronizes backend string CRUD, rej
           baseRevision: written.data.revision,
           schemaRevision: current.schemaRevision,
         },
-        session.grant,
+        TOKEN,
       )
     ).status,
   ).toBe(400);
@@ -319,7 +408,7 @@ it('scopes page grants and ticket streams, synchronizes backend string CRUD, rej
           baseRevision: current.revision,
           schemaRevision: current.schemaRevision,
         },
-        session.grant,
+        TOKEN,
       )
     ).status,
   ).toBe(409);
@@ -330,7 +419,7 @@ it('scopes page grants and ticket streams, synchronizes backend string CRUD, rej
       baseRevision: written.data.revision,
       schemaRevision: current.schemaRevision,
     },
-    session.grant,
+    TOKEN,
   );
   expect(reset.data.values).not.toHaveProperty('persist');
   const job = await api('/plugins/alpha/actions', {
@@ -352,13 +441,24 @@ it('scopes page grants and ticket streams, synchronizes backend string CRUD, rej
   expect((await api('/plugins/alpha/config', undefined, session.grant)).status).toBe(403);
 });
 
-it('injects SDK before application scripts, supports declared dotted SPA paths and rejects symlink assets', async () => {
+it('injects SDK before application scripts and supports declared dotted SPA paths', async () => {
   const html = await (
     await fetch(base + '/web/page/plugin/beta/foo.bar', { headers: { accept: 'text/html' } })
   ).text();
   expect(html.indexOf('data-scwc-bootstrap')).toBeLessThan(html.indexOf('appStarted'));
-  await fs.writeFile(path.join(root, 'outside.txt'), 'secret');
-  await fs.symlink(path.join(root, 'outside.txt'), path.join(root, 'plugins/beta/escape.txt'));
-  expect((await fetch(base + '/web/page/plugin/beta/escape.txt')).status).toBe(403);
   expect((await fetch(base + '/web/page/plugin/beta/assets/missing.js')).status).toBe(404);
+});
+
+it('rejects plugin symlink assets', async (context) => {
+  await fs.writeFile(path.join(root, 'outside.txt'), 'secret');
+  try {
+    await fs.symlink(path.join(root, 'outside.txt'), path.join(root, 'plugins/beta/escape.txt'));
+  } catch (error) {
+    if (process.platform === 'win32' && (error as NodeJS.ErrnoException).code === 'EPERM') {
+      context.skip('Windows 当前权限不能创建文件 symlink');
+      return;
+    }
+    throw error;
+  }
+  expect((await fetch(base + '/web/page/plugin/beta/escape.txt')).status).toBe(403);
 });

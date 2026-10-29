@@ -40,7 +40,8 @@ describe('Web development CLI', () => {
     vi.stubEnv('SCWC_WEB_CORE_PORT', '5174');
     const config = configure({ command: 'serve', mode: 'development' });
     const proxies = config.server?.proxy ?? {};
-    expect(Object.keys(proxies)).toHaveLength(5);
+    expect(Object.keys(proxies)).toHaveLength(6);
+    expect(proxies).toHaveProperty('/web/ui');
     for (const proxy of Object.values(proxies)) {
       if (typeof proxy === 'string') {
         throw new Error('Expected proxy options');

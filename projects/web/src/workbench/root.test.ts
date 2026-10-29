@@ -4,6 +4,8 @@ import { WorkbenchStore } from './store.ts';
 import { addTab, internalTab, titleOf, splitGroup, groups } from './model.ts';
 import { requireValue } from '../../../shared/workbench-protocol.ts';
 import type { AppRoot } from '../layouts/root.ts';
+import type { UIContribution } from '../../../shared/declarative-ui.ts';
+import type { DeclarativeView } from '../components/declarative-view.ts';
 
 vi.mock('../../../shared/store/config.ts', () => ({
   ConfigController: {
@@ -92,6 +94,64 @@ async function fixture() {
   await app.updateComplete;
   return requireValue(app.shadowRoot);
 }
+
+describe('auxiliary sidebar header', () => {
+  async function auxiliaryFixture(hideCurrentPage = false, custom = true) {
+    const root = await fixture();
+    app.store.catalog = [{
+      pluginId: 'plugin', title: '插件的正式标题', description: null, version: null,
+      enabled: true, runtime: { status: 'ready', pid: null, reason: null },
+      ui: { detection: 'runtime', state: 'ready', entryUrl: '/', buildCapability: 'absent', diagnostics: [] },
+      diagnostics: [], revision: 1,
+    }];
+    const sidebar = requireValue(app.store.workspace).snapshot.layout.auxiliarySidebar;
+    sidebar.visible = true;
+    sidebar.context = { mode: 'explicit', pluginId: 'plugin' };
+    (app as unknown as { uiContributions: UIContribution[] }).uiContributions = custom ? [{
+      pluginId: 'plugin', ownerEpoch: 'epoch', surface: 'auxiliarySidebar', id: 'details',
+      title: '模板详情', hideCurrentPage,
+    }] : [];
+    vi.spyOn(app.store, 'update').mockImplementation(async (mutate) => {
+      mutate(requireValue(app.store.workspace).snapshot);
+      app.store.changed();
+    });
+    app.store.changed();
+    await app.updateComplete;
+    return requireValue(root.querySelector<HTMLElement>('.auxiliary-sidebar'));
+  }
+
+  it('places both tabs in the header using the plugin title and shared center tab classes', async () => {
+    const sidebar = await auxiliaryFixture();
+    const header = requireValue(sidebar.querySelector('.sidebar-header'));
+    expect(header.querySelector('strong')).toBeNull();
+    expect([...header.querySelectorAll('[role=tab]')].map((node) => node.textContent?.trim())).toEqual(['页面信息', '插件的正式标题']);
+    expect(header.querySelectorAll('.tab-item .tab-label')).toHaveLength(2);
+    expect(sidebar.querySelector(':scope > .auxiliary-tabs')).toBeNull();
+    expect(header.querySelector('[aria-label="隐藏辅助侧栏"]')).not.toBeNull();
+    const tabs = header.querySelectorAll<HTMLButtonElement>('[role=tab]');
+    tabs[1].click();
+    await app.updateComplete;
+    expect(tabs[1].getAttribute('aria-selected')).toBe('true');
+    expect(sidebar.querySelector<DeclarativeView>('wb-declarative-view')?.viewId).toBe('details');
+    tabs[1].dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }));
+    await app.updateComplete;
+    expect(tabs[0].getAttribute('aria-selected')).toBe('true');
+  });
+
+  it('shows a strong plugin title when page information is hidden', async () => {
+    const sidebar = await auxiliaryFixture(true);
+    expect(sidebar.querySelector('.sidebar-header strong')?.textContent).toBe('插件的正式标题');
+    expect(sidebar.querySelector('.auxiliary-tabs')).toBeNull();
+    expect(sidebar.querySelector('wb-declarative-view')).not.toBeNull();
+  });
+
+  it('shows the page information title when no custom template is registered', async () => {
+    const sidebar = await auxiliaryFixture(false, false);
+    expect(sidebar.querySelector('.sidebar-header strong')?.textContent).toBe('页面信息');
+    expect(sidebar.querySelector('.auxiliary-tabs')).toBeNull();
+    expect(sidebar.querySelector('wb-page-inspector')).not.toBeNull();
+  });
+});
 
 function resizePointer(target: EventTarget, type: string, x = 318, y = 100) {
   target.dispatchEvent(

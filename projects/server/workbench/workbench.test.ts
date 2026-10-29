@@ -224,7 +224,7 @@ describe('workspace leases and close history', () => {
 });
 
 describe('events, tickets and notifications', () => {
-  it('reports replay gaps, consumes tickets once and binds validation to exact data', () => {
+  it('reports replay gaps and consumes tickets only once', () => {
     const events = new WorkbenchEvents();
     for (let i = 0; i < 2100; i++) {
       events.publish('changed', { i });
@@ -235,17 +235,6 @@ describe('events, tickets and notifications', () => {
       ticket = sessions.ticket('http://localhost', 'window');
     expect(() => sessions.consume(ticket, 'http://wrong')).toThrow();
     expect(() => sessions.consume(ticket, 'http://localhost')).toThrow();
-    const s = sessions.create({
-        origin: 'http://localhost',
-        pluginId: 'p',
-        safeId: 's',
-        owner: 'w',
-        tabId: 't',
-        frameEpoch: 'e',
-      }),
-      validation = sessions.validation(s, { value: '1' });
-    expect(() => sessions.consumeValidation(validation, { value: '2' })).toThrow();
-    expect(() => sessions.consumeValidation(validation, { value: '1' })).toThrow();
   });
   it('deduplicates notifications, shares read status and bounds bursts', () => {
     const { storage } = fixture(),

@@ -1,4 +1,5 @@
 :root {
+  --wb-tab-bar-height:32px;
   color-scheme: dark;
   --font-sans:
     -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;

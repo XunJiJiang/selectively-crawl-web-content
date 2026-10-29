@@ -102,11 +102,14 @@ const nodeSchema: z.ZodType<LayoutNode> = z.lazy(() =>
       .strict(),
   ]),
 );
+const uiSelection = z
+  .object({ kind: z.enum(['core', 'plugin']), pluginId: identifier.optional(), viewId: identifier })
+  .strict();
 export const snapshotSchema = z
   .object({
     layout: z
       .object({
-        schemaVersion: z.literal(1),
+        schemaVersion: z.union([z.literal(1), z.literal(2)]),
         mainSidebar: z
           .object({
             side: z.enum(['left', 'right']),
@@ -114,9 +117,20 @@ export const snapshotSchema = z
             size: positive,
             view: z.enum(['search', 'pages', 'bookmarks', 'history', 'plugins']),
             openPagesRatio: ratio,
+            selectedView: uiSelection.optional(),
           })
           .strict(),
-        auxiliarySidebar: z.object({ visible: z.boolean(), size: positive }).strict(),
+        auxiliarySidebar: z
+          .object({
+            visible: z.boolean(),
+            size: positive,
+            selectedView: uiSelection.optional(),
+            context: z
+              .object({ mode: z.enum(['follow', 'explicit']), pluginId: identifier.optional() })
+              .strict()
+              .optional(),
+          })
+          .strict(),
         panel: z
           .object({
             dock: z.enum(['bottom', 'left', 'right']),
@@ -149,7 +163,7 @@ export function defaultSnapshot(): WorkspaceSnapshot {
   const group = randomUUID();
   return {
     layout: {
-      schemaVersion: 1,
+      schemaVersion: 2,
       mainSidebar: { side: 'left', visible: true, size: 260, view: 'pages', openPagesRatio: 0.5 },
       auxiliarySidebar: { visible: true, size: 280 },
       panel: {
@@ -176,8 +190,15 @@ function boundedTree(input: unknown, depth = 0, count = { n: 0 }) {
 }
 export function validateSnapshot(input: unknown) {
   boundedTree((input as WorkspaceSnapshot)?.layout?.center);
-  const snapshot = snapshotSchema.parse(input),
-    ids = new Set<string>(),
+  const snapshot = snapshotSchema.parse(input);
+  snapshot.layout.schemaVersion = 2;
+  snapshot.layout.mainSidebar.selectedView ??= {
+    kind: 'core',
+    viewId: snapshot.layout.mainSidebar.view,
+  };
+  snapshot.layout.auxiliarySidebar.selectedView ??= { kind: 'core', viewId: 'currentPage' };
+  snapshot.layout.auxiliarySidebar.context ??= { mode: 'follow' };
+  const ids = new Set<string>(),
     tabs = new Set<string>(),
     groups = new Set<string>();
   const visit = (node: LayoutNode) => {

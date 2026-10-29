@@ -30,14 +30,14 @@ export interface FeedbackSnapshot {
 }
 
 export class FeedbackDemo {
-  private factories: SCWC.ILoadContext['workbench'];
+  private factories: Pick<SCWC.ILoadContext['workbench'], 'logger' | 'tasks'>;
   private task?: SCWC.TaskController;
   private notice?: SCWC.NotificationController;
   private source: string;
   private record: (message: string) => void;
 
   constructor(
-    factories: SCWC.ILoadContext['workbench'],
+    factories: Pick<SCWC.ILoadContext['workbench'], 'logger' | 'tasks'>,
     source: string,
     record: (message: string) => void,
   ) {

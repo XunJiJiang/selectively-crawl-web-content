@@ -5,6 +5,7 @@ export const MAX_MESSAGE_BYTES = 16 * 1024 * 1024;
 export const MAX_PENDING_CALLS = 64;
 
 export interface Manifest {
+  declarativeUI?: import('../../../shared/declarative-ui.ts').UIWireRegistry;
   name?: string;
   title?: string;
   description?: string;
