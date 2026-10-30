@@ -36,14 +36,14 @@
 | 页面标题 | webutils 的注册、ready 或导航上报可影响标签标题，inspector 使用 `titleOf(tab)` | inspector 改读后端明确提供的标题；不借用 iframe 上报标题 |
 | 页面状态、SDK 请求数、累计请求数、保活原因、编辑状态 | inspector 直接读取 `FramePool.runtimes`；部分值来自 iframe 消息 | 从“当前页面”移除；不能将 SDK 自报统计改名为后端统计 |
 | 桥接、恢复、搜索能力与部分错误 | iframe 生命周期/搜索注册及前端 FrameRuntime | 从“当前页面”移除；后端确知的会话、进程错误另行展示并准确命名 |
-| 配置定义注册与替换 | [webUtils/lib/workbench.ts](../projects/webUtils/lib/workbench.ts) 的 `settings.register()`，返回的 `update()` | 删除 SDK 接口、消息与对应页面授权写入口 |
+| 配置定义注册与替换 | [webutils/lib/workbench.ts](../projects/webutils/lib/workbench.ts) 的 `settings.register()`，返回的 `update()` | 删除 SDK 接口、消息与对应页面授权写入口 |
 | 配置修改与重置 | webutils 的 `config.set/reset` | 删除 SDK 写能力，并在服务端拒绝页面授权调用这些写入口 |
 | 配置页面校验 | inspector 向 iframe 请求 `config.validate`；webutils 本地 normalize/validate 后申请票据 | 删除整条前端校验链，只保留声明式校验与插件后端校验 |
 
 具体核查入口：
 
 - [page-inspector.ts](../projects/web/src/components/page-inspector.ts)：`load/save/control/render`，当前同时依赖 `store`、`pool` 和 iframe 校验。
-- [webUtils/lib/workbench.ts](../projects/webUtils/lib/workbench.ts)：`page.register/update`、`settings.register`、`config.set/reset`、`config.validate` 请求处理。
+- [webutils/lib/workbench.ts](../projects/webutils/lib/workbench.ts)：`page.register/update`、`settings.register`、`config.set/reset`、`config.validate` 请求处理。
 - [workbench-protocol.ts](../projects/shared/workbench-protocol.ts)：`PageRegistration` 含 `title/dirty/contextKey/properties/capabilities`。
 - [frames.ts](../projects/web/src/workbench/frames.ts)：`page.update`、`requests.changed`、`activity.*`、`search.changed` 等消息处理。
 - [工作台路由](../projects/server/router/web/workbench/index.ts)：`config/definitions`、`config/validation`、`config/update`、`config/reset`。
@@ -974,7 +974,7 @@ JSON 事件与 HTML 完全等价：
 - `projects/server/workbench/workspace.ts`、配置服务、页面授权与工作台路由：布局、投影、后端配置与授权迁移。
 - `projects/web/src/components/page-inspector.ts`：改为核心 JSON 模板薄宿主，数据/事件/监听走统一模板能力；保留本地草稿和冲突处理，不读取 FramePool 数据。
 - `projects/web/src/layouts/root.ts`、`workbench/store.ts`、布局模型：动态主视图、最多两项辅助视图、状态贡献区和事件结果。
-- `projects/webUtils/lib/workbench.ts`、共享页面协议和相关测试：删除 page/settings/config 写入口及校验链；保留只读配置订阅，新增主页面配置通知/恢复确认、当前页面前端处理器及监听桥。
+- `projects/webutils/lib/workbench.ts`、共享页面协议和相关测试：删除 page/settings/config 写入口及校验链；保留只读配置订阅，新增主页面配置通知/恢复确认、当前页面前端处理器及监听桥。
 - SDK/工作台生成产物、发行资源清单和插件开发说明：通过正常构建更新。
 
 验收至少覆盖：

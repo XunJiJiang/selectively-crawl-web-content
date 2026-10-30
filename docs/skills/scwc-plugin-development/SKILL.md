@@ -1,135 +1,58 @@
 ---
 name: scwc-plugin-development
-description: 为 Selectively Crawl Web Content 开发或维护 projects/server/plugins 下的插件，包括服务端处理、浏览器脚本控制器和插件独立 Web 页面；不用于修改核心项目。
+description: 为 Selectively Crawl Web Content 开发或维护 projects/server/plugins 下的插件，包括独立进程后端、浏览器脚本控制器、工作台集成和插件 Web 页面；不用于修改核心实现。
 ---
 
 # SCWC 插件开发
 
-本 skill 只服务于插件目录 `projects/server/plugins/*` 内的工作：插件后端入口、插件控制器，以及挂载到主页面中的独立 Web 页面。除非开发者明确要求，不要修改 `projects/server`、`projects/web`、`projects/user-script` 或 `projects/shared` 的核心实现，也不要把本 skill 安装到全局目录。
+本 skill 面向 `projects/server/plugins/*` 内的插件后端、控制器和独立页面。默认把改动限制在目标插件及其专属文档；修改核心实现、共享 SDK 或公共构建能力前，先确认用户授权。插件可能部署在核心源码目录之外，不要依赖插件位于仓库内这一事实。
 
-## 开始前必须确认的事实
+## 开始前
 
-先阅读当前仓库根目录的 `README.md`、`projects/server/plugins/plugin-env.d.ts`、`projects/server/plugins/template/index.ts` 和 `projects/server/plugins/template/web/index.html`。当这些文件没有说明某个行为时，继续查看对应源码；本 skill 的源码核实参考见 [references/runtime-contract.md](references/runtime-contract.md)。不要仅凭 README 的旧示例推断运行时行为。
+阅读仓库 `README.md`、`projects/server/plugins/plugin-env.d.ts`、模板入口与页面配置，并查看目标插件自己的 `AGENTS.md`、`docs/map.md` 或现有约束。涉及运行边界时读 [运行契约](references/runtime-contract.md)；涉及模块、Worker、前端构建或发行包时读[依赖与部署](references/dependencies-and-deployment.md)。以当前类型、源码和测试为准，文档与实现冲突时不要沿用旧契约。
 
-根据任务需要再读取：
+## 插件入口与运行模式
 
-- 服务端接口或加载问题：`projects/server/plugin/load.ts`、`projects/server/router/plugin.ts`、`projects/server/router/web/api/load.ts`、`projects/server/router/web/page/index.ts`、`projects/server/router/index.ts`。
-- 控制器交互问题：`projects/user-script/src/layouts/hooks/plugins.ts`、`projects/user-script/src/api/plugins.ts`、`projects/user-script/src/layouts/content-plugin.ts`。
-- 插件页面通信问题：`projects/webutils/lib/index.ts`、`projects/webutils/lib/utils/fetch.ts`、`projects/web/src/layouts/content.ts`。
-- 共享依赖、类型、Worker、前端构建或独立目录/SEA 部署：阅读 [references/dependencies-and-deployment.md](references/dependencies-and-deployment.md)，核对当前 SDK 与页面构建白名单，不假定根目录所有依赖都能直接导入。
+插件目录至少包含 `package.json` 和 `main` 指向的 `.js`/`.ts` 入口，入口默认导出实现 `SCWC.IPluginHandler` 的对象。优先 `satisfies SCWC.IPluginHandler`，不要用 `as any` 避开类型检查。类型声明由 `projects/server/plugins/plugin-env.d.ts` 和 `projects/server/plugin/sdk/modules.d.ts` 提供；插件 TypeScript 配置应显式引用这两份文件及它们所需的核心源码类型。入口导入本地文件时写全扩展名。
 
-## 插件目录与入口
+启用插件默认在独立 Node 进程运行，`runtime.mode` / `apiVersion` 省略时使用 `process` / `2`。不要依赖核心进程内执行，也不要在插件中接收 Express request/response 或真实 WebSocket。第二版 API 使用 `context.request` 数据快照；资源处理器返回文件/响应描述；WebSocket 通过连接身份和局部 `send`、`broadcast`、`close` 操作。超时只终止等待方，不代表插件中的业务写入已撤销，写请求不能因超时自动重试。
 
-每个插件是一个独立目录，至少包含 `package.json` 和 `main` 指向的 `.ts`/`.js` 入口。推荐 TypeScript、ES module 和严格类型检查；模板的 `tsconfig.json` 可作为起点，并确保 `files` 包含 `../plugin-env.d.ts` 和 `../../plugin/sdk/modules.d.ts`。独立目录开发可显式引用核心工作区中的这两份文件；核心工作区需安装其类型依赖，无需发布 SDK npm 包。
+插件后端可使用的宿主能力包括：
 
-```text
-projects/server/plugins/my-plugin/
-├── package.json
-├── index.ts
-└── web/                 # 可选：插件独立页面及其资源
-    └── index.html
-```
+- `onLoad` 的 `context.config`：按插件目录隔离的持久字符串配置 CRUD 与订阅；值始终是字符串。插件可以声明 `configuration.definitions`、异步 `normalize`/`validate` 和 `onChange`。
+- `context.workbench`：长期持有的通知 logger、任务管理器和声明式 UI 注册 API。处理器函数留在插件进程，跨进程只传序列化数据与描述；在 `onUnload` 释放注册项、订阅和资源。
+- `context.createRetryGet`、`context.LimitPromise`、插件专属 `context.cache`，以及调用级 `tasks`、`signal`。缓存只能放支持的可序列化值，不放函数、流或 socket。
+- 抓取 `onRequest` 的 `context.data`、`context.site` 与 `context.utils`。抓取 logger 可通过 `toWeb` 发送通知；控制器触发 logger 没有该方法，应返回 notification 结果。
 
-入口应默认导出符合 `SCWC.IPluginHandler` 的对象。使用类型约束，优先 `satisfies SCWC.IPluginHandler`，不要通过 `as any` 绕过类型错误。`SCWC` 是 `plugin-env.d.ts` 声明的命名空间，不要把它当作普通运行时模块导入；应沿用模板的类型可见性配置。
+实际接口以 `plugin-env.d.ts`、`types/plugin-process.d.ts` 和 `types/task.d.ts` 为准。更完整的页面、配置、声明式 UI、通知和任务边界见[运行契约](references/runtime-contract.md)。
 
-入口文件导入项目文件时，始终写完整文件名和后缀，包括 `index.ts`，例如 `./utils/index.ts`，不要省略后缀或 `index`，除非该插件已有明确且一致的格式化/模块解析约定。
+## 插件提供给宿主的功能
 
-`package.json` 至少应有：
+- `pluginConfig.command` 在 `package.json.commandName` 存在时注册一个一级命令。命令回调含 logger、解析后的选项、未用参数、原始参数和 `InvocationContext`；后者提供 `signal`、任务状态及可类型化的 `next()` 待答输入。可用 `complete` 提供异步补全；回调接收取消信号和按一级命令生命周期保留的候选缓存，返回当前位置的完整候选词，由终端执行前缀过滤。
+- `pluginConfig.scripts` 向采集脚本浮窗注册按钮、toggle、select、文本/数字输入和 checkbox。动态 controls 工厂可按 site 生成控件；channel 要稳定且插件内唯一。控制器回调应验证所有来自页面的数据，并返回通知结构。
+- `ui.entry` 提供插件页面；`ui.api`、`ui.resources`、`ui.websocket` 分别注册结构化 API、浏览器直接加载资源和实时通道。不要另起 HTTP 服务或监听额外端口。
+- 可选 `scwc.ui` package 元数据为工作台插件目录提供标题、描述、SPA 路由和资源前缀等展示/路由提示；它不是后端 handler 的替代品。
 
-```json
-{
-  "name": "my-plugin",
-  "type": "module",
-  "main": "index.ts",
-  "enabled": true,
-  "link-with": ["https://example.com"],
-  "commandName": "my-plugin"
-}
-```
+对页面及工作台的当前安全、授权和生命周期契约，按任务阅读[运行契约](references/runtime-contract.md)。不要将旧版页面属性注入、页面写配置或旧 Express 插件接口当作当前能力。
 
-其中 `name` 缺省时运行时使用目录路径；`main` 缺失、入口不存在/不是 `.js` 或 `.ts`、默认导出不含函数 `onRequest`，插件会进入未激活列表。`enabled: false` 会跳过加载。`commandName` 可选，每个插件最多注册一个一级命令；命令名只使用字母、数字、`-`、`_`，并避免系统命令名。
+## 共享模块与浏览器 SDK
 
-`link-with` 不是正则表达式：当前实现支持普通前缀匹配、`*` 通配符和以 `!` 开头的否定模式；空数组表示匹配所有网址。需要复杂匹配时先阅读 `projects/server/router/utils/index.ts` 的 `matchLink()`，并用少量明确规则验证正例和排除例。
+后端共享依赖使用 `scwc:deps`，Worker/RPC 使用 `scwc:runtime`，通用无 DOM 后端工具和类型使用 `scwc:shared/backend`。它们由 Node 宿主在动态导入插件前注册；`modules.d.ts` 只提供开发期类型，不负责运行时注册。不要把根目录依赖视为全部已公开，也不要在插件中重复安装已由 SDK 承诺的共享依赖。
 
-## 默认独立进程与第二版契约
+`projects/shared/backend.ts` 提供无 DOM 的通用工具、声明式 UI/表达式和反馈契约；插件页面使用 `scwc:shared/frontend` 或从 `@scwc/shared/frontend` 复用浏览器组件、通知、滚动容器和工具。该前端入口需要 DOM，只由 Vite HTML 页面自动加载，不要导入到 Node Worker。共享入口的详细解析规则见[依赖与部署](references/dependencies-and-deployment.md)。
 
-所有启用插件默认在独立 Node 子进程中执行。package.json 的 runtime 与入口的 apiVersion 都可以省略，默认分别为 process 和 2；runtime 也可仅设置 startupTimeoutMs/requestTimeoutMs/shutdownTimeoutMs（100–600000 毫秒的整数）。显式不支持的模式或版本会激活失败，不回退到核心进程。enabled: false 仍跳过加载。
+页面全局对象 `window.scwcutils` 来自大小写为 `projects/webutils/lib.d.ts` 的声明。加载页面后先 `await scwcutils.ready` 再创建 WebSocket 或调用依赖页面授权的能力。`fetch` 经当前页面授权代理访问本插件 `ui.api`；`fetch.resource` 生成给媒体等元素使用的资源 URL；`websocket`/`websocketAsync` 使用核心票据代理。页面端 `config` 只有读取与订阅能力，配置写入应由插件明确提供的业务 API 完成，并携带从已读快照获得的 `baseRevision`。SDK 还提供页面处理器注册、生命周期、导航/搜索、任务与通知、活动和主题/可见性状态等能力；使用前检查 `host.capabilities`，离页时释放注册与订阅。详情见[运行契约](references/runtime-contract.md)。
 
-默认使用 `satisfies SCWC.IPluginHandler`、TPluginApi、TPluginAddApi、TPluginRequestContext、TPluginResource；它们都表示可序列化第二版契约。IProcessPluginHandler 与 TProcess* 为兼容别名；Hosted 类型只供核心生成代理，不用于插件。
+## 插件页面构建
 
-普通 API 接收 context.request（method/url/params/query/headers），不能使用 Express req/res。资源 handler 校验票据后返回文件或小响应描述；WebSocket 使用 connectionId/request/query 和本地 send/broadcast/close，没有真实 socket/clients。前端 scwcutils 和 URL 不变。
+页面可交付完整静态产物，或交付源码、插件自己的 `vite.config.ts`、`web/tsconfig.json` 和 `build:web` 声明。`ui.entry` 相对 `package.json.main` 所在目录解析。自动构建在插件入口导入后、`onLoad` 前准备 HTML；入口顶层不要读取尚未生成的产物。核心不会因依赖/源码时间戳自动重建已有 HTML；重新构建后刷新页面，前端重建本身不重载后端插件。
 
-生命周期、命令、控件和抓取签名保持兼容。注入缓存由核心按插件目录名隔离，只传可序列化值/Buffer/bigint，不传 Readable 或函数。createRetryGet 自定义类在宿主本地创建；其流式响应留在宿主消费，不走 IPC 缓存。完整限制见 projects/server/plugin/process/README.md。后端修改应运行 `npx vitest run projects/server/plugin/process`；HTTP/WebSocket 验证需要本机临时端口，数据使用临时媒体库。
+Vite 页面配置使用 `@scwc/vite-plugin`：`plugins: [scwcVite()]`；含浏览器 Worker 时另设 `worker.plugins: () => [scwcVite()]`。配置 `base` 时使用插件目录名而非包名。插件会提供白名单依赖回退、`scwc:deps` 的浏览器 Zod 适配、`scwc:shared/frontend` 的 HTML 自动注入和装饰器转换；它不注入全局变量，Worker 也不自动载入需要 DOM 的 shared frontend。页面带自己的 tsconfig；Lit 实验装饰器模式使用 accessor 响应属性。外部工程在确有依赖解析需要时配置 `dependencyRoot`。具体限制与命令见[依赖与部署](references/dependencies-and-deployment.md)及 [`@scwc/vite-plugin` 文档](../../../projects/vite-plugin/README.md)。
 
-## 命令行配置
+## 实现与验证
 
-`pluginConfig.command` 用于向服务端命令行注册插件命令；只有同时设置 `package.json.commandName`，该配置才会占用一级命令。一个插件只能注册一个一级命令；多个插件使用同名命令时，运行时会为冲突命令加上插件 ID 前缀。配置字段如下：
+先复用 `projects/server/plugins/template` 中与需求对应的入口、配置、声明式 UI、页面和测试形态。测试放在目标插件或合适的集成测试位置，使用插件私有临时数据目录。至少检查插件后端和页面各自的 TypeScript 配置；改页面时实际构建并检查生成资源路径。涉及宿主/RPC/授权边界时，用能验证真实进程或 HTTP/Socket 行为的针对性集成测试；类型检查或 Vitest 别名不能替代 Node 原生加载验证。
 
-- `execute(logger, options, unusedArgs, originArgs)`：没有匹配到子命令时执行的主处理函数。`options` 是带解析后 `value` 的选项数组，`unusedArgs` 是未使用的非选项参数，`originArgs` 是包含一级命令在内的原始参数数组；函数可同步或异步。
-- `description`：命令帮助文本。
-- `subCommands`：子命令数组，每项包含 `name`、可选的 `description`/`exampleUsage` 和必需的 `execute`；例如输入 `my-plugin sync` 时执行 `sync.execute`。
-- `options`：命令选项定义，每项包含 `name`，可选 `alias`、`description`、`required`、`defaultValue`。用户可使用 `--name=value` 或别名 `-x=value`；未提供非必填项时使用 `defaultValue`，否则运行时默认值为 `false`。
-- `exampleUsage`：展示给用户的完整用法示例。
+按改动选择测试和构建，不要求每次都跑全仓。验证控制器和命令冲突、错误响应、取消/资源释放等与本次行为相关的边界。改动完成后更新目标插件自己的 `docs/map.md`（若存在并受影响），复查 diff 只包含获准范围。
 
-命令处理函数只依赖声明的 `TLogger`（`info`、`pathInfo`、`warn`、`error`），不要在命令回调中使用 `logger.toWeb`。命令选项和未使用参数都来自用户输入，执行文件、网络或数据操作前必须自行校验。
-
-## 后端实现边界
-
-- `onLoad(logger, context)` 可选且可异步。可保存 `context.createRetryGet(...)` 、 `context.LimitPromise` 和 `context.cache` 等工具到模块作用域，供其他外部模块使用。
-- `onRequest(context, logger)` 必须实现且可异步。`context.data` 是 `SCWC.TDataItem[]`；`context.site` 至少有 `url`、`rootUrl`、`origin`、`pathname`。抓取请求的 logger 额外有 `toWeb(message, type?)`，用于把通知返回给浏览器；控制器/API 触发的 logger 没有 `toWeb`，必须返回类型为 `notification` 的结果。
-- 可以使用注入的 `utils.writeData` 保存抓取结果，使用 `writeDataURL` 单独保存 data URL/图片链接，使用 `fetchImage` 获取图片，使用 `strValidation` 清理文件名，使用 `convertToCN` 做汉字转换。文件路径由插件负责规划，先保证目录存在语义和可恢复性，不要把用户输入未经校验地拼接成任意路径。
-- `onUnload(logger, { isRestart })` 可选。释放定时器、连接和临时资源；根据 `isRestart` 区分重启与真正退出。
-- 后端共享包通过 `scwc:deps` 导入，Worker/RPC 通过 `scwc:runtime` 获取；不重复安装共享包，不依赖插件位于核心目录内。运行时模块与开发声明是两套机制，独立目录测试须同时核对；详见 [依赖与部署注意事项](references/dependencies-and-deployment.md)。
-- 使用核心注入缓存时，不要求 Redis 必须启动。核心 `REDIS_ENABLED=false` 时不创建 Redis 客户端，内存缓存元数据不跨重启保留；业务持久化应使用插件自己的数据存储。插件自行连接 Redis 时明确配置与必需性，不假定核心会替它启停连接。
-- 后端及其共享运行时模块使用 Node 24+ 可直接擦除的 TS 语法，不使用运行时 enum、构造函数参数属性或需要转译的装饰器；类字段单独声明、构造函数赋值，类型导入用 `import type`。原生 Node 加载验证不能由 Vitest 转译或类型检查代替。
-
-## 浏览器脚本控制器
-
-在 `pluginConfig.scripts` 中提供 `title`、可选 `description` 和 `controls`。`controls` 可是静态数组，也可是接收 logger/site 并返回数组的函数；动态形式适用于按 URL 或页面状态生成控制器。每个控制器必须有唯一且稳定的 `channel`，建议只使用不含冒号的短标识，因为服务端会拼成 `plugin:<pluginName>:<pluginId>:<channel>`。
-
-支持的 `type`：`button`、`toggle`、`select`、`input:text`、`input:number`、`checkbox`。`options` 中按控件类型设置 `defaultValue`；`select` 还必须提供 `options: [{ label, value }]`。可用选项包括：
-
-- `requireFullContent`：默认 `true`；要求所有被捕获元素成功后才允许触发。
-- `relatedChannel`：要读取的其他控制器通道列表；服务端回调收到的 `relatedValues` 会使用原始短通道名。
-- `autoTrigger`：非按钮控件值改变后是否自动触发，默认 `false`。
-
-控制器 `trigger(logger, context)` 收到 `data`、当前 `value`、`relatedValues` 和完整 `site`（包括 `host`、`hostname`），应返回或异步返回 `{ type: 'notification', data: { type, message } }`。异常由服务端转为 500；成功消息由浏览器脚本显示。不要依赖未声明的控件字段，也不要把浏览器端传来的值当作已验证的业务数据。
-
-## 独立 Web 页面
-
-在插件对象中配置 `ui: { entry: './web/index.html', api: [...], resources: [...] }`；`entry` 可为绝对路径，相对路径以 package.json.main 指向的插件入口文件所在目录为基准（入口在插件根目录时才等于插件目录）。主页面通过 `/web/api/pages` 获取有 `ui.entry` 的插件，并把页面放入 iframe。页面 HTML 会被服务端原样读取，并在 `</body>` 前注入最新的 `scwcutils` IIFE；静态资源按 HTML 所在目录提供。
-
-创建新的插件 Web 页面建议使用 Vite 构建，使用 Lit 开发，将 Vite `base` 设置为 `/web/page/plugin/<pluginDir>/`，其中 `<pluginDir>` 必须替换为插件所在目录的实际文件夹名称，不能使用 `package.json.name` 或任意显示名称。这样构建产物中的脚本、样式和其他资源会指向插件页面的挂载路径。页面资源不要依赖开发服务器的绝对根路径；构建后检查 HTML 中的资源 URL 与服务端静态资源路由一致。
-
-页面交付二选一：提供完整产物并让 ui.entry 指向 HTML；或提供 Vite 源码/配置，package.json 保留 `scripts.build:web: "vite build --config vite.config.ts"`。HTML 缺失时核心在 onLoad 前构建，顶层入口代码不能提前读取未生成的页面。已有 HTML 不会因源码或依赖升级自动重建；使用 `plugin build-web <目录名>` 后刷新页面，不重载后端，未激活插件修复后重启核心。完整参数、类型与交付清单见 [依赖与部署注意事项](references/dependencies-and-deployment.md)。
-
-使用 Vite 构建插件前端时，建议在 vite.config.ts 导入 `scwcVite from '@scwc/vite-plugin'` 并配置 `plugins: [scwcVite()]`；有前端 Worker 时同时配置 `worker.plugins: () => [scwcVite()]`。它自动解析前端白名单、处理 scwc:deps 浏览器适配和装饰器，无需手写 SDK 别名。核心自动构建也注入同一插件，SEA 已携带此包；开发工作区 bun install 链接它，外部独立开发使用本地包并按需指定 dependencyRoot。示例和条件见 [依赖与部署注意事项](references/dependencies-and-deployment.md) 及 [公共 Vite 包](../../../projects/vite-plugin/README.md)。
-
-页面源码须自带前端 tsconfig，不依赖工作区外层配置。Vite 8 仅设置 target 不会转换标准装饰器；@scwc/vite-plugin 为页面和 Worker 提供转换。Lit 实验模式显式设置 experimentalDecorators: true，并采用 accessor 响应属性；标准模式不要求打开 experimentalDecorators。相关改动要验证外部目录产物语法和组件更新，不能只检查构建命令成功。
-
-插件页面与插件后端通信时，结构化请求默认使用 `window.scwcutils.fetch` ↔ `ui.api`。需要给媒体或其他资源元素提供可直接加载的响应时，使用 `ui.resources` ↔ `window.scwcutils.fetch.resource(url)`；不要把资源响应塞进普通 JSON API。除非开发者主动要求采用其他通信方式，否则插件前端不要使用原生 `window.fetch`、`XMLHttpRequest` 或自行实现的 HTTP 客户端来绕过这些通道；插件后端也不要创建独立 Express/Koa/Fastify 应用、调用 `listen()`、占用额外端口或启动独立 HTTP 服务器。插件页面应复用核心服务提供的认证、路由和转发能力。
-
-`window.scwcutils` 的类型来自 `projects/webutils/lib.d.ts`，且该声明只在 `projects/server/plugins/*/web` 生效。建议页面使用 TypeScript，并把构建/类型检查纳入插件自己的配置；`tsconfig.plugin-web.json` 只负责仓库级类型检查，当前包含 `webutils/lib.d.ts` 和所有插件 `web/**/*`。
-
-`scwcutils.fetch(url, options?)` 会把请求转发给当前插件的后端 API。`url` 可写 `/api/status` 或 `api/status`；请求最终带有插件 `safeId`、当前页面的 `site` 查询参数，以及主页面配置中的 Bearer token。返回值是服务端包装对象 `{ success, message, data }`，不是 handler 的裸返回值。页面应处理 HTTP 错误、`success: false` 和业务数据错误，不要把 token 硬编码到页面。
-
-`window.scwcutils.resource(url)` 返回一个字符串 URL，而不是发起请求；将它用于 `<img src>`、`<video src>`、`<audio src>`、`<source src>`、`<link href>` 或其他需要浏览器直接加载资源的属性。该 URL 指向 `/web/resource/plugin/<safeId>/...`，并附带当前页面的 `site` 查询参数。资源 URL 不会像 `fetch` 请求那样自动携带 Bearer header，因此不要在资源接口中暴露仅凭 URL 即可访问的敏感数据；需要鉴权或一次性授权时，在资源 URL 的查询参数中设计短期、可验证的票据并在 handler 中校验。
-
-在 ui.resources 中，每项提供 path 和 handler(data, context)。data 是查询参数，context.request 是可序列化请求数据。handler 必须返回 `{ kind: 'file', path: absolutePath, contentType?, downloadName?, headers? }` 或 `{ kind: 'response', status, body?, headers? }`；核心完成实际 HTTP 响应、Range、背压和断开清理。媒体票据仍先在插件内校验，不直接接受浏览器指定的任意文件路径，也不把大型媒体内容装入普通 API 或 IPC。
-
-ui.api 可以是数组或接收 add 的注册函数。handler 接收请求体和 context.request，GET 接口从 request.query 取参数；异常仍使用 success/message 外层包装，并通过进程代理保留 status。进程不可用/超时/过载/消息过大分别返回 503/504/429/413。通信消息限制 16 MiB；超时不代表写操作已取消或回滚，不自动重试写请求。增加页面交互时使用窄范围 ui.api 和 scwcutils，不另建服务器。
-
-## 实现与验证习惯
-
-1. 先复制/参考 `projects/server/plugins/template`，为插件建立独立 `package.json`、入口和可选 `web/`。
-2. 用 `SCWC` 类型约束对象；优先 `satisfies SCWC.IPluginHandler`，不要通过 `as any` 绕过类型错误。
-3. 为 URL 匹配、数据转换、控制器相关值和 API handler 编写小而明确的测试或最小手工验证；特别验证 `link-with` 的否定规则、空数组、重复 channel 和页面 API 的错误响应。
-4. 运行与改动相称的检查：至少执行 `npx tsc -b tsconfig.json --pretty false` 或项目现有等价检查；若页面有独立构建，再运行其构建命令。修复插件自身的错误，不要为了通过检查放宽核心 tsconfig。
-5. 启动服务后建议开发者使用 `plugin ps`/`plugin ls` 检查插件是否激活；打开匹配网址，确认控制器配置、抓取通知、控制器触发、插件页面 iframe、静态资源、`window.scwcutils.fetch` → `ui.api` 通信，以及 `window.scwcutils.resource` → `ui.resources` 的普通和流式响应都可用，并确认插件没有监听额外端口。
-6. 变更完成后复查 git diff，确认只改动开发者要求的插件文件和仓库内 skill 文件，没有生成全局安装或直接修改核心实现。
-7. 安装依赖前检查根目录、SDK/构建白名单及已有授权；共享能力已满足时不重复安装。需要不同版本或私有依赖时说明原因和安装位置；已有明确授权则继续，安装位置或版本存在尚未决定的实质选择时再与开发者确认。
-8. 开发前先阅读当前插件或核心项目目录下的 docs/map.md，确认插件的功能和约束，并在实现中遵守约束；如果约束不够明确，先与开发者沟通再实现。
-9. 开发完成后需要根据本次的实现和交付情况更新 docs/map.md，补充插件的新增功能，约束和注意事项；如果项目的功能或约束与 docs/map.md 冲突，先与开发者沟通再更新。
-10. 涉及共享依赖、页面或 Worker 时，按参考文档检查外部插件目录、源码/SEA、无 Redis、无预构建页面及完整静态资源交付。测试使用临时目录，选择与改动有关的检查，不以根目录运行成功推定独立部署成功。
-
-当 README、模板、声明与源码仍有冲突时，以当前源码的可观察行为为准，并在实现或交付说明中指出该冲突；不要把推测写成插件契约。
+插件开发期间的 AOCI 收尾范围见仓库根 [AGENTS.md](../../../AGENTS.md)：不要维护根目录 AOCI；若目标插件目录存在自己的 AOCI，且本次改动涉及其受管理对象，则在插件对象稳定后按该插件的本地约定维护。

@@ -146,7 +146,7 @@
 | core:section.toggle | detailSection |
 | core:scroll.to | detailSection |
 | core:clipboard.writeText | 复制 query，必须真实用户激活；效果发出可测，权限成功不能以合成事件声明 |
-| core:link.openExternal | https://example.com，必须明确点击 |
+| core:link.openExternal | <https://example.com，必须明确点击> |
 | core:notification.show | info/success/warning/error 四按钮，不在加载时运行 |
 | core:inspector.config.save | 核心表单 submit，T9 |
 | core:inspector.config.reset | 核心“重置默认值”，T9 |
@@ -199,7 +199,7 @@
 
 ## 实测与尚未完成的验收
 
-- `bun run check` 通过；`bun run build:web` 通过，最终模板 JS 为 `index-DM9QAuZo.js`；`projects/webUtils` 的 `bun run build` 通过，新 SDK 为 `scwcutils.iife.mvtscw8s.js`。九项集成测试通过。构建仅有现有 transformWithEsbuild 弃用提示。沙箱回环 EPERM 后使用授权的临时集成服务；未启动另一套开发服务器，未停止用户 3200/3201 服务。
+- `bun run check` 通过；`bun run build:web` 通过，最终模板 JS 为 `index-DM9QAuZo.js`；`projects/webutils` 的 `bun run build` 通过，新 SDK 为 `scwcutils.iife.mvtscw8s.js`。九项集成测试通过。构建仅有现有 transformWithEsbuild 弃用提示。沙箱回环 EPERM 后使用授权的临时集成服务；未启动另一套开发服务器，未停止用户 3200/3201 服务。
 - 现有 3201 真实浏览器已验证：新 SDK 能力、普通页就绪、真实前后端计数变化、输入规范化、安全字符串作为文本、外/内层 Tabs、方向键与 setContent 保留选中项；text/JSON/HTML tooltip、JSON 固定、Esc/显式关闭、原生右键菜单的子菜单与禁用项。JSON 提示层直接渲染，HTML 提示层显示 about:srcdoc 沙箱文档。
 - 最初的 page.register 错误来源是旧模板产物；旧注入 SDK 也滞后。已通过正规构建链更新，不补回旧方法。
 - 核心 `HostUI.inspector.invalidate` 不消费 target；已给出有/无 tabId 用法，但精确 tab 失效尚不可声称完成。

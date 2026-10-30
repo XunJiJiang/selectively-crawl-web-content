@@ -1,48 +1,66 @@
-# SCWC 插件运行契约（源码核实）
+# SCWC 插件运行契约
 
-这份参考只在需要确认边界行为时读取。它记录当前仓库源码，而不是对未来版本的承诺。
+本文件记录当前仓库源码中的插件接口和运行行为。遇到版本变化时，以 `projects/server/plugins/plugin-env.d.ts`、`projects/server/types/plugin-process.d.ts`、`projects/server/plugin/process/`、`projects/webutils/lib/` 与对应宿主实现为准。
 
-2026-10-18 补充：插件后端 onLoad 的 context.config 已提供持久字符串 CRUD，见[Web 后端接入](../../../Web后端接口.md#5-插件后端配置对象)。get/list/set/update/delete/reset 均异步，subscribe 返回解除订阅函数；写入仅允许 string，JSON、数字和布尔格式由插件负责。命名空间由核心绑定目录 ID，持久库位于运行时 data/scwc/plugin-config.sqlite，不使用 cache，不在卸载时清理。configuration 可提供定义和宿主校验；logger.workbench 提供持久通知，旧 toWeb 保留。
+## 加载与生命周期
 
-以下页面说明中的旧注入/错误跳转已更新：服务端使用真实路径边界防止链接越界，在 head 最前注入 SDK；未知插件404、UI不可用503，scwc.ui.spa/assetPrefix 可明确声明含点 SPA 路由和资源前缀。构建失败会记录警告并给后端 onLoad 继续启动机会，onLoad 自身失败仍进入 inactivePlugins。
+- 加载器扫描配置插件目录的直接子目录；插件可能在仓库之外。入口由 `package.json.main` 指定，只接受 `.js`/`.ts`。默认导出须实现 `SCWC.IPluginHandler` 且包含 `onRequest`。
+- 所有启用插件默认运行于独立 Node 进程。`runtime`/`apiVersion` 省略时为 `process`/`2`；不支持的模式或版本会使插件加载失败，不会退回核心进程。可选超时为 `startupTimeoutMs`、`requestTimeoutMs`、`shutdownTimeoutMs`。
+- 页面 HTML 缺失时，加载流程尝试构建页面，再调用 `onLoad` 并注册命令/API/资源/WebSocket。页面构建失败会记录 UI 错误，后端仍可启动；入口导入或 `onLoad` 失败会使插件未激活。入口顶层不要读取自动构建才会生成的页面文件。
+- `onUnload(logger, { isRestart })` 释放插件持有的定时器、订阅、声明式 UI、Worker 与其他资源。启停/重载针对插件目录串行处理；持久配置在卸载时不会清除。
+- `package.json.enabled` 控制启动启用状态；运行时启停命令可能更新该字段。`link-with` 普通项按前缀匹配，带 `*` 的项按通配模式匹配，`!` 为否定规则；空数组在调用处表示匹配全部。验证时检查命中和排除案例。
 
-## 加载与匹配
+## 插件可用的宿主能力
 
-- `projects/server/plugin/load.ts` 扫描配置的插件目录直接子目录，只处理有 `package.json` 的目录。开发默认仓库 projects/server/plugins，生产默认程序同目录 plugins；SCWC_PLUGIN_DIR 和 --plugin-dir 可覆盖，不要求插件在核心源码目录内。
-- 入口由 `package.json.main` 解析；存在且扩展名为 `.js`/`.ts` 才尝试加载。所有启用插件在 Node 宿主内动态 import，runtime 和 apiVersion 可省略，默认 process 与 2，不回退到核心进程。
-- 默认导出必须有函数 `onRequest`，否则进入 `inactivePlugins`。`enabled: false` 也直接进入未激活列表。
-- 加载器最多同时激活两个插件；导入入口后、onLoad 前准备 ui.entry，缺少 HTML 时尝试 Vite 构建，构建期间暂停插件启动超时。完成 onLoad 后注册命令、API、资源和 WebSocket。失败逐项记录到 inactivePlugins；HTTP 在激活前启动。依赖、构建及部署细节见 [dependencies-and-deployment.md](dependencies-and-deployment.md)。
-- `projects/server/router/utils/index.ts` 的 `matchLink`：普通模式按前缀匹配；含 `*` 的模式转换成从字符串开头匹配的正则；`!` 是否定；一个否定通配符命中时返回不匹配；`link-with: []` 在调用方被当作匹配全部。
-- `pluginConfig.command` 只有在 `package.json.commandName` 存在时才会注册；每个插件只能注册一个一级命令。`execute` 收到 logger、已解析选项数组、未使用参数和原始参数；选项解析支持 `--name=value`、别名和默认值。命令名冲突时会自动添加插件 ID 前缀。
+### `onLoad` 上下文
 
-## 抓取与控制器
+`SCWC.ILoadContext` 提供：
 
-- `/api/metadata/scrape` 对所有匹配插件依次调用 `onRequest`，并把 `toWeb` 收集成响应中的通知。一个插件失败不会阻止后续匹配插件尝试。
-- `/api/plugin/config` 返回给浏览器脚本的控制器会去掉 `trigger`，并把 channel 改写为 `plugin:<name>:<pluginId>:<channel>`；`relatedChannel` 也会被改写。触发时服务端再解析回原始短 channel。
-- `/api/plugin/toggle` 通过 `pluginId`、插件 `name` 和短 channel 定位控制器；`relatedValues` 只保留能解析完整 channel 的项。
-- 控制器触发的 logger 类型只有 `TLogger`，没有 `toWeb`。回调结果由浏览器脚本按 `notification` 结构处理。
+- `config`：插件目录隔离的持久字符串配置对象，含 `get`、`list`、`set`、`update`、`delete`、`reset`、`subscribe`。所有值均为字符串；写入可带 `baseRevision`。持久配置不是缓存，插件卸载不会删除。
+- `workbench.logger`、`workbench.tasks`：长期通知与任务控制接口。通知支持创建、更新、进度、操作按钮和关闭；任务可创建自定义任务或查询/取消允许的内建任务。控制回调留在所属进程，不通过 RPC 序列化函数。
+- `workbench.ui`：注册后端声明式处理器、主/辅助侧栏、状态栏、页面信息提供器和静态 UI 资源；支持事务。注册返回 disposer，卸载时应释放。
+- `createRetryGet`、`LimitPromise`、插件专属 `cache`，以及可选调用级 `tasks` 与 `signal`。缓存接受的类型见 `types/cache.d.ts`，不传流、函数或 socket。
 
-## 页面与 API
+插件顶层还可声明 `configuration` 的配置定义、标准化、验证与变更回调。配置定义中的持久值仍是字符串；编解码及业务规则由插件负责。页面 SDK 的 `config` 是只读快照/订阅接口，页面的写操作应调用插件明确提供的业务 API，由后端执行校验并按已读 `baseRevision` 写入。
 
-- `/web/page/plugin/:pluginDir` 按插件目录 basename 查找页面；ui.entry 相对路径以 package.json.main 指向的插件入口文件所在目录为基准。ui.html 返回完整 HTML，可异步，存在时优先使用；ui.entry 的文件仍必须存在。找不到插件、entry 或文件时重定向到 404 页面。
-- 页面响应会在第一个 `</body>` 前插入 `/web/page/lib/scwcutils.iife.<timestamp>.js`。若尚未构建该库，则不注入。
-- `/web/page/plugin/:pluginDir/*path` 从 entry 所在目录拼接并发送静态资源；插件页面资源应因此使用相对引用。
-- `registerPluginApi` 为每个 API 增加 `/<safeId>` 前缀，最终由 `/web/api/plugin/<safeId>/...` 暴露。API handler 的返回值被包装为 `{ success: true, message: '请求成功', data }`；抛错通过代理保留 status（未指定时 500）、`{ success: false, message }`。
-- `projects/webutils/lib/utils/fetch.ts` 从页面 pathname 的第 5 段取得插件目录，先请求 `/web/api/safeId/:pluginDir`，再把调用路径转为 `/web/api/plugin/:safeId/<path>?site=<current URL>`。配置由父页面 `postMessage` 传入；没有父页面时从共享 localStorage 配置初始化。
-- `TPluginResource` 的 `method` 当前只能是可选的 `'GET'`；`registerPluginResources` 将其注册到 `/web/resource/plugin/<safeId>/<path>`。handler 收到查询参数和 context.request，并返回 file/response 描述；核心负责发送文件、Range、背压与断开。
-- `TResource` 是 `(url: string) => string`。`window.scwcutils.fetch.resource(url)` 只生成资源 URL，不发起请求；URL 附带 `site` 查询参数且不自动添加 Bearer header，适合赋给媒体/样式等资源元素。资源接口不得把 `site` 参数当作身份认证；敏感资源应使用 handler 自行校验的短期票据或其他授权设计。
-- 插件页面与插件后端的默认通信契约是结构化请求 `window.scwcutils.fetch` → `ui.api`，资源加载 `window.scwcutils.fetch.resource` → `ui.resources`。除非开发者主动要求其他方案，不使用原生 `fetch`/`XMLHttpRequest` 绕过转发，也不为插件创建独立 HTTP 服务或监听额外端口。
-- 主页面 `projects/web/src/layouts/content.ts` 使用 iframe 挂载插件页面，并在 iframe load 后发送 `scwc-plugin-config` 和 `scwc-plugin-hinder` 消息。插件页面不要假设能直接访问主页面 DOM；只依赖声明的 `window.scwcutils` 和标准 Web API。
+### 抓取与浏览器脚本控制器
 
-## 保存数据与路径
+- `onRequest(context, logger)` 接收采集 `data`、`site`、`signal`/`tasks` 和工具函数；抓取 logger 可用 `toWeb(message, type?)` 发通知。核心可以继续运行其他匹配插件，即使某插件请求失败。
+- `pluginConfig.scripts.controls` 可为数组或动态工厂。支持 `button`、`toggle`、`select`、`input:text`、`input:number`、`checkbox`。每项需有稳定 channel 和触发器；动态工厂可按 site 返回控件。
+- 控制器回调收到当前值、相关通道值、采集数据、site、signal/tasks 和普通插件 logger；没有 `toWeb`，须返回 `{ type: 'notification', data: { type, message } }`。页面数据始终需要后端重新校验。
 
-`projects/server/utils/writeData.ts` 的当前行为：
+### 命令
 
-- `writeData(dirPath, data)` 自动创建目录和 `images/`，向 `data.json` 追加一项；已有文件必须为空或根元素为数组，否则返回 `false`。
-- 当 data 是带 `images` 字段的 DataItem 数组时，会把每个 data URL/图片 URL 写入 `images/`，并在 JSON 中保存生成的文件路径。
-- `writeDataURL` 支持 `data:image/<ext>;base64,...` 和 `http(s)` 图片 URL；字符串参数作为目录，函数参数可按 `{ fullname, filename, ext, datePrefix }` 生成最终路径。返回最终保存的相对路径或 `false`。
-- 实现使用同步文件系统调用和插件进程权限。插件应使用稳定、明确的目录，清理文件名并避免让外部输入决定任意绝对路径。
+- 只有 `package.json.commandName` 存在时，`pluginConfig.command` 才注册一级命令；每个插件一个。冲突名称可能显示目录身份前缀。
+- `execute` 收到 logger、解析后的选项、未使用参数、原始参数和 `InvocationContext`。上下文提供调用身份、取消 `signal`、任务 `tasks` 和 `next(message, Type?)`；待答输入返回 `[error, value]` 二元组，必须检查错误。
+- 可选 `complete` 接收当前命令、父级词、缓存、当前位置、键值上下文和取消信息，返回 `{ command, commands }`。`commands` 应是当前位置完整有效词项，终端负责按前缀过滤。缓存由已注册一级命令持有；不要在取消后继续发布过期候选。
+- 用户输入的路径、选项和参数均须校验；不要把它们直接拼成任意文件路径或 shell 命令。
 
-## 默认第二版进程契约（2026-10-06）
+## 插件提供的后端接口
 
-所有启用插件采用默认第二版，入口使用 SCWC.IPluginHandler；runtime/apiVersion 可以省略，部分超时设置也不改变默认模式。API 使用 context.request，资源返回文件/小响应描述，WebSocket 使用 connectionId 与本地事件函数。THosted* 和 IHostedPluginHandler 是核心内部 Express/socket 代理类型。普通响应与 scwcutils 路径不变；通信限额/过载/不可用/超时为 413/429/503/504。注入缓存按插件目录名绑定，支持可序列化值，不支持 Readable；retryGet 流式响应留在宿主本地，不进入 IPC 缓存。动态 HTML 可异步读取并使用最近快照。详细协议、限制和测试见 projects/server/plugin/process/README.md。
+插件的 `ui` 可声明 `entry`、可选 `html()`、`api`、`resources`、`websocket`：
+
+- `ui.api` handler 接收数据和 `context.request`（method、url、params、query、headers），可访问调用级任务、取消信号和 logger。它不能访问 Express req/res。返回值由核心包装为 `{ success, message, data }`；错误使用统一错误包装并保留可用状态码。
+- `ui.resources` 目前只支持 GET。handler 收到查询数据和请求快照，返回 `{ kind: 'file', path, contentType?, downloadName?, headers? }` 或 `{ kind: 'response', status, body?, headers? }`。`file.path` 必须由插件验证为受控绝对路径；核心负责 Range、文件传输背压和断连处理。
+- `ui.websocket` 使用 `connectionId`、`channel`、`query` 和局部 `send`/`broadcast`/`close`；连接处理器运行在插件进程内。只传输协议允许的数据，不依赖共享真实 socket 对象。
+- 这些接口通过核心路由和插件进程代理提供；插件不要启动自己的 Express/Koa/Fastify 服务或额外监听端口。RPC 的单消息、待答和事件队列限额见 `projects/server/plugin/process/README.md`；超时不会证明写操作已取消。
+
+## 页面路径与 `scwcutils`
+
+- `/web/page/plugin/<插件目录名>/...` 用插件目录身份挂载页面。`ui.entry` 相对路径以 `package.json.main` 所在目录解析；静态文件以 HTML 入口目录为根，核心同时检查真实路径边界并拒绝越界符号链接。
+- 核心在 HTML head 最前注入 `scwcutils` IIFE（若该构建资产存在）。页面是隔离 iframe，不能依赖主页面 DOM 或主页面内部存储格式。
+- `window.scwcutils.ready` 在页面授权握手后完成。调用页面授权的 API 前等待 ready；`fetch` 会自行等待，创建 WebSocket 前显式等待。SDK 提供 `fetch`、`fetch.resource`、`fetch.websocket`/`websocketAsync`、只读 `config`、`ui.handlers`、`lifecycle`、`navigation`、`search`、`host` 能力声明、通知与任务、页面可见/焦点/主题和请求生命周期等接口。用 `host.capabilities` 检查工作台可选能力。
+- `fetch(path, init?)` 使用当前页面 grant 访问当前插件 API，并附带页面 URL；响应是 `{ success, message, data }` 外层包装。它不是浏览器原生 `fetch` 的直接别名。
+- `fetch.resource(path)` 只构造资源 URL，供媒体/链接属性使用；URL 会带 `site`，但不带 API Bearer header。不能把 `site` 当认证；敏感资源应在插件 handler 验证短期票据或其他授权。`interruptible` 资源可参与工作台暂停恢复机制。
+- WebSocket 通过核心签发的单次票据建立，`TicketSocket` 在可中断请求生命周期中暂停/恢复底层连接并保留处理器；手动关闭后不会恢复。页面离开时 SDK/宿主会撤销页面授权、监听和任务。
+- `ui.handlers.register(name, definition)` 的回调留在浏览器文档内，宿主只收到带 revision 的描述。模板/渲染表达式调用只读处理器；带副作用的处理器只能绑定受支持的用户事件。watch 必须是只读处理器，使用结束后释放 disposer。
+
+## 插件页面工作台与反馈
+
+工作台 UI 可由后端 `context.workbench.ui` 声明，也可通过页面 `scwcutils.ui.handlers` 提供文档内处理器。支持主/辅助侧栏、状态栏、提示和上下文菜单、检视器及 JSON/HTML UI 内容。后端处理器收到宿主构造的 `HandlerContext`，身份含 workspace/window/source/tab 等字段；用 `signal` 处理中止。跨进程内容只允许有界 JSON/描述，不把 DOM、函数或非有限数字传过 RPC。
+
+`workbench.logger` 通知与 `workbench.tasks` 的回调归属于创建它们的插件/页面 owner。任务状态、通知动作回调和 UI handler 均按 owner 生命周期清理；异步完成时检查取消信号和仍有效的身份。插件页面配置不可直接写入，写入逻辑应留在后端业务 API。
+
+## 保存采集数据
+
+当前后端抓取工具可从 `context.utils` 获取 `writeData`、`writeDataURL`、`fetchImage`、`strValidation`、`convertToCN`。`writeData` 把数据追加到指定目录的 `data.json`，对 DataItem 图片字段可保存图片并记录路径；`writeDataURL` 保存支持的 data URL 或 HTTP(S) 图片。调用前检查返回值，清理文件名并为输出选择明确目录；外部输入不应决定任意绝对路径。具体行为以 `projects/server/utils/writeData.ts` 为准。

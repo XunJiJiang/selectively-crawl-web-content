@@ -17,7 +17,7 @@
 
 ## 产物版本问题
 
-本次发现旧 `web/dist/assets/index-DeR2zT9o.js` 仍调用 `page.register`，而源文件已迁移到 `ui.handlers.register`。实际注入的旧 `scwcutils.iife.mvsaa0dd.js` 还保留旧 page 接口且没有 `ui.handlers`，说明模板和 SDK 都存在构建版本滞后。模板通过 `build:web` 重建；SDK 经用户特别授权，只运行 `projects/webUtils` 的 `bun run build` 重建产物，未修改核心/SDK 源码。核心路由动态注入最新 SDK；已有插件 HTML 缓存需插件重载后刷新，不能手改压缩 JS 或补回 page.register。
+本次发现旧 `web/dist/assets/index-DeR2zT9o.js` 仍调用 `page.register`，而源文件已迁移到 `ui.handlers.register`。实际注入的旧 `scwcutils.iife.mvsaa0dd.js` 还保留旧 page 接口且没有 `ui.handlers`，说明模板和 SDK 都存在构建版本滞后。模板通过 `build:web` 重建；SDK 经用户特别授权，只运行 `projects/webutils` 的 `bun run build` 重建产物，未修改核心/SDK 源码。核心路由动态注入最新 SDK；已有插件 HTML 缓存需插件重载后刷新，不能手改压缩 JS 或补回 page.register。
 
 构建产物按仓库规则忽略，提交源码后在目标环境重新构建。SDK 的时间戳文件名每次构建都会改变，不应在插件中硬编码该文件名。
 

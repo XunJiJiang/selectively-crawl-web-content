@@ -147,7 +147,7 @@ before(async () => {
   origin = `http://127.0.0.1:${server.address().port}`;
   html = await (await fetch(`${origin}/web/page/plugin/template/`)).text();
   const sdkBuild = await build({
-    entryPoints: [fileURLToPath(new URL('../../../../webUtils/lib/index.ts', import.meta.url))],
+    entryPoints: [fileURLToPath(new URL('../../../../webutils/lib/index.ts', import.meta.url))],
     bundle: true,
     write: false,
     format: 'iife',
