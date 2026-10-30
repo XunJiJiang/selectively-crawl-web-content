@@ -22,6 +22,7 @@ export class WorkbenchScrollContainer extends SCWCScrollContainer {
       minDeceleration: 16, // 减速时长下限，ms
     };
     this.wheelAxisLockRatio = 0.5;
+    this.maxWheelDistance = 80;
     this.horizontal = { placement: 'overlay', radius: 4, color: 'var(--border-strong)' };
     this.vertical = { ...this.horizontal };
   }
@@ -89,6 +90,8 @@ export class WorkbenchScrollContainer extends SCWCScrollContainer {
         childLine + padding(style) + number(style.borderTopWidth) + number(style.borderBottomWidth),
         number(style.minHeight),
       );
+      // 终端和输出页每次滚轮事件最多移动一行，随字体与行高一起更新。
+      this.maxWheelDistance = this.stepDistance;
     }
   }
 

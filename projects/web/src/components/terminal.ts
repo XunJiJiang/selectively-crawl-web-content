@@ -206,6 +206,15 @@ export class WorkbenchTerminal extends LitElement {
     }
   }
   private openMenu(event: MouseEvent, selected = this.terminal) {
+    if (
+      event.type === 'contextmenu' &&
+      this.selectedOutput() &&
+      event
+        .composedPath()
+        .includes(this.renderRoot.querySelector('.terminal-output') as EventTarget)
+    ) {
+      return;
+    }
     const target = event.currentTarget as HTMLElement,
       rect = target.getBoundingClientRect(),
       terminal = selected;
@@ -414,6 +423,8 @@ export class WorkbenchTerminal extends LitElement {
           event.ctrlKey &&
           !event.metaKey &&
           !event.altKey &&
+          !event.shiftKey &&
+          !this.selectedOutput() &&
           event.key.toLowerCase() === 'c'
         ) {
           event.preventDefault();
@@ -452,20 +463,6 @@ export class WorkbenchTerminal extends LitElement {
               this.rememberScroll(performance.now() < this.userScrollUntil);
             }
           }}
-          @mousedown=${(event: MouseEvent) => {
-            const editor = this.renderRoot.querySelector<CommandEditor>('wb-command-editor');
-            const target = event.composedPath()[0] as HTMLElement;
-            if (
-              !this.scrollControl(event) &&
-              event.button === 0 &&
-              editor &&
-              !event.composedPath().includes(editor) &&
-              !target.closest?.('button, a, input, textarea')
-            ) {
-              event.preventDefault();
-              editor.focus();
-            }
-          }}
           @pointerdown=${() => {
             this.userScrollUntil = performance.now() + 1000;
           }}
@@ -477,7 +474,8 @@ export class WorkbenchTerminal extends LitElement {
           @click=${(event: MouseEvent) => {
             if (
               !this.scrollControl(event) &&
-              !window.getSelection()?.toString() &&
+              event.button === 0 &&
+              !this.selectedOutput() &&
               !(event.target as HTMLElement).closest('wb-command-editor')
             ) {
               this.renderRoot.querySelector<CommandEditor>('wb-command-editor')?.focus();
@@ -718,6 +716,17 @@ export class WorkbenchTerminal extends LitElement {
       this.renderRoot.querySelector<WorkbenchScrollContainer>('.terminal-output')?.stepDistance ||
       21
     );
+  }
+  private selectedOutput() {
+    const root = this.renderRoot as ShadowRoot & { getSelection?: () => Selection | null };
+    const selection = root.getSelection?.() ?? this.ownerDocument.getSelection();
+    const output = this.renderRoot.querySelector('.terminal-output');
+    return output &&
+      selection &&
+      output.contains(selection.anchorNode) &&
+      output.contains(selection.focusNode)
+      ? selection.toString()
+      : '';
   }
   private wheel = (event: WheelEvent) => {
     if (!event.defaultPrevented && !event.ctrlKey && !event.metaKey) {

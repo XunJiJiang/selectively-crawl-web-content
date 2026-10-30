@@ -3171,6 +3171,34 @@ wb-icon {
 [data-tab-drop='after']::after {
   bottom: 0;
 }
+.tab-bar[data-tab-drop] {
+  position: relative;
+}
+.tab-item[data-tab-drop]::after,
+.tab-bar[data-tab-drop]::after {
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  height: auto;
+  right: auto;
+}
+.tab-item[data-tab-drop='after']::after {
+  left: auto;
+  right: 0;
+}
+.center-group:is([data-position='left'], [data-position='right'])
+  :is(.tab-item, .tab-bar)[data-tab-drop]::after {
+  left: 0;
+  right: 0;
+  bottom: auto;
+  width: auto;
+  height: 2px;
+}
+.center-group:is([data-position='left'], [data-position='right'])
+  .tab-item[data-tab-drop='after']::after {
+  top: auto;
+  bottom: 0;
+}
 
 /* 工作台滚动视口；菜单和配置 textarea 保持各自的原生滚动。 */
 .internal-scroll {

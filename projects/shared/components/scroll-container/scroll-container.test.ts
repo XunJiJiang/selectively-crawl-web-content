@@ -116,6 +116,27 @@ function pointer(target: EventTarget, type: string, x: number, y: number, id = 1
 
 describe('SCWCScrollContainer', () => {
   it.each(['instant', 'smooth'] as const)(
+    'scales and limits diagonal wheel input without changing its direction in %s mode',
+    async (mode) => {
+      const { el, viewport } = await fixture();
+      el.scrollBehavior = mode;
+      el.stepDistance = 0;
+      el.wheelDistanceRatio = 2;
+      el.maxWheelDistance = 80;
+      await settle(el);
+      wheel(el, { deltaX: 100, deltaY: 200 });
+      vi.advanceTimersByTime(300);
+      expect(viewport.scrollLeft).toBe(40);
+      expect(viewport.scrollTop).toBe(80);
+      el.shiftWheelDirection = 'horizontal';
+      await settle(el);
+      wheel(el, { shiftKey: true, deltaY: 1000 });
+      vi.advanceTimersByTime(300);
+      expect(viewport.scrollLeft).toBe(120);
+      expect(viewport.scrollTop).toBe(80);
+    },
+  );
+  it.each(['instant', 'smooth'] as const)(
     'filters minor-axis drift in %s mode while preserving diagonal and explicit direction input',
     async (mode) => {
       const { el, viewport } = await fixture();

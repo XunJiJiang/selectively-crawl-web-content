@@ -21,6 +21,10 @@ async function fixture() {
   expect(area.horizontal.size).toBe(4);
   expect(area.vertical.size).toBe(4);
   const viewport = requireValue(area.scrollElement);
+  Object.defineProperties(viewport, {
+    clientWidth: { configurable: true, value: 300 },
+    clientHeight: { configurable: true, value: 100 },
+  });
   Object.defineProperties(requireValue(area.shadowRoot?.querySelector('.frame')), {
     clientWidth: { value: 300 },
     clientHeight: { value: 100 },
@@ -39,26 +43,97 @@ async function fixture() {
   return { area, viewport };
 }
 
-it('accumulates wheel input into single rendered log lines and updates the step with typography', async () => {
+it('caps each oversized wheel event before accumulation and discards the excess', async () => {
   const { area, viewport } = await fixture();
-  area.innerHTML =
-    '<div class="output-line" style="line-height:20px;padding:1px 0"><span style="padding-top:2px">log</span></div>';
-  area.lineScroll = true;
   area.scrollBehavior = 'instant';
+  area.stepDistance = 20;
   await area.updateComplete;
-  area.refresh();
   const wheel = (deltaY: number) =>
     area.dispatchEvent(new WheelEvent('wheel', { deltaY, bubbles: true, cancelable: true }));
-  expect(wheel(10)).toBe(false);
+  wheel(1000);
+  wheel(1000);
+  await new Promise(requestAnimationFrame);
+  expect(viewport.scrollTop).toBe(160);
+  wheel(20);
+  await new Promise(requestAnimationFrame);
+  expect(viewport.scrollTop).toBe(180);
+  wheel(-1000);
+  await new Promise(requestAnimationFrame);
+  expect(viewport.scrollTop).toBe(100);
+});
+
+it.each([
+  { mode: 0, delta: 100, ratio: 0.5, max: 60, expected: 50 },
+  { mode: 0, delta: 100, ratio: 2, max: 60, expected: 60 },
+  { mode: 1, delta: 10, ratio: 0.5, max: 60, expected: 60 },
+  { mode: 2, delta: 1, ratio: 0.5, max: 60, expected: 50 },
+  { mode: 0, delta: 100, ratio: 2, max: 0, expected: 200 },
+  { mode: 0, delta: 100, ratio: 0, max: 60, expected: 0 },
+])(
+  'normalizes and scales wheel input before applying the limit: %j',
+  async ({ mode, delta, ratio, max, expected }) => {
+    const { area, viewport } = await fixture();
+    area.scrollBehavior = 'instant';
+    area.stepDistance = 0;
+    area.setAttribute('wheel-distance-ratio', String(ratio));
+    area.setAttribute('max-wheel-distance', String(max));
+    await area.updateComplete;
+    const event = new WheelEvent('wheel', { deltaY: delta, deltaMode: mode, cancelable: true });
+    area.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(true);
+    await new Promise(requestAnimationFrame);
+    expect(viewport.scrollTop).toBe(expected);
+  },
+);
+
+it('clears pending wheel distance when the ratio or maximum changes', async () => {
+  const { area, viewport } = await fixture();
+  area.scrollBehavior = 'instant';
+  area.stepDistance = 20;
+  await area.updateComplete;
+  area.dispatchEvent(new WheelEvent('wheel', { deltaY: 15, cancelable: true }));
+  await new Promise(requestAnimationFrame);
+  area.wheelDistanceRatio = 2;
+  area.maxWheelDistance = 40;
+  await area.updateComplete;
+  area.dispatchEvent(new WheelEvent('wheel', { deltaY: 5, cancelable: true }));
   await new Promise(requestAnimationFrame);
   expect(viewport.scrollTop).toBe(0);
-  wheel(14);
-  await new Promise(requestAnimationFrame);
-  expect(viewport.scrollTop).toBe(24);
-  requireValue(area.querySelector<HTMLElement>('.output-line')).style.lineHeight = '30px';
-  area.refresh();
-  expect(area.stepDistance).toBe(34);
 });
+
+it.each(['output-line', 'terminal-output-line'])(
+  'limits each wheel event to one %s and updates the limit with typography',
+  async (rowClass) => {
+    const { area, viewport } = await fixture();
+    area.innerHTML = `<div class="${rowClass}" style="line-height:20px;padding:1px 0"><span style="padding-top:2px">log</span></div>`;
+    area.lineScroll = true;
+    area.scrollBehavior = 'instant';
+    await area.updateComplete;
+    area.refresh();
+    const wheel = (deltaY: number) =>
+      area.dispatchEvent(new WheelEvent('wheel', { deltaY, bubbles: true, cancelable: true }));
+    expect(wheel(10)).toBe(false);
+    await new Promise(requestAnimationFrame);
+    expect(viewport.scrollTop).toBe(0);
+    wheel(14);
+    await new Promise(requestAnimationFrame);
+    expect(viewport.scrollTop).toBe(24);
+    expect(area.maxWheelDistance).toBe(24);
+    wheel(1000);
+    await new Promise(requestAnimationFrame);
+    expect(viewport.scrollTop).toBe(48);
+    wheel(-1000);
+    await new Promise(requestAnimationFrame);
+    expect(viewport.scrollTop).toBe(24);
+    requireValue(area.querySelector<HTMLElement>(`.${rowClass}`)).style.lineHeight = '30px';
+    area.refresh();
+    expect(area.stepDistance).toBe(34);
+    expect(area.maxWheelDistance).toBe(34);
+    wheel(1000);
+    await new Promise(requestAnimationFrame);
+    expect(viewport.scrollTop).toBe(58);
+  },
+);
 
 it('lets native configuration textareas scroll until their boundary before scrolling the parent', async () => {
   const { area, viewport } = await fixture();

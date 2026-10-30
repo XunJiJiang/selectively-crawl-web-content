@@ -183,6 +183,49 @@ describe('inline Web command terminal', () => {
       expect.objectContaining({ executionId: 'running' }),
     );
   });
+  it('allows selecting output and native copying while a command is running', async () => {
+    const { terminal, root } = await fixture();
+    store.outputs.set('a', [
+      { seq: 1, streamId: 'a', timestamp: '', type: 'output', text: 'copy this output' },
+    ]);
+    store.executions = [
+      { id: 'running', terminalId: 'a', status: 'running', coreBootId: 'boot', command: 'long' },
+    ] as typeof store.executions;
+    store.changed();
+    await terminal.updateComplete;
+    const text = requireValue(root.querySelector('.terminal-output-text'));
+    const mousedown = new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0 });
+    text.dispatchEvent(mousedown);
+    expect(mousedown.defaultPrevented).toBe(false);
+    Object.defineProperty(root, 'getSelection', {
+      value: () => ({
+        anchorNode: text.firstChild,
+        focusNode: text.firstChild,
+        toString: () => 'copy this output',
+      }),
+    });
+    const editor = requireValue(root.querySelector<CommandEditor>('wb-command-editor'));
+    const focus = vi.spyOn(editor, 'focus');
+    const request = vi.spyOn(store.api, 'request').mockResolvedValue({});
+    text.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(focus).not.toHaveBeenCalled();
+    for (const modifiers of [{ ctrlKey: true }, { metaKey: true }]) {
+      const event = new KeyboardEvent('keydown', {
+        key: 'c',
+        ...modifiers,
+        bubbles: true,
+        cancelable: true,
+      });
+      text.dispatchEvent(event);
+      expect(event.defaultPrevented).toBe(false);
+    }
+    expect(request).not.toHaveBeenCalled();
+    const menu = new MouseEvent('contextmenu', { bubbles: true, cancelable: true });
+    text.dispatchEvent(menu);
+    expect(menu.defaultPrevented).toBe(false);
+    await terminal.updateComplete;
+    expect(root.querySelector('wb-context-menu')).toBeNull();
+  });
   it('keeps the prompt in the output flow without a form toolbar, run button or placeholder', async () => {
     const { root } = await fixture();
     expect(root.querySelector('.terminal-output wb-command-editor')).not.toBeNull();
@@ -273,20 +316,21 @@ describe('inline Web command terminal', () => {
   });
 });
 
-it('preserves input focus before a click elsewhere in terminal output', async () => {
+it('focuses the editor after a plain output click without blocking text selection', async () => {
   const { root } = await fixture();
   const editor = requireValue(root.querySelector<CommandEditor>('wb-command-editor'));
   await editor.updateComplete;
   editor.focus();
   const input = requireValue(editor.shadowRoot?.querySelector('textarea'));
-  const blur = vi.fn();
-  input.addEventListener('blur', blur);
+  const focus = vi.spyOn(editor, 'focus');
   const output = requireValue(root.querySelector('.terminal-output'));
   expect(
     output.dispatchEvent(
       new MouseEvent('mousedown', { button: 0, bubbles: true, cancelable: true }),
     ),
-  ).toBe(false);
+  ).toBe(true);
+  expect(focus).not.toHaveBeenCalled();
+  output.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+  expect(focus).toHaveBeenCalledOnce();
   expect(editor.shadowRoot?.activeElement).toBe(input);
-  expect(blur).not.toHaveBeenCalled();
 });

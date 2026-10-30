@@ -97,6 +97,109 @@ async function fixture() {
   return requireValue(app.shadowRoot);
 }
 
+describe('center tab placement', () => {
+  function drag(target: Element, type: string, clientX = 0, clientY = 0) {
+    const event = new MouseEvent(type, { bubbles: true, cancelable: true, clientX, clientY });
+    Object.assign(event, { dataTransfer: { setData: vi.fn(), dropEffect: 'none' } });
+    target.dispatchEvent(event);
+    return event;
+  }
+  async function tabsFixture() {
+    const root = await fixture();
+    const snapshot = requireValue(app.store.workspace).snapshot;
+    addTab(snapshot, internalTab('bookmarks'));
+    addTab(snapshot, internalTab('settings'));
+    vi.spyOn(app.store, 'update').mockImplementation(async (mutate) => {
+      mutate(snapshot);
+      app.store.changed();
+    });
+    app.requestUpdate();
+    await app.updateComplete;
+    return { root, snapshot, group: groups(snapshot.layout.center)[0] };
+  }
+  it.each(['top', 'bottom', 'left', 'right'] as const)(
+    'previews and applies before/after insertion with the tab bar at the %s',
+    async (position) => {
+      const { root, group } = await tabsFixture();
+      group.tabBarPosition = position;
+      app.requestUpdate();
+      await app.updateComplete;
+      const [first, second, third] = group.tabIds;
+      const tab = (id: string) =>
+        requireValue(root.querySelector<HTMLElement>(`.tab-item[data-tab-id="${id}"]`));
+      vi.spyOn(tab(third), 'getBoundingClientRect').mockReturnValue(new DOMRect(100, 100, 100, 40));
+      drag(tab(first), 'dragstart');
+      drag(tab(third), 'dragover', 110, 110);
+      expect(tab(third).dataset.tabDrop).toBe('before');
+      drag(tab(third), 'drop', 110, 110);
+      await app.updateComplete;
+      expect(group.tabIds).toEqual([second, first, third]);
+      expect(root.querySelector('[data-tab-drop]')).toBeNull();
+      drag(tab(first), 'dragstart');
+      drag(tab(third), 'dragover', 190, 135);
+      expect(tab(third).dataset.tabDrop).toBe('after');
+      drag(tab(third), 'drop', 190, 135);
+      await app.updateComplete;
+      expect(group.tabIds).toEqual([second, third, first]);
+      vi.spyOn(tab(second), 'getBoundingClientRect').mockReturnValue(
+        new DOMRect(100, 100, 100, 40),
+      );
+      drag(tab(first), 'dragstart');
+      drag(tab(second), 'drop', 110, 110);
+      await app.updateComplete;
+      expect(group.tabIds).toEqual([first, second, third]);
+      expect(app.classList.contains('tab-dragging')).toBe(false);
+    },
+  );
+  it('clears the marker on leave, cancellation and self-drop, and ignores external drags', async () => {
+    const { root, group } = await tabsFixture();
+    const [first, second] = root.querySelectorAll('.tab-item');
+    drag(second, 'dragover');
+    expect(root.querySelector('[data-tab-drop]')).toBeNull();
+    const original = [...group.tabIds];
+    drag(first, 'dragstart');
+    drag(second, 'dragover');
+    expect(root.querySelector('[data-tab-drop]')).not.toBeNull();
+    drag(requireValue(root.querySelector('.tab-bar')), 'dragleave');
+    expect(root.querySelector('[data-tab-drop]')).toBeNull();
+    drag(second, 'dragover');
+    drag(first, 'dragend');
+    expect(root.querySelector('[data-tab-drop]')).toBeNull();
+    drag(first, 'dragstart');
+    drag(first, 'drop');
+    await app.updateComplete;
+    expect(group.tabIds).toEqual(original);
+    expect(app.classList.contains('tab-dragging')).toBe(false);
+  });
+  it('previews insertion into an empty group and preserves the pinned-tab boundary', async () => {
+    const { root, snapshot, group } = await tabsFixture();
+    const [first, second, third] = group.tabIds;
+    requireValue(snapshot.tabs.find((tab) => tab.id === second)).pinned = true;
+    app.requestUpdate();
+    await app.updateComplete;
+    const tab = (id: string) =>
+      requireValue(root.querySelector<HTMLElement>(`.tab-item[data-tab-id="${id}"]`));
+    drag(tab(first), 'dragstart');
+    drag(tab(second), 'dragover', -100, -100);
+    expect(tab(third).dataset.tabDrop).toBe('before');
+    drag(tab(second), 'drop', -100, -100);
+    await app.updateComplete;
+    expect(group.tabIds).toEqual([second, first, third]);
+    splitGroup(snapshot, 'horizontal');
+    app.requestUpdate();
+    await app.updateComplete;
+    const empty = requireValue(root.querySelectorAll('.tab-bar')[1]);
+    drag(tab(first), 'dragstart');
+    drag(empty, 'dragover');
+    expect(empty.hasAttribute('data-tab-drop')).toBe(true);
+    drag(empty, 'drop');
+    await app.updateComplete;
+    expect(groups(snapshot.layout.center)[1].tabIds).toEqual([first]);
+    expect(group.tabIds).toEqual([second, third]);
+    expect(root.querySelector('[data-tab-drop]')).toBeNull();
+  });
+});
+
 describe('topbar menus', () => {
   async function topbarFixture(overflow = false) {
     const root = await fixture();

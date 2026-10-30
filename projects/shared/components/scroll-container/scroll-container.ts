@@ -39,6 +39,10 @@ export class SCWCScrollContainer extends LitElement {
   @property({ attribute: false }) accessor smoothWheel: SmoothWheelOptions = {};
   /** 跳跃滚动的最小距离（px）；滚轮按累计距离整步移动，0 表示不量化。 */
   @property({ type: Number, attribute: 'step-distance' }) accessor stepDistance = 40;
+  /** 滚轮距离换算为 px 后先乘此倍率，再限幅和累计；0 表示不滚动。 */
+  @property({ type: Number, attribute: 'wheel-distance-ratio' }) accessor wheelDistanceRatio = 1;
+  /** 单次滚轮事件每轴的距离上限（px）；0 表示不限，超出部分直接丢弃。 */
+  @property({ type: Number, attribute: 'max-wheel-distance' }) accessor maxWheelDistance = 0;
   @property({ attribute: 'wheel-direction' }) accessor wheelDirection: WheelDirection = 'auto';
   /** 自动方向下，较小/较大轴距离低于此比值时忽略较小轴；0 表示禁用。 */
   @property({ type: Number, attribute: 'wheel-axis-lock-ratio' }) accessor wheelAxisLockRatio = 0;
@@ -459,6 +463,17 @@ export class SCWCScrollContainer extends LitElement {
         }
       }
     }
+    const ratio = nonNegative(this.wheelDistanceRatio, 1);
+    const maximum = nonNegative(this.maxWheelDistance);
+    // 保持双轴方向比例；限制每个事件，而不是合并后的帧距离。
+    const largest = Math.max(Math.abs(x), Math.abs(y));
+    if (ratio === 0 && largest > 0) {
+      event.preventDefault();
+      return;
+    }
+    const factor = maximum > 0 && largest > 0 ? Math.min(ratio, maximum / largest) : ratio;
+    x *= factor;
+    y *= factor;
     // 允许反向输入抵消本帧尚未应用的距离；真实边界上的向外输入交给祖先。
     const canMove = (position: number, max: number, pending: number, delta: number) =>
       delta > 0 ? position < max || pending < 0 : delta < 0 && (position > 0 || pending > 0);
@@ -526,7 +541,7 @@ export class SCWCScrollContainer extends LitElement {
   };
 
   private wheelKey() {
-    return `${this.scrollBehavior}:${nonNegative(this.stepDistance, 40)}:${this.wheelDirection}:${this.shiftWheelDirection}:${this.wheelAxisLockRatio}:${JSON.stringify(this.smoothWheel)}:${Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)}`;
+    return `${this.scrollBehavior}:${nonNegative(this.stepDistance, 40)}:${this.wheelDistanceRatio}:${this.maxWheelDistance}:${this.wheelDirection}:${this.shiftWheelDirection}:${this.wheelAxisLockRatio}:${JSON.stringify(this.smoothWheel)}:${Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)}`;
   }
 
   private readonly flushWheel = () => {

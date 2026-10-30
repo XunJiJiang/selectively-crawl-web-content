@@ -166,6 +166,7 @@ export class AppRoot extends LitElement {
   @state() private accessor openPagesCollapsed = false;
   @state() private accessor pluginPagesCollapsed = false;
   private sidebarDrop?: HTMLElement;
+  private centerDrop?: { element: HTMLElement; groupId: string; index: number };
   private previousTheme = '';
   private resizeSnapshot?: WorkspaceSnapshot;
   private splitExtents = new Map<string, SplitExtent>();
@@ -335,6 +336,7 @@ export class AppRoot extends LitElement {
     void this.store.start();
   }
   disconnectedCallback() {
+    this.endTabDrag();
     this.cancelResize?.();
     this.leaveResize();
     this.store.removeEventListener('change', this.changed);
@@ -2665,10 +2667,9 @@ export class AppRoot extends LitElement {
                                 class="sidebar-list-item"
                                 draggable="true"
                                 @dragstart=${(e: DragEvent) => {
-                                  this.dragTab = tab.id;
-                                  e.dataTransfer?.setData('text/x-scwc-tab', tab.id);
+                                  this.startTabDrag(e, tab.id);
                                 }}
-                                @dragend=${() => this.clearSidebarDrop()}
+                                @dragend=${() => this.endTabDrag()}
                                 @dragover=${(e: DragEvent) => this.sidebarDragOver(e, true)}
                                 @dragleave=${(e: DragEvent) => {
                                   if (
@@ -2866,6 +2867,7 @@ export class AppRoot extends LitElement {
     }
     e.preventDefault();
     e.stopPropagation();
+    this.clearCenterDrop();
     this.sidebarDrop?.removeAttribute('data-tab-drop');
     const target = e.currentTarget as HTMLElement;
     this.sidebarDrop = target;
@@ -2882,9 +2884,86 @@ export class AppRoot extends LitElement {
     const after = this.sidebarDrop?.dataset.tabDrop === 'after';
     const remaining = group.tabIds.filter((id) => id !== source);
     const index = target ? remaining.indexOf(target) + Number(after) : remaining.length;
-    this.clearSidebarDrop();
+    this.endTabDrag();
     if (source && source !== target) {
       this.act(() => this.store.update((s) => moveTab(s, source, group.id, index)));
+    }
+  }
+  private clearCenterDrop() {
+    this.centerDrop?.element.removeAttribute('data-tab-drop');
+    this.centerDrop = undefined;
+  }
+  private endTabDrag() {
+    this.clearCenterDrop();
+    this.clearSidebarDrop();
+    this.classList.remove('tab-dragging');
+  }
+  private startTabDrag(event: DragEvent, id: string) {
+    this.endTabDrag();
+    this.dragTab = id;
+    event.dataTransfer?.setData('text/x-scwc-tab', id);
+    this.classList.add('tab-dragging');
+  }
+  private orderedTabs(group: Group) {
+    return [...group.tabIds].sort(
+      (a, b) =>
+        Number(this.snapshot.tabs.find((tab) => tab.id === b)?.pinned) -
+        Number(this.snapshot.tabs.find((tab) => tab.id === a)?.pinned),
+    );
+  }
+  private centerDragOver(event: DragEvent, group: Group, targetId?: string) {
+    this.clearCenterDrop();
+    const source = this.snapshot.tabs.find((tab) => tab.id === this.dragTab);
+    if (!source) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    this.sidebarDrop?.removeAttribute('data-tab-drop');
+    this.sidebarDrop = undefined;
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = 'move';
+    }
+    if (source.id === targetId) {
+      return;
+    }
+    const target = event.currentTarget as HTMLElement;
+    const bar = target.closest<HTMLElement>('.tab-bar') ?? target;
+    const ids = this.orderedTabs(group).filter((id) => id !== source.id);
+    const rect = target.getBoundingClientRect();
+    const vertical = ['left', 'right'].includes(group.tabBarPosition);
+    const after = vertical
+      ? event.clientY >= rect.top + rect.height / 2
+      : event.clientX >= rect.left + rect.width / 2;
+    let index = targetId ? ids.indexOf(targetId) + Number(after) : ids.length;
+    // 插入线与固定标签始终排在前面的实际渲染顺序一致。
+    const pinned = ids.filter(
+      (id) => this.snapshot.tabs.find((tab) => tab.id === id)?.pinned,
+    ).length;
+    index = source.pinned ? Math.min(index, pinned) : Math.max(index, pinned);
+    const anchorId = ids[index] ?? ids[ids.length - 1];
+    const element =
+      [...bar.querySelectorAll<HTMLElement>('.tab-item')].find(
+        (tab) => tab.dataset.tabId === anchorId,
+      ) ?? bar;
+    element.dataset.tabDrop = index < ids.length ? 'before' : 'after';
+    this.centerDrop = { element, groupId: group.id, index };
+  }
+  private centerDropTab(event: DragEvent, group: Group, targetId?: string) {
+    this.centerDragOver(event, group, targetId);
+    event.preventDefault();
+    event.stopPropagation();
+    const source = this.dragTab;
+    const drop = this.centerDrop;
+    this.endTabDrag();
+    if (source && drop?.groupId === group.id) {
+      this.act(() =>
+        this.store.update((s) => {
+          const destination = findGroup(s, group.id);
+          destination.tabIds = this.orderedTabs(destination);
+          moveTab(s, source, group.id, drop.index);
+        }),
+      );
     }
   }
   private renderNode(node: LayoutNode, width: number, height: number): unknown {
@@ -2982,6 +3061,7 @@ export class AppRoot extends LitElement {
         }
       }}
       @dragover=${(e: DragEvent) => {
+        this.clearCenterDrop();
         if (this.dragTab) {
           e.preventDefault();
           if (e.dataTransfer) {
@@ -2996,8 +3076,7 @@ export class AppRoot extends LitElement {
           const source = this.dragTab;
           this.act(() => this.store.update((s) => moveTab(s, source, node.id)));
         }
-        this.dragTab = '';
-        this.classList.remove('tab-dragging');
+        this.endTabDrag();
       }}
     >
       <div class="group-tab-strip">
@@ -3015,6 +3094,16 @@ export class AppRoot extends LitElement {
           aria-orientation=${['left', 'right'].includes(node.tabBarPosition)
             ? 'vertical'
             : 'horizontal'}
+          @dragover=${(e: DragEvent) => this.centerDragOver(e, node)}
+          @drop=${(e: DragEvent) => this.centerDropTab(e, node)}
+          @dragleave=${(e: DragEvent) => {
+            if (
+              !(e.relatedTarget instanceof Node) ||
+              !(e.currentTarget as Node).contains(e.relatedTarget)
+            ) {
+              this.clearCenterDrop();
+            }
+          }}
           @keydown=${(e: KeyboardEvent) => {
             if (
               !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(e.key)
@@ -3036,11 +3125,7 @@ export class AppRoot extends LitElement {
           }}
         >
           ${repeat(
-            [...node.tabIds].sort(
-              (a, b) =>
-                Number(this.snapshot.tabs.find((t) => t.id === b)?.pinned) -
-                Number(this.snapshot.tabs.find((t) => t.id === a)?.pinned),
-            ),
+            this.orderedTabs(node),
             (id) => id,
             (id) => {
               const tab = this.snapshot.tabs.find((t) => t.id === id);
@@ -3058,32 +3143,16 @@ export class AppRoot extends LitElement {
                 tabindex=${id === node.activeTabId ? 0 : -1}
                 draggable="true"
                 @dragstart=${(e: DragEvent) => {
-                  this.dragTab = id;
-                  e.dataTransfer?.setData('text/x-scwc-tab', id);
-                  this.classList.add('tab-dragging');
+                  this.startTabDrag(e, id);
                 }}
                 @dragend=${() => {
-                  this.dragTab = '';
-                  this.classList.remove('tab-dragging');
+                  this.endTabDrag();
                 }}
                 @dragover=${(e: DragEvent) => {
-                  if (this.dragTab) {
-                    e.preventDefault();
-                  }
+                  this.centerDragOver(e, node, id);
                 }}
                 @drop=${(e: DragEvent) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  const source = this.dragTab;
-                  this.dragTab = '';
-                  this.classList.remove('tab-dragging');
-                  if (source) {
-                    this.act(() =>
-                      this.store.update((s) =>
-                        moveTab(s, source, node.id, node.tabIds.indexOf(id)),
-                      ),
-                    );
-                  }
+                  this.centerDropTab(e, node, id);
                 }}
                 @click=${() => this.act(() => this.command('focusTab', id))}
                 @keydown=${(e: KeyboardEvent) => {
