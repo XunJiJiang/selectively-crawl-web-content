@@ -14,10 +14,6 @@ class SCWCFooterLayout extends LitElement {
   render() {
     return html``;
   }
-
-  connectedCallback() {
-    //
-  }
 }
 
 declare global {

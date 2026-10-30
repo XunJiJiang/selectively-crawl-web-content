@@ -4,6 +4,12 @@ import path from 'node:path';
 import { afterAll, beforeAll, expect, it, vi } from 'vitest';
 import WebSocket from 'ws';
 vi.mock('../../../common/environment.ts', () => ({ loadEnvironment: () => undefined }));
+const installFixture = vi.hoisted(() => ({ path: `/tmp/scwc-install-${crypto.randomUUID()}.user.js` }));
+vi.mock('../../../utils/user-script.ts', () => ({
+  userScriptPath: installFixture.path,
+  requireUserScript: vi.fn(async () => undefined),
+  openUserScriptInstaller: vi.fn(async () => ({ url: 'http://localhost/web/userscript/scwc.user.js', message: '已发送安装请求' })),
+}));
 vi.mock('../../../utils/cache.ts', () => ({
   addErrorHandler: () => {
     /* Cache is outside this HTTP fixture. */
@@ -17,6 +23,7 @@ import { TOKEN } from '../../../common/env.ts';
 import { loadPlugins, plugins, unloadPlugins } from '../../../plugin/load.ts';
 import { getWorkbench, closeWorkbench } from '../../../workbench/runtime.ts';
 import { closeStorage } from '../../../workbench/storage.ts';
+import { openUserScriptInstaller } from '../../../utils/user-script.ts';
 
 let root: string, base: string, server: Server;
 const sockets: WebSocket[] = [];
@@ -34,6 +41,7 @@ async function api(url: string, body?: unknown, token = TOKEN, origin = base) {
   return { status: response.status, ...(await response.json()) };
 }
 beforeAll(async () => {
+  await fs.writeFile(installFixture.path, '// ==UserScript==\n// @name SCWC installation fixture\n// ==/UserScript==\n');
   root = await fs.mkdtemp(path.join(os.tmpdir(), 'scwc-web-backend-'));
   process.env.SCWC_DATA_DIR = path.join(root, 'data');
   process.env.SCWC_WEB_WORKBENCH_DB = path.join(root, 'workbench.sqlite');
@@ -82,6 +90,7 @@ beforeAll(async () => {
   base = `http://localhost:${(server.address() as { port: number }).port}`;
 }, 15000);
 afterAll(async () => {
+  await fs.rm(installFixture.path, { force: true });
   for (const s of sockets) {
     s.terminate();
   }
@@ -297,6 +306,20 @@ it('registers declarative UI through real IPC and executes the core current-page
   expect((await api(`/ui/instances/${current.id}/release`, {})).status).toBe(200);
 });
 
+it('serves the public userscript and requires core authentication for opening the default browser', async () => {
+  const script = await fetch(base + '/web/userscript/scwc.user.js');
+  expect(script.status).toBe(200);
+  expect(script.headers.get('content-type')).toContain('javascript');
+  expect(script.headers.get('cache-control')).toBe('no-store');
+  expect(await script.text()).toContain('// @name SCWC installation fixture');
+  vi.mocked(openUserScriptInstaller).mockClear();
+  expect((await api('/userscript/install', {}, 'wrong')).status).toBe(403);
+  expect(openUserScriptInstaller).not.toHaveBeenCalled();
+  expect((await api('/userscript/install', {})).data.message).toBe('已发送安装请求');
+  vi.mocked(openUserScriptInstaller).mockRejectedValueOnce(new Error('默认浏览器不可用'));
+  expect(await api('/userscript/install', {})).toMatchObject({ status: 503, code: 'userscript_install_failed', message: '默认浏览器不可用' });
+});
+
 it('scopes page grants and ticket streams, synchronizes backend string CRUD, rejects nonstrings and stale grants', async () => {
   const session = (
     await api('/page-sessions', {
@@ -307,6 +330,9 @@ it('scopes page grants and ticket streams, synchronizes backend string CRUD, rej
     })
   ).data;
   expect((await api('/plugins/beta/config', undefined, session.grant)).status).toBe(403);
+  const installs = vi.mocked(openUserScriptInstaller).mock.calls.length;
+  expect((await api('/userscript/install', {}, session.grant)).status).toBe(403);
+  expect(openUserScriptInstaller).toHaveBeenCalledTimes(installs);
   expect(
     (
       await api(

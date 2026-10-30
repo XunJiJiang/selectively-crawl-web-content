@@ -1,4 +1,6 @@
 import style from './root.css?raw';
+import { theme } from '../theme.ts';
+import type { ContextMenuItem } from '../../../web/src/components/context-menu/menu-types.ts';
 import './minimized.ts';
 import './header.ts';
 import './content.ts';
@@ -14,6 +16,7 @@ import type { Item } from '../types/claw.d.ts';
 @customElement('scwc-layout-root')
 class SCWCRootLayout extends LitElement {
   static styles = [
+    theme,
     css`
       :host {
         position: fixed;
@@ -121,6 +124,60 @@ class SCWCRootLayout extends LitElement {
   @state()
   private accessor clawItems: Item[] = [];
 
+  private boundsObserver?: ResizeObserver;
+  protected firstUpdated() {
+    if (typeof ResizeObserver === 'undefined') {
+      return;
+    }
+    this.boundsObserver = new ResizeObserver(() => {
+      const panel = this.renderRoot.querySelector<HTMLElement>('.scwc-layout-root');
+      if (!panel || this.minimized) {
+        return;
+      }
+      const rect = panel.getBoundingClientRect();
+      const x = Math.max(0, Math.min(this.position.x, window.innerWidth - rect.width));
+      const y = Math.max(0, Math.min(this.position.y, window.innerHeight - rect.height));
+      if (x !== this.position.x || y !== this.position.y) {
+        this.setPosition(x, y);
+      }
+    });
+    const panel = this.renderRoot.querySelector('.scwc-layout-root');
+    if (panel) {
+      this.boundsObserver.observe(panel);
+    }
+  }
+  disconnectedCallback() {
+    this.boundsObserver?.disconnect();
+    super.disconnectedCallback();
+  }
+
+  @state() private accessor menu: { x: number; y: number; items: ContextMenuItem[] } | null = null;
+  private openMenu = (event: MouseEvent) => {
+    event.preventDefault();
+    this.menu = {
+      x: event.clientX,
+      y: event.clientY,
+      items: [
+        {
+          kind: 'checkbox',
+          id: 'selection',
+          label: '展开抓取列表',
+          checked: this.selectionExpanded,
+          action: (value) => this.setSelectionExpanded(value),
+        },
+        {
+          kind: 'checkbox',
+          id: 'plugins',
+          label: '展开插件窗口',
+          checked: this.pluginExpanded,
+          action: (value) => this.setPluginExpanded(value),
+        },
+        { kind: 'separator', id: 'separator' },
+        { kind: 'action', id: 'minimize', label: '最小化', action: () => this.setMinimized(true) },
+      ],
+    };
+  };
+
   render() {
     return [
       html`
@@ -137,15 +194,15 @@ class SCWCRootLayout extends LitElement {
       html`
         <div
           class="scwc-layout-root"
+          ?data-expanded=${this.selectionExpanded || this.pluginExpanded}
           style=${styleMap({
             left: `${this.position.x}px`,
             top: `${this.position.y}px`,
-            'min-width': this.selectionExpanded ? '320px' : '120px',
-            'min-height': this.selectionExpanded ? '180px' : '56px',
-            display: this.persistentData.window.minimized ? 'none' : 'initial',
+            display: this.persistentData.window.minimized ? 'none' : 'flex',
           })}
         >
           <scwc-layout-header
+            @contextmenu=${this.openMenu}
             @move=${(e: CustomEvent<{ x: number; y: number }>) =>
               this.setPosition(e.detail.x, e.detail.y)}
             @toggleclaw=${() => this.setSelectionExpanded(!this.selectionExpanded)}
@@ -155,21 +212,47 @@ class SCWCRootLayout extends LitElement {
             .pluginExpanded=${!this.persistentData.window.minimized && this.pluginExpanded}
             .position=${this.position}
           ></scwc-layout-header>
-          <scwc-layout-content
-            .selectionExpanded=${!this.persistentData.window.minimized && this.selectionExpanded}
-            @trigger-selection-expanded=${(e: CustomEvent<boolean>) =>
-              this.setSelectionExpanded(e.detail)}
-            .pluginExpanded=${!this.persistentData.window.minimized && this.pluginExpanded}
-            @claw-items-changed=${(e: CustomEvent<Item[]>) => {
-              this.clawItems = e.detail;
-            }}
-            .currentPluginTab=${this.currentPluginTab}
-            @current-plugin-tab-changed=${(e: CustomEvent<string>) =>
-              this.setCurrentPluginTab(e.detail)}
-          ></scwc-layout-content>
+          <wb-scroll-container class="window-scroll"
+            ><scwc-layout-content
+              .selectionExpanded=${!this.persistentData.window.minimized && this.selectionExpanded}
+              @trigger-selection-expanded=${(e: CustomEvent<boolean>) =>
+                this.setSelectionExpanded(e.detail)}
+              .pluginExpanded=${!this.persistentData.window.minimized && this.pluginExpanded}
+              @claw-items-changed=${(e: CustomEvent<Item[]>) => {
+                this.clawItems = e.detail;
+              }}
+              .currentPluginTab=${this.currentPluginTab}
+              @current-plugin-tab-changed=${(e: CustomEvent<string>) =>
+                this.setCurrentPluginTab(e.detail)}
+            ></scwc-layout-content
+          ></wb-scroll-container>
           <scwc-layout-footer></scwc-layout-footer>
         </div>
       `,
+      this.menu
+        ? html`<wb-context-menu
+            .items=${this.menu.items}
+            .x=${this.menu.x}
+            .y=${this.menu.y}
+            .open=${true}
+            presentation="custom"
+            @wb-menu-select=${(e: CustomEvent<{ id: string }>) => {
+              const item = this.menu?.items.find((item) => item.id === e.detail.id);
+              if (!item) {
+                return;
+              }
+              if (item.kind === 'checkbox') {
+                void item.action(!item.checked);
+              } else if (item.kind === 'action') {
+                void item.action();
+              }
+              this.menu = null;
+            }}
+            @wb-menu-close=${() => {
+              this.menu = null;
+            }}
+          ></wb-context-menu>`
+        : null,
     ];
   }
 }

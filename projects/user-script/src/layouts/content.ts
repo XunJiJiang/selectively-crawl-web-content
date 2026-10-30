@@ -25,7 +25,7 @@ class SCWCContentLayout extends LitElement {
 
   render() {
     return html`
-      <div>
+      <div class="content">
         <scwc-layout-content-claw
           .expanded=${this.selectionExpanded}
           @items-changed=${(e: CustomEvent) => {

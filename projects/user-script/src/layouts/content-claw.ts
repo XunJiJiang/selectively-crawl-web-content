@@ -1,4 +1,5 @@
 import style from './content-claw.css?raw';
+import { controls } from '../theme.ts';
 
 import {
   LitElement,
@@ -146,6 +147,7 @@ class SCWCElementHighlight extends LitElement {
 @customElement('scwc-layout-content-claw')
 class SCWCContentClaw extends LitElement {
   static styles = [
+    controls,
     css`
       ${unsafeCSS(style)}
     `,
@@ -391,20 +393,12 @@ class SCWCContentClaw extends LitElement {
   render() {
     return html`
       <div class="claw-container">
-        <div
-          class="claw-header"
-          style=${styleMap({
-            'border-bottom': this.expanded ? '1px solid #eee6' : 'none',
-            width: this.expanded ? void 0 : '100px',
-            height: this.expanded ? void 0 : '32px',
-          })}
-        >
+        <div class="claw-header" ?data-expanded=${this.expanded}>
           <scwc-button
             type="secondary"
             ?active=${this.selecting}
             title="点击网页中的元素即可开始选择捕获内容"
             aria-label="Toggle element selection mode"
-            btn-style=${this.selecting ? 'color: #00c7d9;' : ''}
             @click=${this.toggleSelecting}
           >
             <!-- 是否开启选中 -->
@@ -565,19 +559,19 @@ class SCWCContentClaw extends LitElement {
                       (this.prefixInput = e.detail)
                     )}
                   ></scwc-input>
-                </div>
+                </wb-scroll-container>
               `
             : nothing}
           ${this.selecting && !this.selectedEl
             ? html`
                 <div class="claw-choose-placeholder">
                   <span>请在页面中选择一个元素</span>
-                </div>
+                </wb-scroll-container>
               `
             : nothing}
           ${!this.selecting && !this.selectedEl
             ? html`
-                <div class="claw-item-list">
+                <wb-scroll-container class="claw-item-list">
                   ${this.items.length > 0
                     ? this.items.map(
                         (item, idx) => html`
@@ -639,7 +633,6 @@ class SCWCContentClaw extends LitElement {
                               type="secondary"
                               title="删除该选择项"
                               aria-label="Delete this selection item"
-                              btn-style="color: #d90000;"
                               @click=${() => {
                                 const newItems = this.items.filter(
                                   (i) => i.selector !== item.selector,
@@ -714,7 +707,7 @@ class SCWCContentClaw extends LitElement {
                           <span>暂无抓取项，添加后可在此处编辑</span>
                         </div>
                       `}
-                </div>
+                </wb-scroll-container>
               `
             : nothing}
         </div>

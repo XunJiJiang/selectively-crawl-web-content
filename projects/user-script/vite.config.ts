@@ -13,6 +13,7 @@ export default defineConfig(({ mode }) => {
     plugins: [
       monkey({
         entry: 'src/main.ts',
+        build: { fileName: 'scwc.user.js' },
         userscript: {
           name: 'selectively crawl web content',
           namespace: 'XunJi',
@@ -31,7 +32,7 @@ export default defineConfig(({ mode }) => {
     },
     root: path.join(__dirname),
     build: {
-      outDir: path.join(__dirname, '..', '..', 'dist'),
+      outDir: path.join(__dirname, '..', '..', 'dist', 'user-script'),
       minify: false,
       emptyOutDir: true,
     },

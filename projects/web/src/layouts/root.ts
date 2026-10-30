@@ -685,6 +685,11 @@ export class AppRoot extends LitElement {
     this.renderRoot.querySelector<HTMLElement>('.sidebar-content')?.focus();
   }
   async command(id: string, args?: unknown): Promise<unknown> {
+    if (id === 'installUserscript') {
+      const result = await this.store.api.request<{ message: string }>('/userscript/install', {});
+      this.store.toast(result.message, 'info');
+      return;
+    }
     if (id === 'focusBack' || id === 'focusForward') {
       return this.traverseFocus(id === 'focusBack' ? -1 : 1);
     }

@@ -44,6 +44,7 @@ export async function buildRuntime (directory: string): Promise<RuntimeAsset[]> 
   for (const [config, output] of [
     ['projects/web/vite.config.ts', 'public/web'],
     ['projects/webutils/vite.config.ts', 'public/lib'],
+    ['projects/user-script/vite.config.ts', 'public/userscript'],
   ]) {
     await buildVite({
       configFile: path.join(BUILD_ROOT, config),

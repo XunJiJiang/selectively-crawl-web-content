@@ -98,6 +98,24 @@ async function fixture() {
   return requireValue(app.shadowRoot);
 }
 
+describe('userscript installation entry', () => {
+  it('appears under quick access > and hands installation to the core with a notification', async () => {
+    const root = await fixture();
+    const request = vi.spyOn(app.store.api, 'request').mockResolvedValue({ message: '已发送安装请求' });
+    const toast = vi.spyOn(app.store, 'toast').mockImplementation(() => undefined);
+    await app.command('quickOpen');
+    const input = requireValue(root.querySelector<HTMLInputElement>('#quick-input'));
+    input.value = '>安装油猴';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    await app.updateComplete;
+    const result = [...root.querySelectorAll<HTMLButtonElement>('.quick-results button')].find((item) => item.textContent?.includes('安装油猴脚本'));
+    expect(result).toBeDefined();
+    requireValue(result).click();
+    await vi.waitFor(() => expect(request).toHaveBeenCalledWith('/userscript/install', {}));
+    expect(toast).toHaveBeenCalledWith('已发送安装请求', 'info');
+  });
+});
+
 describe('task entry feedback', () => {
   it.each(['succeeded', 'failed', 'cancelled'] as const)(
     'shows the latest %s outcome then the ordered unread dots',

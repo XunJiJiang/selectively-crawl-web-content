@@ -8,10 +8,20 @@ import { SERVER_ROOT } from '../../common/env.ts';
 import { pluginResourceRouter } from './api/load.ts';
 import { localConfig } from './local-config.ts';
 import { redirectDevelopmentPage } from './workbench/dev-proxy.ts';
+import { requireUserScript, userScriptPath } from '../../utils/user-script.ts';
 
 /** /web */
 const router = Router();
 router.get('/local-config', localConfig);
+router.get('/userscript/scwc.user.js', async (_req, res, next) => {
+  try {
+    await requireUserScript();
+    res.set('Cache-Control', 'no-store');
+    res.type('application/javascript').sendFile(userScriptPath);
+  } catch (error) {
+    next(error);
+  }
+});
 router.get('/ui/assets/:pluginId/:owner/{*path}', uiAsset);
 
 /** 当前程序启动文件路径 */

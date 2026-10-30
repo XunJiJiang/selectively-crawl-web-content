@@ -15,6 +15,13 @@ vi.mock('../plugin/load.ts', () => ({
 }));
 vi.mock('../common/env.ts', () => ({ TOKEN: '', ACTIVE_PORT: 3200, HOST: 'http://localhost' }));
 vi.mock('../plugin/web/build.ts', () => ({ buildPluginWeb: vi.fn(async () => undefined) }));
+vi.mock('../utils/user-script.ts', () => ({
+  openUserScriptInstaller: vi.fn(async () => ({
+    url: 'http://localhost:3200/web/userscript/scwc.user.js',
+    message: '已发送安装请求',
+  })),
+  notifyUserScriptFailure: vi.fn(async () => undefined),
+}));
 vi.mock('../utils/command.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../utils/command.ts')>()),
   registerCommand: vi.fn(),
@@ -22,9 +29,37 @@ vi.mock('../utils/command.ts', async (importOriginal) => ({
 import { registerDefaultCommands } from './index.ts';
 import { registerCommand } from '../utils/command.ts';
 import { buildPluginWeb } from '../plugin/web/build.ts';
+import { openUserScriptInstaller, notifyUserScriptFailure } from '../utils/user-script.ts';
 import { createCommandCompletionCache } from '../utils/commandCompletion.ts';
 
 describe('global plugin page build command', () => {
+  it('exposes server install-userscript and notifies on a confirmed failure', async () => {
+    const logger = { info: vi.fn(), pathInfo: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    registerDefaultCommands(logger);
+    const command = vi
+      .mocked(registerCommand)
+      .mock.calls.find((call) => call[1] === 'server')?.[5]
+      ?.find((item) => item.name === 'install-userscript');
+    if (!command) {
+      throw new Error('Missing install-userscript');
+    }
+    const scope = new TaskRegistry().create('test', {
+      executionId: 'install-test',
+      windowId: 'install-window',
+    });
+    try {
+      await command.execute(logger, [], [], ['server', 'install-userscript'], scope.context);
+      expect(openUserScriptInstaller).toHaveBeenCalled();
+      expect(logger.info).toHaveBeenCalledWith('已发送安装请求');
+      vi.mocked(openUserScriptInstaller).mockRejectedValueOnce(new Error('浏览器不可用'));
+      await expect(
+        command.execute(logger, [], [], ['server', 'install-userscript'], scope.context),
+      ).rejects.toThrow('浏览器不可用');
+      expect(notifyUserScriptFailure).toHaveBeenCalledWith('浏览器不可用');
+    } finally {
+      scope.finish();
+    }
+  });
   it('hints directory names for all built-in plugin arguments using live state and UI availability', async () => {
     const logger = { info: vi.fn(), pathInfo: vi.fn(), warn: vi.fn(), error: vi.fn() };
     registerDefaultCommands(logger);

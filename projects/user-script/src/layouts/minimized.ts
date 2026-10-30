@@ -57,7 +57,7 @@ class SCWCMinimizedLayout extends LitElement {
     let newY = e.clientY - this.offsetY;
     // 限制在窗口内
     const minY = 0;
-    const maxY = window.innerHeight - 38; // 38为组件高度
+    const maxY = Math.max(0, window.innerHeight - 44);
     if (newY < minY) {
       newY = minY;
     }
@@ -79,10 +79,24 @@ class SCWCMinimizedLayout extends LitElement {
     document.removeEventListener('mouseup', this.handleMouseUp);
   };
 
+  disconnectedCallback() {
+    this.handleMouseUp();
+    super.disconnectedCallback();
+  }
+
   render() {
     return html`
       <div
         class="scwc-layout-minimized"
+        role="button"
+        tabindex="0"
+        aria-label="展开 SCWC 采集窗口"
+        @keydown=${(event: KeyboardEvent) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            this.dispatchEvent(new CustomEvent('maximize'));
+          }
+        }}
         style=${styleMap({ top: `${this.position.y}px`, position: 'fixed' })}
         @click=${() => {
           if (this.isDrag) {

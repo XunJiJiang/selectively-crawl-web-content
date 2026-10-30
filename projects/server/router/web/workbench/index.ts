@@ -12,6 +12,7 @@ import { assert, coreBootId, WorkbenchError } from '../../../workbench/storage.t
 import { identifier } from '../../../workbench/workspace.ts';
 import { feedbackRequest } from '../../../workbench/feedback.ts';
 import { workbenchEvents } from '../../../workbench/events.ts';
+import { openUserScriptInstaller } from '../../../utils/user-script.ts';
 
 export function resolvePluginUrl(value: string, pluginId: string | undefined, origin: string) {
   z.string().min(1).max(16384).parse(value);
@@ -151,6 +152,19 @@ export function createWorkbenchRouter() {
         next(e);
       }
     });
+  route('post', '/userscript/install', async (req, res) => {
+    assert(!page(res), 'grant_scope', '普通页面授权不能打开系统浏览器', 403);
+    owner(req);
+    try {
+      return await openUserScriptInstaller();
+    } catch (error) {
+      throw new WorkbenchError(
+        'userscript_install_failed',
+        error instanceof Error ? error.message : '油猴脚本安装唤起失败',
+        503,
+      );
+    }
+  });
   route('get', '/bootstrap', (_req) => {
     const w = getWorkbench();
     return {

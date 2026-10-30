@@ -61,7 +61,9 @@ bun install
 
 ### 安装油猴脚本
 
-在油猴/Violentmonkey/GreaseMonkey 中新建脚本, 粘贴 `dist/vite-project.user.js` 中的内容
+运行 `bun run --cwd projects/user-script build` 后，在核心终端执行 `server install-userscript`，或在 Web 快速访问中输入 `>` 并选择“安装油猴脚本”，即可尝试在默认浏览器打开安装界面。需要先安装并启用 Tampermonkey 等脚本管理器；未安装扩展时浏览器可能显示源码或下载文件，系统无法确认扩展是否接管。可检测到的打开失败会提示通知。
+
+也可以在油猴/Violentmonkey/GreaseMonkey 中新建脚本，粘贴 `dist/user-script/scwc.user.js` 中的内容。发行包已包含脚本，无需额外构建。
 
 ### 脚本使用
 

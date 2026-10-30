@@ -1,14 +1,41 @@
+:host {
+  all: initial;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  z-index: 2147483647;
+  font: 14px/1.5 var(--font-sans);
+  color: var(--text-primary);
+  --text-xs: 13px;
+  --text-sm: 14px;
+  --text-base: 14px;
+}
 .scwc-layout-root {
   position: fixed;
-  width: auto;
-  height: auto;
-  background-color: #23272e;
-  border: 1px solid #eee6;
-  border-radius: 4px;
-  box-shadow: 0 0 12px rgba(0, 0, 0, 0.12);
-  padding: 0;
-  overflow: hidden;
+  width: 176px;
+  max-width: calc(100vw - 16px);
+  max-height: calc(100vh - 16px);
   display: flex;
   flex-direction: column;
+  background: var(--surface-1);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
   box-sizing: border-box;
+}
+.scwc-layout-root[data-expanded] {
+  width: 400px;
+}
+scwc-layout-content {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.window-scroll {
+  display: block;
+  min-height: 0;
+  max-height: calc(100vh - 50px);
 }

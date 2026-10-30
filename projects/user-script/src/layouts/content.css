@@ -1,0 +1,10 @@
+:host,
+.content {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+scwc-layout-content-claw,
+scwc-layout-content-plugin {
+  min-height: 0;
+}

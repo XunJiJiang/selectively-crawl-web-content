@@ -1,23 +1,27 @@
 .scwc-layout-minimized {
   position: fixed;
   left: -16px;
-  width: 36px;
-  height: 42px;
-  cursor: pointer;
-  background-color: rgb(35, 39, 46);
-  color: rgb(204, 204, 204);
+  width: 40px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  box-shadow: var(--shadow-md);
+  cursor: pointer;
   user-select: none;
-  box-shadow: 0 0 12px rgba(0, 0, 0, 0.12);
-  border: 1px solid #eee6;
 }
-
+.scwc-layout-minimized:hover {
+  background: var(--surface-3);
+  color: var(--accent-primary);
+}
+.scwc-layout-minimized:focus-visible {
+  outline: 1px solid var(--accent-primary);
+}
 .scwc-layout-minimized-drag-area {
-  font-size: 10px;
-  display: inline-block;
+  font: 600 10px var(--font-sans);
   transform: rotate(-90deg) translateY(8px);
-  transform-origin: 50% 50%;
 }

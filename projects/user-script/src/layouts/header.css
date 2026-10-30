@@ -1,73 +1,47 @@
+:host {
+  display: block;
+  flex: none;
+}
 .scwc-layout-header {
-  position: relative;
-  width: 100%;
-  box-sizing: border-box;
-  height: 24px;
-  cursor: move;
-  background-color: #181a20;
   display: flex;
   align-items: center;
-  padding-left: 8px;
-  font-size: 12px;
-  color: #ccc;
+  gap: 2px;
+  height: var(--wb-tab-bar-height);
+  padding: 0 4px 0 10px;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  cursor: move;
   user-select: none;
 }
-
 .scwc-layout-header-title {
-  flex: 0 0 auto;
+  flex: 1;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
 }
-
-.scwc-layout-header-switch-claw-visible {
-  position: absolute;
-  width: 18px;
-  height: 18px;
-  top: 3px;
-  right: 40px;
+button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: inherit;
   cursor: pointer;
-  overflow: hidden;
-  border-radius: 2px;
-  background-color: transparent;
-  padding: 2.5px 0 0 2px;
-  box-sizing: border-box;
 }
-
-.scwc-layout-header-switch-claw-visible:hover,
-.scwc-layout-header-switch-claw-visible[active] {
-  background-color: #4e4e4ea5;
+button:hover {
+  background: var(--surface-4);
+  color: var(--text-primary);
 }
-
-.scwc-layout-header-switch-plugin-visible {
-  position: absolute;
-  width: 18px;
-  height: 18px;
-  top: 3px;
-  right: 21px;
-  cursor: pointer;
-  overflow: hidden;
-  border-radius: 2px;
-  background-color: transparent;
-  padding: 1.5px 0 0 2.5px;
-  box-sizing: border-box;
+button[aria-pressed='true'] {
+  color: var(--accent-primary);
+  background: var(--accent-subtle);
 }
-
-.scwc-layout-header-switch-plugin-visible:hover,
-.scwc-layout-header-switch-plugin-visible[active] {
-  background-color: #4e4e4ea5;
-}
-
-.scwc-layout-header-minimize {
-  position: absolute;
-  width: 18px;
-  height: 18px;
-  top: 3px;
-  padding: 1px 0 0 0;
-  right: 2px;
-  cursor: pointer;
-  overflow: hidden;
-  border-radius: 2px;
-  box-sizing: border-box;
-}
-
-.scwc-layout-header-minimize:hover {
-  background-color: #4e4e4ea5;
+button:focus-visible {
+  outline: 1px solid var(--accent-primary);
+  outline-offset: -1px;
 }

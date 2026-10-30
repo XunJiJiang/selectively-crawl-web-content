@@ -100,7 +100,7 @@
     },
     "projects/user-script": {
       "name": "selectively-crawl-web-content-server-user-script",
-      "version": "2.0.0",
+      "version": "3.0.0",
     },
     "projects/vite-plugin": {
       "name": "@scwc/vite-plugin",

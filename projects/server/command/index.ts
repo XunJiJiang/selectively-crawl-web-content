@@ -21,6 +21,7 @@ import {
 } from '../utils/command.ts';
 import { TOKEN, ACTIVE_PORT, HOST } from '../common/env.ts';
 import { InvocationInputError, setInputHandler } from '../common/interaction.ts';
+import { openUserScriptInstaller, notifyUserScriptFailure } from '../utils/user-script.ts';
 
 let interruptInput: (() => boolean) | undefined;
 export function cancelStdinInput() {
@@ -91,6 +92,22 @@ export function registerDefaultCommands(serverLogger: SCWC.TLogger) {
           serverLogger.info('服务器信息:');
           serverLogger.info(`- URL: ${HOST}:${ACTIVE_PORT}`);
           serverLogger.info(`- TOKEN: ${TOKEN ?? '未设置'}`);
+        },
+      },
+      {
+        name: 'install-userscript',
+        description: '在默认浏览器唤起油猴脚本安装',
+        exampleUsage: 'server install-userscript',
+        execute: async (logger) => {
+          try {
+            const result = await openUserScriptInstaller();
+            logger.info(result.message);
+            logger.info(result.url);
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            await notifyUserScriptFailure(message);
+            throw new CommandError(message, false);
+          }
         },
       },
     ],
