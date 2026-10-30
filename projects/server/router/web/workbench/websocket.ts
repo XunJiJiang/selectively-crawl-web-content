@@ -7,11 +7,13 @@ import { workbenchEvents, type WorkbenchEvent } from '../../../workbench/events.
 import { coreBootId } from '../../../workbench/storage.ts';
 import { getWorkbench } from '../../../workbench/runtime.ts';
 import { plugins } from '../../../plugin/load.ts';
+import { attachUserScriptConfigSockets } from '../../user-script.ts';
 
 function reject(socket: Duplex) {
   socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');
 }
 export function attachUpgradeDispatcher(server: Server) {
+  const userScriptUpgrade = attachUserScriptConfigSockets(server);
   const ws = new WebSocketServer({ noServer: true, maxPayload: 256 * 1024 });
   const sockets = new Set<WebSocket>();
   server.on('upgrade', (req: IncomingMessage, socket: Duplex, head: Buffer) => {
@@ -20,6 +22,10 @@ export function attachUpgradeDispatcher(server: Server) {
       url = new URL(req.url ?? '', 'http://localhost');
     } catch {
       return reject(socket);
+    }
+    if (url.pathname === '/api/userscript/config/events') {
+      userScriptUpgrade(req, socket, head, url);
+      return;
     }
     if (url.pathname.startsWith('/web/websocket/plugin/')) {
       void pluginWebSocketRegistry.handleUpgrade(req, socket, head);

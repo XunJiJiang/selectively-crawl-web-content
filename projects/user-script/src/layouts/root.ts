@@ -1,4 +1,6 @@
 import style from './root.css?raw';
+import { siteStore } from '../site-store.ts';
+import { SiteConfigConnection } from '../site-sync.ts';
 import { theme } from '../theme.ts';
 import type { ContextMenuItem } from '../../../web/src/components/context-menu/menu-types.ts';
 import './minimized.ts';
@@ -8,8 +10,6 @@ import './footer.ts';
 
 import { LitElement, css, html, unsafeCSS } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { loadFromStorage, saveToStorage } from '../../../shared/utils/storage.ts';
-import { INIT_POS, PERSISTENT_DATA_KEY } from '../../../shared/utils/common.ts';
 import { styleMap } from 'lit/directives/style-map.js';
 import type { Item } from '../types/claw.d.ts';
 
@@ -32,48 +32,36 @@ class SCWCRootLayout extends LitElement {
     `,
   ];
 
-  /** 持久化配置 */
-  @state()
-  private accessor persistentData = loadFromStorage<{
-    version: string;
-    window: {
-      pos: { x: number; y: number };
-      minimized: boolean;
-    };
-    plugin: {
-      expanded: boolean;
-      activeTab: string;
-    };
-  }>(
-    PERSISTENT_DATA_KEY,
-    {
-      version: '2.0.0-1', // 2.0.0-1 表示在 2.0.0 版本中第一次更新本地存储数据格式. 仅在数据格式发生变化时更新 version 字段, 如果版本号更新但是数据格式没有变化, 则不更新 version 字段.
-      window: {
-        pos: INIT_POS,
-        minimized: true,
-      },
-      plugin: {
-        expanded: false,
-        activeTab: '',
-      },
-    },
-    'a',
-  );
-
+  @state() private accessor persistentData = {
+    version: '2.0.0-1',
+    window: siteStore.snapshot.data.window,
+    plugin: siteStore.snapshot.data.plugin,
+  };
+  private connection = new SiteConfigConnection(siteStore);
   private updatePersistentData() {
-    const persistentData = {
-      version: this.persistentData.version,
-      window: {
+    siteStore.update((data) => {
+      data.window = {
         pos: this.position,
         minimized: this.minimized,
-      },
-      plugin: {
-        expanded: this.pluginExpanded,
-        activeTab: this.currentPluginTab,
-      },
-    };
-    this.persistentData = persistentData;
-    saveToStorage(PERSISTENT_DATA_KEY, persistentData);
+        selectionExpanded: this.selectionExpanded,
+      };
+      data.plugin = { expanded: this.pluginExpanded, activeTab: this.currentPluginTab };
+    });
+  }
+  private siteChanged = () => {
+    const data = siteStore.snapshot.data;
+    this.position = data.window.pos;
+    this.minimized = data.window.minimized;
+    this.selectionExpanded = data.window.selectionExpanded;
+    this.pluginExpanded = data.plugin.expanded;
+    this.currentPluginTab = data.plugin.activeTab;
+    this.persistentData = { version: '2.0.0-1', window: data.window, plugin: data.plugin };
+  };
+  connectedCallback() {
+    super.connectedCallback();
+    this.siteChanged();
+    siteStore.addEventListener('change', this.siteChanged);
+    this.connection.start();
   }
 
   @state()
@@ -97,11 +85,12 @@ class SCWCRootLayout extends LitElement {
 
   /** 是否展开选择框 */
   @property({ type: Boolean, reflect: true, attribute: 'selection-expanded' })
-  private accessor selectionExpanded = false;
+  private accessor selectionExpanded = siteStore.snapshot.data.window.selectionExpanded;
 
   /** 设置是否展开选择框 */
   private setSelectionExpanded(value: boolean) {
     this.selectionExpanded = value;
+    this.updatePersistentData();
   }
 
   @state()
@@ -125,28 +114,35 @@ class SCWCRootLayout extends LitElement {
   private accessor clawItems: Item[] = [];
 
   private boundsObserver?: ResizeObserver;
+  private clampPosition = () => {
+    const rect = this.renderRoot.querySelector('.scwc-layout-root')?.getBoundingClientRect();
+    const width = this.minimized
+      ? 40
+      : rect?.width || (this.selectionExpanded || this.pluginExpanded ? 400 : 176);
+    const height = this.minimized ? 44 : rect?.height || 68;
+    const x = Math.max(0, Math.min(this.position.x, window.innerWidth - width));
+    const y = Math.max(0, Math.min(this.position.y, window.innerHeight - height));
+    if (x !== this.position.x || y !== this.position.y) {
+      // 仅调整本页显示，不把不同屏幕尺寸造成的钳制反复推回其他页面。
+      this.position = { x, y };
+    }
+  };
+  protected updated() {
+    this.clampPosition();
+  }
   protected firstUpdated() {
     if (typeof ResizeObserver === 'undefined') {
       return;
     }
-    this.boundsObserver = new ResizeObserver(() => {
-      const panel = this.renderRoot.querySelector<HTMLElement>('.scwc-layout-root');
-      if (!panel || this.minimized) {
-        return;
-      }
-      const rect = panel.getBoundingClientRect();
-      const x = Math.max(0, Math.min(this.position.x, window.innerWidth - rect.width));
-      const y = Math.max(0, Math.min(this.position.y, window.innerHeight - rect.height));
-      if (x !== this.position.x || y !== this.position.y) {
-        this.setPosition(x, y);
-      }
-    });
+    this.boundsObserver = new ResizeObserver(this.clampPosition);
     const panel = this.renderRoot.querySelector('.scwc-layout-root');
     if (panel) {
       this.boundsObserver.observe(panel);
     }
   }
   disconnectedCallback() {
+    siteStore.removeEventListener('change', this.siteChanged);
+    this.connection.stop();
     this.boundsObserver?.disconnect();
     super.disconnectedCallback();
   }

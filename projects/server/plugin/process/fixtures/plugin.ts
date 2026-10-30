@@ -45,6 +45,8 @@ export default {
     },
     scripts: {
       title: 'fixture controls',
+      refreshRule: '//',
+      refreshRules: [{ sites: ['https://example.com/*'], rule: '?q#' }],
       controls: (_logger, { site }) => [
         {
           channel: 'echo',

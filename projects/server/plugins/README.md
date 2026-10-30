@@ -2,6 +2,26 @@
 
 ## 插件开发说明
 
+### 用户脚本的 URL 刷新规则
+
+每个插件在 `pluginConfig.scripts` 中声明自己的规则，用户不能在悬浮窗中编辑。`refreshRule` 是默认规则（省略时为 `//`），`refreshRules` 为不同网站提供覆盖，按顺序取首个命中项；`sites` 使用 `link-with` 的 URL 前缀、`*` 通配符及 `!` 排除语法。空规则表示忽略同一网站内的 URL 变化。
+
+```ts
+pluginConfig: {
+  scripts: {
+    title: '网页采集',
+    refreshRule: '//',
+    refreshRules: [
+      { sites: ['https://one.example/*'], rule: '?page&id' },
+      { sites: ['https://two.example/*'], rule: '#' },
+    ],
+    controls: (logger, { site }) => [/* 当前网址的控件 */],
+  },
+}
+```
+
+`//` 检测 pathname，`?` 检测查询参数，`#` 检测 hash；`\i` 忽略、`\c` 变化、`\a` 出现、`\d` 消失。路径/hash 按段匹配，末尾 `/` 停止后续继承；查询参数无序，重复键的值按集合顺序无关比较。具体规则见共享配置类型中的语法说明。URL 变化只重建命中规则的插件控件；新进入适用范围的插件会首次加载，离开的插件会移除。首次连接和核心重连仍会加载当前页面的完整插件配置。
+
 插件用于自定义不同网站的数据处理逻辑，需放置于 `server/plugins/` 目录下，支持 TypeScript/JavaScript。
 
 ### 插件结构

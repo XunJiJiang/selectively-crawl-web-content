@@ -28,6 +28,9 @@ export function matchLink(link: string, patterns: string[]): boolean {
   // if (root.endsWith('/')) root = root.slice(0, -1);
   /** 去除协议部分, 例如 https://example.com/path -> example.com/path */
   const rootWithoutProtocol = root.replace(/^https?:\/\//, '');
+  const defaultMatch =
+    nonWildcardPatterns.length === 0 &&
+    !wildcardPatterns.some((pattern) => !pattern.startsWith('!'));
   /** startsWith 匹配结果 */
   let isStartsWithMatch = false;
   {
@@ -35,15 +38,13 @@ export function matchLink(link: string, patterns: string[]): boolean {
     const unifiedRoot = root.endsWith('/') ? root.slice(0, -1) : root;
     // 尝试直接匹配
     const isDirectMatch =
-      nonWildcardPatterns.some((link) => unifiedRoot.startsWith(link)) ||
-      nonWildcardPatterns.length === 0;
+      nonWildcardPatterns.some((link) => unifiedRoot.startsWith(link)) || defaultMatch;
     if (isDirectMatch) {
       isStartsWithMatch = true;
     }
     // 尝试匹配去除协议后的链接
     const isMatchWithoutProtocol =
-      nonWildcardPatterns.some((link) => rootWithoutProtocol.startsWith(link)) ||
-      nonWildcardPatterns.length === 0;
+      nonWildcardPatterns.some((link) => rootWithoutProtocol.startsWith(link)) || defaultMatch;
     if (isMatchWithoutProtocol) {
       isStartsWithMatch = true;
     }

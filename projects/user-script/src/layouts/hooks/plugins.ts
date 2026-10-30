@@ -1,19 +1,14 @@
+import { siteStore } from '../../site-store.ts';
 import type { ReactiveController } from 'lit';
 import type { PluginConfig, PluginItem, TRequiredOptions } from '../../../../shared/types/plugin';
 import type { ScriptConfig, ScriptConfigItem } from '../../../../shared/types/config.d.ts';
 import { ConfigController, isConfig, isConfigItem } from '../../../../shared/store/config.ts';
-import { debounce } from '../../../../shared/utils/debounce.ts';
 import { fetchPlugins, triggerPlugin } from '../../api/plugins.ts';
 import { getCrawlData } from '../../utils/claw.ts';
 import type { SCWCContentPlugin } from '../content-plugin.ts';
 import { notify } from '../../utils/notify.ts';
+import { watchUrl } from '../../utils/url-watch.ts';
 
-/** 插件项是否没有加载远程控制器 */
-// function isPluginItemUnloaded (plugins: (PluginConfig | ScriptConfig)[] | null) {
-//   return plugins === null || plugins.every(plugin => isConfig(plugin))
-// }
-
-/** 获取完整的选项 */
 function getFullOptions(control: PluginItem): TRequiredOptions {
   return {
     requireFullContent: true,
@@ -25,346 +20,258 @@ function getFullOptions(control: PluginItem): TRequiredOptions {
   };
 }
 
-// 监听网页 url 变化
-const urlChangeCallbacks = new Set<() => void>();
-window.addEventListener('urlchangeevent', () => {
-  urlChangeCallbacks.forEach((callback) => callback());
-});
-
 export class PluginsController implements ReactiveController {
   host: SCWCContentPlugin;
-
   private configController: ConfigController;
+  private apiKey = '';
+  private stopWatching?: () => void;
+  private request?: AbortController;
+  private generation = 0;
+  private loading?: Promise<void>;
+  private lastSite?: string;
+  private initial = true;
+  private timers = new Map<PluginItem, ReturnType<typeof setTimeout>>();
+  private controlValues = new Map<
+    PluginItem | ScriptConfigItem,
+    { value: string | number | boolean | null; plugin: PluginConfig | ScriptConfig }
+  >();
+  private channelControlMap = new Map<string, PluginItem>();
+  plugins: (PluginConfig | ScriptConfig)[] | null = null;
+  activeTab = '';
+  activePlugin: PluginConfig | ScriptConfig | null = null;
 
   constructor(host: SCWCContentPlugin) {
     (this.host = host).addController(this);
     this.configController = new ConfigController(host, () => {
-      const configControls = this.configController.configControls;
-      if (this.plugins) {
-        let oldConfigControls: ScriptConfig | null = null;
-        /** 过滤插件配置后的插件项 */
-        const filtered: (PluginConfig | ScriptConfig)[] = [];
-        for (const plugin of this.plugins) {
-          if (isConfig(plugin)) {
-            oldConfigControls = plugin;
-          } else {
-            filtered.push(plugin);
-          }
-        }
-        if (oldConfigControls && configControls !== oldConfigControls) {
-          filtered.unshift(configControls);
-          this.setPlugins(filtered);
-          oldConfigControls.controls.forEach((control) => {
-            this.controlValues.delete(control);
-          });
-          configControls.controls.forEach((control) => {
-            this.controlValues.set(control, {
-              value: control.options?.defaultValue ?? null,
-              plugin: configControls,
-            });
-          });
-        } else if (oldConfigControls && configControls === oldConfigControls) {
-          return;
-        } else {
-          this.setPlugins([configControls, ...this.plugins]);
-          configControls.controls.forEach((control) => {
-            this.controlValues.set(control, {
-              value: control.options?.defaultValue ?? null,
-              plugin: configControls,
-            });
-          });
-        }
-      } else {
-        this.setPlugins([configControls]);
+      const key = JSON.stringify(this.configController.config.api);
+      const changed = this.apiKey && this.apiKey !== key;
+      this.apiKey = key;
+      this.setPlugins([
+        this.configController.configControls,
+        ...(this.plugins ?? []).filter((p) => !isConfig(p)),
+      ]);
+      if (changed && !this.initial) {
+        void this.reloadPlugins(true);
       }
     });
+    this.apiKey = JSON.stringify(this.configController.config.api);
   }
-
-  private onUrlChange = () => {
-    this.reloadPlugins();
-  };
-
   hostConnected() {
-    urlChangeCallbacks.add(this.onUrlChange);
+    this.stopWatching = watchUrl(() => {
+      if (!this.initial) {
+        void this.reloadPlugins();
+      }
+    });
+    siteStore.addEventListener('change', this.siteChanged);
+    siteStore.addEventListener('connected', this.reconnected);
   }
   hostDisconnected() {
-    urlChangeCallbacks.delete(this.onUrlChange);
-  }
-
-  plugins: (PluginConfig | ScriptConfig)[] | null = null;
-  /** 当前激活的标签页的ID */
-  activeTab = '';
-  /** 当前激活的插件 */
-  activePlugin: PluginConfig | ScriptConfig | null = null;
-
-  /** 插件控制器触发器 */
-  private triggerExecutorFunctions = new Map<
-    PluginItem | ScriptConfigItem,
-    (
-      pluginId: string,
-      channel: string,
-      control: PluginItem | ScriptConfigItem,
-      value: string | number | boolean | null,
-    ) => void
-  >();
-
-  /** 通道 -> 插件项 的映射关系, 用于在触发插件项时找到对应的插件项配置 */
-  private channelControlMap: Record<string, PluginItem> | null = null;
-
-  /**
-   * 不同插件的控制器值
-   * 这里没有区分不同插件, 因为通道名称在全局范围内是唯一的
-   */
-  private controlValues = new Map<
-    PluginItem | ScriptConfigItem,
-    {
-      value: string | number | boolean | null;
-      plugin: PluginConfig | ScriptConfig;
+    this.stopWatching?.();
+    this.request?.abort();
+    this.generation++;
+    for (const timer of this.timers.values()) {
+      clearTimeout(timer);
     }
-  >();
-
-  /** 修改/触发插件控制器值的方法 */
-  setControlValue(control: PluginItem | ScriptConfigItem, value: string | number | boolean | null) {
-    const controlInfo = this.controlValues.get(control);
-    if (!controlInfo) {
-      console.warn('插件控制器值未找到:', control.channel);
-      return;
+    this.timers.clear();
+    siteStore.removeEventListener('change', this.siteChanged);
+    siteStore.removeEventListener('connected', this.reconnected);
+  }
+  private reconnected = () => {
+    if (!this.initial) {
+      void this.reloadPlugins(true);
     }
-    this.controlValues.set(control, {
-      value,
-      plugin: controlInfo.plugin,
-    });
-
-    const triggerFunction = this.triggerExecutorFunctions.get(control);
-    if (!triggerFunction) {
-      console.warn('未找到控制器触发函数:', control.channel);
-      notify({
-        title: '插件控制器错误',
-        description: `未找到控制器触发函数: ${control.channel}`,
-        placement: this.configController.config.notify.placement,
-        type: 'error',
-      });
-      return;
+  };
+  private siteChanged = () => {
+    this.restoreValues();
+    const selected = this.plugins?.find((p) => p.id === siteStore.snapshot.data.plugin.activeTab);
+    if (selected) {
+      this.setActiveTab(selected.id);
+      this.setActivePlugin(selected);
     }
-    triggerFunction(controlInfo.plugin.id, control.channel, control, value);
-  }
-
-  getControlValue(control: PluginItem | ScriptConfigItem): string | number | boolean | null {
-    return this.controlValues.get(control)?.value ?? null;
-  }
-
-  /** 获取某个插件项的控制器的相关的值 */
-  private getRelatedValues(control: PluginItem): Record<string, string | number | boolean | null> {
-    const relatedValues: Record<string, string | number | boolean | null> = {};
-    const options = getFullOptions(control);
-    options.relatedChannel?.forEach((channel) => {
-      const relatedControl = this.channelControlMap?.[channel];
-      if (relatedControl) {
-        relatedValues[channel] =
-          this.controlValues.get(relatedControl)?.value ??
-          (console.warn(`未找到控制器值: ${channel}`), null);
-      } else {
-        console.warn(`未找到控制器: ${channel}`);
-        relatedValues[channel] = null;
-      }
-    });
-    return relatedValues;
-  }
-
-  // /** 本次值更改发生变化的 PluginItem 列表 */
-  // private changedItems: (PluginItem)[] = []
-
-  /** 是否为初次加载 */
-  private isInitialLoad = true;
-
-  /**
-   * 请求插件列表
-   * 要求插件窗口展开
-   * 且是第一次请求
-   */
+    this.host.requestUpdate();
+  };
   async requestPlugins() {
-    if (!this.host.expanded) {
+    if (!this.host.expanded || !this.initial) {
       return;
     }
-    if (this.isInitialLoad) {
-      await this.reloadPlugins();
-      // 获取本次持久化的当前激活的插件标签页
-      const activeTab = this.host.currentPluginTab;
-      const pluginsWithConfig = this.plugins ?? [this.configController.configControls];
-      const activePlugin = pluginsWithConfig.find((plugin) => plugin.id === activeTab) ?? null;
-      this.setActiveTab(
-        activePlugin?.id ?? (pluginsWithConfig.length > 0 ? pluginsWithConfig[0].id : ''),
-      );
-      this.setActivePlugin(
-        activePlugin ?? (pluginsWithConfig.length > 0 ? pluginsWithConfig[0] : null),
-      );
-      this.isInitialLoad = false;
+    this.initial = false;
+    await this.reloadPlugins(true);
+  }
+  async reloadPlugins(force = false) {
+    const loading = this.loadPlugins(force);
+    this.loading = loading;
+    try {
+      await loading;
+    } finally {
+      if (this.loading === loading) {
+        this.loading = undefined;
+      }
     }
   }
-
-  /** 重新请求插件列表 */
-  async reloadPlugins() {
-    // 这里直接将 plugins 置为 null, 让页面进入加载状态, 等新的插件列表加载完成后再更新 plugins
-    this.setPlugins(null);
-    this.setActiveTab('');
-    this.setActivePlugin(null);
-    this.channelControlMap = null;
-    this.controlValues.clear();
-
+  private async loadPlugins(force: boolean) {
+    const generation = ++this.generation,
+      site = window.location.href;
+    this.request?.abort();
+    this.request = new AbortController();
     try {
-      const plugins = await fetchPlugins(this.configController.config);
-      const pluginsWithConfig = [this.configController.configControls, ...plugins];
-      this.setPlugins(pluginsWithConfig);
-      this.host.requestUpdate();
-    } catch (e) {
-      console.error('Failed to reload plugins:', e);
+      const batch = await fetchPlugins(this.configController.config, {
+        site,
+        previousSite: force ? undefined : this.lastSite,
+        signal: this.request.signal,
+      });
+      if (generation !== this.generation) {
+        return;
+      }
+      if (site !== window.location.href) {
+        void this.reloadPlugins();
+        return;
+      }
+      this.lastSite = site;
+      const active = new Set(batch.activeIds),
+        updated = new Set(batch.updatedIds);
+      const retained = force
+        ? []
+        : (this.plugins ?? []).filter(
+            (p) => !isConfig(p) && active.has(p.id) && !updated.has(p.id),
+          );
+      const merged = new Map([...retained, ...batch.plugins].map((plugin) => [plugin.id, plugin]));
+      this.setPlugins([
+        this.configController.configControls,
+        ...batch.activeIds.flatMap((id) => {
+          const plugin = merged.get(id);
+          return plugin ? [plugin] : [];
+        }),
+      ]);
+      const wanted = this.plugins?.find(
+        (p) => p.id === (siteStore.snapshot.data.plugin.activeTab || this.host.currentPluginTab),
+      );
+      if (wanted) {
+        this.setActiveTab(wanted.id);
+        this.setActivePlugin(wanted);
+      }
+    } catch (error) {
+      if (generation !== this.generation || this.request.signal.aborted) {
+        return;
+      }
+      if (!this.plugins) {
+        this.setPlugins([this.configController.configControls]);
+      }
       notify({
         title: '插件加载失败',
-        description: (e as Error).message,
+        description: error instanceof Error ? error.message : String(error),
         type: 'error',
         placement: this.configController.config.notify.placement,
       });
-      this.setPlugins(
-        this.configController.configControls ? [this.configController.configControls] : [],
+    }
+  }
+  setControlValue(control: PluginItem | ScriptConfigItem, value: string | number | boolean | null) {
+    const info = this.controlValues.get(control);
+    if (!info) {
+      return;
+    }
+    this.controlValues.set(control, { ...info, value });
+    if (isConfigItem(control)) {
+      control.trigger(value);
+      return;
+    }
+    if (control.type !== 'button') {
+      siteStore.update((data) => {
+        data.controls = data.controls.filter(
+          (item) => item.pluginId !== info.plugin.id || item.channel !== control.channel,
+        );
+        data.controls.push({ pluginId: info.plugin.id, channel: control.channel, value });
+      });
+    }
+    this.host.requestUpdate();
+    clearTimeout(this.timers.get(control));
+    const invoke = async () => {
+      this.timers.delete(control);
+      while (this.loading) {
+        await this.loading;
+      }
+      if (!this.host.isConnected || !this.controlValues.has(control)) {
+        return;
+      }
+      void triggerPlugin(
+        control.type === 'button' ? 'click' : 'change',
+        info.plugin.id,
+        control.channel,
+        control,
+        value,
+        getFullOptions(control),
+        getCrawlData(this.host.clawItems),
+        this.getRelatedValues(control),
+        this.configController.config,
       );
+    };
+    if (['input:text', 'input:number'].includes(control.type)) {
+      this.timers.set(
+        control,
+        setTimeout(() => {
+          void invoke();
+        }, 500),
+      );
+    } else {
+      void invoke();
+    }
+  }
+  getControlValue(control: PluginItem | ScriptConfigItem) {
+    return this.controlValues.get(control)?.value ?? null;
+  }
+  private getRelatedValues(control: PluginItem) {
+    const result: Record<string, string | number | boolean | null> = {};
+    for (const channel of getFullOptions(control).relatedChannel) {
+      const related = this.channelControlMap.get(channel);
+      result[channel] = related ? this.getControlValue(related) : null;
+    }
+    return result;
+  }
+  private restoreValues() {
+    for (const [control, info] of this.controlValues) {
+      if (isConfig(info.plugin)) {
+        continue;
+      }
+      const saved = siteStore.snapshot.data.controls.find(
+        (item) => item.pluginId === info.plugin.id && item.channel === control.channel,
+      );
+      this.controlValues.set(control, {
+        ...info,
+        value: saved ? saved.value : (control.options?.defaultValue ?? null),
+      });
+    }
+  }
+  setPlugins(plugins: (PluginConfig | ScriptConfig)[] | null) {
+    const previous = this.controlValues;
+    this.plugins = plugins;
+    this.controlValues = new Map();
+    this.channelControlMap.clear();
+    for (const plugin of plugins ?? []) {
+      for (const control of plugin.controls) {
+        this.channelControlMap.set(control.channel, control);
+        this.controlValues.set(control, {
+          plugin,
+          value: isConfig(plugin)
+            ? (control.options?.defaultValue ?? null)
+            : (previous.get(control)?.value ?? control.options?.defaultValue ?? null),
+        });
+      }
+    }
+    this.restoreValues();
+    const selected = plugins?.find((p) => p.id === this.activeTab) ?? plugins?.[0] ?? null;
+    this.setActiveTab(selected?.id ?? '');
+    this.setActivePlugin(selected);
+    this.host.requestUpdate();
+  }
+  setActiveTab(activeTab: string) {
+    if (activeTab !== this.activeTab) {
+      this.activeTab = activeTab;
       this.host.requestUpdate();
     }
   }
-
-  setPlugins(plugins: (PluginConfig | ScriptConfig)[] | null) {
-    if (plugins === this.plugins) {
-      return;
-    }
-    const oldPlugins = this.plugins;
-    this.plugins = plugins;
-    // 当插件列表发生变化时, 需要根据新的插件列表和当前的activeTab来更新activeTab和activePlugin
-    const activePluginIdx = this.plugins?.map((plugin) => plugin.id).indexOf(this.activeTab);
-    const res: {
-      activeTab: string;
-      activePlugin: PluginConfig | ScriptConfig | null;
-    } = {
-      activeTab: '',
-      activePlugin: null,
-    };
-    if (this.plugins && activePluginIdx && activePluginIdx !== -1) {
-      if (this.activePlugin !== this.plugins[activePluginIdx]) {
-        // 当id相同但是实例不同时, 说明插件被重新加载了, 需要更新activePlugin的实例
-        res.activeTab = this.plugins[activePluginIdx].id;
-        res.activePlugin = this.plugins[activePluginIdx];
-      } else {
-        // 实例相同, 插件无变化, 不需要更新
-        res.activeTab = this.activeTab;
-        res.activePlugin = this.activePlugin;
-      }
-    } else if (this.plugins && this.plugins.length >= 1) {
-      // 没有找到之前的activeTab了, 切换到第一个插件
-      res.activeTab = this.plugins[0].id;
-      res.activePlugin = this.plugins[0];
-    } else {
-      res.activeTab = '';
-      res.activePlugin = null;
-    }
-
-    // 更新插件控制器的触发器函数
-    this.triggerExecutorFunctions.clear();
-    plugins?.forEach((plugin) => {
-      plugin.controls.forEach((control) => {
-        const needLazyFetchType = ['input:text', 'input:number'].includes(control.type);
-        this.triggerExecutorFunctions.set(
-          control,
-          isConfigItem(control)
-            ? (
-                _pluginId: string,
-                _channel: string,
-                control: PluginItem | ScriptConfigItem,
-                value: string | number | boolean | null,
-              ) => {
-                if (isConfigItem(control)) {
-                  control.trigger(value);
-                } else {
-                  console.error('错误的分支判断, control 应该是 ScriptConfigItem 类型');
-                }
-              }
-            : (
-                pluginId: string,
-                channel: string,
-                control: PluginItem,
-                value: string | number | boolean | null,
-              ) => {
-                this.host.requestUpdate();
-                debounce(
-                  (
-                    pluginId: string,
-                    channel: string,
-                    control: PluginItem,
-                    value: string | number | boolean | null,
-                  ) => {
-                    triggerPlugin(
-                      control.type === 'button' ? 'click' : 'change',
-                      pluginId,
-                      channel,
-                      control,
-                      value,
-                      getFullOptions(control),
-                      getCrawlData(this.host.clawItems),
-                      this.getRelatedValues(control),
-                      this.configController.config,
-                    );
-                  },
-                  needLazyFetchType ? 500 : 0,
-                )(pluginId, channel, control, value);
-              },
-        );
-      });
-    });
-
-    const newChannelControlMap: Record<string, PluginItem> = {};
-    [...(plugins ?? []), this.configController.configControls].forEach((plugin) => {
-      plugin.controls.forEach((control) => {
-        newChannelControlMap[control.channel] = control;
-      });
-    });
-    this.channelControlMap = newChannelControlMap;
-    // 尝试保持之前的控制器值
-    plugins?.forEach((plugin) => {
-      plugin.controls.forEach((control) => {
-        const oldControl = oldPlugins
-          ?.find((p) => p.id === plugin.id)
-          ?.controls.find((c) => c.channel === control.channel);
-        if (oldControl) {
-          this.controlValues.set(
-            control,
-            this.controlValues.get(oldControl) ?? {
-              value: control.options?.defaultValue ?? null,
-              plugin,
-            },
-          );
-        } else {
-          this.controlValues.set(control, {
-            value: control.options?.defaultValue ?? null,
-            plugin,
-          });
-        }
-      });
-    });
-
-    this.setActiveTab(res.activeTab);
-    this.setActivePlugin(res.activePlugin);
-  }
-
-  setActiveTab(activeTab: string) {
-    if (activeTab === this.activeTab) {
-      return;
-    }
-    this.activeTab = activeTab;
-    this.host.requestUpdate();
-  }
-
   setActivePlugin(activePlugin: PluginConfig | ScriptConfig | null) {
-    if (activePlugin === this.activePlugin) {
-      return;
+    if (activePlugin !== this.activePlugin) {
+      this.activePlugin = activePlugin;
+      this.host.requestUpdate();
     }
-    this.activePlugin = activePlugin;
-    this.host.requestUpdate();
   }
 }

@@ -2,6 +2,8 @@ import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 import { LitElement } from 'lit';
 import '../../../shared/components/index.ts';
 import './root.ts';
+import { siteStore } from '../site-store.ts';
+import { sendCrawlRequest } from '../api/crawl.ts';
 import { requireValue } from '../../../shared/workbench-protocol.ts';
 
 vi.hoisted(() => {
@@ -15,7 +17,24 @@ vi.hoisted(() => {
 });
 afterAll(() => vi.unstubAllGlobals());
 
-vi.mock('../api/plugins.ts', () => ({ fetchPlugins: async () => [], triggerPlugin: vi.fn() }));
+vi.mock('../api/plugins.ts', () => ({
+  fetchPlugins: async () => ({ plugins: [], activeIds: [], updatedIds: [] }),
+  triggerPlugin: vi.fn(),
+}));
+
+vi.mock('../site-sync.ts', () => ({
+  SiteConfigConnection: class {
+    start() {
+      /* 同步连接在独立测试中覆盖。 */
+    }
+    stop() {
+      /* 此夹具不创建连接。 */
+    }
+  },
+}));
+vi.mock('../api/crawl.ts', () => ({
+  sendCrawlRequest: vi.fn(async () => ({ success: true, message: '抓取成功', data: [] })),
+}));
 
 afterEach(() => {
   document.body.replaceChildren();
@@ -32,6 +51,23 @@ async function settle(el: LitElement) {
 }
 
 describe('userscript workbench presentation', () => {
+  it('keeps a remote window visible without rewriting its shared position or edit date', async () => {
+    siteStore.update((data) => {
+      data.window.pos = { x: 100000, y: 100000 };
+      data.window.minimized = false;
+      data.plugin.expanded = false;
+    });
+    const original = siteStore.snapshot;
+    const root = document.createElement('scwc-layout-root');
+    document.body.append(root);
+    await settle(root);
+    const panel = requireValue(
+      requireValue(root.shadowRoot).querySelector<HTMLElement>('.scwc-layout-root'),
+    );
+    expect(Number.parseFloat(panel.style.left)).toBeLessThan(window.innerWidth);
+    expect(Number.parseFloat(panel.style.top)).toBeLessThan(window.innerHeight);
+    expect(siteStore.snapshot).toEqual(original);
+  });
   it('uses the existing context menu to toggle panels and dismisses after selection', async () => {
     const root = document.createElement('scwc-layout-root');
     document.body.append(root);
@@ -51,11 +87,25 @@ describe('userscript workbench presentation', () => {
     expect(requireValue(root.shadowRoot).querySelector('wb-context-menu')).toBeNull();
     expect(requireValue(root.shadowRoot).querySelector('wb-scroll-container')).not.toBeNull();
   });
-  it('keeps saved selection items inside the shared scroll container', async () => {
-    localStorage.setItem(
-      '__selective_crawl_items__',
-      JSON.stringify([{ selector: '#article', label: '正文', prefix: '' }]),
+  it('submits an empty crawl result when no elements are configured', async () => {
+    siteStore.update((data) => {
+      data.items = [];
+    });
+    const claw = document.createElement('scwc-layout-content-claw');
+    document.body.append(claw);
+    await settle(claw);
+    const trigger = requireValue(
+      requireValue(claw.shadowRoot).querySelector(
+        'scwc-button[aria-label="Trigger data crawling"]',
+      ),
     );
+    trigger.dispatchEvent(new CustomEvent('click'));
+    await vi.waitFor(() => expect(sendCrawlRequest).toHaveBeenCalledWith([], expect.anything()));
+  });
+  it('keeps saved selection items inside the shared scroll container', async () => {
+    siteStore.update((data) => {
+      data.items = [{ selector: '#article', label: '正文', prefix: '' }];
+    });
     const claw = document.createElement('scwc-layout-content-claw');
     claw.expanded = true;
     document.body.append(claw);

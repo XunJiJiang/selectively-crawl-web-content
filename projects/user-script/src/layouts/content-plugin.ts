@@ -120,7 +120,7 @@ export class SCWCContentPlugin extends LitElement {
                           title=${control.label}
                           aria-label=${control.label}
                           value=${this.pluginsController.getControlValue(control)?.toString()}
-                          @change=${(e: SCWCInputEventMap['change']) =>
+                          @input=${(e: SCWCInputEventMap['input']) =>
                             this.pluginsController.setControlValue(control, e.detail)}
                         ></scwc-input>
                       `;
@@ -132,7 +132,7 @@ export class SCWCContentPlugin extends LitElement {
                           title=${control.label}
                           aria-label=${control.label}
                           value=${this.pluginsController.getControlValue(control)?.toString()}
-                          @change=${(e: SCWCInputEventMap['change']) =>
+                          @input=${(e: SCWCInputEventMap['input']) =>
                             this.pluginsController.setControlValue(control, e.detail)}
                         ></scwc-input>
                       `;

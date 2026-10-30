@@ -22,7 +22,7 @@ export interface Manifest {
   };
   scripts?: Pick<
     NonNullable<SCWC.IPluginHandler['pluginConfig']>['scripts'] & {},
-    'title' | 'description'
+    'title' | 'description' | 'refreshRule' | 'refreshRules'
   >;
   ui?: {
     entry: string;

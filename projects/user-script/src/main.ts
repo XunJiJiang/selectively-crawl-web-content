@@ -1,7 +1,7 @@
+import './migrate.ts';
 import './layouts/root.ts';
 import iconFont from '@vscode/codicons/dist/codicon.ttf?inline';
 import '../../shared/components/index.ts';
-import updateLocalStorage from '../../shared/utils/updateLocalStorage.ts';
 import type { TConfig } from '../../shared/store/config.ts';
 
 if (!document.getElementById('scwc-userscript-font')) {
@@ -10,9 +10,6 @@ if (!document.getElementById('scwc-userscript-font')) {
   font.textContent = `@font-face { font-family: codicon; src: url("${iconFont}") format("truetype"); font-display: block; }`;
   document.head.appendChild(font);
 }
-
-// 更新本地存储的数据格式
-updateLocalStorage();
 
 // 悬浮窗挂载点
 const FLOATING_ID = 'selective-crawl-floating-root';

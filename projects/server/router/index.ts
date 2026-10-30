@@ -18,6 +18,7 @@ import { createServer } from 'node:http';
 import { taskRegistry, currentIdentity, invocationStorage } from '../common/tasks.ts';
 import { pageSessions, requestOrigin } from '../workbench/page-sessions.ts';
 import { attachUpgradeDispatcher } from './web/workbench/websocket.ts';
+import userScriptRouter from './user-script.ts';
 
 export const app = express();
 app.use((_req, res, next) => {
@@ -293,6 +294,7 @@ metadataRouter.post(
 
 apiRouter.use('/metadata', metadataRouter);
 apiRouter.use('/plugin', pluginRouter);
+apiRouter.use('/userscript', userScriptRouter);
 app.use('/api', apiRouter);
 app.use('/web', webRouter);
 

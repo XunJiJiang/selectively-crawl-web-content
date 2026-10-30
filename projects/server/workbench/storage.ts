@@ -30,7 +30,7 @@ export const coreBootId = randomUUID();
 export const now = () => new Date().toISOString();
 export const json = (value: unknown) => JSON.stringify(value);
 
-function open(file: string, ddl: string) {
+export function openDatabase(file: string, ddl: string) {
   if (file !== ':memory:') {
     fs.mkdirSync(path.dirname(file), { recursive: true });
   }
@@ -113,8 +113,8 @@ export class WorkbenchStorage {
   private files: string[];
   constructor(workbenchFile: string, configFile: string) {
     this.files = [workbenchFile, configFile];
-    this.db = open(workbenchFile, workbenchDDL);
-    this.config = open(configFile, configDDL);
+    this.db = openDatabase(workbenchFile, workbenchDDL);
+    this.config = openDatabase(configFile, configDDL);
     this.db
       .prepare('INSERT OR IGNORE INTO installation VALUES (?,1)')
       .run(

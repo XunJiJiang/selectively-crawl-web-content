@@ -4,12 +4,24 @@ import type { PluginConfig, PluginItem, TRequiredOptions } from '../../../shared
 import { notify } from '../utils/notify.ts';
 
 /** 请求插件列表 */
-export async function fetchPlugins(config: TConfig): Promise<PluginConfig[]> {
-  const url = window.location.href;
+export interface PluginConfigBatch {
+  plugins: PluginConfig[];
+  activeIds: string[];
+  updatedIds: string[];
+}
+export async function fetchPlugins(
+  config: TConfig,
+  options: { site?: string; previousSite?: string; signal?: AbortSignal } = {},
+): Promise<PluginConfigBatch> {
+  const url = options.site ?? window.location.href;
+  const previous = options.previousSite
+    ? `&previousSite=${encodeURIComponent(options.previousSite)}`
+    : '';
   const res = await fetch(
-    `${config.api.host}:${config.api.port.replace(/[^\d]/g, '')}/api/plugin/config?site=${encodeURIComponent(url)}`,
+    `${config.api.host}:${config.api.port.replace(/[^\d]/g, '')}/api/plugin/config?site=${encodeURIComponent(url)}${previous}`,
     {
       method: 'GET',
+      signal: options.signal,
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${config.api.token}`,
@@ -23,11 +35,17 @@ export async function fetchPlugins(config: TConfig): Promise<PluginConfig[]> {
     code: number;
     message: string;
     data: PluginConfig[];
+    activeIds?: string[];
+    updatedIds?: string[];
   };
   if (data.code >= 400 && data.code < 600) {
     throw new Error(data.message ?? 'Error fetching plugin config');
   } else if (data.code === 200) {
-    return data.data;
+    return {
+      plugins: data.data,
+      activeIds: data.activeIds ?? data.data.map((p) => p.id),
+      updatedIds: data.updatedIds ?? data.data.map((p) => p.id),
+    };
   } else {
     throw new Error('Unexpected response code(' + data.code + ') from server: ' + data.message);
   }

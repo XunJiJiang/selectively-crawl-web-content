@@ -4,6 +4,7 @@ import z from 'zod';
 import { plugins } from '../plugin/load.ts';
 import { matchLink, getRootUrl } from './utils/index.ts';
 import { pluginLogger } from '../plugin/log.ts';
+import { pluginRefreshRule, shouldRefreshPlugin } from '../user-script/refresh.ts';
 
 /** /api/plugin */
 const router = Router();
@@ -55,6 +56,15 @@ router.get('/config', query('site').isURL(), async (req, res) => {
     res.status(400).json({ code: 400, message: 'site 参数必须是有效的 URL' });
     return;
   }
+  let previousSite: string | undefined;
+  if (req.query?.previousSite !== undefined) {
+    const previous = siteSchema.safeParse(req.query?.previousSite);
+    if (!previous.success || new URL(previous.data).origin !== new URL(site).origin) {
+      res.status(400).json({ code: 400, message: 'previousSite 必须是同一网站的有效 URL' });
+      return;
+    }
+    previousSite = previous.data;
+  }
 
   // 对 site 进行解码，防止出现编码后的中文等字符
   let decodedSite = '';
@@ -77,15 +87,25 @@ router.get('/config', query('site').isURL(), async (req, res) => {
     description: string;
     'script-config-symbol'?: unknown;
     controls: Omit<SCWC.TPluginItem, 'trigger'>[];
+    refreshRule: string;
   }[] = [];
+  const activeIds: string[] = [],
+    updatedIds: string[] = [];
   for (const plugin of plugins) {
-    const decodedSite = decodeURIComponent(site);
-
     if (!plugin.linkWith || !matchLink(decodedSite, plugin.linkWith)) {
       continue;
     }
+    const scripts = plugin.handler?.pluginConfig?.scripts;
+    if (!scripts) {
+      continue;
+    }
+    activeIds.push(plugin.pluginId);
 
     try {
+      if (!shouldRefreshPlugin(scripts, plugin.linkWith, previousSite, decodedSite)) {
+        continue;
+      }
+      const refreshRule = pluginRefreshRule(scripts, decodedSite);
       const urlObj = new URL(decodedSite);
 
       const controls =
@@ -101,6 +121,7 @@ router.get('/config', query('site').isURL(), async (req, res) => {
               },
             })
           : (plugin.handler?.pluginConfig?.scripts?.controls ?? []);
+      updatedIds.push(plugin.pluginId);
 
       if (
         plugin.handler &&
@@ -111,6 +132,7 @@ router.get('/config', query('site').isURL(), async (req, res) => {
       ) {
         pluginConfigs.push({
           id: plugin.pluginId,
+          refreshRule,
           title: plugin.handler.pluginConfig.scripts.title,
           description:
             plugin.handler.pluginConfig.scripts.description ??
@@ -143,6 +165,8 @@ router.get('/config', query('site').isURL(), async (req, res) => {
     code: 200,
     message: 'success',
     data: pluginConfigs,
+    activeIds,
+    updatedIds,
   });
 });
 

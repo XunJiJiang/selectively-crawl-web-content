@@ -8,7 +8,7 @@ const require = createRequire(import.meta.url);
 const __dirname = import.meta.dirname;
 
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd());
+  const env = loadEnv(mode, process.cwd(), ['HOST', 'PORT']);
   return {
     plugins: [
       monkey({
@@ -27,8 +27,8 @@ export default defineConfig(({ mode }) => {
       }),
     ],
     define: {
-      'import.meta.env.HOST': JSON.stringify(env.HOST),
-      'import.meta.env.PORT': JSON.stringify(env.PORT),
+      'import.meta.env.HOST': JSON.stringify(env.HOST ?? 'http://localhost'),
+      'import.meta.env.PORT': JSON.stringify(env.PORT ?? '3200'),
     },
     root: path.join(__dirname),
     build: {
@@ -38,6 +38,7 @@ export default defineConfig(({ mode }) => {
     },
     test: {
       environment: 'jsdom',
+      setupFiles: [path.join(__dirname, 'src/test/setup.ts')],
     },
   };
 });

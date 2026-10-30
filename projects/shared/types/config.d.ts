@@ -47,6 +47,7 @@ export interface TConfig {
     //        ?\iparam&\c,                表示param参数的变化被忽略, 其他参数的变化被检测. param 匹配 (i), 其余参数匹配 (iii)
     //        ?\aparam&param2,            表示param2参数的变化被检测, 其他参数的变化被忽略. param匹配 (i), param2匹配 (ii), 其他参数匹配 (iv)
     //    对于 hash, 与 pathname 的规则相同, 将 // 替换为 # 即可
+    /** @deprecated 仅保留旧本地配置兼容；刷新规则现在由各插件声明。 */
     refreshRule: string;
   };
   notify: {

@@ -476,6 +476,10 @@ describe('isolated plugin host', () => {
       hostname: 'example.com',
     };
     const factory = must(must(handler.pluginConfig).scripts).controls as SCWC.TCreatePluginItem;
+    expect(handler.pluginConfig?.scripts).toMatchObject({
+      refreshRule: '//',
+      refreshRules: [{ sites: ['https://example.com/*'], rule: '?q#' }],
+    });
     const controls = await factory(c.logger, { site });
     expect(controls[0].label).toBe('/a');
     expect(

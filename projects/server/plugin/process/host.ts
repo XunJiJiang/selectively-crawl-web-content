@@ -351,6 +351,8 @@ async function initialize(args: Initialize): Promise<Manifest> {
       ? {
           title: plugin.pluginConfig.scripts.title,
           description: plugin.pluginConfig.scripts.description,
+          refreshRule: plugin.pluginConfig.scripts.refreshRule,
+          refreshRules: plugin.pluginConfig.scripts.refreshRules,
         }
       : undefined,
     ui: ui

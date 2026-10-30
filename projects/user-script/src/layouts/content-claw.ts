@@ -1,4 +1,5 @@
 import style from './content-claw.css?raw';
+import { siteStore } from '../site-store.ts';
 import { controls } from '../theme.ts';
 
 import {
@@ -13,9 +14,6 @@ import {
 import { customElement, property, state } from 'lit/decorators.js';
 import { ConfigController } from '../../../shared/store/config.ts';
 import type { Item } from '../types/claw.d.ts';
-import { loadFromStorage, saveToStorage } from '../../../shared/utils/storage.ts';
-import { SELECTIVE_CRAWL_KEY } from '../../../shared/utils/common.ts';
-import type { ArrayProcessor, JSONValueWithFunction } from '../../../shared/types/utils';
 import { styleMap } from 'lit/directives/style-map.js';
 import { getElementBySelector, getSelector } from '../utils/selector.ts';
 import { getCrawlData } from '../utils/claw.ts';
@@ -169,28 +167,15 @@ class SCWCContentClaw extends LitElement {
 
   /** 选中元素的 selector 列表 */
   @state()
-  private accessor items: Item[] = loadFromStorage<ArrayProcessor<Item>>(
-    SELECTIVE_CRAWL_KEY,
-    (item) => {
-      if (typeof item === 'undefined' || item === null || typeof item !== 'object') {
-        return [] as Item[];
-      }
-      if ('selector' in item && 'label' in item && 'prefix' in item) {
-        return item as JSONValueWithFunction;
-      }
-      if ('selector' in item && 'label' in item) {
-        return { ...item, prefix: '' };
-      }
-      return [] as Item[];
-    },
-    'a',
-  );
+  private accessor items: Item[] = siteStore.snapshot.data.items;
 
   /** 更新 items */
   private setItems(value: Item[]) {
     this.items = value;
     // 持久化
-    saveToStorage(SELECTIVE_CRAWL_KEY, value);
+    siteStore.update((data) => {
+      data.items = value;
+    });
     this.dispatchEvent(new CustomEvent('items-changed', { detail: value }));
   }
 
@@ -327,11 +312,6 @@ class SCWCContentClaw extends LitElement {
 
   /** 触发抓取数据 */
   private triggerCrawlData = async () => {
-    if (this.items.length === 0) {
-      // TODO: 修改, 此处不要禁止触发, 而是返回一个空结果
-      console.warn('No items to crawl');
-      return;
-    }
     const { result, failed } = getCrawlData(this.items);
     if (failed.length > 0) {
       console.warn('Failed to crawl the following selectors:', failed);
@@ -715,8 +695,25 @@ class SCWCContentClaw extends LitElement {
     `;
   }
 
+  private siteChanged = () => {
+    const items = siteStore.snapshot.data.items;
+    if (JSON.stringify(items) !== JSON.stringify(this.items)) {
+      this.items = items;
+      this.dispatchEvent(new CustomEvent('items-changed', { detail: items }));
+    }
+  };
+  disconnectedCallback() {
+    siteStore.removeEventListener('change', this.siteChanged);
+    document.removeEventListener('click', this.onElementClick, true);
+    document.removeEventListener('mousemove', this.onElementHover);
+    this.highlightEl?.remove();
+    super.disconnectedCallback();
+  }
+
   connectedCallback() {
     super.connectedCallback();
+    this.siteChanged();
+    siteStore.addEventListener('change', this.siteChanged);
     this.dispatchEvent(new CustomEvent('items-changed', { detail: this.items }));
   }
 }

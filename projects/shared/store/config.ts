@@ -10,6 +10,7 @@ import { debounce } from '../utils/debounce.ts';
 import { isEqual } from 'es-toolkit';
 import { notify } from '../components/notify.ts';
 import type { JSONValue, JSONValueWithFunction } from '../types/utils';
+import { CONFIG_CHANGED_EVENT } from '../userscript-config.ts';
 
 /** 匹配规则解析 */
 export const parseRefreshRule = cache((rule: string) => {
@@ -57,8 +58,7 @@ export const configContext = createContext<TConfig>(CONFIG_SYMBOL);
 window.addEventListener('storage', (e: StorageEvent) => {
   if (e.key === CONFIG_KEY && e.newValue) {
     if (!isEqual(ConfigController.config, JSON.parse(e.newValue))) {
-      ConfigController.config = JSON.parse(e.newValue);
-      ConfigController.dispatchConfigUpdate();
+      ConfigController.applyConfig(JSON.parse(e.newValue), false);
     }
   }
 });
@@ -84,11 +84,29 @@ export class ConfigController implements ReactiveController {
   static dispatchConfigUpdate() {
     ConfigController.cleanUnmountedControllers();
     for (const controller of ConfigController.allControllers) {
-      controller.setConfig(ConfigController.config);
+      controller.receiveConfig(ConfigController.config);
     }
+  }
+  static applyConfig(config: TConfig, persist = true) {
+    ConfigController.config = config;
+    if (persist) {
+      saveToStorage(CONFIG_KEY, config as unknown as JSONValue);
+    }
+    ConfigController.dispatchConfigUpdate();
   }
 
   host: ReactiveControllerHost;
+
+  private pendingApi: Partial<TConfig['api']> = {};
+  private flushApi = debounce(() => {
+    const pending = this.pendingApi;
+    this.pendingApi = {};
+    this.setConfig({ ...this.config, api: { ...this.config.api, ...pending } });
+  }, 500);
+  private setApiValue(key: keyof TConfig['api'], value: string | number | boolean | null) {
+    this.pendingApi[key] = String(value ?? '');
+    this.flushApi();
+  }
 
   config = ConfigController.config;
   configControls: ScriptConfig = {
@@ -108,21 +126,9 @@ export class ConfigController implements ReactiveController {
         label: 'Host',
         channel: `${configId}-api-host`,
         options: {
-          defaultValue: currentConfig.api.host,
+          defaultValue: this.pendingApi.host ?? currentConfig.api.host,
         },
-        trigger: (value) => {
-          debounce(
-            (value) =>
-              this.setConfig({
-                ...this.config,
-                api: {
-                  ...this.config.api,
-                  host: value as string,
-                },
-              }),
-            500,
-          )(value);
-        },
+        trigger: (value) => this.setApiValue('host', value),
       },
       {
         'script-config-symbol': CONFIG_SYMBOL,
@@ -130,21 +136,9 @@ export class ConfigController implements ReactiveController {
         label: 'Port',
         channel: `${configId}-api-port`,
         options: {
-          defaultValue: currentConfig.api.port,
+          defaultValue: this.pendingApi.port ?? currentConfig.api.port,
         },
-        trigger: (value) => {
-          debounce(
-            (value) =>
-              this.setConfig({
-                ...this.config,
-                api: {
-                  ...this.config.api,
-                  port: value as string,
-                },
-              }),
-            500,
-          )(value);
-        },
+        trigger: (value) => this.setApiValue('port', value),
       },
       {
         'script-config-symbol': CONFIG_SYMBOL,
@@ -152,42 +146,9 @@ export class ConfigController implements ReactiveController {
         label: 'API Token',
         channel: `${configId}-api-token`,
         options: {
-          defaultValue: currentConfig.api.token,
+          defaultValue: this.pendingApi.token ?? currentConfig.api.token,
         },
-        trigger: (value) => {
-          debounce(
-            (value) =>
-              this.setConfig({
-                ...this.config,
-                api: {
-                  ...this.config.api,
-                  token: value as string,
-                },
-              }),
-            500,
-          )(value);
-        },
-      },
-      {
-        'script-config-symbol': CONFIG_SYMBOL,
-        type: 'input:text',
-        label: '插件配置刷新规则',
-        channel: `${configId}-plugin-refreshRule`,
-        options: {
-          defaultValue: currentConfig.plugin.refreshRule,
-        },
-        trigger: (value) =>
-          debounce(
-            (value) =>
-              this.setConfig({
-                ...this.config,
-                plugin: {
-                  ...this.config.plugin,
-                  refreshRule: value as string,
-                },
-              }),
-            500,
-          )(value),
+        trigger: (value) => this.setApiValue('token', value),
       },
       {
         'script-config-symbol': CONFIG_SYMBOL,
@@ -239,7 +200,13 @@ export class ConfigController implements ReactiveController {
     if (isEqual(this.config, newConfig)) {
       return;
     }
-    saveToStorage(CONFIG_KEY, newConfig as unknown as JSONValue);
+    ConfigController.applyConfig(newConfig);
+    window.dispatchEvent(new CustomEvent(CONFIG_CHANGED_EVENT, { detail: newConfig }));
+  }
+  private receiveConfig(newConfig: TConfig) {
+    if (isEqual(this.config, newConfig)) {
+      return;
+    }
     this.config = newConfig;
     this.configControls = {
       ...this.configControls,
@@ -263,9 +230,10 @@ export class ConfigController implements ReactiveController {
   }
 
   hostConnected() {
-    //
+    ConfigController.allControllers.add(this);
+    this.receiveConfig(ConfigController.config);
   }
   hostDisconnected() {
-    //
+    ConfigController.allControllers.delete(this);
   }
 }

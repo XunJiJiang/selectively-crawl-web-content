@@ -26,6 +26,7 @@ import { getWorkbench, closeWorkbench } from './workbench/runtime.ts';
 import { closeStorage } from './workbench/storage.ts';
 import { spawn } from 'node:child_process';
 import { isSea } from 'node:sea';
+import { closeUserScriptConfig } from './user-script/config.ts';
 
 async function main() {
   let exiting = false;
@@ -41,6 +42,7 @@ async function main() {
     await pluginLoading.catch(() => undefined);
     await unloadPlugins(restart);
     await closeWorkbench();
+    await closeUserScriptConfig();
     if (!restart) {
       await cacheController.clearAll(serverLogger);
     }

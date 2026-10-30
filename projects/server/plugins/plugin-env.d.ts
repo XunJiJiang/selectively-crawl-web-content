@@ -307,6 +307,10 @@ namespace SCWC {
       scripts?: {
         title: string;
         description?: string;
+        /** 默认检测 pathname 变化；由插件声明，用户脚本中不可编辑。空字符串忽略同站 URL 变化。 */
+        refreshRule?: string;
+        /** 按 linkWith 同样的匹配语法选择网站规则，首个命中生效。 */
+        refreshRules?: { sites: string[]; rule: string }[];
         controls: TPluginItem[] | TCreatePluginItem;
         // TODO: 支持一些钩子函数, 例如: 某网站启动、加载插件配置、调用插件项等
       };
