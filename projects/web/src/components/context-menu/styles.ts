@@ -31,7 +31,7 @@ export const menuStyles = css`
     max-width: 300px;
     padding: 4px;
     border: 1px solid var(--border-default);
-    border-radius: 4px;
+    border-radius: 8px;
     background: var(--menu-background);
     backdrop-filter: blur(16px);
     box-shadow: var(--shadow-menu);
@@ -50,8 +50,9 @@ export const menuStyles = css`
     white-space: nowrap;
   }
   .wb-menu__item:hover:not(.disabled),
+  .wb-menu__item:focus-visible:not(.disabled),
   .wb-menu__submenu[data-open='true'] > .wb-menu__item {
-    background: var(--surface-3);
+    background: var(--menu-selection-background);
   }
   .wb-menu__item.disabled {
     color: var(--text-disabled);

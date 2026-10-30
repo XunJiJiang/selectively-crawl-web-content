@@ -264,7 +264,7 @@ export class AppRoot extends LitElement {
     this.requestUpdate();
   }
   private focusExists = (target: FocusLocation) =>
-    target.kind === 'sidebar' ||
+    target.kind === 'sidebar' || target.kind === 'auxiliary' ||
     (target.kind === 'tab'
       ? this.snapshot.tabs.some((t) => t.id === target.id)
       : target.view === 'output' ||
@@ -281,6 +281,11 @@ export class AppRoot extends LitElement {
         await this.command('focusTab', target.id);
       } else if (target.kind === 'sidebar') {
         await this.setView(target.view);
+      } else if (target.kind === 'auxiliary') {
+        await this.store.update((s) => this.revealSidebar(s, 'auxiliarySidebar'));
+        this.recordFocus(target);
+        await this.updateComplete;
+        this.renderRoot.querySelector<HTMLElement>('.auxiliary-sidebar')?.focus();
       } else {
         await this.selectPanel(target.view, target.terminalId);
       }
@@ -2100,6 +2105,18 @@ export class AppRoot extends LitElement {
                     class="auxiliary-sidebar"
                     data-visible=${this.visible('aux')}
                     aria-label="页面信息"
+                    tabindex="-1"
+                    @pointerdown=${(e: PointerEvent) => {
+                      if (!(e.target as HTMLElement).closest('[data-resize-key]')) {
+                        this.recordFocus({ kind: 'auxiliary' });
+                      }
+                    }}
+                    @focusin=${() => this.recordFocus({ kind: 'auxiliary' })}
+                    @ui-surface-action=${(e: CustomEvent<{ kind: string }>) => {
+                      if (e.detail.kind === 'click' || e.detail.kind === 'contextmenu') {
+                        this.recordFocus({ kind: 'auxiliary' });
+                      }
+                    }}
                   >
                     <div
                       class="resize-handle aux-resize"
@@ -3638,7 +3655,7 @@ export class AppRoot extends LitElement {
             () => this.act(() => this.command('forward')),
             tab?.kind !== 'plugin' || tab.navigation.index >= tab.navigation.entries.length - 1,
           )}${iconButton(
-            runtime?.state === 'navigating' ? 'stop' : 'refresh',
+            runtime?.state === 'navigating' ? 'chrome-close' : 'refresh',
             runtime?.state === 'navigating' ? '停止页面加载' : '刷新页面',
             () =>
               this.act(() =>
@@ -3757,23 +3774,27 @@ export class AppRoot extends LitElement {
             >`
           : nothing}<button
           class="status-item task-button"
-          data-state=${this.store.runningJobs.length
-            ? 'running'
-            : this.store.unreadJobs.length
-              ? 'unread'
-              : 'idle'}
+          data-state=${this.store.recentJobStatus ?? 'idle'}
           aria-label=${`任务，${this.store.runningJobs.length} 个执行中，${this.store.unreadJobs.length} 个已完成未读`}
           title="任务"
           aria-expanded=${this.showJobs}
           @click=${() => (this.showJobs = !this.showJobs)}
         >
           ${icon(
-            this.store.runningJobs.length
-              ? 'loading'
-              : this.store.unreadJobs.length
-                ? 'pass-filled'
+            this.store.recentJobStatus === 'succeeded'
+              ? 'pass'
+              : this.store.recentJobStatus
+                ? 'error'
                 : 'tasklist',
-          )}</button
+          )}${!this.store.recentJobStatus
+            ? html`<span class="task-unread-dots" aria-hidden="true">
+                ${(['succeeded', 'cancelled', 'failed'] as const).map((status) =>
+                  this.store.unreadJobs.some((job) => job.status === status)
+                    ? html`<span class="task-unread-dot" data-status=${status}></span>`
+                    : nothing,
+                )}
+              </span>`
+            : nothing}</button
         ><button
           class="status-item notification-button"
           aria-label=${`通知，${unread} 条未读`}
@@ -4369,7 +4390,7 @@ export class AppRoot extends LitElement {
                               `/jobs/${job.id}/cancel`,
                               { baseRevision: job.revision },
                             );
-                            this.store.jobs.set(job.id, next);
+                            this.store.applyJob(next);
                             this.store.changed();
                           });
                         }

@@ -1,5 +1,6 @@
+import { customElement } from '../../../shared/utils/customElement.ts';
 import { css, type PropertyValues } from 'lit';
-import { customElement, property } from 'lit/decorators.js';
+import { property } from 'lit/decorators.js';
 import { SCWCScrollContainer } from '../../../shared/components/scroll-container/index.ts';
 
 /** 工作台独有的默认值，不改变插件及其他共享组件使用者。 */

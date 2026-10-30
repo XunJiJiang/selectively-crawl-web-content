@@ -89,7 +89,8 @@
   --status-info-bg: rgba(56, 189, 248, 0.15);
   --terminal-foreground: #fff;
   --terminal-cursor: #fff;
-  --menu-background: rgb(0 0 0 / 80%);
+  --menu-background: rgb(0 0 0 / 45%);
+  --menu-selection-background: rgb(72 72 72 / 40%);
   --terminal-color-error: #f87171;
   --terminal-color-warning: #fbbf24;
   --terminal-color-info: #38bdf8;
@@ -141,7 +142,8 @@
   --status-info-bg: rgba(2, 132, 199, 0.1);
   --terminal-foreground: #000;
   --terminal-cursor: #000;
-  --menu-background: rgb(255 255 255 / 85%);
+  --menu-background: rgb(255 255 255 / 50%);
+  --menu-selection-background: rgb(220 220 220 / 40%);
   --terminal-color-error: #b91c1c;
   --terminal-color-warning: #92400e;
   --terminal-color-info: #0369a1;

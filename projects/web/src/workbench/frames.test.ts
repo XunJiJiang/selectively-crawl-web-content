@@ -114,6 +114,22 @@ function fixture() {
   return { pool, store, snapshot, tab, root, container, command };
 }
 describe('stable iframe ownership and hibernation safety', () => {
+  it('sends one blur when focus enters the auxiliary sidebar and restores page focus', () => {
+    const { pool, store, tab } = fixture();
+    const runtime = requireValue(pool.runtimes.get(tab.id));
+    const event = vi.fn();
+    runtime.port = { event, close: vi.fn() } as unknown as NonNullable<typeof runtime.port>;
+    store.focusedLocation = { kind: 'auxiliary' };
+    pool.sync();
+    pool.sync();
+    expect(event.mock.calls.filter(([name]) => name === 'focus.changed')).toEqual([
+      ['focus.changed', false],
+    ]);
+    store.focusedLocation = { kind: 'tab', id: tab.id };
+    pool.sync();
+    expect(event).toHaveBeenLastCalledWith('focus.changed', true);
+    runtime.port = undefined;
+  });
   it('clips a horizontally scrolled page to its own viewport', () => {
     vi.useFakeTimers();
     const { pool, tab, root } = fixture();

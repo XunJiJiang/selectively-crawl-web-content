@@ -1,5 +1,6 @@
+import { customElement } from '../../../shared/utils/customElement.ts';
 import { LitElement, html, css, unsafeCSS } from 'lit';
-import { customElement, property } from 'lit/decorators.js';
+import { property } from 'lit/decorators.js';
 import glyphStyles from '@vscode/codicons/dist/codicon.css?raw';
 const names: Record<string, string> = {
   pages: 'files',

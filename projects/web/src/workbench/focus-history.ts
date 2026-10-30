@@ -1,5 +1,6 @@
 export type FocusLocation =
   | { kind: 'tab'; id: string }
+  | { kind: 'auxiliary' }
   | { kind: 'sidebar'; view: 'search' | 'pages' | 'bookmarks' | 'history' | 'plugins' }
   | { kind: 'panel'; view: 'output' | 'terminal'; terminalId?: string };
 

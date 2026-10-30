@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { WorkbenchStore } from './store.ts';
 import { ApiError, EventConnection } from '../api/workbench.ts';
 import { CONFIG_KEY } from '../../../shared/utils/common.ts';
-import type { WorkspaceSnapshot } from './types.ts';
+import type { Job, WorkspaceSnapshot } from './types.ts';
 import { requireValue } from '../../../shared/workbench-protocol.ts';
 vi.mock('../../../shared/store/config.ts', () => ({
   ConfigController: {
@@ -45,6 +45,46 @@ afterEach(() => {
   vi.restoreAllMocks();
   localStorage.clear();
   vi.unstubAllGlobals();
+});
+
+describe('task completion feedback', () => {
+  const job = (status: Job['status'], revision = 1, id = 'task'): Job => ({
+    id, pluginId: 'p', type: 'custom', status, revision, phase: status, logs: [],
+  });
+  it('does not flash hydrated history or extend feedback for duplicate and stale updates', async () => {
+    vi.useFakeTimers();
+    const store = fixture();
+    vi.spyOn(store.api, 'request').mockResolvedValue([job('failed', 3, 'history')]);
+    await store.refreshJobs();
+    expect(store.recentJobStatus).toBeUndefined();
+    expect(store.unreadJobs).toHaveLength(1);
+    store.applyJob(job('running'));
+    store.applyJob(job('succeeded', 2));
+    expect(store.recentJobStatus).toBe('succeeded');
+    await vi.advanceTimersByTimeAsync(2000);
+    store.applyJob(job('succeeded', 2));
+    store.applyJob(job('failed', 1));
+    await vi.advanceTimersByTimeAsync(999);
+    expect(store.recentJobStatus).toBe('succeeded');
+    await vi.advanceTimersByTimeAsync(1);
+    expect(store.recentJobStatus).toBeUndefined();
+    expect(store.jobs.get('task')?.status).toBe('succeeded');
+  });
+  it('gives each newer completion its own three seconds and retains unread outcomes', async () => {
+    vi.useFakeTimers();
+    const store = fixture();
+    store.applyJob(job('succeeded'));
+    await vi.advanceTimersByTimeAsync(2000);
+    store.applyJob(job('failed', 1, 'failure'));
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(store.recentJobStatus).toBe('failed');
+    store.applyJob(job('cancelled', 1, 'cancel'));
+    await vi.advanceTimersByTimeAsync(2999);
+    expect(store.recentJobStatus).toBe('cancelled');
+    await vi.advanceTimersByTimeAsync(1);
+    expect(store.recentJobStatus).toBeUndefined();
+    expect(store.unreadJobs.map((item) => item.status)).toEqual(['succeeded', 'failed', 'cancelled']);
+  });
 });
 
 it('starts idle countdown only after every protected request finishes and excludes local bindings', async () => {

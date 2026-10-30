@@ -61,6 +61,8 @@ export class WorkbenchStore extends EventTarget {
   executions: Execution[] = [];
   inputs: InputRequest[] = [];
   jobs = new Map<string, Job>();
+  recentJobStatus?: Extract<Job['status'], 'succeeded' | 'failed' | 'cancelled'>;
+  private jobStatusTimer?: ReturnType<typeof setTimeout>;
   outputs = new Map<string, OutputRecord[]>();
   outputGaps = new Map<string, number>();
   private terminalViews = new Map<string, TerminalViewState>();
@@ -985,17 +987,29 @@ export class WorkbenchStore extends EventTarget {
       (job) => ['succeeded', 'failed', 'cancelled'].includes(job.status) && !job.readAt,
     );
   }
-  private applyJob(job: Job) {
+  applyJob(job: Job, announce = true) {
     const old = this.jobs.get(job.id);
     if (!old || old.revision <= job.revision) {
       this.jobs.set(job.id, job);
+      if (
+        announce &&
+        old?.status !== job.status &&
+        (job.status === 'succeeded' || job.status === 'failed' || job.status === 'cancelled')
+      ) {
+        this.recentJobStatus = job.status;
+        clearTimeout(this.jobStatusTimer);
+        this.jobStatusTimer = setTimeout(() => {
+          this.recentJobStatus = undefined;
+          this.changed();
+        }, 3000);
+      }
       this.requestActivity();
     }
   }
   async refreshJobs() {
     const jobs = await this.api.request<Job[]>('/jobs', undefined, undefined, false, true);
     for (const job of jobs) {
-      this.applyJob(job);
+      this.applyJob(job, false);
     }
     this.changed();
   }
@@ -1172,6 +1186,7 @@ export class WorkbenchStore extends EventTarget {
     this.disposed = true;
     clearInterval(this.renewTimer);
     clearTimeout(this.idleTimer);
+    clearTimeout(this.jobStatusTimer);
     for (const name of this.activityEvents) {
       window.removeEventListener(name, this.activity, true);
     }

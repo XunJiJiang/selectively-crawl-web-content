@@ -1,5 +1,6 @@
+import { customElement } from '../../../../shared/utils/customElement.ts';
 import { css, html, LitElement } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+import { property, state } from 'lit/decorators.js';
 import '../icon.ts';
 import './wb-context-menu.ts';
 import { emit, resolveMenuPresentation } from './helpers.ts';

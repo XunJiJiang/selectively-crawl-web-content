@@ -5,6 +5,7 @@ import { addTab, internalTab, titleOf, splitGroup, groups } from './model.ts';
 import { requireValue } from '../../../shared/workbench-protocol.ts';
 import type { AppRoot } from '../layouts/root.ts';
 import type { UIContribution } from '../../../shared/declarative-ui.ts';
+import type { Job } from './types.ts';
 import type { DeclarativeView } from '../components/declarative-view.ts';
 import type { WbContextMenu } from '../components/context-menu/wb-context-menu.ts';
 
@@ -96,6 +97,57 @@ async function fixture() {
   await app.updateComplete;
   return requireValue(app.shadowRoot);
 }
+
+describe('task entry feedback', () => {
+  it.each(['succeeded', 'failed', 'cancelled'] as const)(
+    'shows the latest %s outcome then the ordered unread dots',
+    async (status) => {
+      vi.useFakeTimers();
+      const root = await fixture();
+      const outcomes = ['succeeded', 'failed', 'cancelled'] as const;
+      for (const outcome of outcomes) {
+        const job: Job = {
+          id: outcome, pluginId: 'p', type: 'custom', status: outcome,
+          phase: outcome, revision: 1, logs: [],
+        };
+        app.store.applyJob(job, false);
+      }
+      app.store.applyJob({
+        id: 'latest', pluginId: 'p', type: 'custom', status, phase: status, revision: 1, logs: [],
+      });
+      app.store.changed();
+      await app.updateComplete;
+      const button = requireValue(root.querySelector<HTMLElement>('.task-button'));
+      expect(button.dataset.state).toBe(status);
+      expect(button.querySelector('wb-icon')?.getAttribute('name')).toBe(status === 'succeeded' ? 'pass' : 'error');
+      expect(button.querySelector('.task-unread-dot')).toBeNull();
+      await vi.advanceTimersByTimeAsync(3000);
+      await app.updateComplete;
+      expect(button.querySelector('wb-icon')?.getAttribute('name')).toBe('tasklist');
+      expect([...button.querySelectorAll<HTMLElement>('.task-unread-dot')].map((dot) => dot.dataset.status))
+        .toEqual(['succeeded', 'cancelled', 'failed']);
+      app.store.jobs.clear();
+      app.store.changed();
+      await app.updateComplete;
+      expect(button.querySelector('.task-unread-dot')).toBeNull();
+    },
+  );
+});
+
+it('records auxiliary sidebar focus for pointer, keyboard and sandbox interaction', async () => {
+  const root = await fixture();
+  const aside = requireValue(root.querySelector<HTMLElement>('.auxiliary-sidebar'));
+  const tabId = requireValue(app.store.workspace).snapshot.tabs[0].id;
+  app.store.focusedLocation = { kind: 'tab', id: tabId };
+  aside.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }));
+  expect(app.store.focusedLocation).toEqual({ kind: 'auxiliary' });
+  app.store.focusedLocation = { kind: 'tab', id: tabId };
+  aside.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+  expect(app.store.focusedLocation).toEqual({ kind: 'auxiliary' });
+  app.store.focusedLocation = { kind: 'tab', id: tabId };
+  aside.dispatchEvent(new CustomEvent('ui-surface-action', { detail: { kind: 'click' }, bubbles: true }));
+  expect(app.store.focusedLocation).toEqual({ kind: 'auxiliary' });
+});
 
 describe('center tab placement', () => {
   function drag(target: Element, type: string, clientX = 0, clientY = 0) {
@@ -884,7 +936,7 @@ describe('lateral panels and full-width maximization', () => {
       '重试',
     );
   });
-  it('opens tasks only on request and distinguishes idle, running and unread completion', async () => {
+  it('opens tasks only on request and clears unread dots after viewing completed tasks', async () => {
     const root = await fixture();
     vi.spyOn(app.store, 'ackJobs').mockImplementation(async (ids) => {
       for (const id of ids) {
@@ -913,11 +965,11 @@ describe('lateral panels and full-width maximization', () => {
     app.store.changed();
     await app.updateComplete;
     expect(root.querySelector('.jobs-dialog')).toBeNull();
-    expect(button.dataset.state).toBe('running');
+    expect(button.querySelector('wb-icon')?.getAttribute('name')).toBe('tasklist');
     app.store.jobs.set(job.id, { ...job, status: 'succeeded', progress: 100, revision: 2 });
     app.store.changed();
     await app.updateComplete;
-    expect(button.dataset.state).toBe('unread');
+    expect(button.querySelector('[data-status="succeeded"]')).not.toBeNull();
     button.click();
     await app.updateComplete;
     await app.updateComplete;
@@ -927,6 +979,7 @@ describe('lateral panels and full-width maximization', () => {
     ).toBe('100');
     expect(app.store.ackJobs).toHaveBeenCalledWith(['custom']);
     expect(button.dataset.state).toBe('idle');
+    expect(button.querySelector('.task-unread-dot')).toBeNull();
   });
   it.each(['left', 'right'] as const)(
     'retains a hidden %s panel sash and reveals it at 110px with a 220px minimum',

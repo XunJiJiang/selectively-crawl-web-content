@@ -2468,22 +2468,53 @@ wb-icon {
 .feedback-progress.indeterminate > span {
   animation: feedback-loading 1.4s ease-in-out infinite;
 }
-.task-button[data-state='running'] wb-icon {
-  animation: task-running 1s linear infinite;
+.task-button {
+  position: relative;
 }
-.task-button[data-state='unread'] {
+.task-button[data-state='succeeded'] {
   color: var(--status-success);
 }
-@keyframes task-running {
-  to { transform: rotate(360deg); }
+.task-button[data-state='failed'] {
+  color: var(--status-error);
+}
+.task-button[data-state='cancelled'] {
+  color: var(--status-warning);
+}
+.task-unread-dots {
+  position: absolute;
+  top: 2px;
+  right: 1px;
+  display: flex;
+  flex-direction: column;
+  pointer-events: none;
+}
+.task-unread-dot {
+  position: relative;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--status-success);
+}
+.task-unread-dot + .task-unread-dot {
+  margin-top: -2px;
+}
+.task-unread-dot[data-status='succeeded'] {
+  z-index: 1;
+}
+.task-unread-dot[data-status='cancelled'] {
+  background: var(--status-warning);
+  z-index: 2;
+}
+.task-unread-dot[data-status='failed'] {
+  background: var(--status-error);
+  z-index: 3;
 }
 @keyframes feedback-loading {
   from { transform: translateX(-100%); }
   to { transform: translateX(286%); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .feedback-progress.indeterminate > span,
-  .task-button[data-state='running'] wb-icon { animation: none; }
+  .feedback-progress.indeterminate > span { animation: none; }
 }
 .boot-screen {
   display: flex;

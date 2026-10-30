@@ -1,5 +1,6 @@
+import { customElement } from '../../../../shared/utils/customElement.ts';
 import { css, html, LitElement, nothing, type PropertyValues, type TemplateResult } from 'lit';
-import { customElement, property, query, state } from 'lit/decorators.js';
+import { property, query, state } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
 import { live } from 'lit/directives/live.js';
 import { repeat } from 'lit/directives/repeat.js';
