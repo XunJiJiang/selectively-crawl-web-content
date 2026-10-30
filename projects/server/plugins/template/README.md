@@ -1,6 +1,25 @@
 # 模板插件 · 接入验证
 
-本模板保留抓取、命令和用户脚本控件示例，新增 Vite + Lit 验证页。默认 `enabled: false`，加载时不自动创建通知或任务，不自动运行探针。没有新增私有依赖；构建使用核心共享的 Lit、Vite 和 `@scwc/vite-plugin`。
+本模板保留抓取、命令和用户脚本控件示例，提供 Vite + Lit 验证页、声明式主侧栏/辅助页/状态项及后端配置。当前 manifest 为 `enabled: true`；复制时按需调整。加载时不自动创建通知或任务，不自动运行探针。没有新增依赖；构建使用核心共享的 Lit、Vite 和 `@scwc/vite-plugin`。
+
+完整接口覆盖、测试证据与已知核心缺口见 [接口覆盖表](docs/coverage.md)，源码分工见 [项目地图](docs/map.md)。
+
+## 最短接入与操作
+
+在本目录执行 `bun run check`、`bun run build:web`、`bun run test:integration`。后端只使用 Node 原生可擦除 TS。普通页必须先 `await sdk.ready`；本模板检查 `pageApiVersion=2` 与 `ui.handlers`，旧 SDK 会显示明确的版本错误，不恢复旧接口。
+
+1. 使用已有 `http://localhost:3201/web/`，插件菜单“重启后端”仅重载 template，再刷新普通插件页。不要另起开发服务器。
+2. 主侧栏“模板验证”：名称/参数、数据/监听、配置/核心、UI/生命周期四个标签。输入后点“同域异步链”，观察字段规范化；“数据/监听”分别增加前后端计数。嵌套标签支持方向键、Home/End，内容更新保持稳定 key/id。
+3. 普通页面“统一模板接入”：先读完整配置基线，再通过本插件 `/validation/config` 业务 API 写入；可从另一页修改制造 CAS 冲突，之后显式选择保留草稿或接受远端值。完整/选定键快照与三种配置订阅记录在折叠结果区；无网络轮询。
+4. “页面信息→配置”才是核心配置表单；保存、重置、接受远端值、保留草稿由核心专用处理器执行。插件自定义模板不调用这些专用绑定。
+5. 普通页的 `UI ...` 按钮可切换辅助 JSON/HTML、隐藏/恢复页面信息、三种 tooltip 格式、状态项可见/禁用状态，以及各句柄释放。`UI dispose` 在同一事务内先移除所有视图/属性引用，再释放处理器与资源；“恢复声明式演示”重建一次，每区域始终最多一项。
+6. “释放前端处理器”先移除后端视图引用，再 `await dispose()` 页面处理器。重新恢复时先注册页面处理器再恢复后端贡献。后端 inspector 的 tab 定向失效与执行中改模板的回执限制见覆盖表，不能按按钮点击宣称成功。
+
+## 产物版本问题
+
+本次发现旧 `web/dist/assets/index-DeR2zT9o.js` 仍调用 `page.register`，而源文件已迁移到 `ui.handlers.register`。实际注入的旧 `scwcutils.iife.mvsaa0dd.js` 还保留旧 page 接口且没有 `ui.handlers`，说明模板和 SDK 都存在构建版本滞后。模板通过 `build:web` 重建；SDK 经用户特别授权，只运行 `projects/webUtils` 的 `bun run build` 重建产物，未修改核心/SDK 源码。核心路由动态注入最新 SDK；已有插件 HTML 缓存需插件重载后刷新，不能手改压缩 JS 或补回 page.register。
+
+构建产物按仓库规则忽略，提交源码后在目标环境重新构建。SDK 的时间戳文件名每次构建都会改变，不应在插件中硬编码该文件名。
 
 ## 启动
 

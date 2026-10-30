@@ -1,0 +1,9 @@
+feat(template): complete declarative UI and configuration integration examples
+
+- Add shared-state handlers, all JSON controls, HTML sidebar and status tooltip/menu examples
+- Demonstrate UI handle updates, targeted content, atomic rejection and ordered disposal
+- Move configuration authority to backend string CRUD with validation and explicit CAS baselines
+- Add page-local UI handlers, read-only config subscriptions, navigation/search and lifecycle state
+- Rebuild template and authorized SDK assets to remove stale page.register usage
+- Extend real-process integration tests and document verified coverage and core limitations
+- Add AOCI maintenance handoff under docs/AOCI2; leave unrelated worktree changes untouched

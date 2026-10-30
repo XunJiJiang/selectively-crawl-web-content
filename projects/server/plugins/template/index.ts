@@ -1,4 +1,14 @@
-import { registerDeclarativeDemo } from './declarative-ui.ts';
+import {
+  registerDeclarativeDemo,
+  unloadDeclarativeDemo,
+  declarativeApis,
+} from './declarative-ui.ts';
+import {
+  configuration,
+  loadConfiguration,
+  unloadConfiguration,
+  configurationApis,
+} from './configuration.ts';
 import {
   loadValidation,
   unloadValidation,
@@ -10,26 +20,11 @@ import {
 export default {
   // 插件名称, 目前可选. 建议和 package.json 中的 name 字段保持一致
   name: 'template',
-  configuration: {
-    definitions: [
-      {
-        id: 'template-validation',
-        schemaVersion: '1',
-        items: [
-          {
-            id: 'note',
-            key: 'validation.note',
-            label: '验证说明',
-            control: 'text',
-            defaultValue: '声明式 UI 已接入',
-          },
-        ],
-      },
-    ],
-  },
+  configuration,
   // 启动服务时调用, 可选, 支持异步
   // workbench.logger / workbench.tasks 由宿主注入，可长期持有，勿与调用级 context.tasks 混淆。
-  onLoad: async (_logger, { workbench }) => {
+  onLoad: async (_logger, { workbench, config }) => {
+    loadConfiguration(config);
     loadValidation(workbench);
     await registerDeclarativeDemo(workbench.ui);
   },
@@ -45,6 +40,8 @@ export default {
   },
   // 卸载插件时调用, 例如服务停止或重启时, 可选, 支持异步
   onUnload: async () => {
+    await unloadDeclarativeDemo();
+    unloadConfiguration();
     await unloadValidation();
   },
   // 插件配置, 可选
@@ -245,6 +242,8 @@ export default {
     entry: './web/dist/index.html',
     // 浏览器界面的 API 接口, 可选. 可以在这里定义一些插件相关的 API 接口, 供浏览器界面通过 scwcutils.fetch 调用
     api: [
+      ...declarativeApis,
+      ...configurationApis,
       ...validationApis,
       {
         method: 'GET',

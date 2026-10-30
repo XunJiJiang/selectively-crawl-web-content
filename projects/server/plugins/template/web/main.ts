@@ -2,6 +2,7 @@ import { LitElement, html, nothing } from 'lit';
 import { repeat } from 'lit/directives/repeat.js';
 import { FeedbackDemo, type FeedbackAction, type FeedbackSnapshot } from '../feedback-demo.ts';
 import './styles.css';
+import { PageUIDemo } from './ui-demo.ts';
 
 type Source = '前端' | '后端';
 type ExternalState = ReturnType<Window['scwcutils']['externalState']['get']>;
@@ -35,6 +36,7 @@ class TemplateValidation extends LitElement {
   private ticker?: ReturnType<typeof setInterval>;
   private disposers: (() => void)[] = [];
   private logs: LogEntry[] = [];
+  private uiDemo?: PageUIDemo;
 
   // 核心 ManagedResources 观察 document 中的 src/href，不能把验证资源藏在 Shadow DOM。
   // 本例显式 requestUpdate，避免依赖装饰器或外层 tsconfig 的字段转换方式。
@@ -51,6 +53,7 @@ class TemplateValidation extends LitElement {
     for (const dispose of this.disposers) dispose();
     for (const controller of this.pending.values()) controller.abort();
     this.socket?.close();
+    void this.uiDemo?.dispose();
     // 文档离开时 SDK 的 feedback/release 负责回收所属任务与回调。
   }
 
@@ -72,6 +75,16 @@ class TemplateValidation extends LitElement {
         throw new Error('请构建后从核心工作台打开；独立 Vite 开发服务器不会注入 scwcutils。');
       this.sdk = sdk;
       await sdk.ready; // resource/websocket 是同步工厂，必须等待授权。
+      if (sdk.host.capabilities.pageApiVersion !== 2 || !sdk.ui?.handlers)
+        throw new Error(
+          '核心注入的 scwcutils 构建产物过期：本模板要求 pageApiVersion=2 和 ui.handlers。请由核心维护者重建 webutils 后刷新页面。',
+        );
+      if (!this.isConnected) return;
+      this.uiDemo = new PageUIDemo(
+        sdk,
+        () => this.requestUpdate(),
+        (message, error) => this.log(message, error),
+      );
       this.external = sdk.externalState.get();
       this.disposers.push(
         sdk.externalState.onChange(() => {
@@ -98,9 +111,16 @@ class TemplateValidation extends LitElement {
             this.startTicker();
             this.log('lifecycle.onResume：心跳恢复');
           },
-          serialize: () => ({ heartbeat: this.heartbeat, logs: this.logs }),
+          canLeave: () =>
+            !this.uiDemo?.snapshot().dirty || window.confirm('配置草稿尚未提交，仍要离开？'),
+          serialize: () => ({
+            heartbeat: this.heartbeat,
+            logs: this.logs,
+            ui: this.uiDemo?.snapshot(),
+          }),
           restore: (value) => {
-            const state = value as { heartbeat?: number; logs?: LogEntry[] } | null;
+            const state = value as { heartbeat?: number; logs?: LogEntry[]; ui?: unknown } | null;
+            this.uiDemo?.restore(state?.ui);
             this.heartbeat = state?.heartbeat ?? 0;
             this.logs = state?.logs?.slice(0, 80) ?? [];
             this.log('lifecycle.restore：恢复心跳计数和事件记录');
@@ -120,6 +140,7 @@ class TemplateValidation extends LitElement {
         },
       });
       this.disposers.push(() => void pageTitle.dispose());
+      await this.uiDemo.initialize();
       this.disposers.push(
         sdk.config.subscribe(['validation.note'], (change) =>
           this.log(`配置通知 revision ${change.revision}`),
@@ -497,9 +518,10 @@ class TemplateValidation extends LitElement {
             </div>
           </section>
         </div>
+        ${this.uiDemo?.render() ?? nothing}
         <section class="panel event-panel">
           <div class="section-heading">
-            <h2>04 <span>事件记录</span></h2>
+            <h2>05 <span>事件记录</span></h2>
             <button
               @click=${() => {
                 this.logs = [];
