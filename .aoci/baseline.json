@@ -1,7 +1,7 @@
 {
   "version": 1,
   "created_at": "2026-10-18T10:54:05Z",
-  "updated_at": "2026-10-30T10:38:16Z",
+  "updated_at": "2026-10-30T11:08:10Z",
   "files": {
     ".gitattributes": {
       "role": "index",
@@ -59,9 +59,9 @@
     },
     "aoci.code.txt": {
       "role": "index",
-      "sha256": "04cf5b94704309be1ebc035bce9d28e9f4594ee88281a1896dd32ce4c852a358",
-      "size": 188253,
-      "normalized_sha256": "04cf5b94704309be1ebc035bce9d28e9f4594ee88281a1896dd32ce4c852a358"
+      "sha256": "63c38279ca041c536431e54e49af379e57455f663fc8b3cf5e716845f43dc2c5",
+      "size": 188289,
+      "normalized_sha256": "63c38279ca041c536431e54e49af379e57455f663fc8b3cf5e716845f43dc2c5"
     },
     "aoci.meta.txt": {
       "role": "index",
@@ -179,9 +179,9 @@
     },
     "docs/待办设计.md": {
       "role": "observe",
-      "sha256": "1778905437d2088db187ec1f9736b201fc9ec02d0f5e1d454907c89fd8b3095d",
-      "size": 70467,
-      "normalized_sha256": "1778905437d2088db187ec1f9736b201fc9ec02d0f5e1d454907c89fd8b3095d"
+      "sha256": "33d0ebe31d88f9c42215546c14733615b4fae750d891f56fe2ffc2cbb3e97ee6",
+      "size": 70475,
+      "normalized_sha256": "33d0ebe31d88f9c42215546c14733615b4fae750d891f56fe2ffc2cbb3e97ee6"
     },
     "docs/插件声明式UI与事件管道设计.md": {
       "role": "observe",
@@ -8283,9 +8283,9 @@
     },
     "projects/web/src/workbench/workbench.css": {
       "role": "index",
-      "sha256": "3636c94b2badd30afd6e9a410cb354d6de7e9bd80057afc98389b794871808a7",
-      "size": 66910,
-      "normalized_sha256": "3636c94b2badd30afd6e9a410cb354d6de7e9bd80057afc98389b794871808a7"
+      "sha256": "cd11dc0dd5a6c618763026d1237d4b62cca7248aebd854faaec64c94eacd592a",
+      "size": 67223,
+      "normalized_sha256": "cd11dc0dd5a6c618763026d1237d4b62cca7248aebd854faaec64c94eacd592a"
     },
     "projects/web/style.css": {
       "role": "index",
