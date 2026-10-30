@@ -4,6 +4,23 @@
 
 主侧栏、辅助侧栏和状态栏悬浮提示共用 JSON 组件格式。Tabs 可嵌套，标签的 `children` 是普通组件数组；每个标签栏独立保存选中项，支持点击、左右方向键及 Home/End。核心“页面信息”（内部标识 `currentPage`）也由 JSON Tabs 渲染，配置分组使用内层 Tabs。
 
+JSON 支持的 `stack`、`text`、`icon`、`image`、`button`、`input`、`textarea`、`select`、`checkbox`、`toggle`、`form`、`progress`、`badge`、`divider`、`tabs` 共用工作台基础样式。所有布局容器、表单、Tabs 及标签内容均由工作台滚动组件包裹，标签栏单独横向滚动，键盘切换会显示目标标签。`select` 使用已有的工作台上下文菜单，选中值仍参与字段采集、事件关联和草稿恢复。`stack` 的 row 方向是普通横向布局；固定属性列宽只用于核心页面信息。
+
+普通插件 HTML 页面可以直接引用服务端提供的 `/web/page/resources/styles/json-ui.css`，实际文件位于 `projects/server/public/resources/styles/json-ui.css`。该文件与 JSON 渲染、声明式 HTML 沙箱使用同一份基础样式；声明式沙箱已自动加载，无需额外引用。样式仅作用于 `.ui-root` 内部，使用工作台主题变量并提供默认颜色，独立页面可在 `html` 设置 `data-theme="light-2026"` 选择浅色外观。
+
+```html
+<link rel="stylesheet" href="/web/page/resources/styles/json-ui.css">
+<div class="ui-root" data-layout="column" data-gap="medium">
+  <span class="ui-text ui-text-title">设置</span>
+  <input name="query" placeholder="输入搜索词">
+  <label class="ui-toggle"><input type="checkbox"><span>自动保存</span></label>
+  <select name="mode"><option value="simple">简洁模式</option></select>
+  <button type="button">保存</button>
+</div>
+```
+
+基础控件使用原生 HTML 标签；布局使用 `data-layout="row|column"` 与 `data-gap="small|medium|large"`；文本使用 `ui-text` 和 `ui-text-title|muted|code|success|warning|error`；徽章使用 `ui-badge` 和对应的 `ui-badge-*`；Tabs 使用 `ui-tabs`、`ui-tab-list`、`ui-tab-panel` 以及标准 tab/tabpanel 角色。CSS 仅提供外观，HTML 中的滚动、下拉选择和交互逻辑仍由页面负责；HTML 接入滚动容器与上下文菜单组件留待后续实现。
+
 状态栏按钮使用紧凑布局，不预留属性列或空错误区。悬停/点击提示层按内容高度显示，底部三角指向按钮，超出视口时内部滚动；右键使用工作台已有上下文菜单，支持子菜单、勾选和禁用状态，菜单 action 继续通过后端声明式处理器执行。
 
 辅助侧栏的“页面信息”和插件自定义页标签位于标题栏内，样式与高度和中心标签栏一致；只有一个页面时显示 strong 标题。插件页标签使用插件名称，按 `package.json.scwc.ui.title` → 导出 `name` → `package.json.name` → 文件夹名称解析。“页面信息”宽度固定，插件页按文字所需宽度显示，不拉伸填满右侧空间；空间不足时收缩并显示省略号，标签栏不横向滚动，关闭按钮保持在右侧。只有已经提供 JSON/HTML 模板或内容提供器后，才能设置 `hideCurrentPage: true` 或调用 `setCurrentPageVisible(false)` 隐藏“页面信息”；无模板的隐藏请求会被拒绝。

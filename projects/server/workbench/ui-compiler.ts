@@ -254,11 +254,7 @@ function jsonHTML(node: UINode, depth = 0, path = '0'): string {
     ...properties[node.type],
   ]);
   const unknownProperty = Object.keys(node).find((key) => !allowed.has(key));
-  uiAssert(
-    !unknownProperty,
-    'UI_INVALID_CONTENT',
-    `组件含未知属性：${unknownProperty ?? ''}`,
-  );
+  uiAssert(!unknownProperty, 'UI_INVALID_CONTENT', `组件含未知属性：${unknownProperty ?? ''}`);
   for (const key of ['text', 'label', 'src', 'alt', 'placeholder']) {
     if (node[key] !== undefined) {
       uiAssert(typeof node[key] === 'string', 'UI_INVALID_VALUE_TYPE', `${key} 需要字符串`);
@@ -348,17 +344,17 @@ function jsonHTML(node: UINode, depth = 0, path = '0'): string {
     case 'form':
       return `<form${base}>${children()}</form>`;
     case 'button':
-      return `<button${base} type="${node.submit === true ? 'submit' : 'button'}"${attr('disabled', node.disabled)}>${text}</button>`;
+      return `<button${base} type="${node.submit === true ? 'submit' : 'button'}"${attr('disabled', node.disabled)}>${node.icon ? `<span class="ui-button-icon">${jsonHTML({ type: 'icon', icon: node.icon }, depth + 1, `${path}-icon`)}</span>` : ''}<span>${text}</span></button>`;
     case 'input':
-      return `<input${base}${attr('type', node.inputType ?? 'text')}${attr('value', node.value ?? '')}${attr('placeholder', node.placeholder)}>`;
+      return `<input${base}${attr('type', node.inputType ?? 'text')}${attr('value', node.value ?? '')}${attr('placeholder', node.placeholder)}${attr('disabled', node.disabled)}>`;
     case 'textarea':
-      return `<textarea${base}${attr('value', node.value ?? '')}${attr('placeholder', node.placeholder)}></textarea>`;
+      return `<textarea${base}${attr('value', node.value ?? '')}${attr('placeholder', node.placeholder)}${attr('disabled', node.disabled)}></textarea>`;
     case 'checkbox':
     case 'toggle':
-      return `<label><input${base} type="checkbox"${attr('checked', node.checked)}${attr('disabled', node.disabled)}>${text}</label>`;
+      return `<label class="ui-${node.type}"><input${base} type="checkbox"${node.type === 'toggle' ? ' role="switch"' : ''}${attr('checked', node.checked)}${attr('disabled', node.disabled)}><span>${text}</span></label>`;
     case 'select': {
       uiAssert(Array.isArray(node.options), 'UI_INVALID_CONTENT', 'options 必须是数组');
-      return `<select${base}${attr('value', node.value ?? '')}>${node.options
+      return `<select${base}${attr('value', node.value ?? '')}${attr('disabled', node.disabled)}>${node.options
         .map((item) => {
           const option =
             typeof item === 'string'
@@ -376,7 +372,7 @@ function jsonHTML(node: UINode, depth = 0, path = '0'): string {
     case 'progress':
       return `<progress${base}${node.value === null ? '' : attr('value', node.value)} max="1"></progress>`;
     case 'divider':
-      return '<hr>';
+      return `<hr${base}>`;
     case 'image':
       return `<img${base}${attr('src', node.src)}${attr('alt', node.alt)}>`;
     case 'icon': {
@@ -451,7 +447,14 @@ export function compileUI(content: UIContent, options: CompileOptions): Compiled
     const document = dom.window.document;
     const inert = document.createElement('div');
     inert.innerHTML = html;
-    const result: CompiledUI = { format: content.format, nodes: [], fields: [], events: [], expressions: [], styles: [] };
+    const result: CompiledUI = {
+      format: content.format,
+      nodes: [],
+      fields: [],
+      events: [],
+      expressions: [],
+      styles: [],
+    };
     const eventTable = new Map<Element, Record<string, string>>();
     const associations = new Map<Element, string>();
     for (const element of inert.querySelectorAll('*')) {

@@ -52,6 +52,9 @@ export class DeclarativeMenu {
     return attribute ? node.attrs?.[attribute] : node.text;
   }
   private text(node: SafeNode): string {
+    if (node.attrs?.class?.split(/\s+/).includes('ui-button-icon')) {
+      return '';
+    }
     return node.tag
       ? (node.children ?? []).map((child) => this.text(child)).join('')
       : String(this.value(node) ?? '');

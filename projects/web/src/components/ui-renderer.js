@@ -1,5 +1,5 @@
 /* Fixed core renderer shared by JSON components and the HTML sandbox. */
-export function createUIRenderer(root, emit) {
+export function createUIRenderer(root, emit, components) {
   const document = root.ownerDocument ?? root;
   const content = root.querySelector('#content');
   const error = root.querySelector('#error');
@@ -14,7 +14,7 @@ export function createUIRenderer(root, emit) {
     lastHeight = -1;
   const measure = () => {
     if (surface !== 'tooltip') return;
-    const height = content.scrollHeight + error.getBoundingClientRect().height;
+    const height = (components?.measureHeight() ?? content.scrollHeight) + error.getBoundingClientRect().height;
     if (height !== lastHeight) {
       lastHeight = height;
       send('surface', { kind: 'resize', height });
@@ -47,6 +47,7 @@ export function createUIRenderer(root, emit) {
         .map((f) => [f.name, { value: value(f), editSequence: edits.get(f.name) ?? 0 }]),
     );
   const notifyFields = () => {
+    components?.update();
     send('fields', snapshot());
     measure();
   };
@@ -75,6 +76,8 @@ export function createUIRenderer(root, emit) {
       }
     }
     if (focus) trigger.focus();
+    components?.update();
+    trigger.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
     return true;
   };
   const assign = (node, attribute, value) => {
@@ -91,7 +94,13 @@ export function createUIRenderer(root, emit) {
       return;
     }
     if (attribute === 'value' && 'value' in node) {
-      node.value = value === null ? '' : String(value);
+      if (node.tagName === 'SELECT' && node.multiple && Array.isArray(value)) {
+        for (const option of node.options) option.selected = value.includes(option.value);
+      } else if (node.tagName === 'PROGRESS' && value === null) {
+        node.removeAttribute('value');
+      } else {
+        node.value = value === null ? '' : String(value);
+      }
       return;
     }
     if (value === null) node.removeAttribute(attribute);
@@ -108,6 +117,7 @@ export function createUIRenderer(root, emit) {
     const focus = active?.getAttribute('name') ?? active?.getAttribute('data-ui-key');
     const selection = { start: active?.selectionStart, end: active?.selectionEnd };
     const scroll = { x: content.scrollLeft, y: content.scrollTop };
+    const componentScroll = components?.captureScroll();
     model = data.compiled;
     surface = data.surface;
     renderRevision = data.renderRevision;
@@ -127,12 +137,17 @@ export function createUIRenderer(root, emit) {
           else node.setAttribute(key, value);
         }
         for (const child of spec.children ?? []) node.append(create(child));
+        // A select's children must exist before its initial value is applied.
+        if (spec.tag === 'select' && Object.hasOwn(spec.attrs ?? {}, 'value')) {
+          node.value = spec.attrs.value;
+        }
       }
       return node;
     };
     const fragment = document.createDocumentFragment();
     for (const node of model.nodes) fragment.append(create(node));
     content.replaceChildren(fragment);
+    components?.mount(content);
     content.parentElement.dataset.surface = data.surface;
     const dynamicStyle = root.querySelector('#dynamic-style');
     if (dynamicStyle) dynamicStyle.textContent = model.styles.join('\n');
@@ -190,7 +205,7 @@ export function createUIRenderer(root, emit) {
           (node.getAttribute('name') === focus || node.getAttribute('data-ui-key') === focus),
       );
       if (target) {
-        target.focus({ preventScroll: true });
+        (components?.focusTarget(target) ?? target).focus({ preventScroll: true });
         if (typeof selection.start === 'number' && typeof target.setSelectionRange === 'function')
           try {
             target.setSelectionRange(selection.start, selection.end);
@@ -199,6 +214,7 @@ export function createUIRenderer(root, emit) {
     }
     content.scrollLeft = scroll.x;
     content.scrollTop = scroll.y;
+    components?.restoreScroll(componentScroll);
     notifyFields();
   }
   function receive({ data }) {
@@ -241,7 +257,7 @@ export function createUIRenderer(root, emit) {
           (edits.get(name) ?? 0) === payload.editSequences?.[name]
         )
           assign(node, field.kind === 'boolean' ? 'checked' : 'value', effect.args[1]);
-        if (effect.type === 'element.focus') node?.focus();
+        if (effect.type === 'element.focus' && node) (components?.focusTarget(node) ?? node).focus();
         if (effect.type === 'section.toggle' && node) node.hidden = !node.hidden;
         if (effect.type === 'scroll.to') node?.scrollIntoView({ block: 'nearest' });
       }
@@ -250,8 +266,10 @@ export function createUIRenderer(root, emit) {
           if ((edits.get(name) ?? 0) === sequence) dirty.delete(name);
       notifyFields();
     }
-    if (data.method === 'focus')
-      (root.querySelector('input,button,select,textarea,[tabindex]') ?? content).focus();
+    if (data.method === 'focus') {
+      const node = root.querySelector('input,button,select,textarea,[tabindex]') ?? content;
+      (components?.focusTarget(node) ?? node).focus();
+    }
   }
   listen('submit', (event) => event.preventDefault());
   listen('click', (event) => {
@@ -299,6 +317,7 @@ export function createUIRenderer(root, emit) {
     receive,
     dispose: () => {
       observer?.disconnect();
+      components?.dispose();
       listeners.forEach((remove) => remove());
     },
   };

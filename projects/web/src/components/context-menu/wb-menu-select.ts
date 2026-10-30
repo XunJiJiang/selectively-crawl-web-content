@@ -35,7 +35,7 @@ export class WbMenuSelect extends LitElement {
       .wb-menu-select__button,
       .wb-menu-select__native {
         width: 100%;
-        min-width: 132px;
+        min-width: 0;
       }
 
       .wb-menu-select__button {
@@ -52,7 +52,7 @@ export class WbMenuSelect extends LitElement {
       }
       :host([compact]) .wb-menu-select__button,
       :host([compact]) .wb-menu-select__native {
-        min-width: 90px;
+        min-width: 0;
         min-height: 26px;
         height: 26px;
         padding: 2px 6px;
@@ -61,6 +61,14 @@ export class WbMenuSelect extends LitElement {
       }
     `,
   ];
+
+  focus(options?: FocusOptions): void {
+    void this.updateComplete.then(() => {
+      if (this.isConnected) {
+        this.renderRoot.querySelector<HTMLElement>('button,select')?.focus(options);
+      }
+    });
+  }
 
   render() {
     if (resolveMenuPresentation(this.presentation) === 'native') {
@@ -124,6 +132,9 @@ export class WbMenuSelect extends LitElement {
 
   private openMenu = (event: MouseEvent): void => {
     event.stopPropagation();
+    if (this.disabled) {
+      return;
+    }
     const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
     this.menu = {
       x: rect.right,

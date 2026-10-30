@@ -4,6 +4,8 @@ import rendererSource from './ui-renderer.js?raw';
 import frameSource from './ui-frame.js?raw';
 import { createUIRenderer } from './ui-renderer.js';
 import contentStyles from './ui-content.css?raw';
+import primitiveStyles from '../../../server/public/resources/styles/json-ui.css?raw';
+import { createJSONComponents } from './json-components.ts';
 import { validateJSONModel, validateJSONAttribute } from './json-renderer-policy.ts';
 import './context-menu/wb-context-menu.ts';
 import { DeclarativeMenu } from './declarative-menu.ts';
@@ -96,7 +98,7 @@ export class DeclarativeView extends LitElement {
       inset: 0;
       z-index: 1100;
     }
-  `, unsafeCSS(contentStyles)];
+  `, unsafeCSS(primitiveStyles), unsafeCSS(contentStyles)];
   connectedCallback() {
     super.connectedCallback();
     window.addEventListener('message', this.hello);
@@ -264,7 +266,7 @@ export class DeclarativeView extends LitElement {
         this.port?.close();
         this.port = undefined;
         uiAssert(this.shadowRoot, 'UI_INVALID_CONTENT', 'JSON 渲染容器未就绪');
-        this.directRenderer ??= createUIRenderer(this.shadowRoot, (message) => void this.receive(message));
+        this.directRenderer ??= createUIRenderer(this.shadowRoot, (message) => void this.receive(message), createJSONComponents());
         this.frameReady = true;
       } catch (error) {
         this.error = this.store.message(error);
@@ -784,8 +786,8 @@ export class DeclarativeView extends LitElement {
     }
     if (!this.instance || this.instance.compiled.format === 'json') {
       return html`${this.error ? html`<p class="error" role="alert">${this.error}</p>` : nothing}
-        <div class="ui-root" data-surface=${this.surface}>
-          <div id="content"></div><div id="error" role="alert"></div>
+        <div class="ui-root ui-direct" data-surface=${this.surface}>
+          <wb-scroll-container class="ui-content-scroll"><div id="content"></div></wb-scroll-container><div id="error" role="alert"></div>
         </div>`;
     }
     const origin = location.origin;
@@ -796,6 +798,7 @@ export class DeclarativeView extends LitElement {
       '--text-secondary', '--text-tertiary', '--text-disabled', '--border-subtle',
       '--border-default', '--border-strong', '--border-focus', '--accent-primary', '--accent-hover',
       '--status-success', '--status-warning', '--status-error', '--radius-sm', '--radius-md',
+      '--accent-subtle', '--status-success-bg', '--status-warning-bg', '--status-error-bg', '--wb-tab-bar-height',
     ];
     const theme = themeNames
       .map((name) => {
@@ -805,7 +808,7 @@ export class DeclarativeView extends LitElement {
       .filter(Boolean)
       .join(';');
     const colorScheme = getComputedStyle(document.documentElement).colorScheme || 'dark';
-    const srcdoc = `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-${this.uiNonce}'; style-src 'unsafe-inline' ${origin}; img-src ${origin}; font-src ${origin}; connect-src 'none'; form-action 'none'; base-uri 'none'"><style>:root{${theme};color-scheme:${colorScheme}}html,body{height:100%;margin:0;overflow:hidden}body{display:flex}${contentStyles}</style><style id="dynamic-style"></style></head><body class="ui-root" data-surface="${this.surface}"><div id="content"></div><div id="error" role="alert"></div><script type="module" nonce="${this.uiNonce}" data-nonce="${this.uiNonce}">${rendererSource}\n${frameSource}</script></body></html>`;
+    const srcdoc = `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-${this.uiNonce}'; style-src 'unsafe-inline' ${origin}; img-src ${origin}; font-src ${origin}; connect-src 'none'; form-action 'none'; base-uri 'none'"><style>:root{${theme};color-scheme:${colorScheme}}html,body{height:100%;margin:0;overflow:hidden}body{display:flex}${primitiveStyles}\n${contentStyles}\n.ui-root{color-scheme:${colorScheme}}</style><style id="dynamic-style"></style></head><body class="ui-root" data-surface="${this.surface}"><div id="content"></div><div id="error" role="alert"></div><script type="module" nonce="${this.uiNonce}" data-nonce="${this.uiNonce}">${rendererSource}\n${frameSource}</script></body></html>`;
     return html`${this.error ? html`<p class="error" role="alert">${this.error}</p>` : null}<iframe
         title="声明式插件界面"
         sandbox="allow-scripts"

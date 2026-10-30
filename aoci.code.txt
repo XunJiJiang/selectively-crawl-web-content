@@ -3,12 +3,12 @@
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/===
 .gitattributes[FR4T]: F:统一检出换行 | R:- | A:* text=auto eol=lf | S:强制LF覆盖autocrlf，避免原始字节Baseline出现整仓伪漂移
 .gitignore[FC5M]: F:界定版本控制资产 | R:- | A:Git忽略规则 | S:生成Web与工具包不跟踪；插件模板和终端scwc目录有显式例外
-AGENTS.md[SG8S]: F:约定仓库认知使用与约束入口 | R:code:docs/env&limit.txt | A:Agent执行合同 | S:任务开始在版本门禁后必须读取约束文档；新增环境或用户长期限制回写该文档；重建索引保留文档入口，不复制具体限制
+AGENTS.md[SG8S]: F:约定仓库认知使用与约束入口 | R:code:docs/env&limit.txt | A:Agent执行合同 | S:任务开始先核验AOCI版本再读约束；压缩后强制完整重载且只尝试一次认知证明；插件开发不维护根索引；限制文档重建时保留
 LICENSE[SG2T]: F:授予使用许可 | R:- | A:MIT许可条款 | S:再分发须保留版权及许可声明
-bun.lock[FV5L]: F:锁定工作区与外部依赖解析 | R:code:package.json,code:projects/shared/package.json | A:lockfileVersion,configVersion,workspaces,packages | S:shared以workspace链接供Vite包传递依赖收集；webutils工作区路径小写；外部包版本与完整性统一锁定
+bun.lock[FV5L]: F:锁定工作区与外部依赖解析 | R:code:package.json,code:projects/shared/package.json | A:lockfileVersion,configVersion,workspaces,packages | S:shared以workspace链接供发行依赖收集；webutils工作区键为小写；包版本及完整性统一锁定
 oxfmt.config.ts[FQ4T]: F:约束源码格式 | R:code:package.json | A:defineConfig | S:只格式化TS，LF及两空格；忽略构建目录与编辑器配置
 oxlint.config.ts[FQ5S]: F:配置类型感知检查 | R:code:package.json | A:defineConfig | S:强制ts/js显式扩展名；浏览器环境覆盖使用webutils小写路径
-package.json[FV8S]: F:组织工作区依赖与构建启动 | R:code:projects/server/scripts/setup.ts,code:projects/server/scripts/build-runtime.ts | A:workspaces,scripts,dependencies,devDependencies,engines | S:根build先类型检查再构建脚本、Web、SDK和核心；发行默认含终端插件；开发Web固定3201；engine声明不替代发行探针的实际Node门槛
+package.json[FV8S]: F:组织工作区依赖与构建启动 | R:code:projects/server/scripts/setup.ts,code:projects/server/scripts/build-runtime.ts | A:workspaces,scripts,dependencies,devDependencies,engines | S:build先检查类型再构建脚本、Web、SDK及核心；发行默认含终端插件；开发Web默认3201；engine不替代发行Node探针
 tsconfig.app.json[FQ5T]: F:检查浏览器应用源码 | R:code:projects/shared/store/config.ts,code:projects/user-script/src/main.ts,code:projects/web/src/main.ts | A:compilerOptions,include | S:启用旧装饰器和严格无输出检查；显式包含服务端插件全局声明以供SCWC类型使用
 tsconfig.json[FQ5T]: F:聚合工作区类型项目 | R:code:tsconfig.app.json,code:tsconfig.node.json,code:tsconfig.serve.json,code:tsconfig.terminal.json,code:tsconfig.plugin-web.json,code:projects/vite-plugin/tsconfig.json | A:references | S:根files为空，实际检查范围由各引用项目决定
 tsconfig.node.json[FQ4T]: F:检查Node构建配置与Web开发脚本 | R:code:tsconfig.json,code:projects/web/vite.config.ts,code:projects/web/scripts/dev.ts | A:compilerOptions,include | S:纳入根配置及Web配置、开发脚本和测试；严格无输出，采用bundler解析
@@ -52,7 +52,7 @@ env.test.ts[TC5T]: F:验证监听配置及服务日志 | R:code:projects/server/
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/===
 index.ts[AG9S]: F:编排核心生命周期 | R:code:projects/server/router/index.ts,code:projects/server/plugin/load.ts,code:projects/server/command/ipc.ts,code:projects/server/workbench/runtime.ts | A:进程启动入口 | S:IPC握手先于选目录和监听；IPC生命周期交父终端，独立核心关闭SQLite后派生替代进程并保留TOKEN；重启保留缓存，退出清缓存
-package.json[FV5T]: F:声明核心工作区启动和发行构建 | R:code:projects/server/index.ts,code:projects/server/scripts/setup.ts | A:module,scripts,engines | S:源码与构建入口使用Node直接加载TS；module不参与脚本启动；默认发行包含终端插件，两种发行依次构建
+package.json[FV5T]: F:声明核心工作区启动与发行构建 | R:code:projects/server/index.ts,code:projects/server/scripts/setup.ts | A:module,scripts,engines | S:源码启动由Node直接加载TS；module不是脚本入口；默认发行含终端插件且两种发行依次构建
 vitest.config.ts[FQ5T]: F:配置核心测试的虚拟SDK源码映射 | R:code:projects/server/plugin/sdk/dependencies.ts,code:projects/server/plugin/sdk/runtime.ts,code:projects/shared/backend.ts | A:Vitest defineConfig | S:测试别名包含scwc:shared/backend，但不替代真实Node钩子的集成验证
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/plugin/===
@@ -1028,13 +1028,13 @@ zoom-out.svg[ZU2T]: F:绘制圆框缩小减号 | R:- | A:SVG图形 | S:-
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/public/web/assets/===
 local-config-DgHXxHRe.js[LU4T]: F:分发Lit基础运行时与本机配置加载 | R:code:projects/web/src/api/local-config.ts | A:浏览器共享ESM导出 | S:仅向回环同源取配置，三秒超时后保留手工配置
 index-CYmJIDOJ.css[ZU4T]: F:供给生产页面主题与图标样式 | R:code:projects/web/var.css,code:projects/web/style.css | A:CSS全局变量,.codicon-* | S:根字体14px，html与body禁原生溢出
-index-PqGRhAk5.js[EU5L]: F:启动生产工作台并注册共享控件 | R:code:projects/web/src/main.ts,code:projects/shared/components/index.ts,code:projects/shared/store/config.ts | A:浏览器ESM入口 | S:读取本机配置并写localStorage后才动态加载layouts，确保首个API请求携带当前凭据
-layouts-CyouYyic.js[AU5L]: F:提供生产工作台根布局与声明式视图 | R:code:projects/web/src/layouts/root.ts,code:projects/web/src/components/declarative-view.ts,code:projects/web/src/workbench/store.ts | A:app-root,wb-declarative-view | S:内嵌固定UI渲染脚本，终端按需动态加载；模块引用同次构建的带哈希资源
-terminal-Dn3e1o_N.js[LU5M]: F:提供生产Web终端与命令编辑器 | R:code:projects/web/src/components/terminal.ts,code:projects/web/src/components/command-editor.ts | A:WorkbenchTerminal,wb-terminal,wb-command-editor | S:待答输入优先于执行命令，未知命令保留草稿；输出通过行锚点恢复滚动
-workbench-7eYcuDGA.js[LU5L]: F:供给生产工作台基础组件与通信库 | R:code:projects/web/src/components/scroll-container.ts,code:projects/web/src/components/context-menu/wb-context-menu.ts | A:浏览器共享ESM导出 | S:HTTP携带窗口身份；流以单次票据连接并按流序号去重，重连刷新配置并重同步
+index-QG03JDJZ.js[EU5L]: F:启动生产工作台并注册共享组件 | R:code:projects/web/src/main.ts,code:projects/shared/components/index.ts,code:projects/shared/store/config.ts | A:浏览器ESM入口 | S:本机配置读取并保存后才动态导入layouts；入口依赖同次构建的资源哈希
+layouts-YKtZVWV5.js[AU5L]: F:供给生产工作台布局及声明式视图产物 | R:code:projects/web/src/layouts/root.ts,code:projects/web/src/components/declarative-view.ts | A:app-root,wb-declarative-view | S:内嵌固定沙箱渲染脚本；终端动态导入；代码是构建时快照，不能当作当前源码的同步视图
+terminal-BSjAbStj.js[LU5L]: F:供给Web终端与独立命令编辑器产物 | R:code:projects/web/src/components/terminal.ts,code:projects/web/src/components/command-editor.ts | A:WorkbenchTerminal,wb-terminal,wb-command-editor | S:输入输出共享滚动；恢复绑定日志seq与偏移，待答输入优先于普通命令；引用同次构建模块
+workbench-BM1xw76h.js[LU5L]: F:供给工作台滚动、菜单及通信库产物 | R:code:projects/web/src/components/scroll-container.ts,code:projects/web/src/components/context-menu/wb-context-menu.ts,code:projects/web/src/api/workbench.ts | A:浏览器共享ESM导出 | S:事件连接消费单次票据并按流序号去重；重连更新配置及状态；构建文件不能代替源码现状
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/public/web/===
-index.html[EU5T]: F:装载生产工作台构建产物 | R:code:projects/server/public/web/assets/index-PqGRhAk5.js,code:projects/server/public/web/assets/index-CYmJIDOJ.css | A:/web/HTML入口 | S:资源固定/web/assets，预载local-config，初始主题dark-2026；入口引用真实构建文件而非开发源码
+index.html[EU5T]: F:装载生产工作台构建产物 | R:code:projects/server/public/web/assets/index-QG03JDJZ.js,code:projects/server/public/web/assets/index-CYmJIDOJ.css | A:/web/HTML入口 | S:资源固定web/assets，预载local-config；初始主题dark-2026；加载带哈希构建入口
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/router/===
 index.ts[MN8M]: F:接入采集HTTP请求 | R:code:projects/server/plugin/load.ts,code:projects/server/workbench/page-sessions.ts,code:projects/server/router/web/workbench/websocket.ts | A:app,listen,/api/metadata/scrape | S:管理请求可用页面会话授权；普通采集须来源与site同主机后验Bearer；静态Web GET放行，HTTP任务在响应关闭时结束
@@ -1053,7 +1053,7 @@ local-config.test.ts[TI5S]: F:验证本机凭据加载边界 | R:code:projects/s
 local-config.ts[EI8T]: F:供给本机启动配置 | R:code:projects/server/common/env.ts,code:projects/server/common/setupParam.ts | A:localConfig | S:要求回环对端、专用头及精确同源来源；仅开发允许回环Host的WEB_PORT代理，返回页面同源配置；清除CORS且禁止缓存
 websocket.test.ts[TN5S]: F:验证插件通道隔离 | R:code:projects/server/router/web/websocket.ts | A:Vitest用例 | S:用真实连接确认同名通道按safeId隔离并拒绝缺失site的握手
 websocket.ts[IN8M]: F:托管插件实时通道 | R:code:projects/server/workbench/page-sessions.ts,code:projects/server/plugin/process/client.ts | A:PluginWebSocketRegistry,pluginWebSocketRegistry | S:校验site来源后消费页面票据或TOKEN；注销终止全部连接；异步onConnect迟到时仍执行清理一次
-development.test.ts[TI6S]: F:验证Vite认证与跳转 | R:code:projects/server/router/web/index.ts,code:projects/server/router/web/local-config.ts,code:projects/web/vite.config.ts,code:projects/server/router/web/workbench/websocket.ts | A:Vitest集成用例 | S:真实双HTTP服务验证非默认端口、自动TOKEN及手动重试；Socket票据须保留Vite页面来源
+development.test.ts[TI6S]: F:验证开发代理认证、跳转及公共样式资源 | R:code:projects/server/router/web/page/index.ts,code:projects/web/vite.config.ts,code:projects/server/router/web/local-config.ts | A:Vitest集成用例 | S:真实双HTTP服务验证非默认端口、凭据重试和票据来源；公共CSS须无token且核心与代理字节一致
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/router/web/page/===
 index.ts[EE7S]: F:供给插件页面 | R:code:projects/server/plugin/load.ts,code:projects/server/router/web/page/worry.html | A:default /web/page Router | S:真实路径限制UI及静态资产；HTML最前注入最新IIFE工具；声明SPA时资源前缀不回退HTML
@@ -1141,7 +1141,7 @@ catalog.test.ts[TE5T]: F:验证插件名称解析优先级 | R:code:projects/ser
 declarative-ui.test.ts[TU7S]: F:验证声明式执行、归属和页面授权边界 | R:code:projects/server/workbench/declarative-ui.ts,code:projects/server/workbench/page-sessions.ts | A:Vitest用例 | S:验证事件过滤、位置参数和幂等冲突；失败分支丢弃效果，已完成分支保留；前端确认仅消费一次；无来源页不借其他标签；页面grant仅可读自身配置
 declarative-ui.ts[AU9L]: F:治理声明式UI注册、实例和受限执行 | R:code:projects/server/workbench/ui-compiler.ts,code:projects/shared/ui-expressions.ts,code:projects/server/workbench/plugin-config.ts | A:DeclarativeUIService,declarativeUI | S:实例绑定窗口、workspace、owner与渲染版本；只执行已编译绑定，事件ID绑定正文摘要；每实例串行、待排32、事件预算10秒；前后端链不传中间值，无来源返回统一占位；配置编辑绑定读取基线；资源验cap、owner、真实路径及MIME，释放撤销监听和续执行
 ui-compiler.test.ts[TU7S]: F:验证受限UI编译和内容过滤 | R:code:projects/server/workbench/ui-compiler.ts | A:Vitest用例 | S:验证事件先提取再清洗、触发依赖展开与循环拒绝；JSON嵌套Tabs保留表单归属；拒绝重复字段、跨域表达式、CSS外链及非核心变量
-ui-compiler.ts[KS9L]: F:编译HTML与JSON为受限UI绑定 | R:code:projects/shared/ui-expressions.ts,code:projects/shared/declarative-ui.ts | A:compileUI,compileCSS,validateAttribute | S:事件先提取为AST再移除原生on属性并清洗；字段、关联、模板和触发依赖统一验证；JSON组件按白名单转换；CSS以AST拒绝Raw和危险函数，URL全部走资源网关，变量限核心前缀
+ui-compiler.ts[KS9L]: F:编译HTML和JSON为受限节点与执行绑定 | R:code:projects/shared/ui-expressions.ts,code:projects/shared/declarative-ui.ts | A:compileUI,compileCSS,validateAttribute | S:事件先转AST再清洗；字段和跨域管道统一校验；JSON转换保留禁用态、按钮图标与开关角色；CSS拒危险函数，资源URL走cap网关
 ui-renderer.test.ts[TU6S]: F:验证固定渲染器的状态保持与安全更新 | R:code:projects/web/src/components/ui-renderer.js,code:projects/web/src/components/ui-frame.js | A:Vitest用例 | S:JSDOM配合真实MessageChannel验证插值仅文本、旧版本拒收、脏输入焦点与选区保持，以及嵌套Tabs点击键盘和更新保留
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/shared/components/===
@@ -1296,7 +1296,7 @@ tsconfig.json[FQ3T]: F:检查Vite插件JS | R:code:tsconfig.node.json | A:allowJ
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/web/===
 index.html[EU5T]: F:装载插件工作台 | R:code:projects/web/src/main.ts,code:projects/web/style.css | A:app-root,浏览器ESM入口 | S:初始主题dark-2026
-package.json[FV4T]: F:声明Web工作区构建与开发命令 | R:code:projects/web/vite.config.ts,code:projects/web/scripts/dev.ts | A:dev,build,test,lint,fmt | S:开发经Node入口消费核心端口参数，生产构建仍由Vite执行
+package.json[FV4T]: F:声明Web工作区构建及开发命令 | R:code:projects/web/vite.config.ts,code:projects/web/scripts/dev.ts | A:dev,build,test,lint,fmt | S:开发由Node入口消费核心端口，生产由Vite构建
 style.css[ZU4T]: F:设置页面全局外观 | R:code:projects/web/var.css,code:projects/web/src/components/icon.ts | A:html,body,app-root,wb-icon | S:html基础字号14px；外层满屏隐藏滚动，内部布局负责滚动；codicon字体全局加载
 var.css[FC5S]: F:声明工作台主题与尺寸变量 | R:code:projects/web/style.css,code:projects/web/src/workbench/workbench.css | A:CSS语义变量,dark-2026,light-2026 | S:统一标签栏高32px；默认深色，浅色覆盖颜色；终端文字与光标独立，菜单黑白半透明；字体按rem，减弱动态偏好置零时长
 vite.config.ts[FV6T]: F:构建工作台并代理核心开发接口 | R:code:projects/web/scripts/dev-options.ts,code:projects/server/router/web/local-config.ts | A:Vite defineConfig | S:核心地址取HOST/PORT或SCWC_CORE_URL，core-port仅覆盖目标端口；六路代理包含/web/ui且保留Host与Origin；配置入口仅回环对端可代理；Web严格监听3201
@@ -1314,16 +1314,17 @@ internal-page.ts[AU7L]: F:渲染工作台内置页面 | R:code:projects/web/src/
 page-inspector.ts[AU7T]: F:承载核心JSON页面信息视图 | R:code:projects/web/src/components/declarative-view.ts | A:wb-page-inspector,PageInspector | S:只传插件及有效工作区标签身份，不读取iframe属性或页面配置校验；卡片入口可用空tabId，由后端提供权威属性与配置
 terminal.ts[AU8L]: F:管理Web终端视图 | R:code:projects/web/src/components/command-editor.ts,code:projects/web/src/workbench/store.ts,code:projects/web/src/components/scroll-container.ts | A:wb-terminal,activate,closeCurrent,cancel,alter | S:草稿串行CAS、命令幂等；执行去续行而待答保留原文；执行或提交中隐藏普通输入，请求作答除外；未知命令保留草稿并仅在本终端状态栏提示；Ctrl+C取消，强停须确认；输入输出共用整行视口及seq锚点
 scroll-container.ts[LU6S]: F:适配工作台滚动与整行视口 | R:code:projects/shared/components/scroll-container/index.ts,code:projects/web/src/workbench/workbench.css | A:wb-scroll-container,WorkbenchScrollContainer,lineScroll,wholeLines,thin,dragOnly | S:零加速、最长200ms、减速比0.5；整行余量上置不累积；dragOnly只许滑块，须另禁滚轮
-declarative-menu.ts[LU6S]: F:将编译菜单投影到工作台菜单 | R:code:projects/shared/declarative-ui.ts,code:projects/web/src/components/context-menu/menu-types.ts | A:DeclarativeMenu | S:仅消费核心编译节点，不执行插件代码；勾选携带字段值和编辑序号，选择时调用已绑定事件；模板更新同步标签及禁用状态
-declarative-view.test.ts[TU7M]: F:验证声明式视图渲染、菜单与启动恢复 | R:code:projects/web/src/components/declarative-view.ts | A:Vitest用例 | S:JSON无iframe且插值不解释HTML；HTML仍在沙箱；嵌套Tabs和草稿刷新保留；菜单保留嵌套及勾选快照；初始连接和租约变更可重新开实例
-declarative-view.ts[AU8L]: F:承载声明式UI渲染、监听与执行效果 | R:code:projects/web/src/components/ui-renderer.js,code:projects/web/src/components/json-renderer-policy.ts,code:projects/web/src/components/declarative-menu.ts | A:wb-declarative-view,DeclarativeView | S:JSON校验后直接在ShadowDOM渲染；HTML用allow-scripts沙箱及nonce/source握手；实例绑定workspace与租约，代数拒迟到结果；前端链只调用来源页；效果ID去重且剪贴板外链要求浏览器激活
+declarative-menu.ts[LU6S]: F:把编译菜单投影为工作台菜单项 | R:code:projects/shared/declarative-ui.ts,code:projects/web/src/components/context-menu/menu-types.ts | A:DeclarativeMenu | S:仅消费核心编译节点；勾选采集字段及编辑序号；模板同步标签和禁用态；按钮图标占位不进入菜单文本
+declarative-view.test.ts[TU7L]: F:验证声明式渲染、组件适配及启动恢复 | R:code:projects/web/src/components/declarative-view.ts,code:projects/web/src/components/json-components.ts | A:Vitest用例 | S:三种JSON表面验证菜单选择、禁用、滚动包裹和刷新草稿焦点；HTML保持沙箱；模型拒活跃标签与外源资源
+declarative-view.ts[AU8L]: F:承载声明式视图、取值监听与执行效果 | R:code:projects/web/src/components/ui-renderer.js,code:projects/web/src/components/json-components.ts,code:projects/web/src/components/json-renderer-policy.ts,code:projects/server/public/resources/styles/json-ui.css | A:wb-declarative-view,DeclarativeView | S:JSON白名单后在ShadowDOM用组件适配器；HTML以nonce/source握手的沙箱运行；两者共享基础CSS；实例绑定租约与代数，前端调用仅用来源页
 json-renderer-policy.ts[LS8T]: F:校验JSON直接渲染的节点和属性边界 | R:code:projects/shared/declarative-ui.ts | A:validateJSONModel,validateJSONAttribute | S:仅允许无自定义样式的JSON模型，校验唯一节点及深度和绑定目标；图片限同源/web/ui/assets且无凭据或hash，ShadowDOM本身不代替内容白名单
 plugin-status.test.ts[TU5T]: F:验证状态项提示层与右键菜单切换 | R:code:projects/web/src/components/plugin-status.ts | A:Vitest用例 | S:右键先关闭固定tooltip，再按真实指针坐标开工作台菜单；关闭事件销毁菜单
 plugin-status.ts[AU6M]: F:呈现插件状态项、提示层与上下文菜单 | R:code:projects/web/src/components/declarative-view.ts | A:wb-plugin-status,PluginStatus | S:固定提示层跨状态项互斥，悬停300ms打开、离开200ms关闭；右键先关提示层再以指针坐标开菜单；owner变化、外点与Esc释放显示
-ui-content.css[ZU5M]: F:统一声明式UI控件和表面样式 | R:code:projects/web/src/components/declarative-view.ts,code:projects/web/var.css | A:.ui-root,#content,表单控件与Tabs样式 | S:状态栏零padding紧凑单行；tooltip随内容高度；内容区自行滚动；主题变量有回退并统一焦点态
+ui-content.css[ZU5S]: F:排版声明式表面、滚动包装和核心页面信息 | R:code:projects/web/src/components/json-components.ts,code:projects/server/public/resources/styles/json-ui.css | A:.ui-root,.ui-scroll,页面信息data-ui-key规则 | S:通用控件样式在公共CSS；属性列宽仅限核心属性行；行容器与标签栏不压缩，嵌套Tabs限定剩余高度
 ui-frame.js[IU8T]: F:在HTML沙箱建立固定渲染器消息桥 | R:code:projects/web/src/components/ui-renderer.js,code:projects/web/src/components/declarative-view.ts | A:scwc-ui-ready,MessagePort握手 | S:仅接受parent且匹配nonce、协议和版本的首次端口；建立后移除欢迎监听；opaque origin不能替代source与nonce核验
-ui-renderer.d.ts[FU6T]: F:声明固定UI渲染器与消息封装 | R:code:projects/web/src/components/ui-renderer.js | A:UIRendererMessage,createUIRenderer | S:Document和ShadowRoot共用接收与释放接口；消息携带renderRevision供实现拒绝陈旧更新
-ui-renderer.js[LU8M]: F:渲染编译UI并采集字段和表面交互 | R:code:projects/web/src/components/declarative-view.ts,code:projects/web/src/components/ui-frame.js | A:createUIRenderer | S:消费已验证模型，插值写textContent；非init消息须版本相同；脏字段不被远端更新覆盖，写字段效果核验editSequence；刷新保持焦点、选区、滚动与嵌套Tabs选择；效果ID去重
+ui-renderer.d.ts[FU6T]: F:声明固定渲染器消息及宿主组件适配合同 | R:code:projects/web/src/components/ui-renderer.js | A:UIRendererMessage,UIRendererComponents,createUIRenderer | S:Document与ShadowRoot共用接口；组件钩子可选，HTML沙箱不需要注册工作台组件；消息用renderRevision拒旧
+ui-renderer.js[LU8M]: F:渲染编译节点并采集字段与表面交互 | R:code:projects/web/src/components/declarative-view.ts,code:projects/web/src/components/ui-frame.js,code:projects/web/src/components/ui-renderer.d.ts | A:createUIRenderer | S:插值只写文本；旧版本更新拒收，脏字段受编辑序号保护；可选组件钩子保持焦点和滚动；select先创建选项再设初值，键盘切Tabs显示目标
+json-components.ts[LU7S]: F:为验证后的JSON节点接入工作台滚动、菜单与图标 | R:code:projects/web/src/components/scroll-container.ts,code:projects/web/src/components/context-menu/wb-menu-select.ts,code:projects/web/src/components/icon.ts,code:projects/web/src/components/ui-renderer.d.ts | A:createJSONComponents | S:原生select保留为隐藏的绑定及表单目标，代理菜单同步事件与值；容器和标签栏分别包裹；按节点身份恢复滚动并排除隐藏面板测高
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/web/src/components/context-menu/===
 SOURCE.md[SG4T]: F:记录菜单复制来源 | R:code:projects/web/src/components/context-menu/wb-context-menu.ts,code:projects/web/src/components/context-menu/wb-menu-select.ts | A:菜单组件来源说明 | S:来自插件的独立副本无运行时导入依赖，后续行为修复需考虑两份实现
@@ -1331,7 +1332,7 @@ helpers.ts[LU4T]: F:适配菜单平台行为 | R:code:projects/web/src/component
 menu-types.ts[FU5T]: F:定义工作台菜单项 | R:code:projects/web/src/components/context-menu/wb-context-menu.ts | A:ContextMenuItem,MenuPresentationMode,ResolvedMenuPresentation | S:动作、勾选和输入回调独立声明，选择事件仍由宿主执行回调
 styles.ts[ZU4S]: F:提供紧凑菜单主题样式 | R:code:projects/web/var.css,code:projects/web/src/components/context-menu/wb-context-menu.ts | A:menuStyles | S:逐面板无勾选时隐藏勾选列；菜单采用半透明背景和模糊
 wb-context-menu.ts[IU7L]: F:显示分层上下文菜单 | R:code:projects/web/src/components/context-menu/menu-types.ts,code:projects/web/src/components/context-menu/helpers.ts | A:wb-context-menu,requestClose,wb-menu-select,wb-menu-input-submit,wb-menu-close,noBackdrop | S:Popover原位进顶层；默认全屏拦截，noBackdrop零尺寸且面板可点，外部关闭由调用方处理；关闭幂等；坐标/open重置；原生失败回退；子菜单独立定位；仅派事件
-wb-menu-select.ts[IU5S]: F:统一菜单式单选 | R:code:projects/web/src/components/context-menu/wb-context-menu.ts | A:wb-menu-select,wb-menu-change | S:原生和自绘均拒绝禁用、缺失及同值选项；只派发新值，由父级回写value
+wb-menu-select.ts[IU5S]: F:统一菜单式单选与焦点代理 | R:code:projects/web/src/components/context-menu/wb-context-menu.ts | A:wb-menu-select,wb-menu-change,focus | S:只派发有效新值由父级回写；禁用不能开菜单；focus等待渲染完成后转交内部控件；窄容器可收缩
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/web/src/layouts/===
 content.css[ZU3T]: F:排版旧版页面侧栏 | R:code:projects/web/src/layouts/content.ts | A:#root-content,.root-aside,.plugin-iframe | S:-
@@ -1382,20 +1383,6 @@ scroll-container.test.ts[TU5S]: F:验证工作台平滑滚动与整行视口 | R
 layout-geometry.test.ts[TU6L]: F:验证工作台分配及联动拖拽阈值 | R:code:projects/web/src/workbench/layout-geometry.ts | A:Vitest用例 | S:覆盖168宽侧栏、78高面板和220宽侧停面板；半尺寸显隐、远侧栏压缩、先隐藏侧停面板、释放固化及最小叶组冻结均分
 layout-geometry.ts[KU7L]: F:计算工作台压缩与联动拖拽尺寸 | R:code:projects/web/src/workbench/types.ts,code:projects/web/src/layouts/root.ts | A:fitWorkbench,dragHorizontal,applyHorizontalDrag,dragBottomPanel,splitExtent,activitySlots | S:显隐取最小尺寸一半；侧停面板最小220，底部高78；扩侧栏先压缩后隐藏侧停面板；扩面板只压远侧栏；联动显隐仅同次拖拽可逆
 
-===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/webutils/===
-lib.d.ts[FE5T]: F:声明页面工具全局对象 | R:code:projects/webutils/lib/index.ts | A:Window.scwcutils | S:以外部模块中的declare global确保各插件TS项目一致获得扩展
-package.json[FV4T]: F:声明页面工具构建包 | R:code:projects/webutils/vite.config.ts | A:build,test,lint,fmt | S:-
-vite.config.ts[FV6T]: F:打包页面工具IIFE | R:code:projects/webutils/lib/index.ts,code:projects/server/router/web/page/index.ts | A:Vite defineConfig | S:输出全局名scwcutils，文件名含当前时间base36；构建清空核心public/lib
-
-===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/webutils/lib/===
-index.ts[LE7T]: F:暴露页面工具SDK | R:code:projects/webutils/lib/workbench.ts,code:projects/webutils/lib/utils/fetch.ts | A:default scwcutils,TSCWCUtils | S:fetch自动await ready；同步websocket须先await ready；resource未就绪返回空串，三个代理均保留interruptible选项
-ticket-socket.ts[IN6S]: F:代理可恢复票据连接 | R:code:projects/webutils/lib/workbench.ts | A:TicketSocket | S:暂停只关闭底层并屏蔽旧代事件；恢复保留处理器与binaryType；未OPEN发送抛错，手动close阻止恢复
-workbench.ts[LE8L]: F:提供插件页面授权、只读配置及UI处理器SDK | R:code:projects/webutils/lib/ui-handlers.ts,code:projects/shared/request-lifecycle.ts,code:projects/shared/workbench-feedback.ts | A:createWorkbenchSDK,ready,ui,config,lifecycle | S:配置仅get/subscribe，删除页面定义和写入能力；配置按boot及revision去重并确认交付；UI回调留文档；重连换grant不刷新，默认请求保护活动，仅interruptible重放；通知动作和任务按归属及版本隔离，离页释放
-ui-handlers.ts[LU7S]: F:注册并调用当前页面UI处理器 | R:code:projects/shared/declarative-ui.ts,code:projects/webutils/lib/workbench.ts | A:createPageHandlers | S:回调留页面，仅发布版本化描述；非事件调用要求readOnly；监听至多128，取消迟到订阅即释放；注销处理器会清除全部现有监听并递增revision；返回区分无值与null
-
-===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/webutils/lib/utils/===
-fetch.ts[IN5T]: F:声明插件请求面及旧版工厂 | R:code:projects/server/router/web/api/index.ts,code:projects/shared/request-lifecycle.ts | A:createFetch,TFetch,TResource,TWebSocket | S:旧工厂仍用Bearer及safeId，Socket将TOKEN置查询；RequestOptions提供interruptible类型，主SDK使用页面会话
-
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/web/scripts/===
 dev-options.test.ts[TV5T]: F:验证Web开发参数与代理契约 | R:code:projects/web/scripts/dev-options.ts,code:projects/web/vite.config.ts | A:Vitest用例 | S:覆盖两种参数写法、非法端口、六路代理含/web/ui及PORT环境不变；保留来源且Web严格监听3201
 dev-options.ts[CV5T]: F:解析校验Web开发参数 | R:code:projects/web/scripts/dev.ts,code:projects/web/vite.config.ts | A:parseWebDevArgs,parseCorePort | S:只消费--core-port；其余参数含--之后原样保留；重复参数取末值
@@ -1432,14 +1419,14 @@ configuration.ts[AC6S]: F:定义模板字符串配置并提供受限业务读写
 ui-content.ts[FU5M]: F:定义模板JSON组件、HTML辅助页和状态菜单示例 | R:code:projects/shared/declarative-ui.ts,code:projects/server/plugins/template/declarative-ui.ts | A:ids,mainContent,auxiliaryContent,statusDefinition,coreExamples,negativePrograms | S:text提示用静态内容，JSON和HTML可异步；CSS变量回退用前置常量；事件内更新模板可能收到陈旧回执，普通页业务API提供更新入口
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/plugins/template/tests/===
-integration.test.mjs[TE6L]: F:验证模板UI配置、隔离进程与页面SDK完整调用边界 | R:code:projects/server/plugins/template/index.ts,code:projects/shared/config-dispatch.ts,code:projects/server/plugins/template/tests/isolate-environment.mjs | A:node:test,JSDOM,MessageChannel | S:原生Node及真实HTTP和IPC覆盖双CAS、监听释放、两页队列、跨插件拒绝与取消；临时数据限插件内；DOM夹具不证明像素及真实节能计时
+integration.test.mjs[TE6L]: F:验证模板UI配置、进程及页面SDK调用边界 | R:code:projects/server/plugins/template/index.ts,code:projects/shared/config-dispatch.ts,code:projects/server/plugins/template/tests/isolate-environment.mjs | A:node:test,JSDOM,MessageChannel | S:真实Node进程、HTTP和SQLite覆盖双CAS、监听、两页配置及取消；临时数据限插件内；DOM测试不证明像素布局或真实节能计时
 isolate-environment.mjs[TQ5T]: F:隔离集成测试环境文件加载 | R:code:projects/server/common/environment.ts,code:projects/server/plugins/template/tests/integration.test.mjs | A:registerHooks,load | S:只替换environment模块，父子进程均注入，阻止真实.env覆盖临时数据路径
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/plugins/template/web/===
 index.html[EE4T]: F:装载模板验证页面 | R:code:projects/server/plugins/template/web/main.ts | A:template-validation,main.ts | S:初始深色；SDK由核心页面路由注入
 main.ts[TE6L]: F:交互验证普通页面、请求保护与统一模板接入 | R:code:projects/server/plugins/template/web/ui-demo.ts,code:projects/server/plugins/template/feedback-demo.ts,code:projects/webutils/lib/workbench.ts | A:template-validation,TemplateValidation | S:ready后显式拒绝旧SDK而不恢复page.register；Light DOM供资源观察；默认请求保护连接；脏草稿随生命周期保存，离开需确认
 styles.css[ZU4M]: F:排版模板验证面板和事件记录 | R:code:projects/server/plugins/template/web/main.ts | A:.panel,.metrics,.columns,.event-list,data-theme | S:提供深浅主题回退变量供SDK覆盖；900px以下单列
-tsconfig.json[FQ4T]: F:检查模板浏览器源码类型 | R:code:projects/webutils/lib.d.ts,code:projects/server/plugins/template/feedback-demo.ts | A:files,include,compilerOptions | S:严格无输出且仅可擦除语法；纳入SDK全局声明和共用反馈模块
+tsconfig.json[FQ4T]: F:检查模板浏览器源码类型 | R:code:projects/webUtils/lib.d.ts,code:projects/server/plugins/template/feedback-demo.ts | A:files,include,compilerOptions | S:严格无输出且只允许可擦除语法；显式加入SDK全局声明与共用反馈模块
 ui-demo.ts[AE6M]: F:演示页面处理器、配置订阅和后端UI控制 | R:code:projects/webutils/lib/workbench.ts,code:projects/server/plugins/template/configuration.ts,code:projects/server/plugins/template/declarative-ui.ts | A:PageUIDemo | S:回调只用当前文档状态；配置写入走后端显式基线，冲突保留草稿；先撤后端模板引用再await注销；搜索与导航适配随页面释放
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/plugins/template/assets/===
@@ -1449,5 +1436,22 @@ mark.svg[ZU2T]: F:绘制模板校验标识供单文件及根层资源挂载 | R:
 mark.svg[ZU2T]: F:绘制嵌套资源目录的模板校验标识 | R:code:projects/server/plugins/template/declarative-ui.ts | A:SVG图形 | S:-
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/public/lib/===
-scwcutils.iife.mvuhmk5p.js[LU5T]: F:供给插件页面浏览器桥接SDK | R:code:projects/webutils/lib/index.ts | A:scwcutils,ready,fetch,resource,websocket | S:HTTP等待ready后使用页面grant；WebSocket须先等待ready；页面退出释放任务、通道和请求
+scwcutils.iife.mvuplznd.js[LU5L]: F:供给插件页面浏览器桥接SDK产物 | R:code:projects/webUtils/lib/index.ts,code:projects/webUtils/lib/workbench.ts | A:scwcutils,ready,fetch,resource,websocket | S:HTTP等待ready后使用页面grant；Socket须先等待ready；页面退出释放请求、反馈及消息端口
+
+===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/public/resources/styles/===
+json-ui.css[ZU5M]: F:提供JSON与HTML共享的工作台基础控件外观 | R:code:projects/web/src/components/declarative-view.ts,code:projects/server/router/web/page/index.ts,code:projects/web/var.css | A:.ui-root,布局与文本类,原生表单控件,Tabs | S:经既有资源路由供插件引用；规则限于ui-root；只供外观，不注册滚动或菜单组件
+
+===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/webUtils/===
+lib.d.ts[FE5T]: F:声明页面工具全局对象 | R:code:projects/webUtils/lib/index.ts | A:Window.scwcutils | S:以外部模块declare global确保插件类型项目一致接收扩展
+package.json[FV4T]: F:声明页面工具构建工作区 | R:code:projects/webUtils/vite.config.ts | A:build,test,lint,fmt | S:-
+vite.config.ts[FV6T]: F:构建插件页面工具IIFE | R:code:projects/webUtils/lib/index.ts,code:projects/server/router/web/page/index.ts | A:Vite defineConfig | S:输出scwcutils全局名和时间base36文件名；构建清空核心public/lib；测试环境为jsdom
+
+===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/webUtils/lib/===
+index.ts[LE7T]: F:暴露插件页面工具SDK与请求代理 | R:code:projects/webUtils/lib/workbench.ts,code:projects/webUtils/lib/utils/fetch.ts | A:default scwcutils,TSCWCUtils | S:fetch自动等待ready；同步Socket须先await ready；resource未安装时返回空串；请求选项保留interruptible
+ticket-socket.ts[IN6S]: F:代理可暂停恢复的单次票据Socket | R:code:projects/webUtils/lib/workbench.ts | A:TicketSocket | S:暂停仅关闭底层并拒旧代事件，恢复保留回调及binaryType；发送要求OPEN；主动关闭阻止后续恢复
+ui-handlers.ts[LU7S]: F:托管页面本地UI回调、版本与监听 | R:code:projects/shared/declarative-ui.ts | A:createPageHandlers | S:函数留当前页面，仅发版本描述；模板调用必须只读；监听限128，取消后的迟到订阅立即释放；注销使全部监听失效
+workbench.ts[LE8L]: F:供给页面会话、生命周期、UI处理器和只读配置SDK | R:code:projects/webUtils/lib/ui-handlers.ts,code:projects/shared/request-lifecycle.ts,code:projects/shared/workbench-feedback.ts | A:createWorkbenchSDK,ready,ui,config,lifecycle | S:配置仅get/subscribe且按boot和revision确认；握手核验来源与nonce；重连换grant不刷新文档；默认请求保护连接，interruptible才重放
+
+===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/webUtils/lib/utils/===
+fetch.ts[IN5S]: F:声明请求接口并提供旧版safeId工厂 | R:code:projects/server/router/web/api/index.ts,code:projects/shared/request-lifecycle.ts | A:createFetch,TFetch,TResource,TWebSocket | S:旧工厂用Bearer与site请求safeId，Socket令牌仍在查询；主SDK的页面grant由独立会话实现
 

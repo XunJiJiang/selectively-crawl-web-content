@@ -139,6 +139,19 @@ it('proxies plugin page paths without falling back to Vite HTML', async () => {
   expect(await response.text()).not.toContain('/@vite/client');
 });
 
+it('serves the same public UI stylesheet from the core and the development proxy without a token', async () => {
+  const expected = await fs.readFile(
+    new URL('../../public/resources/styles/json-ui.css', import.meta.url),
+    'utf8',
+  );
+  for (const origin of [core, page]) {
+    const response = await fetch(`${origin}/web/page/resources/styles/json-ui.css`);
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toContain('text/css');
+    expect(await response.text()).toBe(expected);
+  }
+});
+
 it('preserves the page origin for a single-use WebSocket ticket through Vite', async () => {
   const ticketResponse = await api('/stream-ticket', TOKEN, {});
   expect(ticketResponse.status).toBe(200);

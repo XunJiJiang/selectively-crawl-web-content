@@ -1,10 +1,26 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DeclarativeView } from './declarative-view.ts';
 import type { WorkbenchStore } from '../workbench/store.ts';
 import type { CompiledUI, UIContent, UISurface } from '../../../shared/declarative-ui.ts';
 import type { WbContextMenu } from './context-menu/wb-context-menu.ts';
 import { DeclarativeMenu } from './declarative-menu.ts';
 import { requireValue } from '../../../shared/workbench-protocol.ts';
+import type { WbMenuSelect } from './context-menu/wb-menu-select.ts';
+import { WorkbenchScrollContainer } from './scroll-container.ts';
+
+beforeEach(() => {
+  vi.spyOn(WorkbenchScrollContainer.prototype, 'scrollTo').mockImplementation(function (
+    this: WorkbenchScrollContainer,
+    options: ScrollToOptions | number = {},
+    y?: number,
+  ) {
+    const viewport = requireValue(this.scrollElement);
+    viewport.scrollLeft =
+      typeof options === 'number' ? options : (options.left ?? viewport.scrollLeft);
+    viewport.scrollTop =
+      typeof options === 'number' ? (y ?? 0) : (options.top ?? viewport.scrollTop);
+  });
+});
 
 afterEach(() => {
   document.body.replaceChildren();
@@ -83,6 +99,7 @@ describe('DeclarativeView rendering', () => {
               type: 'button',
               name: 'settings',
               text: '打开配置',
+              icon: { kind: 'builtin', name: 'settings' },
               events: { click: 'core:settings.open()' },
             },
           ],
@@ -92,6 +109,7 @@ describe('DeclarativeView rendering', () => {
     );
     const menu = requireValue(view.shadowRoot?.querySelector<WbContextMenu>('wb-context-menu'));
     await vi.waitFor(() => expect(menu.items).toHaveLength(1));
+    expect(menu.items[0]).toMatchObject({ label: '打开配置' });
     await menu.updateComplete;
     expect(view.shadowRoot?.querySelector('iframe,#content')).toBeNull();
     const closed = vi.fn();
@@ -241,6 +259,121 @@ describe('DeclarativeView rendering', () => {
     expect(view.shadowRoot?.querySelector('iframe')?.getAttribute('sandbox')).toBe('allow-scripts');
     expect(view.shadowRoot?.querySelector('iframe')?.srcdoc).toContain('type="module"');
   });
+
+  it.each(['mainSidebar', 'auxiliarySidebar', 'tooltip'] as const)(
+    'uses workbench scrolling and menu selections on %s without losing field bindings or drafts',
+    async (surface) => {
+      const { view, request } = await renderedFixture(
+        {
+          format: 'json',
+          version: 1,
+          root: {
+            type: 'tabs',
+            tabs: [
+              {
+                id: 'controls',
+                label: '控件',
+                children: [
+                  {
+                    type: 'stack',
+                    direction: 'row',
+                    gap: 18,
+                    children: [
+                      { type: 'badge', tone: 'success', text: '就绪' },
+                      { type: 'icon', icon: { kind: 'builtin', name: 'settings' } },
+                    ],
+                  },
+                  {
+                    type: 'form',
+                    name: 'form',
+                    events: { submit: 'save($event)' },
+                    children: [
+                      {
+                        type: 'select',
+                        name: 'mode',
+                        value: 'b',
+                        options: ['a', 'b'],
+                        events: { change: 'save($event)' },
+                      },
+                      { type: 'input', name: 'disabledInput', value: '', disabled: true },
+                      { type: 'textarea', name: 'disabledText', value: '', disabled: true },
+                      { type: 'select', name: 'disabledSelect', options: ['a'], disabled: true },
+                      { type: 'checkbox', name: 'check', label: '勾选', checked: true },
+                      { type: 'toggle', name: 'toggle', label: '开关', checked: true },
+                      {
+                        type: 'button',
+                        text: '保存',
+                        icon: { kind: 'builtin', name: 'save' },
+                        submit: true,
+                      },
+                      { type: 'progress', value: null },
+                      { type: 'divider' },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        },
+        surface,
+      );
+      const root = requireValue(view.shadowRoot);
+      await vi.waitFor(() => expect(root.querySelectorAll('wb-menu-select')).toHaveLength(2));
+      for (const container of root.querySelectorAll(
+        '[data-layout],form,.ui-tabs,.ui-tab-list,.ui-tab-panel',
+      )) {
+        expect(container.parentElement?.localName).toBe('wb-scroll-container');
+      }
+      const tabs = requireValue(
+        root.querySelector<WorkbenchScrollContainer>('.ui-scroll-tab-list'),
+      );
+      expect(tabs.wheelDirection).toBe('horizontal');
+      expect(
+        root.querySelector<HTMLElement>('[data-layout=row]')?.style.getPropertyValue('--ui-gap'),
+      ).toBe('18px');
+      expect(root.querySelector('input')?.disabled).toBe(true);
+      expect(root.querySelector('textarea')?.disabled).toBe(true);
+      expect(root.querySelector('[role=switch]')).not.toBeNull();
+      expect(root.querySelectorAll('wb-icon[name=save]')).toHaveLength(1);
+      const select = requireValue(root.querySelector<WbMenuSelect>('wb-menu-select'));
+      await select.updateComplete;
+      expect(select.value).toBe('b');
+      requireValue(select.shadowRoot?.querySelector('button')).click();
+      await select.updateComplete;
+      const menu = requireValue(select.shadowRoot?.querySelector<WbContextMenu>('wb-context-menu'));
+      await menu.updateComplete;
+      requireValue(
+        menu.shadowRoot?.querySelector<HTMLElement>('[data-menu-id="menu-select:a"]'),
+      ).click();
+      await vi.waitFor(() =>
+        expect(request).toHaveBeenCalledWith(
+          '/ui/instances/direct-instance/events',
+          expect.objectContaining({ fields: { mode: { value: 'a', editSequence: 2 } } }),
+        ),
+      );
+      select.focus();
+      await select.updateComplete;
+      await view.refresh();
+      await vi.waitFor(() => {
+        const restored = requireValue(root.querySelector<WbMenuSelect>('wb-menu-select'));
+        expect(restored.value).toBe('a');
+        expect(root.activeElement).toBe(restored);
+      });
+      const disabled = requireValue(
+        root.querySelector<WbMenuSelect>('wb-menu-select[name=disabledSelect]'),
+      );
+      expect(disabled.disabled).toBe(true);
+      root.querySelector('form')?.dispatchEvent(new Event('submit', { cancelable: true }));
+      await vi.waitFor(() =>
+        expect(request).toHaveBeenCalledWith(
+          '/ui/instances/direct-instance/events',
+          expect.objectContaining({
+            fields: expect.objectContaining({ mode: { value: 'a', editSequence: 2 } }),
+          }),
+        ),
+      );
+    },
+  );
 
   it.each([
     (model: CompiledUI) => {
