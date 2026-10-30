@@ -23,6 +23,7 @@ export class WbContextMenu extends LitElement {
     | ((event: MouseEvent, close: () => void) => void)
     | undefined;
   @property({ type: Boolean }) accessor open = true;
+  @property({ type: Boolean, reflect: true, attribute: 'no-backdrop' }) accessor noBackdrop = false;
   @property({ type: Number }) accessor x = -1;
   @property({ type: Number }) accessor y = -1;
   @property({ type: String }) accessor alignment: 'left' | 'right' = 'left';
@@ -94,6 +95,16 @@ export class WbContextMenu extends LitElement {
       }
 
       :host([popover]:not(:popover-open)) {
+        display: none;
+      }
+
+      :host([no-backdrop]) {
+        width: 0;
+        height: 0;
+        pointer-events: none;
+      }
+
+      :host([no-backdrop])::backdrop {
         display: none;
       }
 
@@ -284,7 +295,7 @@ export class WbContextMenu extends LitElement {
     ) {
       return this.renderNativeMenu();
     }
-    this.style.setProperty('--wb-context-menu-pointer-events', 'auto');
+    this.style.setProperty('--wb-context-menu-pointer-events', this.noBackdrop ? 'none' : 'auto');
     return html`${this.panel('root', this.items)}${this.activeSubmenus().map((item) =>
       this.panel(item.id, item.children),
     )}`;

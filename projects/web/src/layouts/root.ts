@@ -99,7 +99,13 @@ interface QuickResult {
   openNew?: (groupId?: string) => Promise<unknown>;
   keepOpen?: boolean;
 }
-type Menu = { x: number; y: number; items: ContextMenuItem[]; trigger?: HTMLElement };
+type Menu = {
+  x: number;
+  y: number;
+  items: ContextMenuItem[];
+  trigger?: HTMLElement;
+  topbarIndex?: number;
+};
 const viewNames = {
   search: '搜索',
   pages: '页面',
@@ -225,6 +231,8 @@ export class AppRoot extends LitElement {
     );
   }
   private cancelResize?: () => void;
+  private resizeHoverTimer?: ReturnType<typeof setTimeout>;
+  private hoveredResizers: { key: string; nodeId?: string }[] = [];
   @state() private accessor highlightedResizers: ReadonlySet<string> = new Set();
   private focusHistory = new FocusHistory();
   private focusInitialized = false;
@@ -314,6 +322,8 @@ export class AppRoot extends LitElement {
     this.store.addEventListener('core-restarted',this.uiRegistryEvent);
     this.addEventListener('ui-effect', this.uiEffect);
     window.addEventListener('keydown', this.keydown);
+    window.addEventListener('pointerdown', this.dismissTopbarMenu, true);
+    window.addEventListener('blur', this.dismissTopbarMenu);
     this.themeMedia.addEventListener('change', this.themeChanged);
     this.addEventListener('workbench-command', this.commandEvent as EventListener);
     this.addEventListener('terminal-focus', ((event: CustomEvent<string>) =>
@@ -326,8 +336,11 @@ export class AppRoot extends LitElement {
   }
   disconnectedCallback() {
     this.cancelResize?.();
+    this.leaveResize();
     this.store.removeEventListener('change', this.changed);
     window.removeEventListener('keydown', this.keydown);
+    window.removeEventListener('pointerdown', this.dismissTopbarMenu, true);
+    window.removeEventListener('blur', this.dismissTopbarMenu);
     this.themeMedia.removeEventListener('change', this.themeChanged);
     this.observer?.disconnect();
     this.notificationObserver?.disconnect();
@@ -1364,6 +1377,10 @@ export class AppRoot extends LitElement {
   private openMenu(event: MouseEvent, index: number) {
     const trigger = event.currentTarget as HTMLElement,
       rect = (trigger ?? this).getBoundingClientRect();
+    if (event.type === 'click' && this.menu?.topbarIndex === index) {
+      this.closeMenu();
+      return;
+    }
     this.menu = {
       x: rect.left,
       y: rect.bottom + 4,
@@ -1377,12 +1394,34 @@ export class AppRoot extends LitElement {
             }))
           : this.menuTree(index),
       trigger,
+      topbarIndex: index,
     };
   }
-  private closeMenu() {
+  private hoverMenu(event: MouseEvent, index: number) {
+    if (this.menu?.topbarIndex !== undefined && this.menu.topbarIndex !== index) {
+      this.openMenu(event, index);
+    }
+  }
+  private dismissTopbarMenu = (event: Event) => {
+    if (this.menu?.topbarIndex === undefined) {
+      return;
+    }
+    const path = event.composedPath();
+    const menuElement = this.renderRoot.querySelector('wb-context-menu');
+    if (
+      (menuElement && path.includes(menuElement)) ||
+      (this.menu.trigger && path.includes(this.menu.trigger))
+    ) {
+      return;
+    }
+    this.closeMenu(false);
+  };
+  private closeMenu(restoreFocus = true) {
     const trigger = this.menu?.trigger;
     this.menu = null;
-    queueMicrotask(() => trigger?.isConnected && trigger.focus());
+    if (restoreFocus) {
+      queueMicrotask(() => trigger?.isConnected && trigger.focus());
+    }
   }
   private findItem(items: ContextMenuItem[], id: string): ContextMenuItem | undefined {
     for (const item of items) {
@@ -1538,13 +1577,16 @@ export class AppRoot extends LitElement {
     if (this.dragging) {
       return;
     }
+    const hovered = event.composedPath().find(
+      (node): node is HTMLElement =>
+        node instanceof HTMLElement && node.hasAttribute('data-resize-key'),
+    );
+    if (!hovered) {
+      this.leaveResize();
+      return;
+    }
     const targets = this.resizeTargets(event);
     const axes = new Set(targets.map((el) => el.getAttribute('aria-orientation')));
-    this.setResizeHighlights(
-      axes.size > 1
-        ? targets.map((el) => ({ key: el.dataset.resizeKey ?? '', nodeId: el.dataset.resizeNode }))
-        : [],
-    );
     for (const el of this.renderRoot.querySelectorAll<HTMLElement>('[data-resize-key]')) {
       el.style.cursor = '';
     }
@@ -1553,6 +1595,27 @@ export class AppRoot extends LitElement {
         el.style.cursor = 'move';
       }
     }
+    const parts = (axes.size > 1 ? targets : [hovered]).map((el) => ({
+      key: el.dataset.resizeKey ?? '',
+      nodeId: el.dataset.resizeNode,
+    }));
+    if (
+      parts.length === this.hoveredResizers.length &&
+      parts.every(
+        (part, index) =>
+          part.key === this.hoveredResizers[index].key &&
+          part.nodeId === this.hoveredResizers[index].nodeId,
+      )
+    ) {
+      return;
+    }
+    clearTimeout(this.resizeHoverTimer);
+    this.hoveredResizers = parts;
+    this.setResizeHighlights([]);
+    this.resizeHoverTimer = setTimeout(() => {
+      this.resizeHoverTimer = undefined;
+      this.setResizeHighlights(parts);
+    }, 1000);
   }
   private setResizeHighlights(parts: { key: string; nodeId?: string }[]) {
     const next = new Set(parts.map((part) => `${part.key}:${part.nodeId ?? ''}`));
@@ -1568,6 +1631,9 @@ export class AppRoot extends LitElement {
   }
   private leaveResize() {
     if (!this.dragging) {
+      clearTimeout(this.resizeHoverTimer);
+      this.resizeHoverTimer = undefined;
+      this.hoveredResizers = [];
       this.setResizeHighlights([]);
       for (const el of this.renderRoot.querySelectorAll<HTMLElement>('[data-resize-key]')) {
         el.style.cursor = '';
@@ -1612,6 +1678,9 @@ export class AppRoot extends LitElement {
     this.resizeCursor = new Set(parts.map(orientation)).size > 1 ? 'move' : orientation(parts[0]);
     const oldCursor = document.documentElement.style.cursor;
     document.documentElement.style.cursor = this.resizeCursor;
+    clearTimeout(this.resizeHoverTimer);
+    this.resizeHoverTimer = undefined;
+    this.hoveredResizers = [];
     this.setResizeHighlights(parts);
     this.dragging = true;
     this.resizeSnapshot = clone(initial);
@@ -1884,7 +1953,9 @@ export class AppRoot extends LitElement {
           >跳过导航，进入页面区域</a
         >
         <div
+          @pointerover=${this.hoverResize}
           @pointermove=${this.hoverResize}
+          @pointerout=${this.leaveResize}
           @pointerleave=${this.leaveResize}
           style=${styleMap({
             width: `${geometry.shellWidth}px`,
@@ -2060,6 +2131,7 @@ export class AppRoot extends LitElement {
             .x=${this.menu.x}
             .y=${this.menu.y}
             .items=${this.menu.items}
+            .noBackdrop=${this.menu.topbarIndex !== undefined}
             presentation="custom"
             @wb-menu-close=${() => this.closeMenu()}
             @wb-menu-select=${this.selectMenu}
@@ -2312,7 +2384,9 @@ export class AppRoot extends LitElement {
                 class="topbar-menu-item"
                 ?disabled=${disabled}
                 aria-haspopup="menu"
+                aria-expanded=${this.menu?.topbarIndex === index}
                 @click=${(e: MouseEvent) => this.openMenu(e, index)}
+                @mouseenter=${(e: MouseEvent) => this.hoverMenu(e, index)}
               >
                 ${label}
               </button>`,
@@ -2322,7 +2396,9 @@ export class AppRoot extends LitElement {
               aria-label="更多主菜单"
               ?disabled=${disabled}
               aria-haspopup="menu"
+              aria-expanded=${this.menu?.topbarIndex === -1}
               @click=${(e: MouseEvent) => this.openMenu(e, -1)}
+              @mouseenter=${(e: MouseEvent) => this.hoverMenu(e, -1)}
             >
               ${icon('more')}
             </button>`
@@ -2457,7 +2533,15 @@ export class AppRoot extends LitElement {
       return html`<aside class="main-sidebar" data-visible=${this.visible('main')}>
         <div
           class="resize-handle main-resize"
+          data-resize-key="main"
+          ?data-resize-active=${this.resizeHighlighted('main')}
+          role="separator"
+          tabindex="0"
+          aria-label="调整主侧栏宽度"
+          aria-orientation="vertical"
           @pointerdown=${(e: PointerEvent) => this.resize(e, 'main')}
+          @keydown=${(e: KeyboardEvent) =>
+            this.resizeKey(e, 'main', layout.mainSidebar.side === 'left' ? 1 : -1)}
         ></div>
         <div class="sidebar-header"><strong>${custom.title}</strong></div>
         <wb-declarative-view

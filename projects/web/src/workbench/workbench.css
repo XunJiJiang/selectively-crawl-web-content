@@ -321,7 +321,8 @@ wb-icon {
   white-space: nowrap;
   font-size: var(--text-sm);
 }
-.topbar-menu-item:hover {
+.topbar-menu-item:hover,
+.topbar-menu-item[aria-expanded='true'] {
   background: var(--surface-3);
 }
 .topbar-menu-item.overflow {
@@ -654,9 +655,6 @@ wb-icon {
   background: var(--border-strong);
   border-radius: 4px;
 }
-.sidebar-splitter:hover {
-  background: var(--accent-primary);
-}
 .sidebar-footer {
   display: flex;
   align-items: center;
@@ -708,7 +706,6 @@ wb-icon {
   background: transparent;
   transition: background var(--transition-fast);
 }
-.resize-handle:hover,
 .resize-handle:focus-visible,
 [data-resize-key][data-resize-active] {
   background: var(--accent-primary);
@@ -784,9 +781,6 @@ wb-icon {
 .center-splitter.vertical {
   height: var(--resize-handle-size);
   cursor: row-resize;
-}
-.center-splitter:hover {
-  background: var(--accent-primary);
 }
 .center-group {
   display: flex;

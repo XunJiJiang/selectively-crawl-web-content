@@ -1,11 +1,12 @@
 import type { WorkbenchScrollContainer } from '../components/scroll-container.ts';
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { WorkbenchStore } from './store.ts';
 import { addTab, internalTab, titleOf, splitGroup, groups } from './model.ts';
 import { requireValue } from '../../../shared/workbench-protocol.ts';
 import type { AppRoot } from '../layouts/root.ts';
 import type { UIContribution } from '../../../shared/declarative-ui.ts';
 import type { DeclarativeView } from '../components/declarative-view.ts';
+import type { WbContextMenu } from '../components/context-menu/wb-context-menu.ts';
 
 vi.mock('../../../shared/store/config.ts', () => ({
   ConfigController: {
@@ -34,6 +35,7 @@ beforeAll(async () => {
 afterAll(() => vi.unstubAllGlobals());
 afterEach(() => {
   document.body.replaceChildren();
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 async function fixture() {
@@ -94,6 +96,86 @@ async function fixture() {
   await app.updateComplete;
   return requireValue(app.shadowRoot);
 }
+
+describe('topbar menus', () => {
+  async function topbarFixture(overflow = false) {
+    const root = await fixture();
+    Object.defineProperty(requireValue(root.querySelector('.topbar')), 'clientWidth', {
+      value: overflow ? 800 : 1200,
+    });
+    if (overflow) {
+      for (const item of root.querySelectorAll('.menu-measure > span')) {
+        vi.spyOn(item, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 180, 28));
+      }
+    }
+    app.requestUpdate();
+    await app.updateComplete;
+    await app.updateComplete;
+    return root;
+  }
+
+  it('switches open menus on hover without a backdrop, including the overflow menu', async () => {
+    const root = await topbarFixture(true);
+    const buttons = root.querySelectorAll<HTMLButtonElement>('.topbar-menu-area button');
+    buttons[1].dispatchEvent(new MouseEvent('mouseenter'));
+    await app.updateComplete;
+    expect(root.querySelector('wb-context-menu')).toBeNull();
+    buttons[0].click();
+    await app.updateComplete;
+    const menu = requireValue(root.querySelector<WbContextMenu>('wb-context-menu'));
+    await menu.updateComplete;
+    expect(menu.noBackdrop).toBe(true);
+    expect(menu.style.getPropertyValue('--wb-context-menu-pointer-events')).toBe('none');
+    expect(menu.items.some((item) => item.id === 'openUrl')).toBe(true);
+    buttons[1].dispatchEvent(new MouseEvent('mouseenter'));
+    await app.updateComplete;
+    expect(menu.items.some((item) => item.id === 'sidebar')).toBe(true);
+    expect(buttons[0].getAttribute('aria-expanded')).toBe('false');
+    expect(buttons[1].getAttribute('aria-expanded')).toBe('true');
+    buttons[2].dispatchEvent(new MouseEvent('mouseenter'));
+    await app.updateComplete;
+    expect(menu.items.map((item) => item.id)).toEqual(['main-2', 'main-3', 'main-4', 'main-5']);
+    buttons[0].dispatchEvent(new MouseEvent('mouseenter'));
+    await app.updateComplete;
+    expect(menu.items.some((item) => item.id === 'openUrl')).toBe(true);
+    resizePointer(buttons[0], 'pointerdown');
+    buttons[0].click();
+    await app.updateComplete;
+    expect(root.querySelector('wb-context-menu')).toBeNull();
+  });
+
+  it('dismisses on outside pointer input without taking focus from the clicked control', async () => {
+    const root = await topbarFixture();
+    requireValue(root.querySelector<HTMLButtonElement>('.topbar-menu-area button')).click();
+    await app.updateComplete;
+    const menu = requireValue(root.querySelector<WbContextMenu>('wb-context-menu'));
+    await menu.updateComplete;
+    await menu.updateComplete;
+    const outside = document.createElement('button');
+    document.body.append(outside);
+    outside.focus();
+    resizePointer(outside, 'pointerdown');
+    await app.updateComplete;
+    expect(root.querySelector('wb-context-menu')).toBeNull();
+    expect(document.activeElement).toBe(outside);
+  });
+
+  it('keeps context menus modal when hovering topbar entries', async () => {
+    const root = await topbarFixture();
+    requireValue(root.querySelector('.tab-item')).dispatchEvent(
+      new MouseEvent('contextmenu', { bubbles: true, composed: true, clientX: 200, clientY: 200 }),
+    );
+    await app.updateComplete;
+    const menu = requireValue(root.querySelector<WbContextMenu>('wb-context-menu'));
+    const items = menu.items;
+    requireValue(root.querySelector('.topbar-menu-area button')).dispatchEvent(
+      new MouseEvent('mouseenter'),
+    );
+    await app.updateComplete;
+    expect(menu.noBackdrop).toBe(false);
+    expect(menu.items).toBe(items);
+  });
+});
 
 describe('auxiliary sidebar header', () => {
   async function auxiliaryFixture(hideCurrentPage = false, custom = true) {
@@ -183,12 +265,24 @@ async function resizeFixture() {
 }
 
 describe('layout resize feedback', () => {
-  it('highlights both intersecting handles whenever the cursor changes to move and clears on leave', async () => {
+  beforeEach(() => vi.useFakeTimers());
+
+  it('changes the cursor immediately but waits for one second of hovering before highlighting', async () => {
     const { main, split, workbench } = await resizeFixture();
+    resizePointer(main, 'pointermove');
+    await vi.advanceTimersByTimeAsync(999);
+    expect(main.hasAttribute('data-resize-active')).toBe(false);
+    resizePointer(main, 'pointermove');
+    await vi.advanceTimersByTimeAsync(1);
+    expect(main.hasAttribute('data-resize-active')).toBe(true);
     resizePointer(main, 'pointermove', 318, 302);
     await app.updateComplete;
     for (const handle of [main, split]) {
       expect(handle.style.cursor).toBe('move');
+      expect(handle.hasAttribute('data-resize-active')).toBe(false);
+    }
+    await vi.advanceTimersByTimeAsync(1000);
+    for (const handle of [main, split]) {
       expect(handle.hasAttribute('data-resize-active')).toBe(true);
     }
     resizePointer(main, 'pointermove', 318, 100);
@@ -204,6 +298,40 @@ describe('layout resize feedback', () => {
     expect(split.style.cursor).toBe('');
     expect(main.hasAttribute('data-resize-active')).toBe(false);
     expect(split.hasAttribute('data-resize-active')).toBe(false);
+  });
+
+  it('clears intersection feedback on pointerout even without a subsequent workbench move', async () => {
+    const { main, split } = await resizeFixture();
+    resizePointer(main, 'pointerover', 318, 302);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(split.hasAttribute('data-resize-active')).toBe(true);
+    resizePointer(main, 'pointerout', 322, 302);
+    await app.updateComplete;
+    for (const handle of [main, split]) {
+      expect(handle.style.cursor).toBe('');
+      expect(handle.hasAttribute('data-resize-active')).toBe(false);
+    }
+    resizePointer(main, 'pointerover', 318, 302);
+    await vi.advanceTimersByTimeAsync(500);
+    resizePointer(main, 'pointerout', 322, 302);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(main.hasAttribute('data-resize-active')).toBe(false);
+    expect(split.hasAttribute('data-resize-active')).toBe(false);
+  });
+
+  it('highlights immediately when dragging starts during the hover delay and cancels the timer', async () => {
+    const { main, split } = await resizeFixture();
+    resizePointer(main, 'pointermove', 318, 302);
+    await vi.advanceTimersByTimeAsync(500);
+    resizePointer(main, 'pointerdown');
+    await app.updateComplete;
+    expect(main.hasAttribute('data-resize-active')).toBe(true);
+    expect(split.hasAttribute('data-resize-active')).toBe(false);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(split.hasAttribute('data-resize-active')).toBe(false);
+    resizePointer(window, 'pointercancel');
+    await app.updateComplete;
+    expect(main.hasAttribute('data-resize-active')).toBe(false);
   });
 
   it.each(['pointerup', 'pointercancel'])(

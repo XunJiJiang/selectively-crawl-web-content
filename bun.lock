@@ -82,7 +82,7 @@
     },
     "projects/server": {
       "name": "selectively-crawl-web-content-server",
-      "version": "3.1.21",
+      "version": "3.1.22",
     },
     "projects/shared": {
       "name": "@scwc/shared",
@@ -115,9 +115,9 @@
     },
     "projects/web": {
       "name": "selectively-crawl-web-content-web",
-      "version": "3.1.21",
+      "version": "3.1.22",
     },
-    "projects/webUtils": {
+    "projects/webutils": {
       "name": "selectively-crawl-web-content-web-utils",
       "version": "3.1.5",
     },
@@ -4938,7 +4938,7 @@
       "selectively-crawl-web-content-web@workspace:projects/web"
     ],
     "selectively-crawl-web-content-web-utils": [
-      "selectively-crawl-web-content-web-utils@workspace:projects/webUtils"
+      "selectively-crawl-web-content-web-utils@workspace:projects/webutils"
     ],
     "semver": [
       "semver@6.3.1",
