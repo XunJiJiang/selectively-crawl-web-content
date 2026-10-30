@@ -19,6 +19,7 @@ afterEach(async () => {
 const pluginSource = `
 import { axios, z, Database, trash, fileTypeFromBuffer, fflate } from 'scwc:deps';
 import { RpcPeer, createPluginWorker } from 'scwc:runtime';
+import { cache, tryCatch, UIError, uiValue } from 'scwc:shared/backend';
 import { createRequire } from 'node:module';
 import { local } from './local.mjs';
 export default async function run() {
@@ -41,6 +42,10 @@ export default async function run() {
     axios: typeof axios.create, rpc: typeof RpcPeer, local,
     type: (await fileTypeFromBuffer(Buffer.from('GIF89a'))).ext,
     requireSharesInstance: require('scwc:deps').z === z,
+    shared: cache((value) => value * 2)(3),
+    sharedError: tryCatch(() => { throw new UIError('test', 'shared error'); })[0].code,
+    sharedValue: uiValue({ count: 1 }),
+    sharedRequire: require('scwc:shared/backend').cache === cache,
     asyncArchive: fflate.strFromU8(fflate.unzipSync(archiveBytes)['async.txt']),
     archive: fflate.strFromU8(fflate.unzipSync(fflate.zipSync({ 'test.txt': fflate.strToU8('shared ZIP') }))['test.txt']),
   };
@@ -49,10 +54,11 @@ export default async function run() {
 const workerSource = `
 import { parentPort, workerData } from 'node:worker_threads';
 import { z, Database } from 'scwc:deps';
+import { tryCatch } from 'scwc:shared/backend';
 const database = new Database(':memory:');
 const row = database.prepare('SELECT ? AS value').get(z.number().parse(workerData.value));
 database.close();
-parentPort.postMessage(row.value);
+parentPort.postMessage(tryCatch(() => row.value)[1]);
 `;
 
 describe('shared plugin SDK in external directories', () => {
@@ -120,6 +126,22 @@ describe('shared plugin SDK in external directories', () => {
 import { axios, z, Database } from 'scwc:deps';
 import type { AxiosRequestConfig, FileTypeResult } from 'scwc:deps';
 import { RpcPeer, createPluginWorker } from 'scwc:runtime';
+import { cache, tryCatch, uiValue } from 'scwc:shared/backend';
+import type { UIContent, NotificationOptions, ResponseData } from 'scwc:shared/backend';
+import type { ScrollState, SCWCButtonEventMap } from 'scwc:shared/frontend';
+const content: UIContent = { format: 'html', version: 1, html: '<p>shared</p>' };
+const notification: NotificationOptions = { message: 'shared' };
+const cached: number = cache((value: number) => value * 2)(3);
+const result: ResponseData<number> = { success: true, message: '', data: cached };
+const tuple: [undefined, number] | [Error, undefined] = tryCatch(() => cached);
+// @ts-expect-error: shared helpers preserve argument types.
+cache((value: number) => value * 2)('invalid');
+// @ts-expect-error: shared API keeps the response payload generic.
+const invalidShared: ResponseData<number> = { success: true, message: '', data: 'invalid' };
+void uiValue(content); void notification; void result; void tuple;
+let scroll: ScrollState | undefined;
+let click: SCWCButtonEventMap['click'] | undefined;
+void scroll; void click;
 const schema = z.object({ count: z.number() });
 const parsed: z.infer<typeof schema> = { count: 1 };
 // @ts-expect-error: the original Zod type namespace must reject a string count.
@@ -251,6 +273,10 @@ void createPluginWorker(new URL('file:///worker.mjs'), { workerData: parsed });
         local: true,
         type: 'gif',
         requireSharesInstance: true,
+        shared: 6,
+        sharedError: 'test',
+        sharedValue: { count: 1 },
+        sharedRequire: true,
         archive: 'shared ZIP',
         asyncArchive: 'async ZIP',
       });

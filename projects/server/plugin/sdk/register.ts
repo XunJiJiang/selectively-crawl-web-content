@@ -1,6 +1,7 @@
 import { registerHooks } from 'node:module';
 import * as dependencies from './dependencies.ts';
 import * as runtime from './runtime.ts';
+import * as shared from '../../../shared/backend.ts';
 
 const registryKey = Symbol.for('scwc.plugin.sdk.v1');
 let registered = false;
@@ -13,6 +14,7 @@ export function registerPluginSdk(): void {
   const modules: Record<string, Readonly<Record<string, unknown>>> = {
     'scwc:deps': Object.freeze({ ...dependencies }),
     'scwc:runtime': Object.freeze({ ...runtime }),
+    'scwc:shared/backend': Object.freeze({ ...shared }),
   };
   Object.defineProperty(globalThis, registryKey, { value: Object.freeze(modules) });
   const sources = new Map(

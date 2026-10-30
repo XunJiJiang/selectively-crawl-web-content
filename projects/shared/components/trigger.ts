@@ -5,7 +5,7 @@ import { property } from 'lit/decorators.js';
 import { customElement } from '../utils/customElement.ts';
 
 @customElement('scwc-trigger')
-class SCWCTrigger extends LitElement {
+export class SCWCTrigger extends LitElement {
   static styles = [
     css`
       ${unsafeCSS(style)}

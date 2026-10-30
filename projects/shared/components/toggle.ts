@@ -6,7 +6,7 @@ import { customElement } from '../utils/customElement.ts';
 import { v4 as uuidv4 } from 'uuid';
 
 @customElement('scwc-toggle')
-class SCWCToggle extends LitElement {
+export class SCWCToggle extends LitElement {
   static styles = [
     css`
       ${unsafeCSS(style)}

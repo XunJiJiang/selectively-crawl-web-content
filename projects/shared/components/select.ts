@@ -7,7 +7,7 @@ import { classMap } from 'lit/directives/class-map.js';
 import { v4 } from 'uuid';
 
 @customElement('scwc-select')
-class SCWCSelect extends LitElement {
+export class SCWCSelect extends LitElement {
   static styles = [
     css`
       ${unsafeCSS(style)}

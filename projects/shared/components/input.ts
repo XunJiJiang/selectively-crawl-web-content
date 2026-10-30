@@ -7,7 +7,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { customElement } from '../utils/customElement.ts';
 
 @customElement('scwc-input')
-class SCWCInput extends LitElement {
+export class SCWCInput extends LitElement {
   static styles = [
     css`
       ${unsafeCSS(style)}

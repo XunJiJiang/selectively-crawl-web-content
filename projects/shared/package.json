@@ -1,0 +1,16 @@
+{
+  "name": "@scwc/shared",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./frontend": "./frontend.ts",
+    "./backend": "./backend.ts"
+  },
+  "dependencies": {
+    "@lit/context": "^1.1.6",
+    "es-toolkit": "^1.49.0",
+    "lit": "^3.3.3",
+    "uuid": "^14.0.1"
+  }
+}

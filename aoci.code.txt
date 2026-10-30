@@ -5,7 +5,7 @@
 .gitignore[FC5M]: F:界定版本控制资产 | R:- | A:Git忽略规则 | S:生成Web与工具包不跟踪；插件模板和终端scwc目录有显式例外
 AGENTS.md[SG8S]: F:约定仓库认知使用与约束入口 | R:code:docs/env&limit.txt | A:Agent执行合同 | S:任务开始在版本门禁后必须读取约束文档；新增环境或用户长期限制回写该文档；重建索引保留文档入口，不复制具体限制
 LICENSE[SG2T]: F:授予使用许可 | R:- | A:MIT许可条款 | S:再分发须保留版权及许可声明
-bun.lock[FV5L]: F:锁定工作区依赖解析 | R:code:package.json | A:lockfileVersion,configVersion,workspaces,packages | S:工作区链接与外部包完整性统一锁定；CSS编译依赖及类型声明由根工作区直接声明
+bun.lock[FV5L]: F:锁定工作区与外部依赖解析 | R:code:package.json,code:projects/shared/package.json | A:lockfileVersion,configVersion,workspaces,packages | S:shared以workspace链接供Vite包传递依赖收集；外部包版本与完整性统一锁定
 oxfmt.config.ts[FQ4T]: F:约束源码格式 | R:code:package.json | A:defineConfig | S:只格式化TS，LF及两空格；忽略构建目录与编辑器配置
 oxlint.config.ts[FQ5S]: F:配置类型感知检查 | R:code:package.json | A:defineConfig | S:强制ts/js显式扩展名；浏览器环境覆盖使用webutils小写路径
 package.json[FV8S]: F:组织工作区依赖与构建启动 | R:code:projects/server/scripts/setup.ts,code:projects/server/scripts/build-runtime.ts | A:workspaces,scripts,dependencies,devDependencies,engines | S:根build先类型检查再构建脚本、Web、SDK和核心；发行默认含终端插件；开发Web固定3201；engine声明不替代发行探针的实际Node门槛
@@ -53,7 +53,7 @@ env.test.ts[TC5T]: F:验证监听配置及服务日志 | R:code:projects/server/
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/===
 index.ts[AG9S]: F:编排核心生命周期 | R:code:projects/server/router/index.ts,code:projects/server/plugin/load.ts,code:projects/server/command/ipc.ts,code:projects/server/workbench/runtime.ts | A:进程启动入口 | S:IPC握手先于选目录和监听；IPC生命周期交父终端，独立核心关闭SQLite后派生替代进程并保留TOKEN；重启保留缓存，退出清缓存
 package.json[FV5T]: F:声明核心工作区启动和发行构建 | R:code:projects/server/index.ts,code:projects/server/scripts/setup.ts | A:module,scripts,engines | S:源码与构建入口使用Node直接加载TS；module不参与脚本启动；默认发行包含终端插件，两种发行依次构建
-vitest.config.ts[FQ5T]: F:配置核心测试别名 | R:code:projects/server/plugin/sdk/dependencies.ts,code:projects/server/plugin/sdk/runtime.ts | A:Vitest defineConfig | S:把scwc虚拟模块映射到源码，测试运行依赖别名而非实际Node钩子
+vitest.config.ts[FQ5T]: F:配置核心测试的虚拟SDK源码映射 | R:code:projects/server/plugin/sdk/dependencies.ts,code:projects/server/plugin/sdk/runtime.ts,code:projects/shared/backend.ts | A:Vitest defineConfig | S:测试别名包含scwc:shared/backend，但不替代真实Node钩子的集成验证
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/plugin/===
 lifecycle.test.ts[TE6S]: F:验证插件生命周期 | R:code:projects/server/plugin/load.ts,code:projects/server/router/web/api/load.ts,code:projects/server/router/web/websocket.ts | A:Vitest用例 | S:重载须切换进程和safeId，并移除旧命令、HTTP资源及连接；失败后可重新启用
@@ -82,10 +82,10 @@ plugin.ts[TE4S]: F:提供进程测试插件 | R:code:projects/server/plugin/proc
 browser.ts[LE4T]: F:导出浏览器SDK依赖 | R:code:projects/vite-plugin/browser.js | A:z | S:-
 bundled-node-sdk.test.ts[TE6S]: F:验证异地SDK运行 | R:code:projects/server/plugin/process/host.ts,code:projects/server/scripts/shared-package-assets.ts | A:Vitest集成用例 | S:复制外置插件至无核心依赖目录，分别验证源码和内置Node宿主及SQLite Worker
 dependencies.ts[LE7T]: F:导出共享后端依赖 | R:code:projects/server/plugin/sdk/runtime.ts | A:axios,chalk,z,Database,trash,fflate | S:共享面仅显式清单；trash延迟导入以保留原生ESM互操作和相对资源URL
-modules.d.ts[FE7T]: F:声明共享模块类型 | R:code:projects/server/plugin/sdk/dependencies.ts,code:projects/server/plugin/sdk/runtime.ts | A:scwc:deps,scwc:runtime | S:保留原依赖命名空间与泛型，不能以宽泛代用类型替换
-register.ts[LE8T]: F:注册插件共享SDK | R:code:projects/server/plugin/sdk/dependencies.ts,code:projects/server/plugin/sdk/runtime.ts | A:registerPluginSdk | S:必须先注册再动态导入插件；模块钩子按进程或Worker独立安装且幂等
+modules.d.ts[FE7T]: F:声明依赖、运行时和前后端共享模块类型 | R:code:projects/server/plugin/sdk/dependencies.ts,code:projects/server/plugin/sdk/runtime.ts,code:projects/shared/package.json | A:scwc:deps,scwc:runtime,scwc:shared/backend,scwc:shared/frontend | S:保留原依赖命名空间和泛型；shared类型转出工作区子路径，实际加载分别由Node钩子与Vite完成
+register.ts[LE8T]: F:注册插件依赖、运行时与shared后端虚拟模块 | R:code:projects/server/plugin/sdk/dependencies.ts,code:projects/server/plugin/sdk/runtime.ts,code:projects/shared/backend.ts | A:registerPluginSdk | S:必须先注册再动态导入插件；每个进程或Worker独立幂等安装；只注册shared后端入口，冻结导出在ESM与CJS间共享实例
 runtime.ts[LE8T]: F:创建SDK工作线程 | R:code:projects/server/plugin/sdk/worker-bootstrap.ts,code:projects/server/plugin/process/rpc.ts | A:createPluginWorker,PluginWorkerOptions,RpcPeer,PluginProcessError | S:入口只接受file URL；保留宿主三个SCWC引导字段，调用方env不可覆盖；打包Worker用独立引导文件
-sdk.test.ts[TE6M]: F:验证外置SDK契约 | R:code:projects/server/plugin/sdk/register.ts,code:projects/server/scripts/shared-package-assets.ts | A:Vitest集成用例 | S:在插件无node_modules时验证类型、CJS、Worker与原生SQLite，另检查传递依赖版本共存
+sdk.test.ts[TE6M]: F:验证外部目录插件SDK及shared契约 | R:code:projects/server/plugin/sdk/register.ts,code:projects/server/scripts/shared-package-assets.ts | A:Vitest集成用例 | S:插件无node_modules时验证源码与压缩CJS、Node Worker、SQLite及泛型；shared错误类型与require实例一致，前端组件类型可独立引用
 worker-bootstrap.ts[EE7T]: F:引导插件Worker | R:code:projects/server/plugin/sdk/register.ts,code:projects/server/plugin/sdk/runtime.ts | A:Worker启动入口 | S:读取后删除入口环境变量，SDK注册先于导入；导入失败经Worker error事件抛出
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/plugin/web/===
@@ -94,7 +94,7 @@ cli.ts[EV5T]: F:启动页面构建 | R:code:projects/server/plugin/web/build.ts,
 dependencies.ts[FV5T]: F:界定共享构建依赖 | R:code:projects/vite-plugin/dependencies.js | A:packageName,sharedBrowserPackages,sharedBuildPackages | S:浏览器包清单由公开Vite包拥有，核心只补构建工具
 host.ts[EV8S]: F:隔离执行Vite构建 | R:code:projects/server/plugin/web/build.ts,code:projects/vite-plugin/index.js | A:runWebBuild | S:物理路径校验outDir及入口，防符号链接越界；先构建临时目录，再以备份和rename替换，失败保留旧页面
 options.ts[FV6T]: F:解析受限构建声明 | R:code:projects/server/utils/command.ts | A:parseWebBuildScript,WebBuildOptions,WebBuildRequest | S:仅接受vite build白名单参数，绝不执行shell；配置与root路径按插件目录解析
-web-build.test.ts[TV6M]: F:验证插件前端构建 | R:code:projects/server/plugin/web/build.ts,code:projects/server/plugin/web/host.ts,code:projects/vite-plugin/index.js | A:Vitest集成用例 | S:覆盖独立配置、双装饰器模式、Worker、目录别名与越界，失败旧产物须保留
+web-build.test.ts[TV6L]: F:验证插件前端构建与shared自动加载 | R:code:projects/server/plugin/web/build.ts,code:projects/vite-plugin/index.js,code:projects/server/scripts/shared-package-assets.ts | A:Vitest集成用例 | S:复制包到外部目录仍须可构建；无shared导入也注册组件且通知根仅一份，Worker不注入DOM；越界及构建失败保留旧页面
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/public/resources/arcofont/===
 arcofont.json[FC2L]: F:映射图标字形 | R:code:projects/server/public/resources/arcofont/index.css | A:glyphs,font_family,css_prefix_text | S:-
@@ -1027,11 +1027,6 @@ zoom-out.svg[ZU2T]: F:绘制圆框缩小减号 | R:- | A:SVG图形 | S:-
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/public/web/assets/===
 local-config-DgHXxHRe.js[LU4T]: F:分发Lit基础运行时与本机配置加载 | R:code:projects/web/src/api/local-config.ts | A:浏览器共享ESM导出 | S:仅向回环同源取配置，三秒超时后保留手工配置
-index-B5_6x4KQ.css[ZU4T]: F:分发工作台主题与全局字体样式 | R:code:projects/web/style.css,code:projects/web/var.css | A:主题变量,codicon字形 | S:基础字号14px；外层隐藏滚动，由内部布局承接；默认深色并含浅色覆盖
-index-CEW71aV6.js[EU5L]: F:引导生产工作台配置与布局加载 | R:code:projects/web/src/main.ts,code:projects/server/public/web/assets/layouts-BwCsNFY4.js | A:浏览器ESM入口 | S:等待本机配置写入存储后才动态导入布局，避免首次请求使用旧凭据
-layouts-BwCsNFY4.js[AU5L]: F:分发生产工作台布局、页面池与反馈编排 | R:code:projects/web/src/layouts/root.ts,code:projects/server/public/web/assets/workbench-BH95Wj2z.js | A:app-root注册入口 | S:该产物仍包含旧页面属性检查器，不含声明式渲染入口；任务仅显式打开，通知可见与已读独立，不能据新源码推定产物已同步
-terminal-BJgXH-Uq.js[AU5M]: F:分发生产终端编辑与输出交互 | R:code:projects/web/src/components/terminal.ts,code:projects/web/src/components/command-editor.ts | A:wb-terminal,wb-command-editor,WorkbenchTerminal | S:独立textarea承接命令；运行时关闭先协作取消，强停需确认影响整个插件宿主
-workbench-BH95Wj2z.js[LU6L]: F:分发工作台共享组件和连接运行时 | R:code:projects/web/src/api/workbench.ts,code:projects/web/src/components/scroll-container.ts | A:wb-scroll-container,共享ESM导出 | S:Socket按连接代数拒旧，回放缺口要求重同步；退避最多15秒；未标记请求保护连接，可中断请求仅在暂停后重放
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/public/web/===
 index.html[EU5T]: F:装载生产工作台构建产物 | R:code:projects/server/public/web/assets/index-CEW71aV6.js,code:projects/server/public/web/assets/index-B5_6x4KQ.css | A:/web/HTML入口 | S:资源固定/web/assets，预载local-config，初始主题dark-2026；入口引用真实构建文件而非开发源码
@@ -1146,18 +1141,18 @@ ui-renderer.test.ts[TU6S]: F:验证固定渲染器的状态保持与安全更新
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/shared/components/===
 button.css[ZU3T]: F:定义共享按钮外观 | R:code:projects/shared/components/button.ts | A:.scwc-btn样式 | S:host不接收指针，内部button重新开启交互
-button.ts[LU5T]: F:封装共享按钮 | R:code:projects/shared/components/button.css | A:scwc-button,SCWCButtonEventMap | S:内部点击被截断后由宿主重新派发冒泡CustomEvent
+button.ts[LU5T]: F:封装并导出共享按钮 | R:code:projects/shared/components/button.css | A:SCWCButton,scwc-button,SCWCButtonEventMap | S:内部点击被截断后由宿主重新派发冒泡CustomEvent
 checkbox.css[ZU3T]: F:排版共享勾选控件 | R:code:projects/shared/components/checkbox.ts | A:.scwc-checkbox样式 | S:-
-checkbox.ts[LU5T]: F:封装共享勾选框 | R:code:projects/shared/components/checkbox.css | A:scwc-checkbox,SCWCCheckboxEventMap | S:checked由外部状态回写，change仅携带布尔值并冒泡
-index.ts[EU5T]: F:注册共享表单组件 | R:code:projects/shared/components/button.ts,code:projects/shared/components/input.ts,code:projects/shared/components/select.ts | A:组件副作用注册入口 | S:入口不注册通知组件，通知通过其模块单独创建
+checkbox.ts[LU5T]: F:封装并导出共享勾选框 | R:code:projects/shared/components/checkbox.css | A:SCWCCheckbox,scwc-checkbox,SCWCCheckboxEventMap | S:checked由外部状态回写，change仅携带布尔值并冒泡
+index.ts[EU5T]: F:注册并转出共享表单组件及事件类型 | R:code:projects/shared/components/button.ts,code:projects/shared/components/input.ts,code:projects/shared/components/select.ts | A:SCWCButton,SCWCInput,SCWCTrigger,SCWCToggle,SCWCSelect,SCWCCheckbox | S:此入口不含通知与滚动组件，shared前端总入口单独导入它们
 input.css[ZU3T]: F:排版共享输入控件 | R:code:projects/shared/components/input.ts | A:.scwc-input样式 | S:-
-input.ts[LU5S]: F:封装共享输入框 | R:code:projects/shared/components/input.css | A:scwc-input,SCWCInputEventMap | S:number输入仍以字符串派发input/change/blur；重新派发事件默认不冒泡
+input.ts[LU5S]: F:封装并导出共享输入框 | R:code:projects/shared/components/input.css | A:SCWCInput,scwc-input,SCWCInputEventMap | S:number输入仍以字符串派发input/change/blur；重新派发事件默认不冒泡
 notify.css[ZU4M]: F:排版六向浮层通知 | R:code:projects/shared/components/notify.ts | A:.notify-container,.notify-list,.notify-item | S:容器不拦截页面指针，通知条目自行开启交互；退场动画固定250ms
 notify.ts[LU6M]: F:显示共享浮层通知 | R:code:projects/shared/components/notify.css,code:projects/shared/types/notify.d.ts | A:notify,scwc-notify,window.scwc.notify | S:导入创建单例，复用既有页面通知入口；手动close不触发onclose，移出悬停后恢复默认3秒计时
 select.css[ZU3T]: F:排版共享下拉框 | R:code:projects/shared/components/select.ts | A:.scwc-select样式 | S:-
-select.ts[LU5T]: F:封装共享下拉选择 | R:code:projects/shared/components/select.css | A:scwc-select,SCWCSelectEventMap | S:选项数组仅通过属性注入，change返回字符串；空选项显示禁用占位
-toggle.ts[LU5T]: F:适配布尔切换控件 | R:code:projects/shared/components/checkbox.ts | A:scwc-toggle,SCWCToggleEventMap | S:复用checkbox并转发布尔change，当前没有独立开关外观实现
-trigger.ts[LU5T]: F:适配动作触发控件 | R:code:projects/shared/components/button.ts | A:scwc-trigger,SCWCTriggerEventMap | S:将内部button点击转换为冒泡trigger事件
+select.ts[LU5T]: F:封装并导出共享下拉选择 | R:code:projects/shared/components/select.css | A:SCWCSelect,scwc-select,SCWCSelectEventMap | S:选项数组仅通过属性注入，change返回字符串；空选项显示禁用占位
+toggle.ts[LU5T]: F:封装并导出布尔切换控件 | R:code:projects/shared/components/checkbox.ts | A:SCWCToggle,scwc-toggle,SCWCToggleEventMap | S:内部复用checkbox并转发布尔change，组件仍由外部回写checked
+trigger.ts[LU5T]: F:封装并导出动作触发控件 | R:code:projects/shared/components/button.ts | A:SCWCTrigger,scwc-trigger,SCWCTriggerEventMap | S:将内部button点击转换为冒泡trigger事件
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/shared/store/===
 config.ts[CC7M]: F:协调浏览器共享配置 | R:code:projects/shared/utils/storage.ts,code:projects/shared/utils/refreshRuleParser.ts,code:projects/shared/types/config.d.ts | A:ConfigController,configContext,defaultValue,parseRefreshRule,isConfig,isConfigItem | S:同页setConfig只更新当前控制器，storage事件才更新静态配置并广播；hostDisconnected不注销；脚本控件用私有Symbol区分
@@ -1195,6 +1190,9 @@ config-dispatch.ts[CM7T]: F:按页面文档排队和确认配置通知 | R:code:
 declarative-ui.ts[FU8M]: F:定义声明式UI、处理器及编译数据契约 | R:code:projects/shared/ui-expressions.ts | A:PluginUI,HandlerDefinition,UIContent,CompiledUI,UIWireRegistry,UIError | S:跨传输只用无循环JSON且拒绝原型键和非有限数；回调留所属进程，wire仅含描述；单内容256KiB、值64KiB；JSON与HTML格式身份必须保留
 ui-expressions.test.ts[TU6T]: F:验证声明式调用与模板表达式语义 | R:code:projects/shared/ui-expressions.ts | A:Vitest用例 | S:裸名称默认事件、空括号零参；引用分隔符不拆分；单表达式保留JSON类型；禁止跨域传值和渲染读取event/prev，无返回值与null区分
 ui-expressions.ts[KU8M]: F:解析并求值受限处理器调用和模板 | R:code:projects/shared/declarative-ui.ts | A:parseProgram,parseExpression,parseTemplate,evaluateArgument,evaluateTemplate,walkArgument | S:不执行JS；裸名称传事件、空括号零参；管道和嵌套实参必须同域；首步禁prev，渲染禁event/prev；单插值保类型，混排对象须显式序列化；限制4KiB、8分支、16步及嵌套8层
+backend.ts[LG7T]: F:公开shared后端通用工具和类型 | R:code:projects/shared/declarative-ui.ts,code:projects/shared/ui-expressions.ts,code:projects/shared/workbench-feedback.ts | A:cache,debounce,FetchError,tryCatch,completionInput,UI与反馈契约 | S:SDK注册时同步导入本入口，运行时依赖必须兼容无DOM及Node原生可擦除TS
+frontend.ts[EU7T]: F:公开并注册shared浏览器组件、工具和类型 | R:code:projects/shared/backend.ts,code:projects/shared/components/index.ts,code:projects/shared/components/notify.ts | A:表单组件,notify,SCWCScrollContainer,浏览器工具与类型 | S:导入即创建或复用通知及初始化页面存储配置，需要DOM；Vite仅向HTML入口自动注入，Worker不加载
+package.json[FV6T]: F:声明shared独立工作区包及前后端子路径 | R:code:projects/shared/frontend.ts,code:projects/shared/backend.ts,code:projects/vite-plugin/package.json | A:@scwc/shared,exports,dependencies | S:私有ESM包直接导出TS；前端依赖随Vite包的传递资产收集进入发行目录
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/terminal/===
 clipboard.ts[IU4T]: F:写入系统剪贴板 | R:code:projects/terminal/controller.ts | A:copyText | S:按平台依次尝试原生工具，全部失败后向终端发送OSC52
@@ -1287,8 +1285,8 @@ browser.js[LE4T]: F:导出浏览器安全依赖 | R:code:projects/vite-plugin/in
 dependencies.d.ts[FV4T]: F:声明共享包解析面 | R:code:projects/vite-plugin/dependencies.js | A:sharedBrowserPackages,vitePluginPackageName,packageName | S:-
 dependencies.js[FV6T]: F:界定共享前端依赖 | R:code:projects/vite-plugin/index.js,code:projects/server/plugin/web/dependencies.ts | A:sharedBrowserPackages,vitePluginPackageName,packageName | S:根依赖不会自动公开；相对、绝对、井号及含协议冒号的specifier不作为包名
 index.d.ts[FV5T]: F:声明Vite集成插件 | R:code:projects/vite-plugin/index.js | A:scwcVite,ScwcViteOptions,sharedBrowserPackages | S:dependencyRoot用于缺失浏览器依赖的核心运行目录
-index.js[IV7T]: F:适配插件前端构建 | R:code:projects/vite-plugin/dependencies.js,code:projects/vite-plugin/browser.js | A:scwcVite,default | S:同名插件仅首实例处理；共享包优先本地再核心回退；scwc:deps映射浏览器面，含装饰器源码按最近tsconfig经esbuild降级
-package.json[FV5T]: F:声明SCWC构建插件 | R:code:projects/vite-plugin/index.js,code:projects/vite-plugin/index.d.ts | A:exports,peerDependencies | S:ESM私有包，要求Vite8及esbuild协作
+index.js[IV7T]: F:解析插件前端依赖并自动加载shared组件 | R:code:projects/vite-plugin/dependencies.js,code:projects/vite-plugin/browser.js,code:projects/shared/frontend.ts | A:scwcVite,default | S:仅首个同名实例生效；scwc:shared/frontend按核心锚点解析并仅注入HTML；普通白名单先本地再核心，装饰器按最近tsconfig转换
+package.json[FV5T]: F:声明SCWC构建插件及shared工作区依赖 | R:code:projects/vite-plugin/index.js,code:projects/vite-plugin/index.d.ts,code:projects/shared/package.json | A:exports,peerDependencies,dependencies | S:私有ESM包要求Vite8和esbuild；shared为正式传递依赖，发行收集会保留其原始源码与CSS
 tsconfig.json[FQ3T]: F:检查Vite插件JS | R:code:tsconfig.node.json | A:allowJs,checkJs,include | S:将JS及声明纳入类型检查，增量信息存node_modules临时目录
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/web/===
@@ -1444,7 +1442,4 @@ mark.svg[ZU2T]: F:绘制模板校验标识供单文件及根层资源挂载 | R:
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/plugins/template/assets/nested/===
 mark.svg[ZU2T]: F:绘制嵌套资源目录的模板校验标识 | R:code:projects/server/plugins/template/declarative-ui.ts | A:SVG图形 | S:-
-
-===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/public/lib/===
-scwcutils.iife.mvtscw8s.js[LE6T]: F:分发第二版插件页面授权与声明式处理器SDK | R:code:projects/webUtils/lib/workbench.ts,code:projects/webUtils/lib/ui-handlers.ts | A:scwcutils全局对象 | S:普通页面配置仅get和subscribe；函数留当前文档，通知按boot及revision去重；默认请求保护连接，离页释放监听及反馈归属
 

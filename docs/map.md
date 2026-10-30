@@ -23,7 +23,7 @@ SCWC 是一个由本地 Node 服务、网页中的油猴脚本和 Web 宿主页�
 | `projects/vite-plugin` | Node.js / Vite | 插件前端共享包回退、浏览器 SDK 适配与装饰器转换；本地/核心/SEA 共用 | [index.js](../projects/vite-plugin/index.js)、[README.md](../projects/vite-plugin/README.md) |
 | `projects/user-script` | 目标网页，油猴脚本 / Lit | 悬浮窗、元素选择、抓取列表、扩展控件、脚本设置 | [src/main.ts](../projects/user-script/src/main.ts) |
 | `projects/web` | 浏览器 / Lit | 列出可用扩展页面，通过 iframe 打开页面并传入配置 | [src/main.ts](../projects/web/src/main.ts)、[layouts/content.ts](../projects/web/src/layouts/content.ts) |
-| `projects/shared` | 浏览器 | 三个浏览器模块复用的控件、配置、存储、类型和工具 | [store/config.ts](../projects/shared/store/config.ts)、[utils/common.ts](../projects/shared/utils/common.ts) |
+| `projects/shared` | Node.js / 浏览器 | 独立 @scwc/shared 包；前后端分别通过 scwc:shared/frontend 与 scwc:shared/backend 获取组件、工具和类型 | [frontend.ts](../projects/shared/frontend.ts)、[backend.ts](../projects/shared/backend.ts)、[README.md](../projects/shared/README.md) |
 | `projects/webutils` | 扩展页面中的浏览器脚本 | 提供 `scwcutils.fetch/resource/websocket`，连接页面与核心服务 | [lib/index.ts](../projects/webutils/lib/index.ts)、[lib/utils/fetch.ts](../projects/webutils/lib/utils/fetch.ts) |
 
 主要技术：TypeScript、ESM、Express 5、Lit、Vite、vite-plugin-monkey、Zod、ws；服务端缓存使用 cache-manager、Keyv、内存存储和 Redis。
@@ -206,7 +206,7 @@ type CrawlData = { result: DataItem[]; failed: string[] };
 
 ## 5. 浏览器共享模块：配置、存储、控件
 
-[shared](../projects/shared/README.md) 面向浏览器，有直接访问 `window`、`document` 和 `localStorage` 的模块。服务端可以引用其中的类型，但不能无条件复用这些运行时代码。
+[shared](../projects/shared/README.md) 是独立的 `@scwc/shared` 工作区包。根 `frontend.ts` 公开共享组件、通知、滚动容器和浏览器工具/类型，由 Vite 插件通过 `scwc:shared/frontend` 解析并自动加载到 HTML 页面。根 `backend.ts` 仅公开 Node 可用的工具和类型，由 SDK 钩子通过 `scwc:shared/backend` 提供给插件和 Worker；它不导入 DOM、浏览器存储或 Lit。前端源码与 CSS 随 Vite 包的工作区依赖进入发行资产，后端运行时代码进入宿主 bundle。
 
 ### 5.1 配置与持久化
 

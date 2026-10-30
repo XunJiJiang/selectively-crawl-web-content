@@ -6,7 +6,7 @@ import { classMap } from 'lit/directives/class-map.js';
 import { customElement } from '../utils/customElement.ts';
 
 @customElement('scwc-button')
-class SCWCButton extends LitElement {
+export class SCWCButton extends LitElement {
   static styles = [
     css`
       ${unsafeCSS(style)}

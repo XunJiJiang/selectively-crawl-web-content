@@ -16,5 +16,8 @@
   "peerDependencies": {
     "esbuild": "^0.28.1",
     "vite": "^8.1.5"
+  },
+  "dependencies": {
+    "@scwc/shared": "workspace:*"
   }
 }

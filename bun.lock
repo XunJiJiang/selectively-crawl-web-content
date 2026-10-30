@@ -82,7 +82,17 @@
     },
     "projects/server": {
       "name": "selectively-crawl-web-content-server",
-      "version": "3.1.20",
+      "version": "3.1.21",
+    },
+    "projects/shared": {
+      "name": "@scwc/shared",
+      "version": "1.0.0",
+      "dependencies": {
+        "@lit/context": "^1.1.6",
+        "es-toolkit": "^1.49.0",
+        "lit": "^3.3.3",
+        "uuid": "^14.0.1",
+      },
     },
     "projects/terminal": {
       "name": "scwc-terminal",
@@ -95,6 +105,9 @@
     "projects/vite-plugin": {
       "name": "@scwc/vite-plugin",
       "version": "1.0.0",
+      "dependencies": {
+        "@scwc/shared": "workspace:*",
+      },
       "peerDependencies": {
         "esbuild": "^0.28.1",
         "vite": "^8.1.5",
@@ -102,7 +115,7 @@
     },
     "projects/web": {
       "name": "selectively-crawl-web-content-web",
-      "version": "3.1.20",
+      "version": "3.1.21",
     },
     "projects/webUtils": {
       "name": "selectively-crawl-web-content-web-utils",
@@ -2037,6 +2050,9 @@
         "cpu": "x64"
       },
       "sha512-BfzEnDJOt9T8M989/lA37EcJgat01wLRnoi5dQf3QzOH7jzpqTAzdDbVfRljVr5r+jzKqpbHeyOfAaXxAd0PAA=="
+    ],
+    "@scwc/shared": [
+      "@scwc/shared@workspace:projects/shared"
     ],
     "@scwc/vite-plugin": [
       "@scwc/vite-plugin@workspace:projects/vite-plugin"

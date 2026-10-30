@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 import { buildPluginWeb, ensurePluginWeb } from './build.ts';
 import { parseWebBuildScript } from './options.ts';
+import { sharedPackageAssets } from '../../scripts/shared-package-assets.ts';
 
 const require = createRequire(import.meta.url);
 const { JSDOM } = require('jsdom') as {
@@ -139,6 +140,114 @@ async function verifyBrowserOutput(entry: string): Promise<void> {
 }
 
 describe('plugin frontend contract', () => {
+  it('builds with the copied shared frontend package and styles outside the workspace', async () => {
+    const f = await fixture();
+    const root = fileURLToPath(new URL('../../../../', import.meta.url));
+    const assets = await sharedPackageAssets(root, [
+      '@scwc/vite-plugin',
+      'zod',
+      '@vscode/codicons',
+    ]);
+    for (const file of [
+      'frontend.ts',
+      'backend.ts',
+      'components/button.css',
+      'components/scroll-container/scroll-container.ts',
+    ]) {
+      expect(assets[`node_modules/@scwc/shared/${file}`]).toBeDefined();
+    }
+    for (const [relative, source] of Object.entries(assets)) {
+      const destination = path.join(f.directory, relative);
+      await fs.mkdir(path.dirname(destination), { recursive: true });
+      await fs.copyFile(source, destination);
+    }
+    const linkType = process.platform === 'win32' ? 'junction' : 'dir';
+    await fs.symlink(viteDirectory, path.join(f.directory, 'node_modules/vite'), linkType);
+    await fs.symlink(
+      path.dirname(require.resolve('esbuild/package.json')),
+      path.join(f.directory, 'node_modules/esbuild'),
+      linkType,
+    );
+    execFileSync(
+      process.execPath,
+      [
+        path.join(viteDirectory, 'bin/vite.js'),
+        'build',
+        '--config',
+        'vite config.ts',
+        '--configLoader',
+        'native',
+      ],
+      {
+        cwd: f.directory,
+        stdio: 'pipe',
+        timeout: 20_000,
+        env: { ...process.env, SCWC_RUNTIME_ROOT: undefined },
+      },
+    );
+    await verifyBrowserOutput(f.entry);
+  }, 30_000);
+
+  it('automatically registers page components without a shared import', async () => {
+    const f = await fixture();
+    await fs.writeFile(
+      path.join(f.directory, 'web/main.ts'),
+      "document.body.append(document.createElement('scwc-button'));",
+    );
+    await buildPluginWeb(f.directory, logger, { expectedEntry: f.entry });
+    const files = await fs.readdir(path.join(path.dirname(f.entry), 'assets'));
+    const script = files.find((file) => file.endsWith('.js'));
+    if (!script) {
+      throw new Error('Missing browser entry');
+    }
+    const source = await fs.readFile(path.join(path.dirname(f.entry), 'assets', script), 'utf8');
+    const dom = new JSDOM('<!doctype html><html><body></body></html>', {
+      runScripts: 'outside-only',
+      url: 'http://localhost/',
+    });
+    try {
+      dom.window.eval(source);
+      for (const tag of [
+        'button',
+        'input',
+        'trigger',
+        'toggle',
+        'select',
+        'checkbox',
+        'notify',
+        'scroll-container',
+      ]) {
+        expect(dom.window.customElements.get(`scwc-${tag}`)).toBeDefined();
+      }
+      const button = dom.window.document.querySelector('scwc-button') as HTMLElement & {
+        updateComplete: Promise<unknown>;
+      };
+      await button.updateComplete;
+      expect(button.shadowRoot?.querySelector('button')).not.toBeNull();
+      expect(dom.window.document.querySelectorAll('.scwc-notify-root')).toHaveLength(1);
+    } finally {
+      dom.window.close();
+    }
+  }, 30_000);
+
+  it('resolves explicit shared frontend exports and leaves Workers free of DOM registrations', async () => {
+    const f = await fixture();
+    await fs.appendFile(
+      path.join(f.directory, 'web/main.ts'),
+      "import { cache, tryCatch, SCWCScrollContainer } from 'scwc:shared/frontend'; document.body.dataset.shared = String(tryCatch(() => cache((n) => n * 2)(3))[1]); document.body.append(new SCWCScrollContainer());",
+    );
+    await buildPluginWeb(f.directory, logger, { expectedEntry: f.entry });
+    await verifyBrowserOutput(f.entry);
+    const directory = path.join(path.dirname(f.entry), 'assets');
+    const worker = (await fs.readdir(directory)).find(
+      (file) => file.startsWith('worker-') && file.endsWith('.js'),
+    );
+    if (!worker) {
+      throw new Error('Missing browser Worker');
+    }
+    expect(await fs.readFile(path.join(directory, worker), 'utf8')).not.toContain('scwc-notify');
+  }, 30_000);
+
   it.each(['bundle', 'native'])(
     'uses the public Vite plugin in a standalone %s config without browser dependencies',
     async (configLoader) => {

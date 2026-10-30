@@ -31,12 +31,31 @@ export function scwcVite(options = {}) {
       if (source === 'scwc:deps') {
         return this.resolve(browser, importer, { ...resolveOptions, skipSelf: true });
       }
+      if (source === 'scwc:shared/frontend') {
+        return this.resolve('@scwc/shared/frontend', anchor, { ...resolveOptions, skipSelf: true });
+      }
       const name = packageName(source);
       if (!name || !shared.has(name)) {
         return null;
       }
       const local = await this.resolve(source, importer, { ...resolveOptions, skipSelf: true });
       return local ?? this.resolve(source, anchor, { ...resolveOptions, skipSelf: true });
+    },
+    transformIndexHtml: {
+      order: 'pre',
+      handler() {
+        if (!active) {
+          return;
+        }
+        return [
+          {
+            tag: 'script',
+            attrs: { type: 'module' },
+            children: "import 'scwc:shared/frontend';",
+            injectTo: 'head-prepend',
+          },
+        ];
+      },
     },
     async transform(code, id) {
       const [filename = '', query = ''] = id.split('?');

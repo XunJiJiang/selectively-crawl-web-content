@@ -1,6 +1,8 @@
 # 插件共享 SDK
 
-业务插件与终端插件的宿主在动态导入插件前注册同步 Node 模块钩子，提供 `scwc:deps` 和 `scwc:runtime` 两个虚拟 ESM 模块。无需发布或安装同名 npm 包；源码、SEA 与 外置 Node 运行时发行包使用相同契约，插件目录无需位于核心项目内。
+业务插件与终端插件的宿主在动态导入插件前注册同步 Node 模块钩子，提供 `scwc:deps`、`scwc:runtime` 和 `scwc:shared/backend` 虚拟 ESM 模块。无需发布或安装同名 npm 包；源码、SEA 与 外置 Node 运行时发行包使用相同契约，插件目录无需位于核心项目内。
+
+`scwc:shared/backend` 对应独立工作区包 [@scwc/shared](../../../shared/README.md) 的 backend.ts，提供通用缓存、错误包装、声明式 UI 与反馈工具和类型。`scwc:shared/frontend` 由公共 Vite 插件解析并自动加载到 HTML 页面，包含共享组件和浏览器工具；Node 宿主只注册后端入口。两端的虚拟模块声明统一位于 modules.d.ts，Worker 沿用 createPluginWorker 注册后端能力。
 
 ## 共享依赖
 

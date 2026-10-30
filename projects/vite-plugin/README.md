@@ -24,6 +24,7 @@ Worker 构建使用独立的插件列表，因此存在前端 Worker 时同时�
 
 - 自动解析 dependencies.js 的前端共享白名单。业务源码保留 `import ... from 'lit'`、`'zod'` 等正常包名与子路径，不自动注入变量。先按业务插件位置解析，缺失时才回退核心包；沿用 Vite 的浏览器条件、CSS/WASM 等资源解析。
 - 自动处理 `scwc:deps`，浏览器适配只导出 z；无需自行创建适配文件或 alias。前端专用文件可直接从 zod 导入；前后端共享文件仍可使用 scwc:deps，后端通过 SDK 钩子加载。
+- 自动解析 `scwc:shared/frontend` 到 [shared 前端入口](../shared/README.md)，并在每个 HTML 入口注入该模块，注册表单组件、通知和滚动容器。工具和组件类可按需命名导入；不注入全局变量。Worker 不自动加载这个需要 DOM 的入口。
 - 为 JS/TS 装饰器使用现有 esbuild 工具链预先转换，读取源码附近 tsconfig 的标准/实验模式，避免 Vite 8 的 Oxc 保留浏览器无法解析的装饰器。保留 sourcemap 和后续 JSX 转换，跳过 raw/url 资源。
 - 同一页面或 Worker 环境多次注册时只有第一个实例处理解析与转译，支持核心自动注入与用户配置同时存在。
 
@@ -34,6 +35,8 @@ Worker 构建使用独立的插件列表，因此存在前端 Worker 时同时�
 核心页面构建器自动为页面及 Worker 注入本插件；即使旧插件没有显式配置，也可使用共享能力。构建配置中导入 `@scwc/vite-plugin` 时，核心为外部目录提供该构建包的解析回退。
 
 该包已加入核心 sharedBuildPackages，两种 build:core:bundled-node / build:core:external-node 构建都通过 shared-package-assets.ts 携带 package.json、运行模块、声明和浏览器适配；内置 Node 版与 Vite/esbuild 一起在首次页面构建时释放。部署内置 Node 版时无需另装此包、Node 或 Vite，外置 Node 版只需另装合规 Node。
+
+`@scwc/shared` 是本包的工作区依赖，发行收集会连同共享入口、组件源码、CSS 和传递依赖一起保留。外部复制本包开发时，dependencyRoot 也须能解析已安装的 `@scwc/shared/frontend`。
 
 `build:core:windows/linux/macos` 的 Node 目录发行包也携带本插件与相同白名单工具链，位于 runtime/node_modules；通过 start.cjs 使用用户的 Node >=25 启动，无需另装本插件或 Vite。
 

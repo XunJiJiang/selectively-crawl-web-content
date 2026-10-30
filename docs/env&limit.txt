@@ -7,6 +7,7 @@ AOCI维护/重建|保留本文件及入口；不得以索引覆盖或清空本�
 Node原生strip-only加载的TS及其导入链|仅允许可擦除TS语法；禁止构造函数参数属性等需要转译生成JS的语法。
 沙箱默认执行|本机TCP监听或回环连接可能返回EPERM/EACCES；经批准的提权执行可启动并连接本机服务。
 Vitest沙箱运行|默认临时目录的模块缓存rename可能返回EPERM；测试临时目录使用仓库内可写路径。
+Bun工作区安装沙箱|默认及显式TMPDIR均可能无法写临时目录；需在沙箱外执行依赖安装。
 Windows文件符号链接|当前权限创建文件symlink返回EPERM。
 AOCI CLI沙箱|CAS锁临时文件rename可能返回Access is denied；需在沙箱外使用原临时目录，保持跨进程锁域一致。
 AOCI 0.1.0-rc21孤儿删除|历史对象再次删除可能触发cognition_transaction_ledger_terminal_event_conflict，常规重试不能恢复。

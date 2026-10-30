@@ -20,3 +20,11 @@ declare module 'scwc:runtime' {
   export type PluginWorkerOptions = import('./runtime.ts').PluginWorkerOptions;
   export type PluginRequest = import('../../types/plugin-process.d.ts').PluginRequest;
 }
+
+declare module 'scwc:shared/backend' {
+  export * from '@scwc/shared/backend';
+}
+
+declare module 'scwc:shared/frontend' {
+  export * from '@scwc/shared/frontend';
+}
