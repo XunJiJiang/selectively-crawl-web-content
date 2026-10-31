@@ -1,7 +1,7 @@
 {
   "version": 1,
   "created_at": "2026-10-18T10:54:05Z",
-  "updated_at": "2026-10-31T09:16:34Z",
+  "updated_at": "2026-10-31T10:16:24Z",
   "files": {
     ".gitattributes": {
       "role": "index",
@@ -59,9 +59,9 @@
     },
     "aoci.code.txt": {
       "role": "index",
-      "sha256": "b1dabcd2cc59ab552d41494c5bf48209d826fe7d83bbc9868cabf7ef1f761c77",
-      "size": 200599,
-      "normalized_sha256": "b1dabcd2cc59ab552d41494c5bf48209d826fe7d83bbc9868cabf7ef1f761c77"
+      "sha256": "de52dc663c4ba9d1f244fb20f14d7588fe220b842670567cd1f123c4930dfc9a",
+      "size": 201025,
+      "normalized_sha256": "de52dc663c4ba9d1f244fb20f14d7588fe220b842670567cd1f123c4930dfc9a"
     },
     "aoci.meta.txt": {
       "role": "index",
@@ -6740,9 +6740,9 @@
     },
     "projects/server/scripts/external-node-distribution.test.ts": {
       "role": "index",
-      "sha256": "2d1cdb35d1a8508328c35cc0c074400635407a2f6fce3d33f0af70e5fc943ac3",
-      "size": 10603,
-      "normalized_sha256": "2d1cdb35d1a8508328c35cc0c074400635407a2f6fce3d33f0af70e5fc943ac3"
+      "sha256": "55b60ad32f80c6ab5b0df4f3b79c9a16fa73d32bdf83e119606ca57181291795",
+      "size": 10733,
+      "normalized_sha256": "55b60ad32f80c6ab5b0df4f3b79c9a16fa73d32bdf83e119606ca57181291795"
     },
     "projects/server/scripts/external-node-runtime.test.ts": {
       "role": "index",
@@ -6810,6 +6810,12 @@
       "size": 3429,
       "normalized_sha256": "f1a2b09ea90f9a3480469ed66356674bc6135694855e961df463f8af6cfdf50e"
     },
+    "projects/server/scripts/runtime-ui.test.ts": {
+      "role": "index",
+      "sha256": "ff861d5d82c3a3a813b967b5737e00ac58ba213ee70fa33a51f1719752f4c095",
+      "size": 2586,
+      "normalized_sha256": "ff861d5d82c3a3a813b967b5737e00ac58ba213ee70fa33a51f1719752f4c095"
+    },
     "projects/server/scripts/sea-bootstrap.ts": {
       "role": "index",
       "sha256": "b51154c2f1c9edbf0a4b05f5c6364cf0f94baec5bc5601a635fb0461d8de7fe6",
@@ -6824,9 +6830,9 @@
     },
     "projects/server/scripts/shared-package-assets.ts": {
       "role": "index",
-      "sha256": "6a57b92f6b2a8d3dbcfd8e8f48022eb70546fe4f9aa478c0c04f5c6527a9c4df",
-      "size": 3214,
-      "normalized_sha256": "6a57b92f6b2a8d3dbcfd8e8f48022eb70546fe4f9aa478c0c04f5c6527a9c4df"
+      "sha256": "1a12c4f6bb87e9b4f0125d801a08f5b2d39170c0f38bbd69ff317b7fececab56",
+      "size": 3397,
+      "normalized_sha256": "1a12c4f6bb87e9b4f0125d801a08f5b2d39170c0f38bbd69ff317b7fececab56"
     },
     "projects/server/scripts/smoke-bundled-node.ts": {
       "role": "index",

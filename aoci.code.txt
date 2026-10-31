@@ -1075,7 +1075,7 @@ build-runtime.ts[OV8S]: F:组装双发行共用的核心与构建运行资产 | 
 build.ts[OV5T]: F:准备核心Web产物 | R:code:projects/web/vite.config.ts,code:projects/server/scripts/setup.ts | A:buildWeb,isWebBuilt,shouldBuildWeb,buildWebIfNeeded | S:已构建仅检查index.html存在；默认只有mode严格为prod且缺产物才构建，强制build优先
 bundled-node-launch.test.ts[TV6T]: F:验证独立发行启动 | R:code:projects/server/scripts/release-test-utils.ts,code:projects/server/scripts/sea-bootstrap.ts | A:Vitest集成用例 | S:从真实ZIP复制部署，默认终端保存多窗状态，no-terminal不生成状态文件
 external-node-bootstrap.ts[EV8T]: F:引导外置Node运行 | R:code:projects/server/scripts/external-node-runtime.ts,code:projects/server/common/paths.ts | A:startExternalNode,--check-node | S:相邻env优先指定Node，显式路径无效不回退；验证后所有子宿主沿用同一Node及绝对部署根
-external-node-distribution.test.ts[TV6M]: F:验证搬移发行包 | R:code:projects/server/scripts/build-external-node.ts,code:projects/server/scripts/release-test-utils.ts | A:Vitest集成用例 | S:消费实际ZIP并从无关cwd运行，验证插件SDK、Worker、Vite和带空格Node路径
+external-node-distribution.test.ts[TV6M]: F:验证搬移发行包 | R:code:projects/server/scripts/build-external-node.ts,code:projects/server/scripts/release-test-utils.ts | A:Vitest集成用例 | S:消费实际ZIP并从无关cwd运行，验证插件SDK、Worker、Vite和带空格Node路径；页面准备失败附核心日志
 external-node-runtime.test.ts[TV6S]: F:验证Node兼容门禁 | R:code:projects/server/scripts/external-node-runtime.ts,code:projects/server/scripts/external-node-bootstrap.ts | A:Vitest用例 | S:覆盖旧版、替代运行时、架构libc和NAPI不匹配，以及显式错误路径不得回退
 external-node-runtime.ts[FV8T]: F:校验外置运行环境 | R:code:projects/server/scripts/external-node-bootstrap.ts | A:currentNodeInfo,validateNode,readBuildInfo,loadExternalNodeEnvironment,ExternalNodeBuildInfo,NodeRuntimeInfo | S:发行元数据仅支持Node25及NAPI10门槛；Linux另验libc；env不得覆盖三个SCWC引导字段
 killRedisServer.sh[OR2T]: F:关闭本机Redis实例 | R:- | A:Shell入口 | S:直接对固定6379端口执行redis-cli shutdown
@@ -1087,8 +1087,9 @@ release-test-utils.ts[TV5T]: F:准备真实发行测试 | R:code:projects/server
 restart.ts[OR3S]: F:等待旧进程后重启 | R:- | A:重启脚本入口 | S:硬编码cwd/server/index.ts及bun start，仅传入pid才安排重启
 sea-bootstrap.ts[EV8T]: F:引导内置运行资产 | R:code:projects/server/scripts/build-runtime.ts,code:projects/server/common/paths.ts | A:SEA进程启动入口 | S:私有临时目录在正常退出时删除；子宿主复用runtime，构建资源按scope延迟解包，默认启动终端
 setup.ts[EV7T]: F:准备源码服务启动 | R:code:projects/server/scripts/build.ts,code:projects/terminal/index.ts,code:projects/server/common/config.ts | A:源码启动脚本入口 | S:先统一短参数别名，再按需构建Web后启动终端；缺省模式为prod
-shared-package-assets.ts[OV7T]: F:收集原生程序及资源相对路径依赖 | R:code:projects/server/scripts/build-runtime.ts | A:sharedPackageAssets,sharedExternalPackages | S:node-notifier、open、trash和SQLite保留完整包资产；冲突版本分层，只有可选依赖允许缺失
+shared-package-assets.ts[OV7S]: F:收集原生程序及资源相对路径依赖 | R:code:projects/server/scripts/build-runtime.ts | A:sharedPackageAssets,sharedExternalPackages | S:jsdom与css-tree须外置并携带包内CSS、Worker及JSON；通知、open、trash和SQLite保留完整资产；冲突版本分层，仅可选依赖允许缺失
 smoke-bundled-node.ts[TV6M]: F:冒烟验证独立核心 | R:code:projects/server/scripts/release-test-utils.ts,code:projects/terminal/smoke.ts | A:独立发行冒烟脚本 | S:需要真实内置发行ZIP和Redis；从无关cwd验证密码前缀隔离、输入取消、端口递增及退出清理
+runtime-ui.test.ts[TV6T]: F:验证发行运行资产支持声明式UI编译 | R:code:projects/server/scripts/shared-package-assets.ts,code:projects/server/workbench/ui-compiler.ts | A:Vitest集成用例 | S:子进程用发行相同CJS选项编译并清洗HTML与CSS，解析钩子拒绝临时目录外依赖，防工作区掩盖缺失资源
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/scripts/launchers/===
 start.ps1[EV6T]: F:选择Windows运行时 | R:code:projects/server/scripts/external-node-bootstrap.ts | A:PowerShell启动器 | S:解析相邻env而不执行内容；显式Node不合规即失败，缺省遍历PATH候选；探测期间清空NODE_OPTIONS

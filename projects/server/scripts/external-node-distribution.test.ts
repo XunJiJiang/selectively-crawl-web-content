@@ -168,7 +168,10 @@ export default {async onRequest(){},async onLoad(){const db=new Database(':memor
           },
           { timeout: 20_000 },
         )
-        .toBe(true);
+        .toBe(true)
+        .catch((error) => {
+          throw new Error(`发行核心输出：\n${running.output()}`, { cause: error });
+        });
       const identity = (await (
         await fetch(`${url}/web/api/safeId/node-release-check?site=http://localhost`, { headers })
       ).json()) as { data: { safeId: string } };
