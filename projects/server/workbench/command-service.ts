@@ -16,6 +16,7 @@ import type { InputRequest } from '../types/task.d.ts';
 import { assert, coreBootId, json, now, WorkbenchError, type WorkbenchStorage } from './storage.ts';
 import { identifier, type WorkspaceService } from './workspace.ts';
 import { workbenchEvents } from './events.ts';
+import { COMMAND_HISTORY_LIMIT } from '../../shared/command-history.ts';
 
 type Execution = {
   id: string;
@@ -104,6 +105,24 @@ export class CommandService {
     assert(row, 'not_found', '终端不属于此工作区', 404);
     return { id, ...JSON.parse(row.value_json), revision: row.revision };
   }
+  private commandHistory(workspaceId: string): string[] {
+    const row = this.storage.db
+      .prepare('SELECT value_json FROM terminal_history WHERE workspace_id=?')
+      .get(workspaceId) as { value_json: string } | undefined;
+    if (row) {
+      return JSON.parse(row.value_json);
+    }
+    // Seed older workspaces from accepted executions, including archived terminals.
+    return (
+      this.storage.db
+        .prepare(
+          'SELECT e.command FROM executions e JOIN terminals t ON e.terminal_id=t.id WHERE t.workspace_id=? ORDER BY e.rowid DESC LIMIT ?',
+        )
+        .all(workspaceId, COMMAND_HISTORY_LIMIT) as { command: string }[]
+    )
+      .reverse()
+      .map((entry) => entry.command);
+  }
   saveTerminal(workspaceId: string, owner: string, lease: string, input: unknown) {
     this.workspace.checkLease(workspaceId, owner, lease);
     const data = z
@@ -121,7 +140,7 @@ export class CommandService {
     const value = {
       title: data.title,
       draft: data.draft,
-      history: existing?.history ?? [],
+      history: existing?.history ?? this.commandHistory(workspaceId),
       archivedAt: existing?.archivedAt ?? null,
     };
     this.storage.db
@@ -197,15 +216,19 @@ export class CommandService {
       createdAt: now(),
     };
     this.storage.db.transaction(() => {
+      const history = this.commandHistory(workspaceId);
       this.storage.db
         .prepare('INSERT INTO executions VALUES (?,?,?,?,?,?,?)')
         .run(id, terminalId, coreBootId, 'running', command, receiptKey, json(value));
       const { revision: _, id: __, ...metadata } = terminal;
-      metadata.history = [...(terminal.history ?? []), command].slice(-1000);
+      metadata.history = [...(terminal.history ?? []), command].slice(-COMMAND_HISTORY_LIMIT);
       metadata.draft = '';
       this.storage.db
         .prepare('UPDATE terminals SET value_json=?,revision=revision+1 WHERE id=?')
         .run(json(metadata), terminalId);
+      this.storage.db
+        .prepare('INSERT OR REPLACE INTO terminal_history VALUES (?,?)')
+        .run(workspaceId, json([...history, command].slice(-COMMAND_HISTORY_LIMIT)));
     })();
     this.persistOutput(terminalId, { type: 'command', text: command, executionId: id });
     workbenchEvents.publish('execution.started', value, id);

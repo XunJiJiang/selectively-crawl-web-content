@@ -93,6 +93,7 @@ CREATE INDEX IF NOT EXISTS closed_tabs_plugin ON closed_tabs(plugin_id, closed_a
 CREATE INDEX IF NOT EXISTS closed_tabs_batch ON closed_tabs(batch_id);
 CREATE TABLE IF NOT EXISTS snapshots (id TEXT PRIMARY KEY, kind TEXT NOT NULL, owner TEXT NOT NULL, plugin_id TEXT NOT NULL, checksum TEXT NOT NULL, metadata_json TEXT NOT NULL, payload BLOB NOT NULL, created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS terminals (id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL REFERENCES workspaces(id), value_json TEXT NOT NULL, revision INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS terminal_history (workspace_id TEXT PRIMARY KEY REFERENCES workspaces(id), value_json TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS executions (id TEXT PRIMARY KEY, terminal_id TEXT NOT NULL REFERENCES terminals(id), boot_id TEXT NOT NULL, status TEXT NOT NULL, command TEXT NOT NULL, request_key TEXT NOT NULL UNIQUE, value_json TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS output_records (stream_id TEXT NOT NULL, seq INTEGER NOT NULL, timestamp TEXT NOT NULL, value_json TEXT NOT NULL, PRIMARY KEY(stream_id, seq));
 CREATE TABLE IF NOT EXISTS output_streams (id TEXT PRIMARY KEY, seq INTEGER NOT NULL DEFAULT 0);

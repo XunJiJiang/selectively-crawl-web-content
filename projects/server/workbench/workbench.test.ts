@@ -11,6 +11,7 @@ import { CommandService } from './command-service.ts';
 import { registerCommand, unregisterPluginCommand, SYSTEM_SYMBOL } from '../utils/command.ts';
 import { createLogger } from '../utils/log.ts';
 import { NotificationService } from './notifications.ts';
+import { COMMAND_HISTORY_LIMIT } from '../../shared/command-history.ts';
 
 const stores: WorkbenchStorage[] = [],
   directories: string[] = [],
@@ -128,6 +129,16 @@ describe('persistent plugin strings', () => {
 });
 
 describe('workspace leases and close history', () => {
+  it('resumes a reloaded owner without letting the old document release its new lease', () => {
+    const { workspace } = fixture();
+    const old = workspace.lease('reload', 'window', 'acquire');
+    const resumed = workspace.lease('reload', 'window', 'acquire');
+    assert('token' in old && 'token' in resumed, 'test', 'lease required');
+    expect(resumed.workspaceId).toBe(old.workspaceId);
+    expect(resumed.token).not.toBe(old.token);
+    expect(() => workspace.lease('reload', 'window', 'release', old.token)).toThrow();
+    expect(() => workspace.checkLease('reload', 'window', resumed.token)).not.toThrow();
+  });
   it('persists bookmark folders and bookmark membership without altering encoded URLs', () => {
     const { workspace } = fixture();
     workspace.setPreferences({ bookmarkFolders: [{ id: 'research', name: '资料' }] }, 0);
@@ -253,6 +264,99 @@ describe('events, tickets and notifications', () => {
 });
 
 describe('Web command execution', () => {
+  it('persists isolated workspace histories, copies them for new terminals, and bounds both lists', async () => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'scwc-terminal-history-'));
+    directories.push(directory);
+    const files = [
+      path.join(directory, 'workbench.sqlite'),
+      path.join(directory, 'config.sqlite'),
+    ] as const;
+    const storage = new WorkbenchStorage(...files);
+    stores.push(storage);
+    const workspace = new WorkspaceService(storage);
+    const lease = workspace.lease('history-workspace', 'owner', 'acquire');
+    const otherLease = workspace.lease('other-history-workspace', 'owner', 'acquire');
+    assert('token' in lease && 'token' in otherLease, 'test', 'lease required');
+    const service = new CommandService(storage, workspace);
+    commands.push(service);
+    const create = () =>
+      service.saveTerminal('history-workspace', 'owner', lease.token, { title: 'History' });
+    const first = create();
+    const command = 'history-probe';
+    registerCommand(createLogger('history-test', ''), command, () => undefined, 'workbench-test');
+    const run = async (terminalId: string, text: string, key: string) => {
+      const execution = await service.execute(
+        'history-workspace',
+        'owner',
+        lease.token,
+        terminalId,
+        text,
+        key,
+      );
+      await expect.poll(() => service.execution(execution.id).status).toBe('succeeded');
+      return execution;
+    };
+    await run(first.id, `${command} first`, 'first');
+    const second = create();
+    expect(second.history).toEqual([`${command} first`]);
+    await run(first.id, `${command} later`, 'later');
+    const accepted = await run(second.id, `${command} second`, 'second');
+    expect((await run(second.id, `${command} second`, 'second')).id).toBe(accepted.id);
+    expect(service.terminal(first.id, 'history-workspace').history).toEqual([
+      `${command} first`,
+      `${command} later`,
+    ]);
+    expect(service.terminal(second.id, 'history-workspace').history).toEqual([
+      `${command} first`,
+      `${command} second`,
+    ]);
+    // Simulate an existing database that predates aggregate histories.
+    storage.db.prepare('DELETE FROM terminal_history').run();
+    const migrated = create();
+    expect(migrated.history).toEqual([`${command} first`, `${command} later`, `${command} second`]);
+    service.alterTerminal('history-workspace', 'owner', lease.token, first.id, 'clear-history');
+    service.alterTerminal('history-workspace', 'owner', lease.token, first.id, 'close');
+    expect(create().history).toEqual(migrated.history);
+    expect(
+      service.saveTerminal('other-history-workspace', 'owner', otherLease.token, { title: 'Other' })
+        .history,
+    ).toEqual([]);
+    const history = Array.from({ length: COMMAND_HISTORY_LIMIT }, (_, i) => `old ${i}`);
+    storage.db
+      .prepare('INSERT OR REPLACE INTO terminal_history VALUES (?,?)')
+      .run('history-workspace', JSON.stringify(history));
+    const full = create();
+    await run(full.id, `${command} latest`, 'latest');
+    const saved = service.terminal(full.id, 'history-workspace').history;
+    expect(saved).toHaveLength(COMMAND_HISTORY_LIMIT);
+    expect(saved[0]).toBe('old 1');
+    expect(create().history).toEqual(saved);
+    expect(service.terminal(second.id, 'history-workspace').history).toEqual([
+      `${command} first`,
+      `${command} second`,
+    ]);
+    const terminals = service.terminals('history-workspace');
+    service.close();
+    commands.splice(commands.indexOf(service), 1);
+    storage.close();
+    stores.splice(stores.indexOf(storage), 1);
+    const reopened = new WorkbenchStorage(...files);
+    stores.push(reopened);
+    const restoredWorkspace = new WorkspaceService(reopened);
+    const restoredLease = restoredWorkspace.lease('history-workspace', 'owner', 'acquire');
+    assert('token' in restoredLease, 'test', 'lease required');
+    const restored = new CommandService(reopened, restoredWorkspace);
+    commands.push(restored);
+    expect(restored.terminals('history-workspace')).toEqual(terminals);
+    expect(restored.outputPage(full.id, 0, 500).items.map((item) => item.text)).toContain(
+      `${command} latest`,
+    );
+    expect(
+      restored.saveTerminal('history-workspace', 'owner', restoredLease.token, {
+        title: 'Restored',
+      }).history,
+    ).toEqual(saved);
+  });
   it('rejects unknown commands as a user error before accepting execution or clearing the draft', async () => {
     const { storage, workspace } = fixture();
     const lease = workspace.lease('unknown-workspace', 'owner', 'acquire');

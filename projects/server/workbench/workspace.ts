@@ -345,7 +345,9 @@ export class WorkspaceService {
     }
     const lease = {
       owner,
-      token: active && current?.owner === owner ? current.token : randomUUID(),
+      // A reload resumes the owner; rotate the token so its predecessor's late
+      // keepalive release cannot revoke the new document's lease.
+      token: randomUUID(),
       expiresAt: this.clock() + 30000,
     };
     this.leases.set(id, lease);

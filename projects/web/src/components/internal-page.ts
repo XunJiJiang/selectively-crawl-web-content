@@ -466,9 +466,11 @@ export class InternalPageView extends LitElement {
           html`<button
             class="btn secondary"
             @click=${() => {
-              if (this.store.systemNotificationsEnabled)
+              if (this.store.systemNotificationsEnabled) {
                 this.run(() => this.store.disableSystemNotifications());
-              else this.run(() => this.store.requestSystemNotificationPermission());
+              } else {
+                this.run(() => this.store.requestSystemNotificationPermission());
+              }
             }}
           >
             ${this.store.systemNotificationsEnabled ? '关闭系统通知' : '开启系统通知'}

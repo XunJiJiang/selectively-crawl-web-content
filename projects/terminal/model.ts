@@ -14,6 +14,7 @@ import type { PluginPreferences } from './plugin/types.d.ts';
 import { completionInput } from './completion.ts';
 import { completionSource } from './command-text.ts';
 import stringWidth from 'string-width';
+import { COMMAND_HISTORY_LIMIT } from '../shared/command-history.ts';
 
 export type Mode = 'normal' | 'global' | 'global-output' | 'confirmation';
 export interface WindowState {
@@ -101,6 +102,7 @@ export class TerminalModel {
   globalCursor = 0;
   globalSelection?: number;
   globalHistory: string[] = [];
+  commandHistory: string[] = [];
   globalHistoryCursor = 0;
   globalHistoryDraft = '';
   globalExtensions: GlobalCommandInfo[] = [];
@@ -190,6 +192,8 @@ export class TerminalModel {
       number++;
     }
     const window = this.make('command', number);
+    window.history = [...this.commandHistory];
+    window.historyCursor = window.history.length;
     if (title !== undefined) {
       this.rename(window, title);
     }
@@ -325,12 +329,16 @@ export class TerminalModel {
       }
     }
   }
-  record(window: WindowState, command: string) {
+  record(window: WindowState, command: string, executed = true) {
     if (window.history[window.history.length - 1] !== command) {
       window.history.push(command);
     }
-    if (window.history.length > 1000) {
+    if (window.history.length > COMMAND_HISTORY_LIMIT) {
       window.history.shift();
+    }
+    if (executed && this.commandHistory.at(-1) !== command) {
+      this.commandHistory.push(command);
+      this.commandHistory = this.commandHistory.slice(-COMMAND_HISTORY_LIMIT);
     }
     window.historyCursor = window.history.length;
     window.historyDraft = '';
@@ -391,7 +399,7 @@ export class TerminalModel {
   }
   clearCommand(remember = false) {
     if (remember && this.text) {
-      this.record(this.active, this.text);
+      this.record(this.active, this.text, false);
     }
     this.setInput('', 0);
     const window = this.active;
@@ -439,7 +447,7 @@ export class TerminalModel {
   recordGlobal(command: string) {
     if (command && this.globalHistory.at(-1) !== command) {
       this.globalHistory.push(command);
-      this.globalHistory = this.globalHistory.slice(-1000);
+      this.globalHistory = this.globalHistory.slice(-COMMAND_HISTORY_LIMIT);
     }
     this.globalHistoryCursor = this.globalHistory.length;
     this.globalHistoryDraft = '';

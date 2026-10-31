@@ -17,6 +17,11 @@ describe('atomic terminal persistence', () => {
       model.record(empty, 'history without output');
       await store.save(model);
       const restored = await store.load();
+      expect(restored.commandHistory).toEqual(['history without output']);
+      const next = restored.newWindow();
+      expect(next.history).toEqual(['history without output']);
+      restored.record(next, 'new command');
+      expect(restored.windows[2].history).toEqual(['history without output']);
       expect(restored.output.restoredHistoryEnd).toBe(1);
       expect(restored.windows[1].restoredHistoryEnd).toBe(1);
       expect(restored.windows[2].restoredHistoryEnd).toBeUndefined();

@@ -3,6 +3,7 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { TerminalModel, sanitizeOutput } from './model.ts';
 import type { WindowState } from './model.ts';
+import { COMMAND_HISTORY_LIMIT } from '../shared/command-history.ts';
 
 export class StateStore {
   readonly filename: string;
@@ -80,6 +81,7 @@ export class StateStore {
       activeId: model.activeId,
       globalDraft: model.globalDraft,
       globalHistory: model.globalHistory,
+      commandHistory: model.commandHistory,
       pluginPreferences: model.pluginPreferences,
       transparentBackground: model.transparentBackground,
       windows: model.windows.map(
@@ -159,7 +161,7 @@ export function restoreState(value: unknown): TerminalModel {
       Array.isArray(data)
         ? data.filter((item): item is string => typeof item === 'string').slice(-count)
         : [];
-    const history = strings(entry.history, 1000);
+    const history = strings(entry.history, COMMAND_HISTORY_LIMIT);
     const draft = typeof entry.draft === 'string' ? entry.draft.slice(0, 65536) : '';
     const savedLines = strings(entry.lines, Infinity);
     const lines = savedLines.slice(-10000).map(sanitizeOutput);
@@ -232,6 +234,11 @@ export function restoreState(value: unknown): TerminalModel {
   }
   const output = windows.find((window) => window.kind === 'output') ?? model.output;
   model.windows = [output, ...windows.filter((window) => window.kind === 'command')];
+  model.commandHistory = (
+    'commandHistory' in value && Array.isArray(value.commandHistory)
+      ? value.commandHistory.filter((item): item is string => typeof item === 'string')
+      : windows.filter((window) => window.kind === 'command').flatMap((window) => window.history)
+  ).slice(-COMMAND_HISTORY_LIMIT);
   const activeId = 'activeId' in value ? value.activeId : undefined;
   model.activeId = model.windows.find((window) => window.id === activeId)?.id ?? output.id;
   model.globalDraft =
@@ -241,7 +248,9 @@ export function restoreState(value: unknown): TerminalModel {
   model.globalCursor = model.globalDraft.length;
   model.globalHistory =
     'globalHistory' in value && Array.isArray(value.globalHistory)
-      ? value.globalHistory.filter((item): item is string => typeof item === 'string').slice(-1000)
+      ? value.globalHistory
+          .filter((item): item is string => typeof item === 'string')
+          .slice(-COMMAND_HISTORY_LIMIT)
       : [];
   model.globalHistoryCursor = model.globalHistory.length;
   if (

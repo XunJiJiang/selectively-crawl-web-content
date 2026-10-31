@@ -62,7 +62,13 @@ export function nativeNotificationHost(): CoreNotificationHost {
         : process.platform === 'win32'
           ? new library.WindowsToaster()
           : new library.NotifySend();
-      if (value.isCurrent && !value.isCurrent()) return { close() {} };
+      if (value.isCurrent && !value.isCurrent()) {
+        return {
+          close() {
+            /* */
+          },
+        };
+      }
       const id = ++nativeId;
       let closed = false;
       notifier.notify(
@@ -78,8 +84,10 @@ export function nativeNotificationHost(): CoreNotificationHost {
           appName: process.platform === 'linux' ? 'SCWC' : undefined,
         },
         (error, _response, metadata) => {
-          if (closed) return;
-          if (error)
+          if (closed) {
+            return;
+          }
+          if (error) {
             value.onError(
               mac &&
                 /Notifications are not allowed|Permission to send notifications was declined/i.test(
@@ -93,7 +101,7 @@ export function nativeNotificationHost(): CoreNotificationHost {
                   )
                 : error,
             );
-          else if (
+          } else if (
             metadata &&
             [
               'contentsClicked',
@@ -104,13 +112,16 @@ export function nativeNotificationHost(): CoreNotificationHost {
               'buttonClicked',
               '打开工作台',
             ].includes(metadata.activationType ?? '')
-          )
+          ) {
             value.onClick();
+          }
         },
       );
       return {
         close() {
-          if (closed) return;
+          if (closed) {
+            return;
+          }
           closed = true;
           notifier.clearAll?.();
           if (mac || process.platform === 'win32') {

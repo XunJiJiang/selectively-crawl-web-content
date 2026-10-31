@@ -19,7 +19,9 @@ async function marker(app: string): Promise<{ owner: string; fingerprint: string
   try {
     return JSON.parse(await readFile(markerPath(app), 'utf8'));
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      return undefined;
+    }
     throw error;
   }
 }
@@ -34,7 +36,9 @@ async function lockFile(filename: string) {
         await rm(filename, { force: true });
       };
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') {
+        throw error;
+      }
       // Only retire a lock when its owner is provably no longer running.
       try {
         const pid = Number(await readFile(filename, 'utf8'));
@@ -49,9 +53,13 @@ async function lockFile(filename: string) {
           }
         }
       } catch (reason) {
-        if ((reason as NodeJS.ErrnoException).code !== 'ENOENT') throw reason;
+        if ((reason as NodeJS.ErrnoException).code !== 'ENOENT') {
+          throw reason;
+        }
       }
-      if (Date.now() >= deadline) throw new Error('SCWC 通知辅助应用正在更新，请稍后重试');
+      if (Date.now() >= deadline) {
+        throw new Error('SCWC 通知辅助应用正在更新，请稍后重试', { cause: error });
+      }
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
   }
@@ -74,7 +82,9 @@ export async function prepareMacNotificationHelper(
         throw new Error(`通知应用路径不是独立应用目录：${app}`);
       }
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        throw error;
+      }
     }
     const png = await readFile(icon);
     const catalogData = await readFile(catalog);
@@ -86,7 +96,9 @@ export async function prepareMacNotificationHelper(
       .update(await readFile(path.join(source, 'Contents/Info.plist')))
       .digest('hex');
     const existing = await marker(app);
-    if (existing && existing.owner !== owner) throw new Error(`通知应用路径被其他应用占用：${app}`);
+    if (existing && existing.owner !== owner) {
+      throw new Error(`通知应用路径被其他应用占用：${app}`);
+    }
     let reusable = existing?.fingerprint === fingerprint;
     if (reusable) {
       try {
@@ -101,10 +113,13 @@ export async function prepareMacNotificationHelper(
       // Never replace an unrelated application merely because its name matches ours.
       try {
         const destination = await lstat(app);
-        if (!existing || !destination.isDirectory() || destination.isSymbolicLink())
+        if (!existing || !destination.isDirectory() || destination.isSymbolicLink()) {
           throw new Error(`通知应用路径已有非 SCWC 托管的应用：${app}`);
+        }
       } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+          throw error;
+        }
       }
       const stage = await mkdtemp(path.join(directory, '.scwc-notification-stage-'));
       const candidate = path.join(stage, 'SCWC Notifications.app');
@@ -161,7 +176,9 @@ export async function prepareMacNotificationHelper(
         }
       } finally {
         // Preserve the previous app if a concurrent filesystem change prevents rollback.
-        if (!backedUp || installed) await rm(stage, { recursive: true, force: true });
+        if (!backedUp || installed) {
+          await rm(stage, { recursive: true, force: true });
+        }
       }
     }
     // A valid signature alone does not make a copied app known to notification services.

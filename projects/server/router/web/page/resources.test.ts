@@ -56,8 +56,12 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  if (server?.listening) await new Promise<void>((resolve) => server.close(() => resolve()));
-  if (fixture.root) await fs.rm(fixture.root, { recursive: true, force: true });
+  if (server?.listening) {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+  if (fixture.root) {
+    await fs.rm(fixture.root, { recursive: true, force: true });
+  }
 });
 
 // Keep encoded separators and traversal intact instead of normalizing them in a URL parser.

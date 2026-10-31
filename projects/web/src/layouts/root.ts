@@ -4275,8 +4275,11 @@ export class AppRoot extends LitElement {
             'bell',
             this.store.systemNotificationsEnabled ? '关闭系统通知' : '开启系统通知',
             () => {
-              if (this.store.systemNotificationsEnabled) this.act(() => this.store.disableSystemNotifications());
-              else this.act(() => this.store.requestSystemNotificationPermission());
+              if (this.store.systemNotificationsEnabled) {
+                this.act(() => this.store.disableSystemNotifications());
+              } else {
+                this.act(() => this.store.requestSystemNotificationPermission());
+              }
             },
           )}${iconButton('check', '全部标记已读', () =>
             this.act(async () => {

@@ -17,7 +17,7 @@ export class WorkbenchAPI {
   readonly requests = new RequestLifecycle();
   beforeRequest?: () => Promise<void>;
   prepareBody?: (body: unknown) => unknown;
-  readonly clientWindowId = crypto.randomUUID();
+  clientWindowId: string = crypto.randomUUID();
   readonly config: TConfig;
   constructor(config: TConfig) {
     this.config = config;

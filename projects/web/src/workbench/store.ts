@@ -76,9 +76,11 @@ export class WorkbenchStore extends EventTarget {
   }
   get systemNotificationPermission() {
     const settings = this.systemNotificationSettings;
-    if (settings.answered && !settings.enabled) return 'denied';
+    if (settings.answered && !settings.enabled) {
+      return 'denied';
+    }
     const permissions = [];
-    if (this.usesCoreNotifications)
+    if (this.usesCoreNotifications) {
       permissions.push(
         this.coreNotificationStatus?.supported
           ? settings.enabled
@@ -86,8 +88,10 @@ export class WorkbenchStore extends EventTarget {
             : 'default'
           : 'unsupported',
       );
-    if (this.usesBrowserNotifications)
+    }
+    if (this.usesBrowserNotifications) {
       permissions.push(this.notificationHost.notifications.getPermission());
+    }
     return permissions.includes('default')
       ? 'default'
       : permissions.includes('granted')
@@ -212,15 +216,22 @@ export class WorkbenchStore extends EventTarget {
     }
   }
   private notificationPreferenceChanged = (event: StorageEvent) => {
-    if (event.key !== notificationPreferenceKey) return;
+    if (event.key !== notificationPreferenceKey) {
+      return;
+    }
     this.loadSystemNotificationChoice();
-    if (this.systemNotificationPromptHandled) this.systemNotificationPromptVisible = false;
-    if (!this.systemNotificationsEnabled) this.systemNotifications.closeAll();
+    if (this.systemNotificationPromptHandled) {
+      this.systemNotificationPromptVisible = false;
+    }
+    if (!this.systemNotificationsEnabled) {
+      this.systemNotifications.closeAll();
+    }
     this.changed();
   };
   private refreshNotificationPermission = () => {
-    if (this.systemNotificationPermission !== 'default')
+    if (this.systemNotificationPermission !== 'default') {
       this.systemNotificationPromptVisible = false;
+    }
     this.changed();
   };
   private notificationPresenceTimer?: ReturnType<typeof setInterval>;
@@ -236,14 +247,16 @@ export class WorkbenchStore extends EventTarget {
       this.disposed ||
       !this.bootstrap?.systemNotifications ||
       (!isLoopbackHostname(location.hostname) && !this.forceCoreNotifications)
-    )
+    ) {
       return;
+    }
     void Promise.resolve(this.notificationHost.focus.isFocused())
       .then((focused) => {
-        if (!this.disposed)
+        if (!this.disposed) {
           return this.api
             .request('/system-notifications/presence', { focused }, undefined, true, false, true)
             .catch(() => undefined);
+        }
       })
       .catch(() => undefined);
   };
@@ -702,7 +715,9 @@ export class WorkbenchStore extends EventTarget {
   }
   private applyNotification(value: Notification) {
     const previous = this.notifications.find((n) => n.id === value.id);
-    if (this.browserNotificationsEnabled) this.systemNotifications.update(value, previous);
+    if (this.browserNotificationsEnabled) {
+      this.systemNotifications.update(value, previous);
+    }
     this.notifications = [value, ...this.notifications.filter((n) => n.id !== value.id)];
     const toast = this.toasts.find((t) => t.id === value.id);
     if (toast) {
@@ -738,13 +753,21 @@ export class WorkbenchStore extends EventTarget {
     try {
       this.bootstrap = await this.api.request<Bootstrap>('/bootstrap');
       this.preferences = this.bootstrap.preferences;
-      const requested = this.lease?.workspaceId ?? uid();
-      const initialize = !this.lease;
       this.persistence ??= new BrowserWorkspace(this.bootstrap.installationId);
+      const resumed = !this.lease ? this.persistence.loadSession?.() : undefined;
+      if (resumed) {
+        this.api.clientWindowId = resumed.clientWindowId;
+      }
+      const requested = this.lease?.workspaceId ?? resumed?.workspaceId ?? uid();
+      const initialize = !this.lease && !resumed;
       this.lease = await this.api.request<Lease>(
         `/workspaces/${encodeURIComponent(requested)}/lease`,
         { action: 'acquire' },
       );
+      this.persistence.publishSession?.({
+        workspaceId: this.lease.workspaceId,
+        clientWindowId: this.api.clientWindowId,
+      });
 
       this.workspace = await this.api.request<Workspace>(`/workspaces/${this.lease.workspaceId}`);
       this.applyExecutionState(this.workspace);
@@ -762,7 +785,7 @@ export class WorkbenchStore extends EventTarget {
             /* Migration is best effort if the legacy workspace no longer exists. */
           }
         }
-        // Each document gets a fresh ID, including duplicated browser tabs.
+        // New documents share the layout seed; reloads retain their server workspace.
         await this.update((snapshot) => {
           if (seed) {
             Object.assign(snapshot, seed);
@@ -792,8 +815,9 @@ export class WorkbenchStore extends EventTarget {
       this.reportNotificationFocus();
       this.notificationPresenceTimer = setInterval(this.reportNotificationFocus, 5000);
       const revealId = new URLSearchParams(location.search).get('notification');
-      if (revealId)
+      if (revealId) {
         this.dispatchEvent(new CustomEvent('reveal-notification', { detail: revealId }));
+      }
     } catch (e) {
       this.error = this.message(e);
       this.connection = 'disconnected';
@@ -1295,7 +1319,9 @@ export class WorkbenchStore extends EventTarget {
       this.bootstrap.systemNotifications = e.payload as NonNullable<
         Bootstrap['systemNotifications']
       >;
-      if (!this.browserNotificationsEnabled) this.systemNotifications.closeAll();
+      if (!this.browserNotificationsEnabled) {
+        this.systemNotifications.closeAll();
+      }
       this.refreshSystemNotificationPrompt();
       return;
     }
@@ -1380,8 +1406,12 @@ export class WorkbenchStore extends EventTarget {
       const next = e.payload as Preferences;
       if (next.revision > this.preferences.revision) {
         this.preferences = next;
-        if (!this.browserNotificationsEnabled) this.systemNotifications.closeAll();
-        if (this.systemNotificationSettings.answered) this.systemNotificationPromptVisible = false;
+        if (!this.browserNotificationsEnabled) {
+          this.systemNotifications.closeAll();
+        }
+        if (this.systemNotificationSettings.answered) {
+          this.systemNotificationPromptVisible = false;
+        }
         this.changed();
       }
       return;
@@ -1395,7 +1425,9 @@ export class WorkbenchStore extends EventTarget {
       this.applyNotification(notification);
       if (!known) {
         this.toast(notification.title, notification.level, notification);
-        if (this.browserNotificationsEnabled) this.systemNotifications.publish(notification);
+        if (this.browserNotificationsEnabled) {
+          this.systemNotifications.publish(notification);
+        }
       }
     }
     clearTimeout(this.refreshTimer);

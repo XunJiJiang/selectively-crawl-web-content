@@ -44,12 +44,19 @@ afterEach(() => {
   });
   vi.restoreAllMocks();
   localStorage.clear();
+  sessionStorage.clear();
   vi.unstubAllGlobals();
 });
 
 describe('task completion feedback', () => {
   const job = (status: Job['status'], revision = 1, id = 'task'): Job => ({
-    id, pluginId: 'p', type: 'custom', status, revision, phase: status, logs: [],
+    id,
+    pluginId: 'p',
+    type: 'custom',
+    status,
+    revision,
+    phase: status,
+    logs: [],
   });
   it('does not flash hydrated history or extend feedback for duplicate and stale updates', async () => {
     vi.useFakeTimers();
@@ -83,7 +90,11 @@ describe('task completion feedback', () => {
     expect(store.recentJobStatus).toBe('cancelled');
     await vi.advanceTimersByTimeAsync(1);
     expect(store.recentJobStatus).toBeUndefined();
-    expect(store.unreadJobs.map((item) => item.status)).toEqual(['succeeded', 'failed', 'cancelled']);
+    expect(store.unreadJobs.map((item) => item.status)).toEqual([
+      'succeeded',
+      'failed',
+      'cancelled',
+    ]);
   });
 });
 
@@ -385,6 +396,7 @@ it('creates a fresh workspace per document, shares only the seed, and isolates e
   };
   setup(first);
   await first.start();
+  const firstSession = sessionStorage.getItem('scwc.browser-workspace.i.session');
   await first.update((s) => {
     s.layout.mainSidebar.size = 333;
   });
@@ -411,5 +423,48 @@ it('creates a fresh workspace per document, shares only the seed, and isolates e
   expect(third.workspace?.snapshot.layout.mainSidebar.size).toBe(444);
   expect(third.workspace?.snapshot.binding).toEqual({ kind: 'browser-temporary', localPath: null });
   expect(new Set([first, second, third].map((s) => s.workspace?.workspaceId)).size).toBe(3);
-  sessionStorage.clear();
+  // A reload retains this tab's identity and server data, even while other tabs are open.
+  sessionStorage.setItem('scwc.browser-workspace.i.session', requireValue(firstSession));
+  vi.stubGlobal('performance', { getEntriesByType: () => [{ type: 'reload' }] });
+  const reloaded = new WorkbenchStore();
+  stores.push(reloaded);
+  setup(reloaded);
+  const request = vi.mocked(reloaded.api.request);
+  const previous = requireValue(request.getMockImplementation());
+  const firstWorkspaceId = requireValue((first as WorkbenchStore).workspace).workspaceId;
+  const terminals = [
+    { id: 'one', title: 'One', draft: '', history: ['first'], archivedAt: null, revision: 2 },
+    {
+      id: 'two',
+      title: 'Two',
+      draft: 'draft',
+      history: ['first', 'second'],
+      archivedAt: null,
+      revision: 3,
+    },
+  ];
+  request.mockImplementation(async (...args) => {
+    if (args[0].startsWith('/terminals?')) {
+      expect(args[0]).toContain(`workspaceId=${firstWorkspaceId}`);
+      return structuredClone(terminals) as never;
+    }
+    if (args[0].startsWith('/terminals/two/output?')) {
+      return {
+        items: [{ seq: 1, streamId: 'two', timestamp: 'saved', text: 'saved output' }],
+        nextCursor: null,
+        total: 1,
+        truncatedBefore: null,
+      } as never;
+    }
+    return previous(...args);
+  });
+  vi.mocked(reloaded.refreshLists).mockImplementation(() => reloaded.refreshTerminals());
+  await reloaded.start();
+  await reloaded.loadOutput('two');
+  expect(reloaded.error).toBe('');
+  expect(reloaded.workspace?.workspaceId).toBe(firstWorkspaceId);
+  expect(reloaded.api.clientWindowId).toBe(first.api.clientWindowId);
+  expect(reloaded.terminals).toEqual(terminals);
+  expect(reloaded.outputs.get('two')?.[0].text).toBe('saved output');
+  expect(request.mock.calls.some(([path]) => path.endsWith('/save'))).toBe(false);
 });

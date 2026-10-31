@@ -51,14 +51,26 @@ export class CoreSystemNotifications {
   presence(viewer: string, focused: boolean) {
     this.viewers.delete(viewer);
     this.viewers.set(viewer, { focused, time: Date.now() });
-    for (const [id, value] of this.viewers)
-      if (Date.now() - value.time > 20000) this.viewers.delete(id);
-    if (this.viewers.size > 256) this.viewers.delete(this.viewers.keys().next().value!);
-    if (focused && !this.host.isFocused) this.closeAll();
+    for (const [id, value] of this.viewers) {
+      if (Date.now() - value.time > 20000) {
+        this.viewers.delete(id);
+      }
+    }
+    if (this.viewers.size > 256) {
+      const oldest = this.viewers.keys().next().value;
+      if (oldest !== undefined) {
+        this.viewers.delete(oldest);
+      }
+    }
+    if (focused && !this.host.isFocused) {
+      this.closeAll();
+    }
   }
   private close(id: string) {
     const delivery = this.deliveries.get(id);
-    if (!delivery) return;
+    if (!delivery) {
+      return;
+    }
     delivery.cancelled = true;
     this.deliveries.delete(id);
     try {
@@ -68,19 +80,27 @@ export class CoreSystemNotifications {
     }
   }
   private closeAll() {
-    for (const id of [...this.deliveries.keys()]) this.close(id);
+    for (const id of [...this.deliveries.keys()]) {
+      this.close(id);
+    }
   }
   private event = (event: WorkbenchEvent) => {
     if (event.type === 'preferences.changed') {
-      if (!this.enabled()) this.closeAll();
+      if (!this.enabled()) {
+        this.closeAll();
+      }
       return;
     }
-    if (!['notification.created', 'notification.updated'].includes(event.type)) return;
+    if (!['notification.created', 'notification.updated'].includes(event.type)) {
+      return;
+    }
     const value = event.payload as NotificationState & { ids?: string[]; deleted?: boolean };
     if (value.ids) {
       for (const id of value.ids) {
         this.close(id);
-        if (value.deleted) this.known.delete(id);
+        if (value.deleted) {
+          this.known.delete(id);
+        }
       }
       return;
     }
@@ -88,9 +108,11 @@ export class CoreSystemNotifications {
     this.known.delete(value.id);
     this.known.set(value.id, value);
     if (this.known.size > 1000) {
-      const id = this.known.keys().next().value!;
-      this.close(id);
-      this.known.delete(id);
+      const id = this.known.keys().next().value;
+      if (id !== undefined) {
+        this.close(id);
+        this.known.delete(id);
+      }
     }
     if (!value.systemNotification || value.readAt) {
       this.close(value.id);
@@ -100,7 +122,9 @@ export class CoreSystemNotifications {
       event.type === 'notification.created'
         ? !previous || value.count > previous.count
         : previous && (value.count > previous.count || !previous.systemNotification);
-    if (fresh) void this.send(value);
+    if (fresh) {
+      void this.send(value);
+    }
   };
   private enabled() {
     const settings = this.settings() ?? initialSystemNotificationSettings;
@@ -112,7 +136,9 @@ export class CoreSystemNotifications {
     );
   }
   private async send(value: NotificationState) {
-    if (!this.enabled()) return;
+    if (!this.enabled()) {
+      return;
+    }
     this.close(value.id);
     const delivery: Delivery = { cancelled: false };
     this.deliveries.set(value.id, delivery);
@@ -132,7 +158,9 @@ export class CoreSystemNotifications {
         message: value.message,
         isCurrent: current,
         onClick: () => {
-          if (!current()) return;
+          if (!current()) {
+            return;
+          }
           this.close(value.id);
           if (this.host.activateNotification) {
             void Promise.resolve(this.host.activateNotification(value.id)).catch((error) =>
@@ -143,17 +171,26 @@ export class CoreSystemNotifications {
           const viewer = [...this.viewers.entries()]
             .filter(([, v]) => Date.now() - v.time < 20000)
             .sort((a, b) => b[1].time - a[1].time)[0]?.[0];
-          if (viewer) this.events.publish('system-notification.clicked', { id: value.id, viewer });
-          else void Promise.resolve(this.activate(value.id)).catch((error) => this.failed(error));
+          if (viewer) {
+            this.events.publish('system-notification.clicked', { id: value.id, viewer });
+          } else {
+            void Promise.resolve(this.activate(value.id)).catch((error) => this.failed(error));
+          }
         },
         onError: (error) => {
-          if (current()) this.failed(error);
+          if (current()) {
+            this.failed(error);
+          }
         },
       });
       delivery.handle = handle;
-      if (!current()) handle.close();
+      if (!current()) {
+        handle.close();
+      }
     } catch (error) {
-      if (current()) this.failed(error);
+      if (current()) {
+        this.failed(error);
+      }
     }
   }
   private failed(error: unknown) {

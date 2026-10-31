@@ -43,7 +43,9 @@ export async function buildMacNotificationIcon() {
       { timeout: 120_000 },
     );
     const catalog = path.join(output, 'Assets.car');
-    if ((await stat(catalog)).size === 0) throw new Error('actool 未生成有效的分层图标资源');
+    if ((await stat(catalog)).size === 0) {
+      throw new Error('actool 未生成有效的分层图标资源');
+    }
     const { stdout } = await command('/usr/bin/assetutil', ['--info', catalog], {
       timeout: 30_000,
       maxBuffer: 4 * 1024 * 1024,

@@ -4,8 +4,32 @@ import { TerminalModel } from './model.ts';
 import { Renderer } from './render.ts';
 import { InputDecoder } from './input.ts';
 import { restoreState } from './storage.ts';
+import { COMMAND_HISTORY_LIMIT } from '../shared/command-history.ts';
 
 describe('terminal windows and input', () => {
+  it('copies aggregate history into new windows and keeps existing histories independent', () => {
+    const model = new TerminalModel();
+    const first = model.windows[1];
+    model.record(first, 'first');
+    const second = model.newWindow();
+    expect(second.history).toEqual(['first']);
+    expect(second.history).not.toBe(model.commandHistory);
+    model.record(first, 'later');
+    model.record(second, 'second');
+    expect(first.history).toEqual(['first', 'later']);
+    expect(second.history).toEqual(['first', 'second']);
+    expect(model.newWindow().history).toEqual(['first', 'later', 'second']);
+    model.setInput('discarded draft', 15);
+    model.clearCommand(true);
+    expect(model.commandHistory).not.toContain('discarded draft');
+    for (let i = 0; i <= COMMAND_HISTORY_LIMIT; i++) {
+      model.record(first, `command ${i}`);
+    }
+    expect(first.history).toHaveLength(COMMAND_HISTORY_LIMIT);
+    expect(model.commandHistory).toHaveLength(COMMAND_HISTORY_LIMIT);
+    expect(model.newWindow().history[0]).toBe('command 1');
+    expect(second.history).toEqual(['first', 'second']);
+  });
   it('coalesces continuous repaint requests and never paints faster than 60 fps', () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] });
     const renderer = new Renderer();
