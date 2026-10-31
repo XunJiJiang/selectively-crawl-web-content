@@ -1026,15 +1026,15 @@ zoom-in.svg[ZU2T]: F:绘制圆框放大加号 | R:- | A:SVG图形 | S:-
 zoom-out.svg[ZU2T]: F:绘制圆框缩小减号 | R:- | A:SVG图形 | S:-
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/public/web/assets/===
-local-config-DgHXxHRe.js[LU4T]: F:分发Lit基础运行时与本机配置加载 | R:code:projects/web/src/api/local-config.ts | A:浏览器共享ESM导出 | S:仅向回环同源取配置，三秒超时后保留手工配置
 index-C0tSgCCc.css[ZU4T]: F:分发工作台主题、字号与图标外观 | R:code:projects/web/var.css,code:projects/web/style.css | A:CSS变量,主题选择器,codicon字形 | S:根字号14px；外层隐藏原生滚动，内部容器负责滚动
-index-mI2UzLL2.js[EU5L]: F:启动工作台并注册共享浏览器组件 | R:code:projects/web/src/main.ts,code:projects/shared/store/config.ts | A:浏览器ESM入口 | S:本机配置写入存储后才动态加载layouts-Do3D8brN.js，同次构建资源必须配套
-layouts-Do3D8brN.js[AU5L]: F:分发工作台布局、通知路由与声明式视图 | R:code:projects/web/src/layouts/root.ts,code:projects/web/src/workbench/store.ts,code:projects/web/src/components/declarative-view.ts | A:app-root,声明式视图组件 | S:内含首次授权与浏览器通知策略；这是构建快照，不证明内核原生通知已同步部署
-terminal-CbZivOkI.js[LU5M]: F:分发Web终端与命令编辑器 | R:code:projects/web/src/components/terminal.ts,code:projects/web/src/components/command-editor.ts | A:WorkbenchTerminal,wb-terminal,wb-command-editor | S:输入与输出共用滚动，恢复锚点绑定日志序号；待答输入优先普通命令
-workbench-BbrTFIIG.js[LU5L]: F:分发工作台组件、布局工具与事件连接 | R:code:projects/web/src/components/scroll-container.ts,code:projects/web/src/components/context-menu/wb-context-menu.ts,code:projects/web/src/api/workbench.ts | A:浏览器共享ESM导出 | S:Socket使用单次票据并按流序号去重；重连先同步配置状态，拒绝旧连接代数
+index-DRnirxvK.js[EU5L]: F:启动工作台配置与组件加载链 | R:code:projects/web/src/main.ts,code:projects/shared/store/config.ts,code:projects/server/public/web/assets/layouts-Cf0T0Krw.js | A:浏览器ESM入口 | S:本机配置先写存储再动态加载布局；引用构建哈希必须与部署资源配套
+layouts-Cf0T0Krw.js[AU5L]: F:分发工作台布局、通知与声明式视图 | R:code:projects/web/src/layouts/root.ts,code:projects/web/src/workbench/store.ts,code:projects/web/src/components/declarative-view.ts | A:app-root,通知中心,声明式视图组件 | S:首次系统通知由显式授权按钮触发；产物是构建快照，不等同于原生通知部署
+local-config-VfJoo0HP.js[LU4T]: F:分发Lit运行时与本机启动配置加载 | R:code:projects/web/src/api/local-config.ts | A:浏览器共享ESM导出 | S:仅回环同源请求配置，拒绝重定向；三秒失败回退现有配置
+terminal-BMLRmSDZ.js[LU5M]: F:分发Web终端与命令编辑器 | R:code:projects/web/src/components/terminal.ts,code:projects/web/src/components/command-editor.ts | A:WorkbenchTerminal,wb-terminal,wb-command-editor | S:输入输出共用视口；滚轮与pointerdown在捕获阶段记录用户滚动，避免跟随重置位置
+workbench-ChFwm2pk.js[LU5L]: F:分发工作台组件、布局与事件连接工具 | R:code:projects/web/src/components/scroll-container.ts,code:projects/web/src/components/context-menu/wb-context-menu.ts,code:projects/web/src/api/workbench.ts | A:浏览器共享ESM导出 | S:跳跃内容与连续滑块分离，松手150ms归位；Socket使用单次票据并拒旧代连接；构建资源须配套
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/public/web/===
-index.html[EU5T]: F:装载生产工作台资源 | R:code:projects/server/public/web/assets/index-mI2UzLL2.js,code:projects/server/public/web/assets/index-C0tSgCCc.css | A:/web/HTML入口 | S:预载local-config，脚本与样式固定/web/assets；初始主题dark-2026
+index.html[EU5T]: F:装载生产工作台并标记页面身份 | R:code:projects/server/public/web/assets/index-DRnirxvK.js,code:projects/server/public/web/assets/index-C0tSgCCc.css | A:/web/HTML入口,scwc-app元标记 | S:预载local-config，资源固定/web/assets；初始dark-2026；元标记供脚本跳过浮窗
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/router/===
 index.ts[MN8M]: F:接入核心采集、工作台与脚本配置HTTP | R:code:projects/server/workbench/page-sessions.ts,code:projects/server/router/user-script.ts,code:projects/server/router/web/workbench/websocket.ts | A:app,listen,/api/metadata/scrape | S:管理接口可用受限页面授权；采集先验来源与site主机再验Bearer；Web静态GET放行，响应关闭结束任务作用域
@@ -1161,12 +1161,13 @@ checkbox.ts[LU5T]: F:封装并导出共享勾选框 | R:code:projects/shared/com
 index.ts[EU5T]: F:注册并转出共享表单组件及事件类型 | R:code:projects/shared/components/button.ts,code:projects/shared/components/input.ts,code:projects/shared/components/select.ts | A:SCWCButton,SCWCInput,SCWCTrigger,SCWCToggle,SCWCSelect,SCWCCheckbox | S:此入口不含通知与滚动组件，shared前端总入口单独导入它们
 input.css[ZU3T]: F:排版共享输入控件 | R:code:projects/shared/components/input.ts | A:.scwc-input样式 | S:-
 input.ts[LU5S]: F:封装并导出共享输入框 | R:code:projects/shared/components/input.css | A:SCWCInput,scwc-input,SCWCInputEventMap | S:number输入仍以字符串派发input/change/blur；重新派发事件默认不冒泡
-notify.css[ZU4M]: F:排版六向浮层通知 | R:code:projects/shared/components/notify.ts | A:.notify-container,.notify-list,.notify-item | S:容器不拦截页面指针，通知条目自行开启交互；退场动画固定250ms
-notify.ts[LU6M]: F:显示共享浮层通知 | R:code:projects/shared/components/notify.css,code:projects/shared/types/notify.d.ts | A:notify,scwc-notify,window.scwc.notify | S:导入创建单例，复用既有页面通知入口；手动close不触发onclose，移出悬停后恢复默认3秒计时
+notify.css[ZU4M]: F:排版工作台风格的六向浮层通知 | R:code:projects/shared/components/notify.ts | A:.notify-container,.notify-list,.notify-item | S:宿主变量缺失时回退深色；容器放行指针，条目开启交互；退场250ms与移除计时一致
+notify.ts[LU6M]: F:显示共享工作台风格浮层通知 | R:code:projects/shared/components/notify.css,code:projects/shared/types/notify.d.ts | A:notify,scwc-notify,window.scwc.notify | S:导入创建或复用单例；测高与展示共用内容；手动close不触发onclose，移出悬停恢复默认3秒；六向独立堆叠间距12px
 select.css[ZU3T]: F:排版共享下拉框 | R:code:projects/shared/components/select.ts | A:.scwc-select样式 | S:-
 select.ts[LU5T]: F:封装并导出共享下拉选择 | R:code:projects/shared/components/select.css | A:SCWCSelect,scwc-select,SCWCSelectEventMap | S:选项数组仅通过属性注入，change返回字符串；空选项显示禁用占位
 toggle.ts[LU5T]: F:封装并导出布尔切换控件 | R:code:projects/shared/components/checkbox.ts | A:SCWCToggle,scwc-toggle,SCWCToggleEventMap | S:内部复用checkbox并转发布尔change，组件仍由外部回写checked
 trigger.ts[LU5T]: F:封装并导出动作触发控件 | R:code:projects/shared/components/button.ts | A:SCWCTrigger,scwc-trigger,SCWCTriggerEventMap | S:将内部button点击转换为冒泡trigger事件
+notify.test.ts[TU5T]: F:验证通知外观重构后六向定位与回调保留 | R:code:projects/shared/components/notify.ts | A:Vitest用例 | S:伪帧与时钟覆盖点击、悬停暂停、自动及静默手动关闭，不证明实际排版
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/shared/store/===
 config.ts[CC7M]: F:协调浏览器设置控件和同页配置传播 | R:code:projects/shared/utils/storage.ts,code:projects/shared/userscript-config.ts | A:ConfigController,configContext,defaultValue,parseRefreshRule,isConfig,isConfigItem | S:使用固定公共设置键接受同origin存储事件；同页修改广播控制器并发配置事件，断连注销；连接字段共用防抖，全局URL刷新规则不供编辑
@@ -1290,13 +1291,14 @@ plugins.ts[AE7M]: F:协调脚本控件与各插件的URL刷新 | R:code:projects
 plugins.test.ts[TE6S]: F:验证插件增量刷新、持久化及同源导航输入 | R:code:projects/user-script/src/layouts/hooks/plugins.ts,code:projects/shared/store/config.ts | A:Vitest用例 | S:覆盖保留未刷新控件、旧URL响应拒收和待触发动作等待刷新；同origin路径导航保留连接字段的防抖修改
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/user-script/src/===
-main.ts[EU6T]: F:初始化字体、迁移与用户脚本挂载 | R:code:projects/user-script/src/migrate.ts,code:projects/user-script/src/layouts/root.ts | A:用户脚本入口 | S:迁移先于布局读取；load后挂载，已有挂载点复用；hinder仍仅依据载荷isSameOrigin隐藏
+main.ts[EU6T]: F:初始化字体、迁移并按工作台归属控制浮窗挂载 | R:code:projects/user-script/src/migrate.ts,code:projects/user-script/src/layouts/root.ts,code:projects/web/index.html | A:用户脚本入口 | S:迁移先于布局；load后检查本页及可读同源祖先的scwc-app或标题加app-root；跳过跨源访问异常；普通页复用挂载点，保留hinder消息
 migrate.ts[PC6T]: F:在布局及配置控制器初始化前迁移网站存储 | R:code:projects/shared/utils/updateLocalStorage.ts | A:config,模块初始化副作用 | S:先使用构建Host和Port默认值迁移，再回写公共设置键，避免默认补齐污染历史数据
 site-store.test.ts[TC6S]: F:验证origin共享、路径副本迁移与日期单调 | R:code:projects/user-script/src/site-store.ts,code:projects/shared/utils/updateLocalStorage.ts | A:Vitest用例 | S:覆盖不同路径、iframe和直接访问共享，其他origin拒收；历史路径副本按日期恢复且保留原键，损坏旧数据不丢弃
 site-store.ts[PD8T]: F:维护网站origin配置快照及跨页面更新 | R:code:projects/shared/utils/updateLocalStorage.ts,code:projects/shared/store/config.ts,code:projects/shared/userscript-config.ts | A:SiteStore,siteStore | S:规范快照先持久化后更新内存，日期单调；canonical和兼容键均为同origin公共键，路径导航不切换配置，存储事件仅接受当前origin快照
 site-sync.test.ts[TC6S]: F:验证网站配置连接、重连及同源导航共享 | R:code:projects/user-script/src/site-sync.ts | A:Vitest用例 | S:伪Socket和时钟覆盖即时推送、离线编辑及上传竞态；不同路径保持同一origin连接和已有控件值
 site-sync.ts[IN8M]: F:连接核心并双向同步当前页面配置 | R:code:projects/user-script/src/site-store.ts,code:projects/shared/userscript-config.ts,code:projects/server/router/user-script.ts | A:SiteConfigConnection,coreUrl | S:每次连接先比日期再取单次Socket票据；凭据仅HTTP传递；路径及API共同绑定代数，拒旧响应；离线保留编辑并退避重试，上传并发编辑另行排队
 theme.ts[LU5T]: F:为浮窗复用工作台主题与表单外观 | R:code:projects/web/var.css,code:projects/web/src/components/scroll-container.ts,code:projects/web/src/components/context-menu/wb-menu-select.ts | A:theme,controls | S:主题根选择器改为宿主，避免污染网页；导入注册现有滚动和菜单组件
+main.test.ts[TU5T]: F:验证工作台及同源子页跳过脚本浮窗 | R:code:projects/user-script/src/main.ts,code:projects/web/index.html | A:Vitest用例 | S:覆盖直接及嵌套祖先；普通同源页面保留浮窗，跨源异常不阻断挂载；仅app-root不能识别工作台
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/user-script/src/types/===
 api.d.ts[FN4T]: F:声明采集响应数据 | R:code:projects/shared/types/api.d.ts | A:TCrawlResult,TCrawlResponse | S:结果为通知对象数组或字符串数组
@@ -1320,7 +1322,7 @@ package.json[FV5T]: F:声明SCWC构建插件及shared工作区依赖 | R:code:pr
 tsconfig.json[FQ3T]: F:检查Vite插件JS | R:code:tsconfig.node.json | A:allowJs,checkJs,include | S:将JS及声明纳入类型检查，增量信息存node_modules临时目录
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/web/===
-index.html[EU5T]: F:装载插件工作台 | R:code:projects/web/src/main.ts,code:projects/web/style.css | A:app-root,浏览器ESM入口 | S:初始主题dark-2026
+index.html[EU5T]: F:装载插件工作台并标记页面身份 | R:code:projects/web/src/main.ts,code:projects/web/style.css,code:projects/user-script/src/main.ts | A:app-root,scwc-app元标记,浏览器ESM入口 | S:初始主题dark-2026；脚本通过页面身份跳过浮窗
 package.json[FV4T]: F:声明工作台开发、构建与测试命令 | R:code:projects/web/vite.config.ts,code:projects/web/scripts/dev.ts | A:dev,build,test,lint,fmt | S:开发入口由Node消费核心端口，生产由Vite构建
 style.css[ZU4T]: F:设置页面全局外观 | R:code:projects/web/var.css,code:projects/web/src/components/icon.ts | A:html,body,app-root,wb-icon | S:html基础字号14px；外层满屏隐藏滚动，内部布局负责滚动；codicon字体全局加载
 var.css[FC5M]: F:声明工作台深浅主题、字体与尺寸变量 | R:code:projects/web/style.css,code:projects/web/src/workbench/workbench.css | A:CSS变量,dark-2026,light-2026 | S:统一标签高32px；默认深色，终端前景和光标独立，菜单黑白半透明；字体按rem，减弱动态将时长置零
@@ -1337,7 +1339,7 @@ command-editor.ts[IU7L]: F:独立编辑Web终端命令 | R:code:projects/web/src
 icon.ts[LU4T]: F:映射工作台语义图标到codicon | R:code:projects/web/src/workbench/ui.ts | A:wb-icon,WbIcon | S:幂等注册；字形字体外层加载，ShadowDOM移除font-face，未知名直接回退codicon
 internal-page.ts[AU7L]: F:渲染工作台内置页面与系统通知设置 | R:code:projects/web/src/workbench/store.ts,code:projects/web/src/workbench/commands.ts,code:projects/web/src/components/context-menu/wb-menu-select.ts | A:wb-internal-page,workbench-command | S:通知位置与开关统一写核心偏好，桌面宿主锁定仅内核；快捷键null禁用默认，收藏经中心命令，宿主统一滚动
 page-inspector.ts[AU7T]: F:承载核心JSON页面信息视图 | R:code:projects/web/src/components/declarative-view.ts | A:wb-page-inspector,PageInspector | S:只传插件及有效工作区标签身份，不读取iframe属性或页面配置校验；卡片入口可用空tabId，由后端提供权威属性与配置
-terminal.ts[AU8L]: F:管理Web终端视图 | R:code:projects/web/src/components/command-editor.ts,code:projects/web/src/workbench/store.ts,code:projects/web/src/components/scroll-container.ts | A:wb-terminal,activate,closeCurrent,cancel,alter | S:草稿串行CAS、命令幂等；执行去续行而待答保留原文；执行中隐藏普通输入；未知命令保留草稿并仅本终端提示；输出选区优先原生复制，无选区Ctrl+C取消，强停须确认；整行视口按seq锚定
+terminal.ts[AU8L]: F:管理Web终端视图 | R:code:projects/web/src/components/command-editor.ts,code:projects/web/src/workbench/store.ts,code:projects/web/src/components/scroll-container.ts | A:wb-terminal,activate,closeCurrent,cancel,alter | S:草稿串行CAS、命令幂等；执行去续行而待答保原文；执行中隐藏普通输入，未知命令保草稿并本地提示；选区优先复制，无选区Ctrl+C取消，强停须确认；整行按seq锚定；捕获滚轮和pointerdown先于容器消费事件记录用户滚动，避免follow拉回
 scroll-container.ts[LU6M]: F:适配工作台滚动、整行视口及脚本复用 | R:code:projects/shared/components/scroll-container/index.ts | A:wb-scroll-container,WorkbenchScrollContainer,lineScroll,wholeLines,thin,dragOnly | S:普通事件限80px，整行模式限实测一行；最大200ms且零加速；弹层max-height传到视口，原生textarea先滚自身；dragOnly还需禁滚轮
 declarative-menu.ts[LU6S]: F:把编译菜单投影为工作台菜单项 | R:code:projects/shared/declarative-ui.ts,code:projects/web/src/components/context-menu/menu-types.ts | A:DeclarativeMenu | S:仅消费核心编译节点；勾选采集字段及编辑序号；模板同步标签和禁用态；按钮图标占位不进入菜单文本
 declarative-view.test.ts[TU7L]: F:验证声明式渲染、组件适配及启动恢复 | R:code:projects/web/src/components/declarative-view.ts,code:projects/web/src/components/json-components.ts | A:Vitest用例 | S:三种JSON表面验证菜单选择、禁用、滚动包裹和刷新草稿焦点；HTML保持沙箱；模型拒活跃标签与外源资源
@@ -1392,7 +1394,7 @@ store.test.ts[TD6M]: F:验证工作区隔离、保存恢复与通知任务状态
 store.ts[PD9L]: F:协调工作台持久状态、连接、通知路由与授权 | R:code:projects/web/src/api/workbench.ts,code:projects/web/src/workbench/browser-workspace.ts,code:projects/shared/workbench-feedback.ts,code:projects/web/src/workbench/notification-host.ts,code:projects/shared/system-notifications.ts,code:projects/web/src/workbench/system-notifications.ts | A:WorkbenchStore,reconnect,activity,setPageRequests,logger,tasks | S:每文档独立工作区仅共享种子，CAS串行且命令不重放；通知位置与开关来自核心偏好，浏览器决定按origin保存；每5秒上报本地焦点，首次请求保持用户手势；历史不补发，桌面宿主关闭浏览器通道；保护请求阻止休眠，恢复保留iframe
 terminal-output.test.ts[TO5T]: F:验证安全ANSI渲染 | R:code:projects/web/src/workbench/terminal-output.ts | A:Vitest用例 | S:颜色跨同执行记录续传，其他执行隔离；OSC链接和屏幕控制剥除，HTML保留为普通文字
 terminal-output.ts[KU6S]: F:解析Web终端输出样式 | R:code:projects/web/src/workbench/types.ts,code:projects/web/src/components/terminal.ts | A:ansiSegments,terminalRows,AnsiStyle,AnsiSegment | S:只认SGR为样式，剥除其他控制序列；样式按executionId或streamId跨记录延续，command回显不污染样式状态
-terminal.test.ts[TU6M]: F:验证Web终端视图与输出复制交互 | R:code:projects/web/src/components/terminal.ts,code:projects/web/src/workbench/store.ts | A:Vitest用例 | S:覆盖任务隐藏输入、待答恢复及未知命令保留草稿；ShadowRoot选区夹具验证复制不取消任务，原生右键放行；无选区Ctrl+C仍取消，单击空白聚焦输入
+terminal.test.ts[TU6L]: F:验证Web终端输入、输出复制与滚动跟随切换 | R:code:projects/web/src/components/terminal.ts,code:projects/web/src/workbench/store.ts | A:Vitest用例 | S:覆盖任务输入、未知命令保草稿及原生复制；滚轮和滑块拖拽被共享容器消费后仍退出follow，重渲染保留位置
 types.ts[FG7S]: F:声明工作台状态、通知设置与宿主能力模型 | R:code:projects/server/workbench/workspace.ts,code:projects/server/types/plugin-config.d.ts,code:projects/server/types/task.d.ts,code:projects/shared/workbench-feedback.ts,code:projects/shared/system-notifications.ts | A:Workspace,Preferences,Bootstrap,Notification,Job,WorkbenchEvent | S:通知任务和布局复用共享及服务端类型；Bootstrap提供内核支持和强制模式，通知偏好可缺省，事件以bootId与seq隔离
 ui.ts[LU6L]: F:复用工作台展示及收藏树交互 | R:code:projects/web/src/workbench/types.ts,code:projects/web/src/workbench/store.ts | A:icon,iconButton,pluginCard,bookmarkFolderButton,bookmarkList,tabNavigation | S:收藏混排用bookmarkOrder，层级由parentId和folderId定义；650ms悬停展开且拒绝后代拖放；按键复用details保留展开；目录选择留在Store，创建按钮mousedown保留焦点
 workbench.css[ZU6L]: F:排版工作台布局、声明式表面与通知任务 | R:code:projects/web/var.css,code:projects/web/src/layouts/root.ts | A:.application-scroll,.tab-item,.auxiliary-tabs,.notification,.task-button | S:四向接缝由内阴影绘制，插入线随栏向；布局溢出只拖滑块；辅助栏共享标签高度，通知进度脱离正文流，减弱动态禁旋转
@@ -1420,9 +1422,9 @@ dev.ts[EV5T]: F:启动带核心端口覆盖的Vite | R:code:projects/web/scripts
 geometry.test.ts[TU4T]: F:验证滚动几何边界 | R:code:projects/shared/components/scroll-container/geometry.ts | A:Vitest用例 | S:零视口或内容适配不得产生伪滚动条；最小滑块不能超过轨道
 geometry.ts[LU5T]: F:计算滚动条配置与滑块几何 | R:code:projects/shared/components/scroll-container/types.ts | A:defaultScrollbar,scrollbarOptions,thumbGeometry,clamp | S:默认4px；非法数值回退或归零，透明度限0至1；滑块最小长度受轨道限制，位置钳制到有效范围
 index.ts[EU5T]: F:公开滚动组件与类型 | R:code:projects/shared/components/scroll-container/scroll-container.ts,code:projects/shared/components/scroll-container/types.ts | A:SCWCScrollContainer,ScrollState,ScrollMetrics,ScrollbarOptions,ScrollContent,SmoothWheelOptions | S:导入只注册滚动组件，不改共享组件总入口
-scroll-container.css[ZU4T]: F:绘制滚动视口及交互滑块 | R:code:projects/shared/components/scroll-container/scroll-container.ts | A:.viewport,.content,.track,.thumb,.extent | S:隐藏原生滚动条；颜色由CSS变量供给，拖拽态优先于悬停态
-scroll-container.test.ts[TU6L]: F:验证滚动容器交互 | R:code:projects/shared/components/scroll-container/scroll-container.ts,code:projects/shared/components/scroll-container/geometry.ts | A:Vitest用例 | S:夹具提供DOM几何及帧时钟；覆盖平滑与跳跃的倍率限幅和双轴方向保持、边界传递、拖拽释放、外部metrics及嵌套滚动
-scroll-container.ts[LU7L]: F:提供双轴自定义滚动视口 | R:code:projects/shared/components/scroll-container/geometry.ts,code:projects/shared/components/scroll-container/types.ts,code:projects/shared/components/scroll-container/wheel-motion.ts | A:SCWCScrollContainer,scrollTo,refresh,scrollState,wheelDistanceRatio,maxWheelDistance | S:外部metrics使旧更新失效；跳跃余数150ms清除；事件先乘倍率再同比限幅，超额丢弃；配置变更清轨迹；缩放键放行，边界交祖先
+scroll-container.css[ZU4S]: F:绘制滚动视口与独立平滑滑块 | R:code:projects/shared/components/scroll-container/scroll-container.ts | A:.viewport,.content,.track,.thumb,.extent | S:跳跃态滑块过渡150ms，拖拽禁过渡；减弱动态置零
+scroll-container.test.ts[TU6L]: F:验证双轴滚动与内容滑块分离 | R:code:projects/shared/components/scroll-container/scroll-container.ts,code:projects/shared/components/scroll-container/geometry.ts | A:Vitest用例 | S:几何和伪帧覆盖限幅、边界、外部metrics及嵌套；拖拽内容量化而滑块连续，松手回到实际映射；DOM断言不证明动画帧
+scroll-container.ts[LU7L]: F:提供双轴自定义滚动与独立滑块显示 | R:code:projects/shared/components/scroll-container/geometry.ts,code:projects/shared/components/scroll-container/types.ts,code:projects/shared/components/scroll-container/wheel-motion.ts | A:SCWCScrollContainer,scrollTo,refresh,scrollState,wheelDistanceRatio,maxWheelDistance | S:外部metrics撤销内部更新；滚轮先倍率再限幅，余数150ms清除；跳跃内容按步长，滑块独立跟指针；抓取以实测位置为锚，松手归位；缩放放行，边界交祖先
 types.ts[FU5T]: F:声明滚动容器契约 | R:code:projects/shared/components/scroll-container/scroll-container.ts | A:ScrollMetrics,ScrollState,ScrollbarOptions,ScrollContent,SmoothWheelOptions,WheelDirection | S:尺寸位置使用逻辑像素，曲线时间使用毫秒；外部metrics存在时content回调不提供内部更新函数
 wheel-motion.test.ts[TU6S]: F:验证自适应滚轮曲线 | R:code:projects/shared/components/scroll-container/wheel-motion.ts | A:Vitest用例 | S:确定时钟验证三段速度及60/120/240Hz连续输入；零加速须保持静止轴有限、位置连续和反向距离正确
 wheel-motion.ts[KU6S]: F:计算自适应双轴滚轮轨迹 | R:code:projects/shared/components/scroll-container/types.ts | A:SmoothWheelMotion,wheelTiming | S:解析积分避免帧累积误差；事件间隔估计时长，比例过大仍保留匀速段；非零加速同向续速且防过冲，零加速直接进入峰速
@@ -1490,5 +1492,5 @@ refresh.ts[KC7T]: F:决定单个插件在当前网站的URL刷新时机 | R:code
 setup.ts[TQ4T]: F:为脚本DOM测试提供可写浏览器存储 | R:code:projects/user-script/vite.config.ts | A:MemoryStorage,vi.stubGlobal | S:覆盖Node原生localStorage占位，避免遮蔽测试存储
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/public/lib/===
-scwcutils.iife.mvw61wto.js[LE5T]: F:分发插件页面会话、反馈和请求代理SDK | R:code:projects/webutils/lib/index.ts,code:projects/webutils/lib/workbench.ts | A:scwcutils,ready,logger,tasks,fetch,websocket | S:HTTP等待ready并使用页面grant；只重放可中断请求，任务保护连接，回调留创建文档
+scwcutils.iife.mvwe5aqt.js[LE5T]: F:分发页面会话、反馈与请求代理SDK | R:code:projects/webutils/lib/index.ts,code:projects/webutils/lib/workbench.ts | A:scwcutils,ready,logger,tasks,fetch,websocket | S:HTTP等待ready，Socket须先显式等待；只有interruptible请求可暂停恢复；页面卸载撤监听和句柄
 

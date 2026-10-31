@@ -6,7 +6,7 @@ import './context-menu/wb-context-menu.ts';
 import type { ContextMenuItem } from './context-menu/menu-types.ts';
 import { requireValue } from '../../../shared/workbench-protocol.ts';
 import { LitElement, html, css, unsafeCSS, nothing } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+import { customElement, eventOptions, property, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 import { styleMap } from 'lit/directives/style-map.js';
 import { terminalRows } from '../workbench/terminal-output.ts';
@@ -463,9 +463,7 @@ export class WorkbenchTerminal extends LitElement {
               this.rememberScroll(performance.now() < this.userScrollUntil);
             }
           }}
-          @pointerdown=${() => {
-            this.userScrollUntil = performance.now() + 1000;
-          }}
+          @pointerdown=${this.outputPointerDown}
           @pointerup=${() => {
             this.userScrollUntil = performance.now() + 200;
           }}
@@ -728,12 +726,20 @@ export class WorkbenchTerminal extends LitElement {
       ? selection.toString()
       : '';
   }
-  private wheel = (event: WheelEvent) => {
+  // 在滚动容器 preventDefault 之前记录用户操作，避免 follow 把视口拉回底部。
+  @eventOptions({ capture: true })
+  private outputPointerDown() {
+    this.restoreScroll = false;
+    this.userScrollUntil = performance.now() + 1000;
+  }
+
+  @eventOptions({ capture: true })
+  private wheel(event: WheelEvent) {
     if (!event.defaultPrevented && !event.ctrlKey && !event.metaKey) {
       this.restoreScroll = false;
       this.userScrollUntil = performance.now() + 200;
     }
-  };
+  }
   private outputKeydown = (event: KeyboardEvent) => {
     if (
       event

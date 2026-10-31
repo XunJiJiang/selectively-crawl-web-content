@@ -736,6 +736,65 @@ describe('SCWCScrollContainer', () => {
     },
   );
 
+  it.each(['horizontal', 'vertical'] as const)(
+    'quantizes %s dragging only in instant mode while keeping both endpoints reachable',
+    async (axis) => {
+      const { el, track, thumb } = await fixture({ scrollWidth: 1033, scrollHeight: 533 });
+      const bar = track(axis),
+        handle = thumb(axis);
+      if (!bar || !handle) {
+        throw new Error('missing scrollbar');
+      }
+      vi.spyOn(bar, 'getBoundingClientRect').mockReturnValue(new DOMRect());
+      const value = () =>
+        axis === 'horizontal' ? el.scrollState.scrollLeft : el.scrollState.scrollTop;
+      const move = (distance: number) => pointer(document, 'pointermove', distance, distance);
+      el.stepDistance = 40;
+      pointer(handle, 'pointerdown', 0, 0);
+      move(9);
+      expect(value() % 40).toBe(0);
+      const position = value();
+      await settle(el);
+      const translate = (offset: number) =>
+        `translate${axis === 'horizontal' ? 'X' : 'Y'}(${offset}px)`;
+      expect(handle.style.transform).toBe(translate(9));
+      move(10);
+      expect(value()).toBe(position);
+      await settle(el);
+      expect(handle.style.transform).toBe(translate(10));
+      pointer(document, 'pointerup', 10, 10);
+      await settle(el);
+      const travel =
+        axis === 'horizontal'
+          ? 196 - Number.parseFloat(handle.style.width)
+          : 96 - Number.parseFloat(handle.style.height);
+      const actualOffset = (position / (axis === 'horizontal' ? 833 : 433)) * travel;
+      expect(handle.style.transform).toBe(translate(actualOffset));
+      expect(bar.classList.contains('dragging')).toBe(false);
+      pointer(handle, 'pointerdown', 0, 0);
+      move(1000);
+      expect(value()).toBe(axis === 'horizontal' ? 833 : 433);
+      move(0);
+      expect(value()).toBe(0);
+      pointer(document, 'pointerup', 0, 0);
+
+      el.scrollBehavior = 'smooth';
+      pointer(handle, 'pointerdown', 0, 0);
+      move(9);
+      expect(value() % 40).not.toBe(0);
+      move(10);
+      expect(value()).toBeGreaterThan(0);
+      pointer(document, 'pointerup', 0, 0);
+      el.scrollTo({ left: 0, top: 0 });
+      el.scrollBehavior = 'instant';
+      el.stepDistance = 0;
+      pointer(handle, 'pointerdown', 0, 0);
+      move(9);
+      expect(value() % 40).not.toBe(0);
+      pointer(document, 'pointerup', 0, 0);
+    },
+  );
+
   it('supports track clicks, pointer cancellation and ignores secondary buttons', async () => {
     const { el, track, thumb } = await fixture();
     const bar = track('horizontal'),

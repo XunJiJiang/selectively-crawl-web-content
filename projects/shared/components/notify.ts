@@ -5,7 +5,7 @@ import { customElement } from '../utils/customElement.ts';
 import { ref } from 'lit/directives/ref.js';
 import { repeat } from 'lit/directives/repeat.js';
 import type { INotifyOptions, TNotify } from '../types/notify.d.ts';
-import { css, html, LitElement, noChange, nothing, unsafeCSS } from 'lit';
+import { css, html, LitElement, noChange, nothing, svg, unsafeCSS } from 'lit';
 import { v4 as uuidv4 } from 'uuid';
 
 declare global {
@@ -185,13 +185,55 @@ class SCWCNotify extends LitElement {
     this.requestUpdate();
   }
 
+  private renderNotifyContent(
+    item: TNotify,
+    placement: NonNullable<INotifyOptions['placement']>,
+    interactive = false,
+  ) {
+    // 与工作台通知相同的状态图标、正文列和关闭按钮；不依赖网页字体。
+    const symbol =
+      item.type === 'warn'
+        ? svg`<path d="M8 1.5 15 14H1Z"></path><path d="M8 5.5v4M8 11.5v.1"></path>`
+        : svg`<circle cx="8" cy="8" r="6.5"></circle>
+            ${
+              item.type === 'success'
+                ? svg`<path d="m4.5 8 2.5 2.5 4.5-5"></path>`
+                : item.type === 'error'
+                  ? svg`<path d="m5.5 5.5 5 5m0-5-5 5"></path>`
+                  : svg`<path d="M8 7v4M8 4.5v.1"></path>`
+            }`;
+    return html`
+      <span class="notify-icon" aria-hidden="true">
+        <svg viewBox="0 0 16 16">${symbol}</svg>
+      </span>
+      <div class="notify-body">
+        <strong class="notify-title-text">${item.title}</strong>
+        ${item.description ? html`<p class="notify-content">${item.description}</p>` : nothing}
+      </div>
+      <button
+        class="notify-close"
+        type="button"
+        aria-label="关闭提示"
+        ?disabled=${!interactive}
+        @click=${(event: MouseEvent) => {
+          event.stopPropagation();
+          if (interactive) {
+            this.handleNotifyClose(item.id, placement, 'user');
+          }
+        }}
+      >
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 4 8 8m0-8-8 8"></path></svg>
+      </button>
+    `;
+  }
+
   render() {
     const lists = Object.entries(this.infoList) as [
       'tl' | 'tr' | 'tc' | 'bl' | 'br' | 'bc',
       Map<string, TNotify>,
     ][];
     return html`
-      <div class="notify-container">
+      <div class="notify-container" aria-live="polite">
         ${lists.map(([placement, list]) => {
           if (this.changedPlacement[placement]) {
             this.changedPlacement[placement] = false;
@@ -235,12 +277,7 @@ class SCWCNotify extends LitElement {
                           }
                         })}
                       >
-                        <div class="notify-title">
-                          <div class="notify-title-text">${item.title}</div>
-                          <!-- 此处不注册关闭事件, 因为处于隐式渲染状态 -->
-                          <div class="notify-close"></div>
-                        </div>
-                        <div class="notify-content">${item.description}</div>
+                        ${this.renderNotifyContent(item, placement)}
                       </div>
                     `;
                   } else if (item.state === 'beforeEnter') {
@@ -256,7 +293,7 @@ class SCWCNotify extends LitElement {
                           //   item.offset = prevItem.offset + 8;
                           // } else if
                           if (prevItem) {
-                            item.offset = prevItem.offset + prevItem.height + 8;
+                            item.offset = prevItem.offset + prevItem.height + 12;
                           } else {
                             item.offset = 0;
                           }
@@ -288,18 +325,7 @@ class SCWCNotify extends LitElement {
                           }, defaultNotifyOptions.duration);
                         }}
                       >
-                        <div class="notify-title">
-                          <div class="notify-title-text">${item.title}</div>
-                          <div
-                            class="notify-close"
-                            @click=${(e: MouseEvent) => {
-                              e.stopPropagation();
-                              item.state = 'beforeLeave';
-                              this.handleNotifyClose(item.id, placement, 'user');
-                            }}
-                          ></div>
-                        </div>
-                        <div class="notify-content">${item.description}</div>
+                        ${this.renderNotifyContent(item, placement, true)}
                       </div>
                     `;
                   } else if (item.state === 'beforeLeave') {
@@ -325,7 +351,7 @@ class SCWCNotify extends LitElement {
                               setTimeout(() => {
                                 // 更新后面通知的 offset
                                 for (let i = idx + 1; i < listValues.length; i++) {
-                                  listValues[i].offset -= item.height + 8;
+                                  listValues[i].offset -= item.height + 12;
                                   const ele = listValues[i].ref;
                                   if (ele && ele instanceof HTMLElement) {
                                     if (placement.startsWith('b')) {
@@ -344,12 +370,7 @@ class SCWCNotify extends LitElement {
                           item.onclick();
                         }}
                       >
-                        <div class="notify-title">
-                          <div class="notify-title-text">${item.title}</div>
-                          <!-- 此处不注册关闭事件, 因为已经进入关闭状态了 -->
-                          <div class="notify-close"></div>
-                        </div>
-                        <div class="notify-content">${item.description}</div>
+                        ${this.renderNotifyContent(item, placement)}
                       </div>
                     `;
                   } else if (item.state === 'removed') {

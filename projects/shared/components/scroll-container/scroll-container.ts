@@ -37,7 +37,7 @@ export class SCWCScrollContainer extends LitElement {
   @property({ attribute: false }) accessor vertical: ScrollbarOptions = {};
   @property({ attribute: 'scroll-behavior' }) accessor scrollBehavior: ScrollMode = 'smooth';
   @property({ attribute: false }) accessor smoothWheel: SmoothWheelOptions = {};
-  /** 跳跃滚动的最小距离（px）；滚轮按累计距离整步移动，0 表示不量化。 */
+  /** 跳跃滚动的最小距离（px）；滚轮累计整步移动，拖拽按步长定位；0 表示不量化。 */
   @property({ type: Number, attribute: 'step-distance' }) accessor stepDistance = 40;
   /** 滚轮距离换算为 px 后先乘此倍率，再限幅和累计；0 表示不滚动。 */
   @property({ type: Number, attribute: 'wheel-distance-ratio' }) accessor wheelDistanceRatio = 1;
@@ -82,7 +82,7 @@ export class SCWCScrollContainer extends LitElement {
   private wheelMotion?: SmoothWheelMotion;
   private wheelConfiguration?: string;
   @state() private accessor drag:
-    | { axis: ScrollAxis; pointerId: number; anchor: number; thumb: HTMLElement }
+    | { axis: ScrollAxis; pointerId: number; anchor: number; offset: number; thumb: HTMLElement }
     | undefined;
 
   /** 原生滚动视口，可用于 focus、scrollIntoView 等 DOM 协作。 */
@@ -642,13 +642,20 @@ export class SCWCScrollContainer extends LitElement {
     const rect = track.getBoundingClientRect();
     const coordinate = axis === 'horizontal' ? event.clientX - rect.left : event.clientY - rect.top;
     const onThumb = event.composedPath().includes(thumb);
+    // 可能正在平滑归位：从屏幕上的滑块位置开始拖动，不能拿逻辑终点计算抓取位置。
+    const thumbRect = thumb.getBoundingClientRect();
+    const offset = clamp(
+      axis === 'horizontal' ? thumbRect.left - rect.left : thumbRect.top - rect.top,
+      geometry.travel,
+    );
     this.drag = {
       axis,
       pointerId: event.pointerId,
       anchor:
         onThumb && geometry.size > 0
-          ? clamp(coordinate - geometry.offset, geometry.size) / geometry.size
+          ? clamp(coordinate - offset, geometry.size) / geometry.size
           : 0.5,
+      offset,
       thumb,
     };
     thumb.setPointerCapture?.(event.pointerId);
@@ -676,7 +683,15 @@ export class SCWCScrollContainer extends LitElement {
     const coordinate =
       drag.axis === 'horizontal' ? event.clientX - rect.left : event.clientY - rect.top;
     const offset = clamp(coordinate - drag.anchor * geometry.size, geometry.travel);
-    const position = (offset / geometry.travel) * geometry.maxScroll;
+    // 滑块连续跟随指针，即使内容仍处于同一步，也需要更新其显示位置。
+    this.drag = { ...drag, offset };
+    const rawPosition = (offset / geometry.travel) * geometry.maxScroll;
+    const step = this.scrollBehavior === 'instant' ? nonNegative(this.stepDistance, 40) : 0;
+    // 拖拽也遵循跳跃步长；两端仍可精确抵达，保留不足一步的末尾内容。
+    const position =
+      step > 0 && offset < geometry.travel
+        ? clamp(Math.round(rawPosition / step) * step, geometry.maxScroll)
+        : rawPosition;
     this.scrollTo({ [drag.axis === 'horizontal' ? 'left' : 'top']: position, behavior: 'instant' });
   };
 
@@ -730,10 +745,12 @@ export class SCWCScrollContainer extends LitElement {
     }
     const horizontal = axis === 'horizontal';
     const p = this.position;
+    const offset =
+      this.drag?.axis === axis ? clamp(this.drag.offset, geometry.travel) : geometry.offset;
     const opacity = this.revealed[axis] ? options.opacity : 0;
     return html`<div
       part=${`${axis}-track`}
-      class=${`track ${axis}${this.drag?.axis === axis ? ' dragging' : ''}`}
+      class=${`track ${axis}${this.scrollBehavior === 'instant' ? ' instant' : ''}${this.drag?.axis === axis ? ' dragging' : ''}`}
       role="scrollbar"
       tabindex="0"
       aria-label=${horizontal ? '横向滚动' : '纵向滚动'}
@@ -768,9 +785,7 @@ export class SCWCScrollContainer extends LitElement {
           borderRadius: `${options.radius}px`,
           width: horizontal ? `${geometry.size}px` : undefined,
           height: horizontal ? undefined : `${geometry.size}px`,
-          transform: horizontal
-            ? `translateX(${geometry.offset}px)`
-            : `translateY(${geometry.offset}px)`,
+          transform: horizontal ? `translateX(${offset}px)` : `translateY(${offset}px)`,
         })}
       ></div>
     </div>`;

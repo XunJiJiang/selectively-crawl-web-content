@@ -62,6 +62,71 @@ async function fixture() {
   return { terminal, root: requireValue(terminal.shadowRoot) };
 }
 describe('inline Web command terminal', () => {
+  it.each(['wheel', 'drag'])(
+    'leaves follow mode after %s input is consumed by the shared container',
+    async (input) => {
+      const { terminal, root } = await fixture();
+      const container = requireValue(
+        root.querySelector<WorkbenchScrollContainer>('.terminal-output'),
+      );
+      await container.updateComplete;
+      const viewport = requireValue(container.scrollElement);
+      Object.defineProperties(viewport, {
+        clientWidth: { value: 400 },
+        clientHeight: { value: 200 },
+        scrollHeight: { value: 3000 },
+      });
+      viewport.scrollTo = (options: ScrollToOptions | number = {}) => {
+        if (typeof options !== 'number') {
+          viewport.scrollTop = options.top ?? viewport.scrollTop;
+        }
+      };
+      container.metrics = { scrollHeight: 3000 };
+      await container.updateComplete;
+      await new Promise(requestAnimationFrame);
+      await new Promise(requestAnimationFrame);
+      viewport.scrollTop = 2800;
+      container.refresh();
+      const local = store.terminalView(store.terminals[0]);
+      local.follow = true;
+      if (input === 'wheel') {
+        const event = new WheelEvent('wheel', {
+          deltaY: -1000,
+          bubbles: true,
+          composed: true,
+          cancelable: true,
+        });
+        viewport.dispatchEvent(event);
+        expect(event.defaultPrevented).toBe(true);
+      } else {
+        await container.updateComplete;
+        const handle = requireValue(
+          container.shadowRoot?.querySelector<HTMLElement>('.vertical .thumb'),
+        );
+        vi.spyOn(handle, 'getBoundingClientRect').mockReturnValue(new DOMRect(396, 180, 4, 20));
+        handle.dispatchEvent(
+          new MouseEvent('pointerdown', {
+            clientY: 185,
+            button: 0,
+            bubbles: true,
+            composed: true,
+            cancelable: true,
+          }),
+        );
+        document.dispatchEvent(new MouseEvent('pointermove', { clientY: 175, cancelable: true }));
+        document.dispatchEvent(new MouseEvent('pointerup'));
+      }
+      await new Promise(requestAnimationFrame);
+      expect(local.follow).toBe(false);
+      const position = viewport.scrollTop;
+      expect(position).toBeLessThan(2800);
+      store.changed();
+      await terminal.updateComplete;
+      await new Promise(requestAnimationFrame);
+      expect(viewport.scrollTop).toBe(position);
+    },
+  );
+
   it('hides ordinary input for running and returned tasks, but allows requested input and restores it on completion', async () => {
     const { terminal, root } = await fixture();
     const execution = {

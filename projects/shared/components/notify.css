@@ -1,53 +1,63 @@
+/* 工作台浮层通知外观；独立网页使用深色回退，宿主可通过同名变量提供主题。 */
 :host {
+  all: initial;
   position: fixed;
   top: 0;
   left: 0;
   width: 0;
   height: 0;
   z-index: 2147483647;
+  font-family: var(
+    --font-sans,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    'Helvetica Neue',
+    Arial,
+    sans-serif
+  );
+  font-size: 13px;
+  color: var(--text-primary, rgba(255, 255, 255, 0.92));
+  line-height: 1.75;
+}
+
+* {
+  box-sizing: border-box;
 }
 
 .notify-container {
   position: fixed;
-  top: 10px;
-  bottom: 10px;
-  left: 10px;
-  right: 10px;
+  inset: 24px 24px 36px;
   pointer-events: none;
-  background-color: transparent;
 }
 
 .notify-list {
   position: absolute;
-  width: 330px;
+  width: min(400px, calc(100vw - 32px));
 }
 
 .notify-list.tl-list {
   top: 0;
   left: 0;
 }
-
 .notify-list.tr-list {
   top: 0;
   right: 0;
 }
-
 .notify-list.tc-list {
   top: 0;
   left: 50%;
   transform: translateX(-50%);
 }
-
 .notify-list.bl-list {
   bottom: 0;
   left: 0;
 }
-
 .notify-list.br-list {
   bottom: 0;
   right: 0;
 }
-
 .notify-list.bc-list {
   bottom: 0;
   left: 50%;
@@ -56,14 +66,15 @@
 
 .notify-item {
   position: absolute;
-  width: 330px;
-  margin: auto;
-  padding: 10px 15px;
-  box-sizing: border-box;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+  padding: 16px;
+  background: var(--surface-elevated, #252d3f);
+  border: 1px solid var(--border-default, rgba(255, 255, 255, 0.12));
   border-radius: 4px;
-  background-color: #1d1b16;
-  color: #fff;
+  box-shadow: var(--shadow-lg, 0 12px 24px rgba(0, 0, 0, 0.5), 0 4px 8px rgba(0, 0, 0, 0.4));
   pointer-events: auto;
   transition:
     opacity 0.25s,
@@ -72,50 +83,80 @@
     bottom 0.25s;
 }
 
-.notify-item.info-item {
-  background-color: #23272e;
+.notify-icon {
+  display: inline-flex;
+  flex: none;
+  line-height: 1;
 }
 
-.notify-item.success-item {
-  background-color: #154703;
+.info-item .notify-icon {
+  color: var(--status-info, #38bdf8);
+}
+.success-item .notify-icon {
+  color: var(--status-success, #10b981);
+}
+.warn-item .notify-icon {
+  color: var(--status-warning, #f59e0b);
+}
+.error-item .notify-icon {
+  color: var(--status-error, #ef4444);
 }
 
-.notify-item.warn-item {
-  background-color: #b27709;
+svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
-.notify-item.error-item {
-  background-color: #af2a3a;
+.notify-body {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
-.notify-item .notify-title {
-  font-weight: bold;
-  margin-bottom: 5px;
-  font-size: 16px;
+.notify-title-text {
+  font-weight: 700;
 }
 
-.notify-item .notify-title .notify-title-text {
-  width: calc(100% - 20px);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.notify-content {
+  margin: 6px 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
-.notify-item .notify-title .notify-close {
-  position: absolute;
-  top: 5px;
-  right: 5px;
-  width: 10px;
-  height: 10px;
-  line-height: 10px;
-  text-align: center;
+.notify-close {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.65));
   cursor: pointer;
-  border-radius: 50%;
-  background-color: rgba(255, 255, 255, 0.8);
 }
 
-.notify-item .notify-content {
-  font-size: 14px;
+.notify-close:hover:not(:disabled) {
+  background: var(--surface-3, #161d2b);
+  color: var(--text-primary, rgba(255, 255, 255, 0.92));
+}
+
+.notify-close:focus-visible {
+  outline: 1px solid var(--accent-primary, #38bdf8);
+}
+
+@media (max-width: 600px) {
+  .notify-container {
+    left: 16px;
+    right: 16px;
+  }
 }
 
 .notify-item.preparation {
@@ -198,5 +239,12 @@
   to {
     opacity: 0;
     transform: translateY(20px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .notify-item {
+    animation-duration: 0ms !important;
+    transition-duration: 0ms;
   }
 }

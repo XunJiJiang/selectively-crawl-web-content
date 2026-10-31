@@ -69,12 +69,24 @@
   background-color: var(--scrollbar-color);
 }
 
+/* 内容跳跃时滑块仍平滑移动；松手后也用此过渡吸附到内容的实际位置。 */
+.track.instant .thumb {
+  transition: transform 150ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.track.dragging .thumb {
+  transition: none;
+}
+
 .track:hover .thumb {
   background-color: var(--scrollbar-hover-color, var(--scrollbar-color));
 }
 
 .track.dragging .thumb {
-  background-color: var(--scrollbar-active-color, var(--scrollbar-hover-color, var(--scrollbar-color)));
+  background-color: var(
+    --scrollbar-active-color,
+    var(--scrollbar-hover-color, var(--scrollbar-color))
+  );
 }
 
 .horizontal .thumb {
@@ -91,7 +103,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .track {
+  .track,
+  .track .thumb {
     transition-duration: 0ms !important;
   }
 }
