@@ -324,6 +324,7 @@ export class AppRoot extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     this.store.addEventListener('change', this.changed);
+    this.store.addEventListener('reveal-notification', this.revealNotification);
     this.store.addEventListener('server-event', this.uiRegistryEvent);
     this.store.addEventListener('core-restarted',this.uiRegistryEvent);
     this.addEventListener('ui-effect', this.uiEffect);
@@ -345,6 +346,7 @@ export class AppRoot extends LitElement {
     this.cancelResize?.();
     this.leaveResize();
     this.store.removeEventListener('change', this.changed);
+    this.store.removeEventListener('reveal-notification', this.revealNotification);
     window.removeEventListener('keydown', this.keydown);
     window.removeEventListener('pointerdown', this.dismissTopbarMenu, true);
     window.removeEventListener('blur', this.dismissTopbarMenu);
@@ -4258,6 +4260,13 @@ export class AppRoot extends LitElement {
     </div>`;
   }
   private renderNotifications() {
+    const permission = this.store.systemNotificationPermission;
+    const permissionLabel = {
+      default: '开启系统通知',
+      granted: '系统通知已开启',
+      denied: '系统通知已被阻止，请在浏览器或应用设置中允许',
+      unsupported: '当前环境不支持系统通知',
+    }[permission];
     const all = this.store.notificationItems,
       items = all.filter((n) =>
         this.notificationFilter === 'unread'
@@ -4270,12 +4279,14 @@ export class AppRoot extends LitElement {
       <section class="notification-center" role="dialog" aria-label="通知中心">
         <div class="sidebar-header">
           <strong>通知中心</strong><span class="spacer"></span>${iconButton(
-            'check',
-            '全部标记已读',
-            () =>
-              this.act(async () => {
-                await this.store.ackNotifications(all.filter((n) => !n.readAt).map((n) => n.id));
-              }),
+            'bell',
+            permissionLabel,
+            () => this.act(() => this.store.requestSystemNotificationPermission()),
+            permission !== 'default',
+          )}${iconButton('check', '全部标记已读', () =>
+            this.act(async () => {
+              await this.store.ackNotifications(all.filter((n) => !n.readAt).map((n) => n.id));
+            }),
           )}${iconButton('close', '关闭通知中心', () => this.toggleNotifications())}
         </div>
         <wb-scroll-container class="notification-filters">
@@ -4308,6 +4319,7 @@ export class AppRoot extends LitElement {
             (n) =>
               html`<article
                 data-notification-id=${n.id}
+                tabindex="-1"
                 class=${`notification ${!n.readAt ? 'unread' : 'read'}`}
               >
                 <span class=${n.level}>${icon(n.level === 'warn' ? 'warning' : n.level)}</span>
@@ -4489,6 +4501,20 @@ export class AppRoot extends LitElement {
       )}
     </div>`;
   }
+  private revealNotification = (event: Event) => {
+    const id = (event as CustomEvent<string>).detail;
+    this.notificationFilter = 'all';
+    if (!this.notificationOpen) {
+      this.toggleNotifications();
+    }
+    void this.updateComplete.then(() => {
+      const row = [...this.renderRoot.querySelectorAll<HTMLElement>('[data-notification-id]')].find(
+        (element) => element.dataset.notificationId === id,
+      );
+      row?.scrollIntoView?.({ block: 'nearest' });
+      row?.focus();
+    });
+  };
   private toggleNotifications() {
     this.notificationOpen = !this.notificationOpen;
     this.unreadSnapshot = new Set(

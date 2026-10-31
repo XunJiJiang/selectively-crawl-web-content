@@ -16,6 +16,7 @@ const optionsSchema = z
     dedupeKey: z.string().max(200).optional(),
     progress: progressSchema.optional(),
     autoRead: z.boolean().optional(),
+    systemNotification: z.boolean().optional(),
     actions: z
       .array(
         z
@@ -94,6 +95,7 @@ export class NotificationService {
       count: (old?.count ?? 0) + 1,
       progress: opts.progress === undefined ? false : opts.progress,
       autoRead: opts.autoRead ?? true,
+      systemNotification: opts.systemNotification ?? false,
       seenAt: old?.seenAt ?? null,
       actions: [
         ...(opts.actions ?? []),

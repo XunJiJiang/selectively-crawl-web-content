@@ -343,6 +343,23 @@ test('独立浏览器 SDK + Lit：前端控制对象和通知按钮通过真实�
   assert.equal(JSON.parse(w.document.querySelector('pre').textContent).notification.progress, 50);
   await click('主动关闭');
   assert.equal(JSON.parse(w.document.querySelector('pre').textContent).notification, null);
+  const notices = runtime.getWorkbench().notifications;
+  const systemNotice = (source) =>
+    notices.list().find((item) => item.title === source + ' · 失焦系统通知验证');
+  const frontScheduledAt = Date.now();
+  await click('前端：3 秒后发送系统通知');
+  assert.equal(systemNotice('前端'), undefined);
+  await waitFor(() => systemNotice('前端'), '前端三秒延迟通知', 7000);
+  assert.ok(Date.now() - frontScheduledAt >= 3000);
+  assert.equal(systemNotice('前端').systemNotification, true);
+  assert.equal(systemNotice('前端').autoRead, false);
+  const backScheduledAt = Date.now();
+  await click('后端：3 秒后发送系统通知');
+  assert.equal(systemNotice('后端'), undefined);
+  await waitFor(() => systemNotice('后端'), '后端三秒延迟通知', 7000);
+  assert.ok(Date.now() - backScheduledAt >= 3000);
+  assert.equal(systemNotice('后端').systemNotification, true);
+  assert.equal(systemNotice('后端').source, 'plugin');
 });
 
 test('宿主消息端口：页面状态、保护请求、可中断重发、主动取消和 DOM 资源恢复', async () => {

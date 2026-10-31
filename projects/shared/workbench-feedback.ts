@@ -12,6 +12,8 @@ export interface NotificationOptions {
   progress?: FeedbackProgress;
   /** False leaves reading to markRead() or an explicit user action. */
   autoRead?: boolean;
+  /** Also show a system notification when the receiving application is unfocused. */
+  systemNotification?: boolean;
   actions?: NotificationAction[];
 }
 export interface NotificationUpdate extends Omit<NotificationOptions, 'dedupeKey'> {
@@ -40,6 +42,7 @@ export interface NotificationState {
   count: number;
   progress?: FeedbackProgress;
   autoRead?: boolean;
+  systemNotification?: boolean;
   visible?: boolean;
   seenAt?: string | null;
   actions: { type: string; path?: string; id?: string; label?: string }[];

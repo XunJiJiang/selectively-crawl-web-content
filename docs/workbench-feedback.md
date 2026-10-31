@@ -30,6 +30,21 @@ if (state.seenAt) await notice.markRead();
 
 通知支持 `update()`、`setContent()`、`setProgress()`、`setActions()`、`markRead(true/false)`、`getState()`、`isVisible()` 和 `close()`。操作按钮最多 4 个（包含旧 `target` 按钮），每个按钮提供 `label` 和 `onClick`；回调在创建它的页面或后端进程执行，更新按钮后旧操作失效。控件更新保留已读状态，`autoRead: false` 禁止聚焦或进入通知中心可视区域时自动标记已读，用户仍可主动标记已读。`visible` 表示通知中心中当前可见，`seenAt` 表示首次进入通知中心可视区域的时间，均不把弹出通知当作通知中心；窗口意外关闭后可见状态最多保留 20 秒。
 
+需要在应用失焦时提醒用户的通知，可设置 `systemNotification: true`，默认关闭。此选项可在核心或插件的前后端使用，也可通过 `update()` 开启或关闭：
+
+```ts
+await logger.success('导入完成', {
+  message: '文件已经保存',
+  systemNotification: true,
+});
+```
+
+浏览器用户在通知中心点击“开启系统通知”授权；接收通知时不会自动申请权限。浏览器适配器将页面隐藏或 `document.hasFocus()` 为假视为失焦（包含浏览器窗口失焦，页面内 iframe 获得焦点仍属于当前页面）。权限未授予、不支持或发送失败时，应用内通知和通知中心仍正常保留。浏览器系统通知需要安全上下文，例如 HTTPS 或 localhost，具体呈现由浏览器与操作系统决定。[通知 API 标准](https://notifications.spec.whatwg.org/)、[HTML 聚焦标准](https://html.spec.whatwg.org/multipage/interaction.html#dom-document-hasfocus)。
+
+系统提醒只处理实时发布，以及已知通知从关闭变为开启系统提醒的更新；进度、内容、已读、可见状态更新和历史列表加载不会反复弹出。用 `dedupeKey` 再次发布会产生一次新的提醒机会。授权或页面随后失焦不会补发旧通知。系统提醒展示发布时的标题和正文；点击后唤起应用并定位到通知中心，操作按钮仍在应用内执行。标记已读、删除、关闭系统提醒选项或销毁工作台会撤销已有或等待中的系统提醒。
+
+桌面宿主通过 `new WorkbenchStore(notificationHost)` 注入 `NotificationHost`（`projects/web/src/workbench/notification-host.ts`）。`focus` 提供 `isFocused()` / `focus()`，支持异步原生窗口查询与唤起；`notifications` 提供权限查询、由用户触发的权限申请和 `show()`，后者返回可关闭的句柄，支持异步创建。浏览器的 DOM 与 Notification API 仅位于默认适配器中，通知升级策略不依赖浏览器环境。
+
 任务支持 `update()`、`setContent()`、`setProgress()`、`succeed()`、`fail()`、`cancel()` 和 `getState()`，可设置标题、类型、阶段、正文、状态、错误及追加日志。状态包括 `queued`、`running`、`cancelling`、`succeeded`、`failed`、`cancelled`；已完成任务不能重新进入运行状态。任务创建和更新均不会自动打开窗口。状态栏任务按钮显示空闲、执行中或完成未读状态，打开“任务”窗口后标记当前完成任务已读。
 
 ```ts

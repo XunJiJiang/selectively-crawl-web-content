@@ -53,6 +53,7 @@ class TemplateValidation extends LitElement {
     for (const dispose of this.disposers) dispose();
     for (const controller of this.pending.values()) controller.abort();
     this.socket?.close();
+    this.feedback?.cancelPendingSystemNotices();
     void this.uiDemo?.dispose();
     // 文档离开时 SDK 的 feedback/release 负责回收所属任务与回调。
   }
@@ -155,9 +156,8 @@ class TemplateValidation extends LitElement {
     this.requestUpdate();
   }
 
-  private async run(action: FeedbackAction) {
+  private async run(action: FeedbackAction, source: Source = this.source) {
     if (!this.sdk || !this.feedback || this.busy) return;
-    const source = this.source;
     this.busy = true;
     this.requestUpdate();
     try {
@@ -500,6 +500,20 @@ class TemplateValidation extends LitElement {
             <p class="hint">
               浮层和通知中心底部应显示等宽 4px
               加载条。autoRead=false；点击通知中的按钮验证回调，替换后检查按钮文案和行为。
+            </p>
+            <div class="buttons">
+              ${this.button(
+                '前端：3 秒后发送系统通知',
+                () => this.run('notice.system', '前端'),
+                this.busy,
+              )}${this.button(
+                '后端：3 秒后发送系统通知',
+                () => this.run('notice.system', '后端'),
+                this.busy,
+              )}
+            </div>
+            <p class="hint">
+              点击后可切换到其他窗口。三秒后对应端发送通知；工作台失焦且系统通知已授权时会提升显示。
             </p>
             <div class="inspect-row">
               ${this.action('查询控制对象', 'inspect')}<span class="caption"

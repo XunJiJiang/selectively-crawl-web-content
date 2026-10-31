@@ -4,7 +4,11 @@ import path from 'node:path';
 import { afterAll, beforeAll, expect, it, vi } from 'vitest';
 import WebSocket from 'ws';
 vi.mock('../../../common/environment.ts', () => ({ loadEnvironment: () => undefined }));
-const installFixture = vi.hoisted(() => ({ path: `/tmp/scwc-install-${crypto.randomUUID()}.user.js` }));
+const installFixture = await vi.hoisted(async () => {
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  return { path: join(tmpdir(), `scwc-install-${crypto.randomUUID()}.user.js`) };
+});
 vi.mock('../../../utils/user-script.ts', () => ({
   userScriptPath: installFixture.path,
   requireUserScript: vi.fn(async () => undefined),
@@ -64,7 +68,7 @@ beforeAll(async () => {
     );
     await fs.writeFile(
       path.join(directory, 'index.ts'),
-      `let config;let changes=[];let feedback;let notice;let task;export default {title:'Export ${id}',description:'Description',onRequest(){},configuration:{definitions:[{id:'config',schemaVersion:'1',items:[{id:'persist',key:'persist',label:'Persist',control:'text',defaultValue:''}]}]},async onLoad(logger,context){config=context.config;feedback=context.workbench;await config.set('persist','${id}');config.subscribe(change=>changes.push(change));const ui=context.workbench.ui;await ui.handlers.register('echo',{readOnly:true,run(...args){return args;}});await ui.registerMainSidebar({id:'overview',title:'Overview',icon:{kind:'builtin',name:'info'},content:{format:'html',version:1,html:'<input name="q"><button for="q" onclick="core:string.trim($for:q)|echo($prev)">Go</button>'}});await ui.registerAuxiliarySidebar({id:'details',title:'Details',icon:{kind:'builtin',name:'info'},content:{format:'html',version:1,html:'<p>Details</p>'}});await ui.registerStatusBar({id:'state',ariaLabel:'State',text:'Ready',tooltip:{content:{format:'text',text:'Details'}}});logger.workbench.success('Ready ${id}');},ui:{entry:'./index.html',api:[{method:'POST',path:'/feedback',async handler(){task=await feedback.tasks.create({title:'进程任务',progress:null});notice=await feedback.logger.info('进程通知',{progress:null,autoRead:false,actions:[{label:'完成',async onClick(){await task.succeed('完成');await notice.update({title:'已完成',level:'success',progress:100});}}]});await task.setProgress(35);return {notification:await notice.getState(),task:await task.getState()};}},{method:'GET',path:'/read',async handler(){return {value:await config.get('persist'),changes};}},{method:'POST',path:'/write',async handler(data){await config.set('persist',data.value);return await config.list();}}]}};`,
+      `let config;let changes=[];let feedback;let notice;let task;export default {title:'Export ${id}',description:'Description',onRequest(){},configuration:{definitions:[{id:'config',schemaVersion:'1',items:[{id:'persist',key:'persist',label:'Persist',control:'text',defaultValue:''}]}]},async onLoad(logger,context){config=context.config;feedback=context.workbench;await config.set('persist','${id}');config.subscribe(change=>changes.push(change));const ui=context.workbench.ui;await ui.handlers.register('echo',{readOnly:true,run(...args){return args;}});await ui.registerMainSidebar({id:'overview',title:'Overview',icon:{kind:'builtin',name:'info'},content:{format:'html',version:1,html:'<input name="q"><button for="q" onclick="core:string.trim($for:q)|echo($prev)">Go</button>'}});await ui.registerAuxiliarySidebar({id:'details',title:'Details',icon:{kind:'builtin',name:'info'},content:{format:'html',version:1,html:'<p>Details</p>'}});await ui.registerStatusBar({id:'state',ariaLabel:'State',text:'Ready',tooltip:{content:{format:'text',text:'Details'}}});logger.workbench.success('Ready ${id}');},ui:{entry:'./index.html',api:[{method:'POST',path:'/feedback',async handler(){task=await feedback.tasks.create({title:'进程任务',progress:null});notice=await feedback.logger.info('进程通知',{progress:null,autoRead:false,systemNotification:true,actions:[{label:'完成',async onClick(){await task.succeed('完成');await notice.update({title:'已完成',level:'success',progress:100});}}]});await task.setProgress(35);return {notification:await notice.getState(),task:await task.getState()};}},{method:'GET',path:'/read',async handler(){return {value:await config.get('persist'),changes};}},{method:'POST',path:'/write',async handler(data){await config.set('persist',data.value);return await config.list();}}]}};`,
     );
   }
   getWorkbench();
@@ -148,7 +152,9 @@ it('bridges backend control objects and scopes frontend task and notification co
   );
   const result = (await created.json()).data;
   expect(result.task).toMatchObject({ status: 'running', progress: 35 });
-  expect(result.notification).toMatchObject({ source: 'plugin', progress: null, autoRead: false });
+  expect(result.notification).toMatchObject({
+    source: 'plugin', progress: null, autoRead: false, systemNotification: true,
+  });
   expect(
     (
       await api(
@@ -175,15 +181,22 @@ it('bridges backend control objects and scopes frontend task and notification co
   ).data;
   const notice = await api(
     '/notifications/publish',
-    { title: '页面通知', level: 'info', options: { progress: null, autoRead: false } },
+    {
+      title: '页面通知', level: 'info',
+      options: { progress: null, autoRead: false, systemNotification: true },
+    },
     session.grant,
   );
   expect(notice.status).toBe(200);
+  expect(notice.data.systemNotification).toBe(true);
   const id = notice.data.id;
   expect(
-    (await api(`/notifications/${id}/update`, { progress: 60, message: '更新正文' }, session.grant))
-      .data,
-  ).toMatchObject({ progress: 60, message: '更新正文' });
+    (await api(
+      `/notifications/${id}/update`,
+      { progress: 60, message: '更新正文', systemNotification: false },
+      session.grant,
+    )).data,
+  ).toMatchObject({ progress: 60, message: '更新正文', systemNotification: false });
   expect((await api('/notifications/visibility', { ids: [id] })).status).toBe(200);
   expect((await api(`/notifications/${id}`, undefined, session.grant)).data).toMatchObject({
     visible: true,

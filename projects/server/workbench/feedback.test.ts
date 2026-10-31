@@ -34,6 +34,31 @@ function fixture(
 }
 
 describe('task and notification control objects', () => {
+  it('persists and validates opt-in system notifications across create, update and dedupe', async () => {
+    const { client, notifications } = fixture();
+    const regular = await client.logger.info('普通通知');
+    expect((await regular.getState()).systemNotification).toBe(false);
+    const notice = await client.logger.success('完成', {
+      dedupeKey: 'import',
+      systemNotification: true,
+    });
+    expect(await notice.getState()).toMatchObject({ systemNotification: true, count: 1 });
+    await notice.markRead();
+    await notice.update({ systemNotification: false });
+    expect((await notice.getState()).readAt).toBeTruthy();
+    expect(notifications.list().find((n) => n.id === notice.id)?.systemNotification).toBe(false);
+    await expect(notice.update({ systemNotification: 'yes' } as never)).rejects.toThrow();
+    const repeated = await client.logger.success('再次完成', {
+      dedupeKey: 'import',
+      systemNotification: true,
+    });
+    expect(repeated.id).toBe(notice.id);
+    expect(await repeated.getState()).toMatchObject({
+      systemNotification: true,
+      count: 2,
+      readAt: null,
+    });
+  });
   it('updates loading, content and four function actions without serializing callbacks', async () => {
     const { client, notifications } = fixture();
     const called = vi.fn();

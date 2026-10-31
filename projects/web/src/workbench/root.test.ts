@@ -920,6 +920,43 @@ it('reserves the measured statusbar height in both the outer grid and the shell 
 });
 
 describe('lateral panels and full-width maximization', () => {
+  it('requests system notification permission from a user click and reveals the requested record', async () => {
+    const root = await fixture();
+    vi.spyOn(app.store, 'systemNotificationPermission', 'get').mockReturnValue('default');
+    const request = vi
+      .spyOn(app.store, 'requestSystemNotificationPermission')
+      .mockResolvedValue('granted');
+    requireValue(root.querySelector<HTMLButtonElement>('.notification-button')).click();
+    await app.updateComplete;
+    expect(request).not.toHaveBeenCalled();
+    requireValue(root.querySelector<HTMLButtonElement>('[aria-label="开启系统通知"]')).click();
+    expect(request).toHaveBeenCalledOnce();
+    requireValue(root.querySelector<HTMLButtonElement>('[aria-label="关闭通知中心"]')).click();
+    await app.updateComplete;
+    app.store.notifications = [
+      {
+        id: 'system-notice',
+        source: 'core',
+        pluginId: null,
+        title: '导入完成',
+        message: '已保存',
+        level: 'success',
+        readAt: null,
+        updatedAt: new Date().toISOString(),
+        count: 1,
+        actions: [],
+        autoRead: false,
+      },
+    ];
+    app.store.dispatchEvent(new CustomEvent('reveal-notification', { detail: 'system-notice' }));
+    await app.updateComplete;
+    const row = requireValue(
+      root.querySelector<HTMLElement>('[data-notification-id="system-notice"]'),
+    );
+    expect(root.querySelector('.notification-center')).not.toBeNull();
+    expect(root.activeElement).toBe(row);
+    expect(app.store.notifications[0].readAt).toBeNull();
+  });
   it('renders controlled loading bars and operation buttons in both toast and notification history', async () => {
     const root = await fixture();
     const notice = {

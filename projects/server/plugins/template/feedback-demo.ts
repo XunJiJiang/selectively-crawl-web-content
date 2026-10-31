@@ -20,6 +20,7 @@ export const feedbackActions = [
   'notice.read',
   'notice.unread',
   'notice.close',
+  'notice.system',
   'inspect',
 ] as const;
 export type FeedbackAction = (typeof feedbackActions)[number];
@@ -35,6 +36,8 @@ export class FeedbackDemo {
   private notice?: SCWC.NotificationController;
   private source: string;
   private record: (message: string) => void;
+  private systemNoticeTimers = new Set<ReturnType<typeof setTimeout>>();
+  private disposed = false;
 
   constructor(
     factories: Pick<SCWC.ILoadContext['workbench'], 'logger' | 'tasks'>,
@@ -81,6 +84,20 @@ export class FeedbackDemo {
       if (action === 'task.succeed') await this.task.succeed('验证成功，请观察任务按钮的未读状态');
       if (action === 'task.fail') await this.task.fail('模板主动模拟失败');
       if (action === 'task.cancel') await this.task.cancel();
+    } else if (action === 'notice.system') {
+      const timer = setTimeout(() => {
+        this.systemNoticeTimers.delete(timer);
+        if (this.disposed) return;
+        void this.factories.logger
+          .success(`${this.source} · 失焦系统通知验证`, {
+            message: '点击按钮三秒后发送；应用失焦且已授权时应显示系统通知。',
+            systemNotification: true,
+            autoRead: false,
+          })
+          .then(() => this.record('notice.system.sent'))
+          .catch((error: unknown) => this.record(`notice.system.failed: ${String(error)}`));
+      }, 3000);
+      this.systemNoticeTimers.add(timer);
     } else if (action === 'notice.create') {
       if (this.notice) throw new Error('请先关闭当前通知');
       this.notice = await this.factories.logger.create({
@@ -134,6 +151,7 @@ export class FeedbackDemo {
   }
 
   async dispose() {
+    this.cancelPendingSystemNotices();
     if (
       this.task &&
       ['queued', 'running', 'cancelling'].includes((await this.task.getState()).status)
@@ -141,5 +159,11 @@ export class FeedbackDemo {
       await this.task.cancel();
     await this.notice?.close();
     this.notice = undefined;
+  }
+
+  cancelPendingSystemNotices() {
+    this.disposed = true;
+    for (const timer of this.systemNoticeTimers) clearTimeout(timer);
+    this.systemNoticeTimers.clear();
   }
 }

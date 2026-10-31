@@ -7,6 +7,8 @@ import { CONFIG_KEY } from '../../../shared/utils/common.ts';
 import { clone, uid, defaultLayout, internalTab, addTab, relocatedUrl } from './model.ts';
 import type { DialogField, WorkbenchDialog } from './dialogs.ts';
 import type { FocusLocation } from './focus-history.ts';
+import { browserNotificationHost, type NotificationHost } from './notification-host.ts';
+import { SystemNotifications } from './system-notifications.ts';
 import type {
   Bookmark,
   Bootstrap,
@@ -32,6 +34,18 @@ export class WorkbenchStore extends EventTarget {
   private readonly feedback = createFeedbackClient((path, body) => this.api.request(path, body));
   readonly logger = this.feedback.logger;
   readonly tasks = this.feedback.tasks;
+  private notificationHost: NotificationHost;
+  private systemNotifications: SystemNotifications;
+  get systemNotificationPermission() {
+    return this.notificationHost.notifications.getPermission();
+  }
+  async requestSystemNotificationPermission() {
+    try {
+      return await this.notificationHost.notifications.requestPermission();
+    } finally {
+      this.changed();
+    }
+  }
   private visibleNotifications: string[] = [];
   private visibilityTimer?: ReturnType<typeof setInterval>;
   private reportNotificationVisibility = () => {
@@ -143,8 +157,13 @@ export class WorkbenchStore extends EventTarget {
   private idleSince = Date.now();
   pausePages?: () => Promise<boolean>;
   private activityEvents = ['pointerdown', 'keydown', 'wheel', 'input', 'focus'] as const;
-  constructor() {
+  constructor(notificationHost: NotificationHost = browserNotificationHost()) {
     super();
+    this.notificationHost = notificationHost;
+    this.systemNotifications = new SystemNotifications(notificationHost, (id) => {
+      this.dismissToast(id, false);
+      this.dispatchEvent(new CustomEvent('reveal-notification', { detail: id }));
+    });
     try {
       this.localNotifications = JSON.parse(localStorage.getItem('scwc.notifications') ?? '[]');
     } catch {
@@ -447,6 +466,7 @@ export class WorkbenchStore extends EventTarget {
     this.changed();
   }
   async ackNotifications(ids: string[]) {
+    this.systemNotifications.close(ids);
     const readAt = new Date().toISOString();
     for (const n of [
       ...this.localNotifications,
@@ -473,6 +493,8 @@ export class WorkbenchStore extends EventTarget {
     }
   }
   private applyNotification(value: Notification) {
+    const previous = this.notifications.find((n) => n.id === value.id);
+    this.systemNotifications.update(value, previous);
     this.notifications = [value, ...this.notifications.filter((n) => n.id !== value.id)];
     const toast = this.toasts.find((t) => t.id === value.id);
     if (toast) {
@@ -484,6 +506,7 @@ export class WorkbenchStore extends EventTarget {
     this.changed();
   }
   async deleteNotifications(ids: string[]) {
+    this.systemNotifications.close(ids);
     const remote = ids.filter((id) => !this.localNotifications.some((n) => n.id === id));
     this.localNotifications = this.localNotifications.filter((n) => !ids.includes(n.id));
     this.notifications = this.notifications.filter((n) => !ids.includes(n.id));
@@ -1089,6 +1112,7 @@ export class WorkbenchStore extends EventTarget {
       const value = e.payload as Notification & { ids?: string[]; deleted?: boolean };
       if (value.ids) {
         const ids = value.ids;
+        this.systemNotifications.close(ids);
         if (value.deleted) {
           this.notifications = this.notifications.filter((n) => !ids.includes(n.id));
           this.toasts = this.toasts.filter((t) => {
@@ -1130,8 +1154,12 @@ export class WorkbenchStore extends EventTarget {
     } // This lease is the sole writer; HTTP receipts own local revision updates.
     if (e.type === 'notification.created') {
       const notification = e.payload as Notification;
+      const known = this.notifications.some((value) => value.id === notification.id);
       this.applyNotification(notification);
-      this.toast(notification.title, notification.level, notification);
+      if (!known) {
+        this.toast(notification.title, notification.level, notification);
+        this.systemNotifications.publish(notification);
+      }
     }
     clearTimeout(this.refreshTimer);
     this.refreshTimer = setTimeout(
@@ -1174,6 +1202,7 @@ export class WorkbenchStore extends EventTarget {
     return error instanceof Error ? error.message : String(error);
   }
   dispose() {
+    this.systemNotifications.dispose();
     this.feedback.dispose();
     clearInterval(this.visibilityTimer);
     document.removeEventListener('visibilitychange', this.reportNotificationVisibility);
