@@ -20,6 +20,8 @@ export interface SystemNotificationProvider {
   }): SystemNotificationHandle | Promise<SystemNotificationHandle>;
 }
 export interface NotificationHost {
+  /** Desktop shells force delivery through the core, including browser-only preferences. */
+  kind?: 'browser' | 'desktop';
   focus: ApplicationFocus;
   notifications: SystemNotificationProvider;
 }
@@ -31,6 +33,7 @@ export function browserNotificationHost(): NotificationHost {
       ? window.Notification.permission
       : 'unsupported';
   return {
+    kind: 'browser',
     focus: {
       isFocused: () => document.visibilityState !== 'hidden' && document.hasFocus(),
       focus: () => window.focus(),

@@ -5,11 +5,15 @@ import { WorkspaceService } from './workspace.ts';
 import { OperationService } from './operations.ts';
 import { CommandService } from './command-service.ts';
 import { getNotifications, type NotificationService } from './notifications.ts';
+import { CoreSystemNotifications } from './system-notifications.ts';
+import { initialSystemNotificationSettings } from '../../shared/system-notifications.ts';
+import { ACTIVE_PORT } from '../common/env.ts';
 export class WorkbenchRuntime {
   readonly workspace: WorkspaceService;
   readonly operations: OperationService;
   readonly commands: CommandService;
   readonly notifications: NotificationService;
+  readonly systemNotifications: CoreSystemNotifications;
   readonly storage: WorkbenchStorage;
   constructor(storage: WorkbenchStorage) {
     this.storage = storage;
@@ -17,6 +21,15 @@ export class WorkbenchRuntime {
     this.operations = new OperationService(storage);
     this.commands = new CommandService(storage, this.workspace);
     this.notifications = getNotifications(storage);
+    this.systemNotifications = new CoreSystemNotifications(
+      () =>
+        this.workspace.preferences().values.systemNotifications ??
+        initialSystemNotificationSettings,
+      async (id) => {
+        const { default: open } = await import('open');
+        await open(`http://localhost:${ACTIVE_PORT}/web/?notification=${encodeURIComponent(id)}`);
+      },
+    );
   }
   snapshot(
     input: { kind: string; owner: string; pluginId: string; metadata?: unknown },
@@ -103,6 +116,7 @@ export class WorkbenchRuntime {
     return { deleted: true };
   }
   async close() {
+    this.systemNotifications.closeService();
     await this.operations.close();
     this.commands.close();
     this.storage.cleanup();

@@ -44,6 +44,14 @@ function systemFixture() {
     },
   } satisfies NotificationHost;
   store = new WorkbenchStore(host);
+  store.preferences.values.systemNotifications = { mode: 'browser', enabled: true, answered: true };
+  vi.spyOn(store, 'setPreferences').mockImplementation(async (values) => {
+    store.preferences = {
+      values: { ...store.preferences.values, ...values },
+      revision: store.preferences.revision + 1,
+    };
+    store.changed();
+  });
   const event = (type: string, payload: unknown) =>
     (store as unknown as { onEvent(event: WorkbenchEvent): void }).onEvent({
       type,
@@ -53,6 +61,30 @@ function systemFixture() {
 }
 
 describe('system notification escalation', () => {
+  it('requests permission immediately and reports a dismissed or blocked request', async () => {
+    const { host } = systemFixture();
+    host.notifications.getPermission.mockReturnValue('default');
+    host.notifications.requestPermission.mockResolvedValue('default');
+    const request = store.requestSystemNotificationPermission();
+    expect(host.notifications.requestPermission).toHaveBeenCalledOnce();
+    await request;
+    expect(store.toasts[store.toasts.length - 1]?.text).toContain('权限提示中选择允许');
+    host.notifications.getPermission.mockReturnValue('denied');
+    host.notifications.requestPermission.mockResolvedValue('denied');
+    await store.requestSystemNotificationPermission();
+    expect(store.toasts[store.toasts.length - 1]?.text).toContain('浏览器的网站设置');
+  });
+  it('refreshes permission status when returning from external settings and stops after disposal', () => {
+    systemFixture();
+    const changed = vi.fn();
+    store.addEventListener('change', changed);
+    window.dispatchEvent(new Event('focus'));
+    expect(changed).toHaveBeenCalledOnce();
+    store.dispose();
+    changed.mockClear();
+    window.dispatchEvent(new Event('focus'));
+    expect(changed).not.toHaveBeenCalled();
+  });
   it('only escalates opted-in live publications while the host is unfocused', async () => {
     const { host, event } = systemFixture();
     event('notification.created', notice({ id: 'ordinary', systemNotification: false }));

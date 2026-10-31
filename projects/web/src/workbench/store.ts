@@ -9,6 +9,13 @@ import type { DialogField, WorkbenchDialog } from './dialogs.ts';
 import type { FocusLocation } from './focus-history.ts';
 import { browserNotificationHost, type NotificationHost } from './notification-host.ts';
 import { SystemNotifications } from './system-notifications.ts';
+import {
+  browserNotificationRoute,
+  coreNotificationRoute,
+  isLoopbackHostname,
+  initialSystemNotificationSettings,
+  type SystemNotificationMode,
+} from '../../../shared/system-notifications.ts';
 import type {
   Bookmark,
   Bootstrap,
@@ -29,6 +36,7 @@ import type {
   Workspace,
   WorkspaceSnapshot,
 } from './types.ts';
+const notificationPreferenceKey = 'scwc.system-notification-preference';
 export class WorkbenchStore extends EventTarget {
   readonly api = new WorkbenchAPI(ConfigController.config);
   private readonly feedback = createFeedbackClient((path, body) => this.api.request(path, body));
@@ -36,16 +44,209 @@ export class WorkbenchStore extends EventTarget {
   readonly tasks = this.feedback.tasks;
   private notificationHost: NotificationHost;
   private systemNotifications: SystemNotifications;
+  private systemNotificationPromptHandled = false;
+  systemNotificationPromptVisible = false;
+  get systemNotificationSettings() {
+    return this.preferences.values.systemNotifications ?? initialSystemNotificationSettings;
+  }
+  get coreNotificationStatus() {
+    return this.bootstrap?.systemNotifications;
+  }
+  get forceCoreNotifications() {
+    return (
+      this.notificationHost.kind === 'desktop' || this.coreNotificationStatus?.forceCore === true
+    );
+  }
+  get usesCoreNotifications() {
+    return coreNotificationRoute(this.systemNotificationSettings.mode, this.forceCoreNotifications);
+  }
+  get usesBrowserNotifications() {
+    return browserNotificationRoute(
+      this.systemNotificationSettings.mode,
+      location.hostname,
+      this.forceCoreNotifications,
+    );
+  }
+  private get browserNotificationsEnabled() {
+    return (
+      this.systemNotificationSettings.enabled &&
+      this.usesBrowserNotifications &&
+      this.notificationHost.notifications.getPermission() === 'granted'
+    );
+  }
   get systemNotificationPermission() {
-    return this.notificationHost.notifications.getPermission();
+    const settings = this.systemNotificationSettings;
+    if (settings.answered && !settings.enabled) return 'denied';
+    const permissions = [];
+    if (this.usesCoreNotifications)
+      permissions.push(
+        this.coreNotificationStatus?.supported
+          ? settings.enabled
+            ? 'granted'
+            : 'default'
+          : 'unsupported',
+      );
+    if (this.usesBrowserNotifications)
+      permissions.push(this.notificationHost.notifications.getPermission());
+    return permissions.includes('default')
+      ? 'default'
+      : permissions.includes('granted')
+        ? 'granted'
+        : permissions.includes('denied')
+          ? 'denied'
+          : 'unsupported';
+  }
+  get systemNotificationsEnabled() {
+    return (
+      this.systemNotificationSettings.enabled &&
+      ((this.usesCoreNotifications && this.coreNotificationStatus?.supported === true) ||
+        this.browserNotificationsEnabled)
+    );
+  }
+  get systemNotificationStatus() {
+    const permission = this.systemNotificationPermission;
+    if (this.systemNotificationSettings.answered && !this.systemNotificationSettings.enabled) {
+      return {
+        permission,
+        label: '系统通知已关闭',
+        description: '系统提醒已关闭，可点击“开启系统通知”重新开启。',
+      };
+    }
+    const targets = [
+      this.usesCoreNotifications
+        ? `内核电脑：${this.coreNotificationStatus?.supported ? (this.systemNotificationSettings.enabled ? '已开启' : '尚未开启') : '当前环境不支持'}`
+        : '',
+      this.usesBrowserNotifications
+        ? `当前浏览器：${this.notificationHost.notifications.getPermission() === 'granted' ? '已授权' : this.notificationHost.notifications.getPermission() === 'default' ? '尚未授权' : this.notificationHost.notifications.getPermission() === 'unsupported' ? '需要 HTTPS 或支持通知的浏览器' : '权限已被阻止'}`
+        : '',
+    ]
+      .filter(Boolean)
+      .join('；');
+    return {
+      permission,
+      label: {
+        default: '尚未授权',
+        granted: '已开启系统通知',
+        denied: '通知权限已被阻止',
+        unsupported: '当前环境不支持系统通知',
+      }[permission],
+      description: `${targets}。${
+        {
+          default: '点击“开启系统通知”，并在浏览器或应用的权限提示中选择允许。',
+          granted:
+            '若未显示，请在系统通知设置中允许当前浏览器或应用、开启横幅，并检查勿扰或专注模式。',
+          denied: '浏览器权限被拒绝时，请在浏览器的网站设置中允许通知，然后返回此页面。',
+          unsupported:
+            '浏览器请通过 HTTPS 或 localhost 打开工作台，并确认浏览器支持通知；普通 HTTP 局域网地址无法使用。',
+        }[permission]
+      }`,
+    };
   }
   async requestSystemNotificationPermission() {
+    this.rememberSystemNotificationChoice(true);
+    // Start the browser request before any await or HTTP call consumes the user gesture.
+    const browserRequest = this.usesBrowserNotifications
+      ? this.notificationHost.notifications.requestPermission()
+      : Promise.resolve('granted' as const);
     try {
-      return await this.notificationHost.notifications.requestPermission();
+      const [permission] = await Promise.all([
+        browserRequest,
+        this.setPreferences({
+          systemNotifications: {
+            ...this.systemNotificationSettings,
+            enabled: true,
+            answered: true,
+          },
+        }),
+      ]);
+      if (this.usesBrowserNotifications && permission !== 'granted') {
+        this.toast(this.systemNotificationStatus.description, 'warn');
+      }
+      return this.systemNotificationPermission;
     } finally {
       this.changed();
     }
   }
+  async disableSystemNotifications() {
+    this.rememberSystemNotificationChoice(false);
+    this.systemNotifications.closeAll();
+    await this.setPreferences({
+      systemNotifications: { ...this.systemNotificationSettings, enabled: false, answered: true },
+    });
+  }
+  async setSystemNotificationMode(mode: SystemNotificationMode) {
+    await this.setPreferences({
+      systemNotifications: { ...this.systemNotificationSettings, mode },
+    });
+    this.refreshSystemNotificationPrompt();
+  }
+  private refreshSystemNotificationPrompt() {
+    this.systemNotificationPromptVisible =
+      (this.usesCoreNotifications &&
+        this.coreNotificationStatus?.supported === true &&
+        !this.systemNotificationSettings.answered) ||
+      (this.usesBrowserNotifications &&
+        !this.systemNotificationPromptHandled &&
+        (!this.systemNotificationSettings.answered || this.systemNotificationSettings.enabled) &&
+        this.notificationHost.notifications.getPermission() === 'default');
+    this.changed();
+  }
+  private rememberSystemNotificationChoice(enabled: boolean) {
+    this.systemNotificationPromptHandled = true;
+    this.systemNotificationPromptVisible = false;
+    try {
+      localStorage.setItem(notificationPreferenceKey, JSON.stringify({ enabled, answered: true }));
+    } catch {
+      /* Keep the choice for this document when browser storage is unavailable. */
+    }
+    this.changed();
+  }
+  private loadSystemNotificationChoice() {
+    try {
+      const value = JSON.parse(localStorage.getItem(notificationPreferenceKey) ?? 'null');
+      if (value && typeof value.enabled === 'boolean' && value.answered === true) {
+        this.systemNotificationPromptHandled = true;
+      }
+    } catch {
+      /* A missing or malformed preference is treated as a first launch. */
+    }
+  }
+  private notificationPreferenceChanged = (event: StorageEvent) => {
+    if (event.key !== notificationPreferenceKey) return;
+    this.loadSystemNotificationChoice();
+    if (this.systemNotificationPromptHandled) this.systemNotificationPromptVisible = false;
+    if (!this.systemNotificationsEnabled) this.systemNotifications.closeAll();
+    this.changed();
+  };
+  private refreshNotificationPermission = () => {
+    if (this.systemNotificationPermission !== 'default')
+      this.systemNotificationPromptVisible = false;
+    this.changed();
+  };
+  private notificationPresenceTimer?: ReturnType<typeof setInterval>;
+  private releaseNotificationFocus = () => {
+    if (this.bootstrap?.systemNotifications && isLoopbackHostname(location.hostname)) {
+      void this.api
+        .request('/system-notifications/presence', { focused: false }, undefined, true, false, true)
+        .catch(() => undefined);
+    }
+  };
+  private reportNotificationFocus = () => {
+    if (
+      this.disposed ||
+      !this.bootstrap?.systemNotifications ||
+      (!isLoopbackHostname(location.hostname) && !this.forceCoreNotifications)
+    )
+      return;
+    void Promise.resolve(this.notificationHost.focus.isFocused())
+      .then((focused) => {
+        if (!this.disposed)
+          return this.api
+            .request('/system-notifications/presence', { focused }, undefined, true, false, true)
+            .catch(() => undefined);
+      })
+      .catch(() => undefined);
+  };
   private visibleNotifications: string[] = [];
   private visibilityTimer?: ReturnType<typeof setInterval>;
   private reportNotificationVisibility = () => {
@@ -160,6 +361,7 @@ export class WorkbenchStore extends EventTarget {
   constructor(notificationHost: NotificationHost = browserNotificationHost()) {
     super();
     this.notificationHost = notificationHost;
+    this.loadSystemNotificationChoice();
     this.systemNotifications = new SystemNotifications(notificationHost, (id) => {
       this.dismissToast(id, false);
       this.dispatchEvent(new CustomEvent('reveal-notification', { detail: id }));
@@ -170,6 +372,12 @@ export class WorkbenchStore extends EventTarget {
       /* Storage is optional. */
     }
     window.addEventListener('pagehide', this.release);
+    window.addEventListener('pagehide', this.releaseNotificationFocus);
+    window.addEventListener('focus', this.refreshNotificationPermission);
+    window.addEventListener('storage', this.notificationPreferenceChanged);
+    window.addEventListener('focus', this.reportNotificationFocus);
+    window.addEventListener('blur', this.reportNotificationFocus);
+    document.addEventListener('visibilitychange', this.reportNotificationFocus);
     document.addEventListener('visibilitychange', this.reportNotificationVisibility);
     for (const name of this.activityEvents) {
       window.addEventListener(name, this.activity, true);
@@ -494,7 +702,7 @@ export class WorkbenchStore extends EventTarget {
   }
   private applyNotification(value: Notification) {
     const previous = this.notifications.find((n) => n.id === value.id);
-    this.systemNotifications.update(value, previous);
+    if (this.browserNotificationsEnabled) this.systemNotifications.update(value, previous);
     this.notifications = [value, ...this.notifications.filter((n) => n.id !== value.id)];
     const toast = this.toasts.find((t) => t.id === value.id);
     if (toast) {
@@ -579,6 +787,13 @@ export class WorkbenchStore extends EventTarget {
       this.scheduleIdle();
       clearInterval(this.renewTimer);
       this.renewTimer = setInterval(() => void this.renew(), 10000);
+      this.refreshSystemNotificationPrompt();
+      clearInterval(this.notificationPresenceTimer);
+      this.reportNotificationFocus();
+      this.notificationPresenceTimer = setInterval(this.reportNotificationFocus, 5000);
+      const revealId = new URLSearchParams(location.search).get('notification');
+      if (revealId)
+        this.dispatchEvent(new CustomEvent('reveal-notification', { detail: revealId }));
     } catch (e) {
       this.error = this.message(e);
       this.connection = 'disconnected';
@@ -1076,6 +1291,26 @@ export class WorkbenchStore extends EventTarget {
     this.inputs = w.inputs ?? [];
   }
   private onEvent(e: WorkbenchEvent) {
+    if (e.type === 'system-notification.host-changed' && this.bootstrap) {
+      this.bootstrap.systemNotifications = e.payload as NonNullable<
+        Bootstrap['systemNotifications']
+      >;
+      if (!this.browserNotificationsEnabled) this.systemNotifications.closeAll();
+      this.refreshSystemNotificationPrompt();
+      return;
+    }
+    if (e.type === 'system-notification.clicked') {
+      const value = e.payload as { id: string; viewer: string };
+      if (value.viewer === this.api.clientWindowId) {
+        void Promise.resolve(this.notificationHost.focus.focus()).catch(() => undefined);
+        this.dispatchEvent(new CustomEvent('reveal-notification', { detail: value.id }));
+      }
+      return;
+    }
+    if (e.type === 'system-notification.failed') {
+      this.toast(`内核系统通知发送失败：${(e.payload as { message: string }).message}`, 'warn');
+      return;
+    }
     if (e.type === 'terminal.output') {
       const data = e.payload as {
         streamId: string;
@@ -1145,6 +1380,8 @@ export class WorkbenchStore extends EventTarget {
       const next = e.payload as Preferences;
       if (next.revision > this.preferences.revision) {
         this.preferences = next;
+        if (!this.browserNotificationsEnabled) this.systemNotifications.closeAll();
+        if (this.systemNotificationSettings.answered) this.systemNotificationPromptVisible = false;
         this.changed();
       }
       return;
@@ -1158,7 +1395,7 @@ export class WorkbenchStore extends EventTarget {
       this.applyNotification(notification);
       if (!known) {
         this.toast(notification.title, notification.level, notification);
-        this.systemNotifications.publish(notification);
+        if (this.browserNotificationsEnabled) this.systemNotifications.publish(notification);
       }
     }
     clearTimeout(this.refreshTimer);
@@ -1202,7 +1439,14 @@ export class WorkbenchStore extends EventTarget {
     return error instanceof Error ? error.message : String(error);
   }
   dispose() {
+    this.releaseNotificationFocus();
     this.systemNotifications.dispose();
+    window.removeEventListener('focus', this.refreshNotificationPermission);
+    window.removeEventListener('storage', this.notificationPreferenceChanged);
+    clearInterval(this.notificationPresenceTimer);
+    window.removeEventListener('focus', this.reportNotificationFocus);
+    window.removeEventListener('blur', this.reportNotificationFocus);
+    document.removeEventListener('visibilitychange', this.reportNotificationFocus);
     this.feedback.dispose();
     clearInterval(this.visibilityTimer);
     document.removeEventListener('visibilitychange', this.reportNotificationVisibility);
@@ -1212,6 +1456,7 @@ export class WorkbenchStore extends EventTarget {
         .catch(() => undefined);
     }
     window.removeEventListener('pagehide', this.release);
+    window.removeEventListener('pagehide', this.releaseNotificationFocus);
     this.disposed = true;
     clearInterval(this.renewTimer);
     clearTimeout(this.idleTimer);

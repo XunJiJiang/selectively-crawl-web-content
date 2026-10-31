@@ -25,6 +25,7 @@ import {
 import { ConfigController } from '../../../shared/store/config.ts';
 import { CONFIG_KEY } from '../../../shared/utils/common.ts';
 import './context-menu/wb-menu-select.ts';
+import type { SystemNotificationMode } from '../../../shared/system-notifications.ts';
 @customElement('wb-internal-page')
 export class InternalPageView extends LitElement {
   @property({ attribute: false }) accessor store!: WorkbenchStore;
@@ -455,6 +456,44 @@ export class InternalPageView extends LitElement {
           html`<button class="btn secondary" @click=${() => this.action('resetLayout')}>
             恢复默认
           </button>`,
+        )}
+      </section>
+      <section>
+        <h2>通知</h2>
+        ${this.setting(
+          '系统通知',
+          `${this.store.systemNotificationStatus.label}。${this.store.systemNotificationStatus.description} 开关应用于所有工作台；授权后不会补发旧通知。`,
+          html`<button
+            class="btn secondary"
+            @click=${() => {
+              if (this.store.systemNotificationsEnabled)
+                this.run(() => this.store.disableSystemNotifications());
+              else this.run(() => this.store.requestSystemNotificationPermission());
+            }}
+          >
+            ${this.store.systemNotificationsEnabled ? '关闭系统通知' : '开启系统通知'}
+          </button>`,
+        )}${this.setting(
+          '系统通知发送位置',
+          this.store.forceCoreNotifications
+            ? '桌面应用由内核统一发送系统通知。'
+            : '内核通知显示在运行内核的电脑；浏览器通知显示在打开工作台的电脑。',
+          html`<wb-menu-select
+            label="系统通知发送位置"
+            .value=${this.store.forceCoreNotifications
+              ? 'core'
+              : this.store.systemNotificationSettings.mode}
+            .disabled=${this.store.forceCoreNotifications}
+            .options=${[
+              { value: 'core-and-remote-browsers', label: '内核和非回环地址浏览器' },
+              { value: 'core', label: '仅内核' },
+              { value: 'browser', label: '仅浏览器' },
+            ]}
+            @wb-menu-change=${(e: CustomEvent<{ value: string }>) =>
+              this.run(() =>
+                this.store.setSystemNotificationMode(e.detail.value as SystemNotificationMode),
+              )}
+          ></wb-menu-select>`,
         )}
       </section>
       <section>

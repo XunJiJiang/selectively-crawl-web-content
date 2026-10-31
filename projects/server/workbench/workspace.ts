@@ -247,6 +247,14 @@ export function validateSnapshot(input: unknown) {
 }
 const preferenceSchema = z
   .object({
+    systemNotifications: z
+      .object({
+        mode: z.enum(['core-and-remote-browsers', 'core', 'browser']),
+        enabled: z.boolean(),
+        answered: z.boolean(),
+      })
+      .strict()
+      .optional(),
     theme: z.enum(['system', 'light-2026', 'dark-2026']).optional(),
     bookmarkFolders: z
       .array(
@@ -557,7 +565,14 @@ export class WorkspaceService {
     const values = preferenceSchema.parse(input);
     assert(
       reset.every((k) =>
-        ['theme', 'keybindings', 'energy', 'bookmarkFolders', 'bookmarkOrder'].includes(k),
+        [
+          'theme',
+          'keybindings',
+          'energy',
+          'bookmarkFolders',
+          'bookmarkOrder',
+          'systemNotifications',
+        ].includes(k),
       ),
       'invalid_preferences',
       '未知偏好字段',

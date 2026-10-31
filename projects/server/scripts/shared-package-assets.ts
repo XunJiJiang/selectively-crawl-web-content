@@ -4,7 +4,7 @@ import { findPackageJSON } from 'node:module';
 import { pathToFileURL } from 'node:url';
 
 /** These packages need their native binary or original resource-relative paths. */
-export const sharedExternalPackages = ['better-sqlite3', 'trash', 'open'];
+export const sharedExternalPackages = ['better-sqlite3', 'trash', 'open', 'node-notifier'];
 
 /** Preserve Node's package lookup and conflicting transitive versions in SEA. */
 export async function sharedPackageAssets(

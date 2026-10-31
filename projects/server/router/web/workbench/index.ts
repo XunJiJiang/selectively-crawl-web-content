@@ -13,6 +13,7 @@ import { identifier } from '../../../workbench/workspace.ts';
 import { feedbackRequest } from '../../../workbench/feedback.ts';
 import { workbenchEvents } from '../../../workbench/events.ts';
 import { openUserScriptInstaller } from '../../../utils/user-script.ts';
+import { isLoopbackHostname } from '../../../../shared/system-notifications.ts';
 
 export function resolvePluginUrl(value: string, pluginId: string | undefined, origin: string) {
   z.string().min(1).max(16384).parse(value);
@@ -183,6 +184,7 @@ export function createWorkbenchRouter() {
       },
       catalogRevision: pluginCatalog.revision,
       preferences: w.workspace.preferences(),
+      systemNotifications: w.systemNotifications.status(),
       commands: w.commands.commands(),
     };
   });
@@ -558,6 +560,16 @@ export function createWorkbenchRouter() {
     ),
   );
   route('get', '/notifications', (req) => pageList(req, getWorkbench().notifications.list()));
+  route('post', '/system-notifications/presence', (req, res) => {
+    assert(!page(res), 'grant_scope', '普通页面授权不能上报工作台聚焦', 403);
+    const viewer = owner(req);
+    const focused = z.boolean().parse(req.body.focused);
+    const peer = req.socket.remoteAddress?.replace(/^::ffff:/, '') ?? '';
+    if (isLoopbackHostname(peer) && isLoopbackHostname(new URL(res.locals.origin).hostname)) {
+      getWorkbench().systemNotifications.presence(viewer, focused);
+    }
+    return { accepted: true };
+  });
   route('post', '/notifications/ack', (req) => {
     getWorkbench().notifications.change(req.body.ids);
     return { acknowledged: true };

@@ -105,11 +105,14 @@ export class SystemNotifications {
       }
     }
   }
-  dispose() {
-    this.disposed = true;
+  closeAll() {
     for (const delivery of this.deliveries.values()) {
       this.closeDelivery(delivery);
     }
     this.deliveries.clear();
+  }
+  dispose() {
+    this.disposed = true;
+    this.closeAll();
   }
 }

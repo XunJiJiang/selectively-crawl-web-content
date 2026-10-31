@@ -4260,13 +4260,6 @@ export class AppRoot extends LitElement {
     </div>`;
   }
   private renderNotifications() {
-    const permission = this.store.systemNotificationPermission;
-    const permissionLabel = {
-      default: '开启系统通知',
-      granted: '系统通知已开启',
-      denied: '系统通知已被阻止，请在浏览器或应用设置中允许',
-      unsupported: '当前环境不支持系统通知',
-    }[permission];
     const all = this.store.notificationItems,
       items = all.filter((n) =>
         this.notificationFilter === 'unread'
@@ -4280,9 +4273,11 @@ export class AppRoot extends LitElement {
         <div class="sidebar-header">
           <strong>通知中心</strong><span class="spacer"></span>${iconButton(
             'bell',
-            permissionLabel,
-            () => this.act(() => this.store.requestSystemNotificationPermission()),
-            permission !== 'default',
+            this.store.systemNotificationsEnabled ? '关闭系统通知' : '开启系统通知',
+            () => {
+              if (this.store.systemNotificationsEnabled) this.act(() => this.store.disableSystemNotifications());
+              else this.act(() => this.store.requestSystemNotificationPermission());
+            },
           )}${iconButton('check', '全部标记已读', () =>
             this.act(async () => {
               await this.store.ackNotifications(all.filter((n) => !n.readAt).map((n) => n.id));
@@ -4430,6 +4425,31 @@ export class AppRoot extends LitElement {
   }
   private renderToasts() {
     return html`<div class="toast-container" aria-live="polite">
+      ${this.store.systemNotificationPromptVisible
+        ? html`<div class="toast info" role="status" aria-label="系统通知授权提示">
+            <span>${icon('bell')}</span>
+            <div class="toast-body">
+              <strong>开启系统通知？</strong>
+              <p>允许后，将按设置的发送位置显示重要系统通知。可随时在设置中关闭。</p>
+              <div class="notification-buttons">
+                <button
+                  class="btn secondary small"
+                  aria-label="允许系统通知"
+                  @click=${() => this.act(() => this.store.requestSystemNotificationPermission())}
+                >
+                  允许
+                </button>
+                <button
+                  class="btn secondary small"
+                  aria-label="拒绝系统通知"
+                  @click=${() => this.act(() => this.store.disableSystemNotifications())}
+                >
+                  拒绝
+                </button>
+              </div>
+            </div>
+          </div>`
+        : nothing}
       ${repeat(
         this.store.toasts,
         (t) => t.id,

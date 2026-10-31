@@ -24,6 +24,7 @@ export interface CatalogItem {
   revision: number;
 }
 export interface PreferenceValues {
+  systemNotifications?: import('../../../shared/system-notifications.ts').SystemNotificationSettings;
   bookmarkFolders?: { id: string; name: string; parentId?: string | null }[];
   bookmarkOrder?: string[];
   theme?: 'system' | 'light-2026' | 'dark-2026';
@@ -41,6 +42,7 @@ export interface Preferences {
   revision: number;
 }
 export interface Bootstrap {
+  systemNotifications?: { supported: boolean; forceCore: boolean };
   installationId: string;
   coreBootId: string;
   catalogRevision: number;

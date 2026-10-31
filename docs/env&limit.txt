@@ -11,3 +11,5 @@ Bun工作区安装沙箱|默认及显式TMPDIR均可能无法写临时目录；�
 Windows文件符号链接|当前权限创建文件symlink返回EPERM。
 AOCI CLI沙箱|CAS锁临时文件rename可能返回Access is denied；需在沙箱外使用原临时目录，保持跨进程锁域一致。
 AOCI 0.1.0-rc21孤儿删除|历史对象再次删除可能触发cognition_transaction_ledger_terminal_event_conflict，常规重试不能恢复。
+内核原生系统通知|内核必须运行于已登录用户的图形桌面会话；Windows SYSTEM服务和无桌面的远程进程不能显示通知。
+macOS通知辅助应用|生成后存放于核心data目录的scwc子目录。
