@@ -2,13 +2,13 @@
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/===
 .gitattributes[FR4T]: F:统一检出换行 | R:- | A:* text=auto eol=lf | S:强制LF覆盖autocrlf，避免原始字节Baseline出现整仓伪漂移
-.gitignore[FC5M]: F:界定版本控制资产 | R:- | A:Git忽略规则 | S:生成Web与工具包不跟踪；插件模板和终端scwc目录有显式例外
+.gitignore[FC5M]: F:界定版本控制资产 | R:- | A:Git忽略规则 | S:生成Web与工具包不跟踪；插件模板及终端scwc目录有显式例外
 AGENTS.md[SG8S]: F:约定仓库认知使用与约束入口 | R:code:docs/env&limit.txt | A:Agent执行合同 | S:任务开始先核验AOCI版本再读约束；压缩后强制完整重载且只尝试一次认知证明；插件开发不维护根索引；限制文档重建时保留
 LICENSE[SG2T]: F:授予使用许可 | R:- | A:MIT许可条款 | S:再分发须保留版权及许可声明
-bun.lock[FV5L]: F:锁定工作区与外部依赖解析 | R:code:package.json,code:projects/shared/package.json | A:lockfileVersion,configVersion,workspaces,packages | S:shared使用workspace链接；node-notifier保留原生资源，is-wsl冲突版本按父依赖分层
+bun.lock[FV5L]: F:锁定工作区与外部依赖解析 | R:code:package.json,code:projects/shared/package.json | A:lockfileVersion,configVersion,workspaces,packages | S:shared以workspace链接；原生通知资源随包保留，is-wsl按父依赖分层
 oxfmt.config.ts[FQ4T]: F:约束源码格式 | R:code:package.json | A:defineConfig | S:只格式化TS，LF及两空格；忽略构建目录与编辑器配置
 oxlint.config.ts[FQ5S]: F:配置类型感知检查 | R:code:package.json | A:defineConfig | S:强制ts/js显式扩展名；浏览器环境覆盖使用webutils小写路径
-package.json[FV8S]: F:组织工作区依赖与构建启动 | R:code:projects/server/scripts/setup.ts,code:projects/server/scripts/build-runtime.ts | A:workspaces,scripts,dependencies,engines | S:build先类型检查再构建各端；默认发行含终端插件，开发Web3201；通知原生依赖随发行保留，engine不替代发行探针
+package.json[FV8S]: F:组织工作区依赖与构建启动 | R:code:projects/server/scripts/setup.ts,code:projects/server/scripts/build-runtime.ts | A:workspaces,scripts,dependencies,engines | S:build先类型检查；默认发行含终端插件；开发Web3201；engines不替代发行运行时探针
 tsconfig.app.json[FQ5T]: F:检查浏览器应用源码 | R:code:projects/shared/store/config.ts,code:projects/user-script/src/main.ts,code:projects/web/src/main.ts | A:compilerOptions,include | S:启用旧装饰器和严格无输出检查；显式包含服务端插件全局声明以供SCWC类型使用
 tsconfig.json[FQ5T]: F:聚合工作区类型项目 | R:code:tsconfig.app.json,code:tsconfig.node.json,code:tsconfig.serve.json,code:tsconfig.terminal.json,code:tsconfig.plugin-web.json,code:projects/vite-plugin/tsconfig.json | A:references | S:根files为空，实际检查范围由各引用项目决定
 tsconfig.node.json[FQ4T]: F:检查Node构建配置与Web开发脚本 | R:code:tsconfig.json,code:projects/web/vite.config.ts,code:projects/web/scripts/dev.ts | A:compilerOptions,include | S:纳入根配置及Web配置、开发脚本和测试；严格无输出，采用bundler解析
@@ -1027,14 +1027,14 @@ zoom-out.svg[ZU2T]: F:绘制圆框缩小减号 | R:- | A:SVG图形 | S:-
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/public/web/assets/===
 index-C0tSgCCc.css[ZU4T]: F:分发工作台主题、字号与图标外观 | R:code:projects/web/var.css,code:projects/web/style.css | A:CSS变量,主题选择器,codicon字形 | S:根字号14px；外层隐藏原生滚动，内部容器负责滚动
-index-DRnirxvK.js[EU5L]: F:启动工作台配置与组件加载链 | R:code:projects/web/src/main.ts,code:projects/shared/store/config.ts,code:projects/server/public/web/assets/layouts-Cf0T0Krw.js | A:浏览器ESM入口 | S:本机配置先写存储再动态加载布局；引用构建哈希必须与部署资源配套
-layouts-Cf0T0Krw.js[AU5L]: F:分发工作台布局、通知与声明式视图 | R:code:projects/web/src/layouts/root.ts,code:projects/web/src/workbench/store.ts,code:projects/web/src/components/declarative-view.ts | A:app-root,通知中心,声明式视图组件 | S:首次系统通知由显式授权按钮触发；产物是构建快照，不等同于原生通知部署
 local-config-VfJoo0HP.js[LU4T]: F:分发Lit运行时与本机启动配置加载 | R:code:projects/web/src/api/local-config.ts | A:浏览器共享ESM导出 | S:仅回环同源请求配置，拒绝重定向；三秒失败回退现有配置
 terminal-BMLRmSDZ.js[LU5M]: F:分发Web终端与命令编辑器 | R:code:projects/web/src/components/terminal.ts,code:projects/web/src/components/command-editor.ts | A:WorkbenchTerminal,wb-terminal,wb-command-editor | S:输入输出共用视口；滚轮与pointerdown在捕获阶段记录用户滚动，避免跟随重置位置
 workbench-ChFwm2pk.js[LU5L]: F:分发工作台组件、布局与事件连接工具 | R:code:projects/web/src/components/scroll-container.ts,code:projects/web/src/components/context-menu/wb-context-menu.ts,code:projects/web/src/api/workbench.ts | A:浏览器共享ESM导出 | S:跳跃内容与连续滑块分离，松手150ms归位；Socket使用单次票据并拒旧代连接；构建资源须配套
+index-DG_NNwVl.js[EU5L]: F:启动工作台配置与组件加载链 | R:code:projects/web/src/main.ts,code:projects/server/public/web/assets/layouts-CUw9geSq.js | A:浏览器ESM入口 | S:本机配置写存储后才加载布局；哈希资源须配套部署
+layouts-CUw9geSq.js[AU5L]: F:分发工作台布局、通知与声明式视图 | R:code:projects/web/src/layouts/root.ts,code:projects/web/src/workbench/notification-host.ts,code:projects/web/src/workbench/store.ts | A:app-root,浏览器系统通知,声明式渲染 | S:历史通知不补发；浏览器图标引用随包PNG；资源须与入口哈希配套
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/public/web/===
-index.html[EU5T]: F:装载生产工作台并标记页面身份 | R:code:projects/server/public/web/assets/index-DRnirxvK.js,code:projects/server/public/web/assets/index-C0tSgCCc.css | A:/web/HTML入口,scwc-app元标记 | S:预载local-config，资源固定/web/assets；初始dark-2026；元标记供脚本跳过浮窗
+index.html[EU5T]: F:装载生产工作台并标记页面身份 | R:code:projects/server/public/web/assets/index-DG_NNwVl.js,code:projects/server/public/web/assets/index-C0tSgCCc.css | A:/web/HTML入口,scwc-app元标记,ICO favicon | S:预载local-config；资源基于/web/assets；初始dark-2026；元标记供脚本跳过浮窗
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/router/===
 index.ts[MN8M]: F:接入核心采集、工作台与脚本配置HTTP | R:code:projects/server/workbench/page-sessions.ts,code:projects/server/router/user-script.ts,code:projects/server/router/web/workbench/websocket.ts | A:app,listen,/api/metadata/scrape | S:管理接口可用受限页面授权；采集先验来源与site主机再验Bearer；Web静态GET放行，响应关闭结束任务作用域
@@ -1055,11 +1055,12 @@ local-config.test.ts[TI5S]: F:验证本机凭据加载边界 | R:code:projects/s
 local-config.ts[EI8T]: F:供给本机启动配置 | R:code:projects/server/common/env.ts,code:projects/server/common/setupParam.ts | A:localConfig | S:要求回环对端、专用头及精确同源来源；仅开发允许回环Host的WEB_PORT代理，返回页面同源配置；清除CORS且禁止缓存
 websocket.test.ts[TN5S]: F:验证插件通道隔离 | R:code:projects/server/router/web/websocket.ts | A:Vitest用例 | S:用真实连接确认同名通道按safeId隔离并拒绝缺失site的握手
 websocket.ts[IN8M]: F:托管插件实时通道 | R:code:projects/server/workbench/page-sessions.ts,code:projects/server/plugin/process/client.ts | A:PluginWebSocketRegistry,pluginWebSocketRegistry | S:校验site来源后消费页面票据或TOKEN；注销终止全部连接；异步onConnect迟到时仍执行清理一次
-development.test.ts[TI6S]: F:验证开发代理认证、跳转及公共样式资源 | R:code:projects/server/router/web/page/index.ts,code:projects/web/vite.config.ts,code:projects/server/router/web/local-config.ts | A:Vitest集成用例 | S:真实双HTTP服务验证非默认端口、凭据重试和票据来源；公共CSS须无token且核心与代理字节一致
+development.test.ts[TI6S]: F:验证开发代理认证、跳转与公共资源过滤 | R:code:projects/server/router/web/page/index.ts,code:projects/web/vite.config.ts,code:projects/server/router/web/local-config.ts | A:Vitest集成用例 | S:真实双HTTP校验来源和票据；公共CSS无token，macos同样404；夹具禁Vite依赖扫描
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/router/web/page/===
-index.ts[EE7S]: F:供给插件页面 | R:code:projects/server/plugin/load.ts,code:projects/server/router/web/page/worry.html | A:default /web/page Router | S:真实路径限制UI及静态资产；HTML最前注入最新IIFE工具；声明SPA时资源前缀不回退HTML
+index.ts[EE7M]: F:供给插件页面与过滤公共资源 | R:code:projects/server/plugin/load.ts,code:projects/server/router/web/page/worry.html | A:default /web/page Router,RESOURCE_FILTERS | S:UI按真实路径限根；SPA资产不回退HTML；macos过滤请求及实路径并归一大小写；HTML最前注入最新工具
 worry.html[SU2T]: F:提供错误页模板 | R:code:projects/server/router/web/page/index.ts | A:{{title}},{{status}},{{message}} | S:-
+resources.test.ts[TN5S]: F:验证公共资源过滤与路径边界 | R:code:projects/server/router/web/page/index.ts | A:Vitest HTTP用例 | S:真实HTTP覆盖GET/HEAD、编码大小写及目录链接绕过；同名前缀不误拦
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/router/web/workbench/===
 backend.test.ts[TE7L]: F:验证工作台HTTP、插件进程与声明式UI接入 | R:code:projects/server/router/web/workbench/index.ts,code:projects/server/workbench/declarative-ui.ts,code:projects/server/workbench/notifications.ts | A:Vitest集成用例 | S:真实IPC和HTTP验证systemNotification传输与更新；临时脚本使用系统临时目录；安装唤起拒绝普通页面grant
@@ -1071,7 +1072,7 @@ declarative-ui.ts[EU8S]: F:提供声明式UI实例、事件与资源路由 | R:c
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/scripts/===
 build-bundled-node.ts[OV7T]: F:构建内置Node发行包 | R:code:projects/server/scripts/build-runtime.ts,code:projects/server/scripts/sea-bootstrap.ts,code:projects/server/scripts/release-package.ts | A:buildBundledNodeDistribution | S:须本机原生平台和Node25.5以上；以SEA资产内嵌运行清单，macOS产物需临时签名
 build-external-node.ts[OV7S]: F:构建外置Node发行包 | R:code:projects/server/scripts/build-runtime.ts,code:projects/server/scripts/external-node-bootstrap.ts,code:projects/server/scripts/release-package.ts | A:buildExternalNodeDistribution | S:只打包运行资产而不含Node本体；在暂存目录验证原生依赖后才替换ZIP，启动器和元数据随包
-build-runtime.ts[OV8S]: F:组装双发行共用的核心与构建运行资产 | R:code:projects/server/scripts/shared-package-assets.ts,code:projects/web/vite.config.ts,code:projects/user-script/vite.config.ts,code:projects/webutils/vite.config.ts | A:buildRuntime,BUILD_ROOT,RuntimeAsset | S:七个CJS入口；资产按core和web-build分域并保留Unix权限；favicon复制为notification.ico，原生助手保留包相对路径
+build-runtime.ts[OV8S]: F:组装双发行共用的核心与构建运行资产 | R:code:projects/server/scripts/shared-package-assets.ts,code:projects/web/vite.config.ts,code:projects/user-script/vite.config.ts,code:projects/webutils/vite.config.ts | A:buildRuntime,BUILD_ROOT,RuntimeAsset | S:七个CJS入口；按core和web-build分域保留权限；复制resources含通知PNG及macOS预编译资源；原生依赖保留包相对路径
 build.ts[OV5T]: F:准备核心Web产物 | R:code:projects/web/vite.config.ts,code:projects/server/scripts/setup.ts | A:buildWeb,isWebBuilt,shouldBuildWeb,buildWebIfNeeded | S:已构建仅检查index.html存在；默认只有mode严格为prod且缺产物才构建，强制build优先
 bundled-node-launch.test.ts[TV6T]: F:验证独立发行启动 | R:code:projects/server/scripts/release-test-utils.ts,code:projects/server/scripts/sea-bootstrap.ts | A:Vitest集成用例 | S:从真实ZIP复制部署，默认终端保存多窗状态，no-terminal不生成状态文件
 external-node-bootstrap.ts[EV8T]: F:引导外置Node运行 | R:code:projects/server/scripts/external-node-runtime.ts,code:projects/server/common/paths.ts | A:startExternalNode,--check-node | S:相邻env优先指定Node，显式路径无效不回退；验证后所有子宿主沿用同一Node及绝对部署根
@@ -1090,6 +1091,7 @@ setup.ts[EV7T]: F:准备源码服务启动 | R:code:projects/server/scripts/buil
 shared-package-assets.ts[OV7S]: F:收集原生程序及资源相对路径依赖 | R:code:projects/server/scripts/build-runtime.ts | A:sharedPackageAssets,sharedExternalPackages | S:jsdom与css-tree须外置并携带包内CSS、Worker及JSON；通知、open、trash和SQLite保留完整资产；冲突版本分层，仅可选依赖允许缺失
 smoke-bundled-node.ts[TV6M]: F:冒烟验证独立核心 | R:code:projects/server/scripts/release-test-utils.ts,code:projects/terminal/smoke.ts | A:独立发行冒烟脚本 | S:需要真实内置发行ZIP和Redis；从无关cwd验证密码前缀隔离、输入取消、端口递增及退出清理
 runtime-ui.test.ts[TV6T]: F:验证发行运行资产支持声明式UI编译 | R:code:projects/server/scripts/shared-package-assets.ts,code:projects/server/workbench/ui-compiler.ts | A:Vitest集成用例 | S:子进程用发行相同CJS选项编译并清洗HTML与CSS，解析钩子拒绝临时目录外依赖，防工作区掩盖缺失资源
+build-mac-notification-icon.ts[OV5T]: F:编译并验证macOS三层图标资源 | R:code:projects/server/public/resources/macos/SCWC.icon/icon.json,code:projects/server/workbench/mac-notification-helper.ts | A:buildMacNotificationIcon,脚本入口 | S:仅重生成需macOS与Xcode26+；先验三层再原子替换预编译资源，发行直接携带
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/scripts/launchers/===
 start.ps1[EV6T]: F:选择Windows运行时 | R:code:projects/server/scripts/external-node-bootstrap.ts | A:PowerShell启动器 | S:解析相邻env而不执行内容；显式Node不合规即失败，缺省遍历PATH候选；探测期间清空NODE_OPTIONS
@@ -1148,10 +1150,12 @@ declarative-ui.ts[AU9L]: F:治理声明式UI注册、实例和受限执行 | R:c
 ui-compiler.test.ts[TU7S]: F:验证受限UI编译和内容过滤 | R:code:projects/server/workbench/ui-compiler.ts | A:Vitest用例 | S:验证事件先提取再清洗、触发依赖展开与循环拒绝；JSON嵌套Tabs保留表单归属；拒绝重复字段、跨域表达式、CSS外链及非核心变量
 ui-compiler.ts[KS9L]: F:编译HTML和JSON为受限节点与执行绑定 | R:code:projects/shared/ui-expressions.ts,code:projects/shared/declarative-ui.ts | A:compileUI,compileCSS,validateAttribute | S:事件先转AST再清洗；字段和跨域管道统一校验；JSON转换保留禁用态、按钮图标与开关角色；CSS拒危险函数，资源URL走cap网关
 ui-renderer.test.ts[TU6S]: F:验证固定渲染器的状态保持与安全更新 | R:code:projects/web/src/components/ui-renderer.js,code:projects/web/src/components/ui-frame.js | A:Vitest用例 | S:JSDOM配合真实MessageChannel验证插值仅文本、旧版本拒收、脏输入焦点与选区保持，以及嵌套Tabs点击键盘和更新保留
-mac-notification-helper.ts[IU8S]: F:准备并注册使用统一图标的macOS通知辅助应用 | R:code:projects/server/workbench/native-notification-host.ts,code:projects/server/common/paths.ts,code:projects/server/common/environment.ts | A:prepareMacNotificationHelper | S:固定托管于SCWC_DATA_DIR/scwc，相对data基于ENV_DIR；拒绝符号链接及非托管应用；摘要复用，签名校验后替换并注册Launch Services，回滚失败保留备份
+mac-notification-helper.ts[IU8S]: F:准备并注册带分层及兼容图标的macOS通知辅助应用 | R:code:projects/server/workbench/native-notification-host.ts,code:projects/server/common/paths.ts,code:projects/server/common/environment.ts,code:projects/server/scripts/build-mac-notification-icon.ts | A:prepareMacNotificationHelper | S:托管于SCWC_DATA_DIR/scwc，相对路径基于ENV_DIR；PNG与Assets.car均入摘要；资产名SCWC配合ICNS；拒绝符号链接及非托管应用；签名验证后替换并注册，回滚失败保留备份
 native-notification-host.ts[IU8S]: F:适配跨平台内核原生通知及可替换桌面宿主 | R:code:projects/server/workbench/mac-notification-helper.ts,code:projects/server/workbench/notification-icon.ts,code:projects/server/common/paths.ts | A:CoreNotificationHost,CoreNotificationHandle,nativeNotificationHost | S:依赖保持包相对路径；macOS使用已注册助手，Windows使用SnoreToast；创建前复核取消，句柄可关闭且错误保留原cause
-notification-icon.ts[KU6T]: F:把统一favicon转换为原生通知PNG | R:code:projects/server/common/paths.ts,code:projects/server/scripts/build-runtime.ts | A:notificationIconFile | S:源码读取web/public/favicon.ico，发行读取public/resources/notification.ico；支持PNG或未压缩32位ICO，失败清缓存以便重试
+notification-icon.ts[IU6T]: F:定位原生通知PNG资源 | R:code:projects/server/common/paths.ts,code:projects/server/scripts/build-runtime.ts | A:notificationIconFile | S:源码与发行均以SERVER_ROOT定位public/resources/notification.png，不依赖cwd或favicon
 system-notifications.ts[AM8S]: F:在内核失焦时发送跨浏览器去重的原生系统提醒 | R:code:projects/server/workbench/native-notification-host.ts,code:projects/server/workbench/notifications.ts,code:projects/server/workbench/events.ts,code:projects/shared/system-notifications.ts | A:CoreSystemNotifications,setHost,status,presence,closeService | S:只处理实时发布与显式启用，按id/count去重且缓存千条；本地聚焦20秒有效，桌面宿主可强制内核并接管焦点；已读、关闭或销毁取消迟到发送
+mac-notification-helper.test.ts[TU5T]: F:验证macOS通知图标安装与摘要更新 | R:code:projects/server/workbench/mac-notification-helper.ts,code:projects/server/workbench/notification-icon.ts | A:Vitest文件夹具 | S:签名及注册命令被mock；验证分层资源、ICNS兼容和摘要变化，不证明系统横幅
+notification-icon.test.ts[TV5T]: F:验证通知PNG在源码与隔离发行环境中的定位 | R:code:projects/server/workbench/notification-icon.ts,code:projects/server/common/paths.ts | A:Vitest子进程用例 | S:从无关cwd消费独立runtime；断言PNG256×256且字节一致
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/shared/components/===
 button.css[ZU3T]: F:定义共享按钮外观 | R:code:projects/shared/components/button.ts | A:.scwc-btn样式 | S:host不接收指针，内部button重新开启交互
@@ -1322,7 +1326,7 @@ package.json[FV5T]: F:声明SCWC构建插件及shared工作区依赖 | R:code:pr
 tsconfig.json[FQ3T]: F:检查Vite插件JS | R:code:tsconfig.node.json | A:allowJs,checkJs,include | S:将JS及声明纳入类型检查，增量信息存node_modules临时目录
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/web/===
-index.html[EU5T]: F:装载插件工作台并标记页面身份 | R:code:projects/web/src/main.ts,code:projects/web/style.css,code:projects/user-script/src/main.ts | A:app-root,scwc-app元标记,浏览器ESM入口 | S:初始主题dark-2026；脚本通过页面身份跳过浮窗
+index.html[EU5T]: F:装载插件工作台并标记页面身份 | R:code:projects/web/src/main.ts,code:projects/web/style.css,code:projects/user-script/src/main.ts | A:app-root,scwc-app元标记,ICO favicon | S:初始dark-2026；脚本凭页面身份跳过浮窗；favicon由Vite转为哈希资源
 package.json[FV4T]: F:声明工作台开发、构建与测试命令 | R:code:projects/web/vite.config.ts,code:projects/web/scripts/dev.ts | A:dev,build,test,lint,fmt | S:开发入口由Node消费核心端口，生产由Vite构建
 style.css[ZU4T]: F:设置页面全局外观 | R:code:projects/web/var.css,code:projects/web/src/components/icon.ts | A:html,body,app-root,wb-icon | S:html基础字号14px；外层满屏隐藏滚动，内部布局负责滚动；codicon字体全局加载
 var.css[FC5M]: F:声明工作台深浅主题、字体与尺寸变量 | R:code:projects/web/style.css,code:projects/web/src/workbench/workbench.css | A:CSS变量,dark-2026,light-2026 | S:统一标签高32px；默认深色，终端前景和光标独立，菜单黑白半透明；字体按rem，减弱动态将时长置零
@@ -1409,8 +1413,8 @@ request-lifecycle.test.ts[TN6T]: F:验证请求暂停恢复边界 | R:code:proje
 scroll-container.test.ts[TU5M]: F:验证工作台滚轮限幅与整行视口 | R:code:projects/web/src/components/scroll-container.ts,code:projects/shared/components/scroll-container/wheel-motion.ts | A:Vitest用例 | S:分别验证终端和输出行的超大正反向事件最多一行，行高变化同步上限；覆盖倍率、单位换算、清余数、整行余量及只拖动模式
 layout-geometry.test.ts[TU6L]: F:验证工作台分配及联动拖拽阈值 | R:code:projects/web/src/workbench/layout-geometry.ts | A:Vitest用例 | S:覆盖168宽侧栏、78高面板和220宽侧停面板；半尺寸显隐、远侧栏压缩、先隐藏侧停面板、释放固化及最小叶组冻结均分
 layout-geometry.ts[KU7L]: F:计算工作台压缩与联动拖拽尺寸 | R:code:projects/web/src/workbench/types.ts,code:projects/web/src/layouts/root.ts | A:fitWorkbench,dragHorizontal,applyHorizontalDrag,dragBottomPanel,splitExtent,activitySlots | S:显隐取最小尺寸一半；侧停面板最小220，底部高78；扩侧栏先压缩后隐藏侧停面板；扩面板只压远侧栏；联动显隐仅同次拖拽可逆
-notification-host.test.ts[TU5T]: F:验证浏览器通知适配器的聚焦、授权与点击行为 | R:code:projects/web/src/workbench/notification-host.ts | A:Vitest用例 | S:伪造安全上下文与Notification；可见但窗口失焦仍算后台；权限只显式申请，点击关闭句柄
-notification-host.ts[IU7T]: F:隔离可替换的应用聚焦与系统通知宿主能力 | R:- | A:ApplicationFocus,NotificationHost,SystemNotificationProvider,SystemNotificationHandle,browserNotificationHost | S:kind=desktop交路由强制内核；浏览器要求安全上下文、可见且hasFocus，权限只显式申请；聚焦与显示支持异步
+notification-host.test.ts[TU5T]: F:验证浏览器通知宿主聚焦、授权、图标与点击 | R:code:projects/web/src/workbench/notification-host.ts | A:Vitest用例 | S:伪造Notification；可见但失焦算后台；只显式授权，点击关闭句柄并回调
+notification-host.ts[IU7T]: F:隔离可替换的应用聚焦与系统通知宿主能力 | R:code:projects/server/public/resources/notification.png | A:ApplicationFocus,NotificationHost,SystemNotificationProvider,SystemNotificationHandle,browserNotificationHost | S:桌面宿主强制交内核；浏览器需安全上下文；聚焦要求可见及hasFocus；通知用随包PNG，授权只显式申请
 system-notifications.ts[AM7S]: F:将选定的实时通知在浏览器失焦时升级为系统提醒 | R:code:projects/web/src/workbench/notification-host.ts,code:projects/shared/workbench-feedback.ts | A:SystemNotifications,publish,update,closeAll,dispose | S:历史不补发；id/count去重，closeAll撤销迟到句柄但允许再开启；dispose终止发送，失败保留应用内通知
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/web/scripts/===
@@ -1492,5 +1496,15 @@ refresh.ts[KC7T]: F:决定单个插件在当前网站的URL刷新时机 | R:code
 setup.ts[TQ4T]: F:为脚本DOM测试提供可写浏览器存储 | R:code:projects/user-script/vite.config.ts | A:MemoryStorage,vi.stubGlobal | S:覆盖Node原生localStorage占位，避免遮蔽测试存储
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/public/lib/===
-scwcutils.iife.mvwe5aqt.js[LE5T]: F:分发页面会话、反馈与请求代理SDK | R:code:projects/webutils/lib/index.ts,code:projects/webutils/lib/workbench.ts | A:scwcutils,ready,logger,tasks,fetch,websocket | S:HTTP等待ready，Socket须先显式等待；只有interruptible请求可暂停恢复；页面卸载撤监听和句柄
+scwcutils.iife.mvwgeqwu.js[LE5T]: F:分发页面会话、反馈与请求代理SDK | R:code:projects/webutils/lib/index.ts,code:projects/webutils/lib/workbench.ts | A:scwcutils,ready,logger,tasks,fetch,websocket | S:HTTP先等ready；Socket需显式等待；仅interruptible请求可暂停重放
+
+===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/public/resources/macos/SCWC.icon/Assets/===
+arrow.svg[ZU2T]: F:绘制macOS分层图标的白色采集箭头 | R:code:projects/server/public/resources/macos/SCWC.icon/icon.json | A:1024画布SVG闭合轮廓 | S:-
+frame.svg[ZU2T]: F:绘制macOS分层图标的薄荷绿选框 | R:code:projects/server/public/resources/macos/SCWC.icon/icon.json | A:1024画布SVG闭合轮廓 | S:-
+
+===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/public/resources/macos/SCWC.icon/===
+icon.json[FU4T]: F:配置macOS图标的背景、选框与箭头三层材质 | R:code:projects/server/scripts/build-mac-notification-icon.ts | A:fill,groups,supported-platforms | S:-
+
+===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/public/resources/svg/===
+scwc.svg[ZU3T]: F:绘制SCWC选框与采集箭头标识 | R:code:projects/server/workbench/notification-icon.ts | A:64×64 SVG | S:-
 
