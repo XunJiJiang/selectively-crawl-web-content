@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { browserNotificationHost } from './notification-host.ts';
+import notificationIcon from '../../../server/public/resources/notification.png?url';
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -67,7 +68,11 @@ describe('browser notification host', () => {
       message: '已保存',
       onClick,
     });
-    expect(create).toHaveBeenCalledExactlyOnceWith('完成', { body: '已保存', tag: 'scwc:one' });
+    expect(create).toHaveBeenCalledExactlyOnceWith('完成', {
+      body: '已保存',
+      tag: 'scwc:one',
+      icon: notificationIcon,
+    });
     expect(clicked).not.toBeNull();
     (clicked as unknown as () => void)();
     expect(close).toHaveBeenCalledOnce();

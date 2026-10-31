@@ -83,7 +83,7 @@
     },
     "projects/server": {
       "name": "selectively-crawl-web-content-server",
-      "version": "3.1.27",
+      "version": "3.1.28",
     },
     "projects/shared": {
       "name": "@scwc/shared",
@@ -116,7 +116,7 @@
     },
     "projects/web": {
       "name": "selectively-crawl-web-content-web",
-      "version": "3.1.27",
+      "version": "3.1.28",
     },
     "projects/webutils": {
       "name": "selectively-crawl-web-content-web-utils",

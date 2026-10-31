@@ -1,3 +1,5 @@
+import notificationIcon from '../../../server/public/resources/notification.png?url';
+
 export type SystemNotificationPermission = 'default' | 'granted' | 'denied' | 'unsupported';
 
 export interface ApplicationFocus {
@@ -45,7 +47,11 @@ export function browserNotificationHost(): NotificationHost {
         return permission === 'default' ? window.Notification.requestPermission() : permission;
       },
       show({ id, title, message, onClick }) {
-        const notification = new window.Notification(title, { body: message, tag: `scwc:${id}` });
+        const notification = new window.Notification(title, {
+          body: message,
+          tag: `scwc:${id}`,
+          icon: notificationIcon,
+        });
         const handle = {
           close() {
             notification.onclick = null;

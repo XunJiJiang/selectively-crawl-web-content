@@ -58,6 +58,8 @@ beforeAll(async () => {
   vite = await createViteServer({
     configFile: fileURLToPath(new URL('../../../web/vite.config.ts', import.meta.url)),
     cacheDir: path.join(directory, 'vite-cache'),
+    // This HTTP/proxy fixture does not execute browser modules.
+    optimizeDeps: { noDiscovery: true, include: [] },
     server: { host: '127.0.0.1', port: 0, hmr: false, watch: null },
     logLevel: 'silent',
   });
@@ -149,6 +151,16 @@ it('serves the same public UI stylesheet from the core and the development proxy
     expect(response.status).toBe(200);
     expect(response.headers.get('content-type')).toContain('text/css');
     expect(await response.text()).toBe(expected);
+  }
+});
+
+it('filters macOS icon resources from both the core and the development proxy', async () => {
+  for (const origin of [core, page]) {
+    for (const resource of ['macos/Assets.car', 'macos/SCWC.icon/icon.json']) {
+      const response = await fetch(`${origin}/web/page/resources/${resource}`);
+      expect(response.status).toBe(404);
+      expect(await response.text()).toBe('not found');
+    }
   }
 });
 

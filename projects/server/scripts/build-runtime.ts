@@ -55,7 +55,6 @@ export async function buildRuntime (directory: string): Promise<RuntimeAsset[]> 
   await fs.cp(path.join(server, 'public/resources'), path.join(directory, 'public/resources'), {
     recursive: true,
   });
-  await fs.copyFile(path.join(BUILD_ROOT, 'projects/web/public/favicon.ico'), path.join(directory, 'public/resources/notification.ico'));
   await fs.mkdir(path.join(directory, 'router/web/page'), { recursive: true });
   await fs.copyFile(
     path.join(server, 'router/web/page/worry.html'),

@@ -4,7 +4,7 @@ import { promisify } from 'node:util';
 import { cp, mkdir, mkdtemp, readFile, writeFile, rename, rm, open, lstat } from 'node:fs/promises';
 import path from 'node:path';
 import '../common/environment.ts';
-import { ENV_DIR } from '../common/paths.ts';
+import { ENV_DIR, SERVER_ROOT } from '../common/paths.ts';
 
 const command = promisify(execFile);
 const registrationTool =
@@ -58,7 +58,11 @@ async function lockFile(filename: string) {
 }
 
 /** Keep one registered app identity across core restarts so macOS can retain consent. */
-export async function prepareMacNotificationHelper(source: string, icon: string) {
+export async function prepareMacNotificationHelper(
+  source: string,
+  icon: string,
+  catalog = path.join(SERVER_ROOT, 'public/resources/macos/Assets.car'),
+) {
   const directory = path.join(path.resolve(ENV_DIR, process.env.SCWC_DATA_DIR || 'data'), 'scwc');
   const app = path.join(directory, 'SCWC Notifications.app');
   await mkdir(directory, { recursive: true });
@@ -73,9 +77,11 @@ export async function prepareMacNotificationHelper(source: string, icon: string)
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
     }
     const png = await readFile(icon);
+    const catalogData = await readFile(catalog);
     const fingerprint = createHash('sha256')
-      .update('SCWC-notification-helper-v2')
+      .update('SCWC-notification-helper-v4')
       .update(png)
+      .update(catalogData)
       .update(await readFile(executable(source)))
       .update(await readFile(path.join(source, 'Contents/Info.plist')))
       .digest('hex');
@@ -114,6 +120,7 @@ export async function prepareMacNotificationHelper(source: string, icon: string)
           CFBundleName: 'SCWC',
           CFBundleDisplayName: 'SCWC',
           CFBundleIconFile: 'SCWC.icns',
+          CFBundleIconName: 'SCWC',
         })) {
           const pattern = new RegExp(`(<key>${key}</key>\\s*<string>)[^<]*(</string>)`);
           plist = pattern.test(plist)
@@ -121,10 +128,11 @@ export async function prepareMacNotificationHelper(source: string, icon: string)
             : plist.replace('</dict>', `<key>${key}</key><string>${value}</string></dict>`);
         }
         await writeFile(plistPath, plist);
+        await writeFile(path.join(candidate, 'Contents/Resources/Assets.car'), catalogData);
         const header = Buffer.alloc(16);
         header.write('icns');
         header.writeUInt32BE(png.length + 16, 4);
-        header.write('icp5', 8);
+        header.write('ic08', 8); // 256×256 PNG exported from the SVG source.
         header.writeUInt32BE(png.length + 8, 12);
         await writeFile(
           path.join(candidate, 'Contents/Resources/SCWC.icns'),

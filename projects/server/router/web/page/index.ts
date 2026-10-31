@@ -16,6 +16,16 @@ router.use('/resources', resourcesRouter);
 
 const PUBLIC_DIR = path.join(SERVER_ROOT, 'public');
 const LIB_DIR = path.join(PUBLIC_DIR, 'lib');
+const RESOURCES_DIR = path.join(PUBLIC_DIR, 'resources');
+/** 相对 resources 的路径；过滤指定对象及其全部子路径。 */
+const RESOURCE_FILTERS = ['macos'];
+
+function isResourceFiltered(root: string, file: string) {
+  const relative = path.relative(root, file).split(path.sep).join('/').toLowerCase();
+  return RESOURCE_FILTERS.some(
+    (filter) => relative === filter || relative.startsWith(filter + '/'),
+  );
+}
 
 /** 查找最新库文件 */
 function findLatestLibFile(): string | null {
@@ -174,18 +184,33 @@ router.get('/worry/:id', (req: Request<{ id: string }>, res: Response) => {
 
 // 处理 /web/page/resources/* 的请求
 // 返回对应的资源文件
-resourcesRouter.get('{*path}', (req: Request<{ path: string[] }>, res: Response) => {
-  const paths = req.params.path;
+resourcesRouter.get('/{*path}', (req: Request<{ path: string[] }>, res: Response) => {
+  const paths = req.params.path ?? [];
   if (paths.some((p) => p.includes('..'))) {
     res.status(400).send('invalid path');
     return;
   }
-  const resourceFullPath = path.join(PUBLIC_DIR, 'resources', ...paths);
-  if (!fs.existsSync(resourceFullPath)) {
+  const suffix = paths.join('/').replaceAll('\\', '/');
+  const resourceFullPath = path.resolve(RESOURCES_DIR, suffix);
+  if (!inside(RESOURCES_DIR, resourceFullPath)) {
+    res.status(400).send('invalid path');
+    return;
+  }
+  if (isResourceFiltered(RESOURCES_DIR, resourceFullPath)) {
     res.status(404).send('not found');
     return;
   }
-  res.sendFile(resourceFullPath);
+  try {
+    const root = fs.realpathSync(RESOURCES_DIR);
+    const file = fs.realpathSync(resourceFullPath);
+    if (!inside(root, file) || isResourceFiltered(root, file) || !fs.statSync(file).isFile()) {
+      res.status(404).send('not found');
+      return;
+    }
+    res.sendFile(file);
+  } catch {
+    res.status(404).send('not found');
+  }
 });
 
 export default router;

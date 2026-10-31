@@ -13,3 +13,4 @@ AOCI CLI沙箱|CAS锁临时文件rename可能返回Access is denied；需在沙�
 AOCI 0.1.0-rc21孤儿删除|历史对象再次删除可能触发cognition_transaction_ledger_terminal_event_conflict，常规重试不能恢复。
 内核原生系统通知|内核必须运行于已登录用户的图形桌面会话；Windows SYSTEM服务和无桌面的远程进程不能显示通知。
 macOS通知辅助应用|生成后存放于核心data目录的scwc子目录。
+Xcode分层图标编译|actool需在沙箱外访问系统图形与开发工具服务。
