@@ -13,43 +13,28 @@
 header {
   display: flex;
   align-items: center;
+  height: 40px;
+  flex-shrink: 0;
   gap: 10px;
-  padding: 16px 20px;
+  padding: 0 20px;
   border-bottom: 1px solid var(--border-subtle);
 }
-.brand-mark {
-  width: 32px;
-  height: 32px;
-  border: 1px solid var(--accent-secondary);
-  color: var(--accent-secondary);
-  display: grid;
-  place-items: center;
-  font-size: 25px;
-  border-radius: 4px;
-}
 .brand {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
   flex: 1;
 }
 .brand strong {
   font-size: 17px;
   letter-spacing: 0.03em;
 }
-.brand span,
 .muted,
 p {
   color: var(--text-secondary);
-}
-.brand span,
-.connection {
-  font-size: 12px;
 }
 .connection {
   display: flex;
   align-items: center;
   gap: 5px;
+  font-size: 12px;
   color: var(--text-tertiary);
 }
 .connection::before {

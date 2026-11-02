@@ -754,8 +754,7 @@ export class ExtensionPopup extends LitElement {
   }
   render() {
     return html`<header>
-        <div class="brand-mark">⌖</div>
-        <div class="brand"><strong>SCWC</strong><span>选择性网页采集</span></div>
+        <div class="brand"><strong>SCWC</strong></div>
         <span class="connection" data-connected=${this.connected}
           >${this.connected ? '核心已连接' : '本地保存'}</span
         >
