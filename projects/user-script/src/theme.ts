@@ -1,5 +1,6 @@
 import { css, unsafeCSS } from 'lit';
 import workbenchTheme from '../../web/var.css?raw';
+import './icons.ts';
 import '../../web/src/components/scroll-container.ts';
 import '../../web/src/components/context-menu/wb-menu-select.ts';
 

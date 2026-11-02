@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SiteConfigConnection } from './site-sync.ts';
 import { SiteStore } from './site-store.ts';
+import { requestCore } from './api/request.ts';
 import {
   USER_SCRIPT_CONFIG_KEY,
   defaultSiteData,
@@ -8,40 +9,30 @@ import {
   type UserScriptSnapshot,
 } from '../../shared/userscript-config.ts';
 
-class Socket {
-  static instances: Socket[] = [];
-  onmessage?: (event: { data: string }) => void;
-  onclose?: () => void;
-  onerror?: () => void;
-  readonly url: string;
-  constructor(url: string) {
-    this.url = url;
-    Socket.instances.push(this);
-  }
-  close() {
-    this.onclose?.();
-  }
-  receive(snapshot: UserScriptSnapshot) {
-    this.onmessage?.({ data: JSON.stringify({ type: 'config.changed', snapshot }) });
-  }
-}
+vi.mock('./api/request.ts', () => ({ requestCore: vi.fn() }));
 let store: SiteStore, connection: SiteConfigConnection;
 const nativeFetch = globalThis.fetch,
   nativeSocket = globalThis.WebSocket;
-const fetcher = vi.fn();
+const fetcher = vi.mocked(requestCore);
 function response(snapshot: UserScriptSnapshot) {
-  return {
-    ok: true,
-    json: async () => ({ success: true, data: { snapshot, ticket: 'single-use' } }),
-  };
+  return Response.json({ success: true, data: { snapshot } });
 }
 beforeEach(() => {
   vi.useFakeTimers();
   localStorage.clear();
-  Socket.instances = [];
   fetcher.mockReset();
-  vi.stubGlobal('fetch', fetcher);
-  vi.stubGlobal('WebSocket', Socket);
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(() => {
+      throw new Error('页面 fetch 被 CSP 禁止');
+    }),
+  );
+  vi.stubGlobal(
+    'WebSocket',
+    vi.fn(() => {
+      throw new Error('页面 WebSocket 被 CSP 禁止');
+    }),
+  );
   const snapshot: UserScriptSnapshot = {
     version: 1,
     website: location.origin,
@@ -75,37 +66,41 @@ describe('website configuration connection and live updates', () => {
     expect(store.snapshot.website).toBe(location.origin);
     expect(store.snapshot.data.window.pos.x).toBe(800);
     expect(fetcher).toHaveBeenCalledTimes(2);
-    expect(Socket.instances).toHaveLength(1);
     expect(
       new URL(fetcher.mock.calls[fetcher.mock.calls.length - 1][0]).searchParams.get('site'),
     ).toBe(location.origin);
     history.replaceState({}, '', oldUrl);
   });
-  it('compares on connect and reconnect, then receives immediate core updates without echo uploads', async () => {
+  it('polls remote changes without page fetch or WebSocket and only announces connectivity once', async () => {
     const remote = {
       ...store.snapshot,
       updatedAt: '2026-10-30T10:00:00.000Z',
       data: defaultSiteData(),
     };
     remote.data.window.pos.x = 500;
+    const connected = vi.fn();
+    store.addEventListener('connected', connected);
     fetcher.mockResolvedValue(response(remote));
     connection.start();
     await flush();
     expect(store.snapshot.data.window.pos.x).toBe(500);
-    expect(Socket.instances).toHaveLength(1);
     const next = {
       ...remote,
       updatedAt: '2026-10-30T10:00:01.000Z',
       data: { ...remote.data, items: [{ selector: '#new', label: '正文', prefix: '' }] },
     };
-    Socket.instances[0].receive(next);
-    expect(store.snapshot.data.items[0].selector).toBe('#new');
     expect(fetcher).toHaveBeenCalledOnce();
     fetcher.mockResolvedValue(response(next));
-    Socket.instances[0].close();
-    await vi.advanceTimersByTimeAsync(500);
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(store.snapshot.data.items[0].selector).toBe('#new');
     expect(fetcher).toHaveBeenCalledTimes(2);
-    expect(Socket.instances).toHaveLength(2);
+    expect(JSON.parse(fetcher.mock.calls[1][1]?.body ?? '{}').watch).toBe(false);
+    expect(connected).toHaveBeenCalledOnce();
+    expect(fetch).not.toHaveBeenCalled();
+    expect(WebSocket).not.toHaveBeenCalled();
+    connection.stop();
+    await vi.advanceTimersByTimeAsync(10000);
+    expect(fetcher).toHaveBeenCalledTimes(2);
   });
   it('keeps offline edits and uploads the latest local state immediately when connectivity returns', async () => {
     fetcher.mockRejectedValue(new TypeError('offline'));
@@ -120,9 +115,9 @@ describe('website configuration connection and live updates', () => {
     fetcher.mockImplementation(async () => response(store.snapshot));
     window.dispatchEvent(new Event('online'));
     await flush();
-    const body = JSON.parse(fetcher.mock.calls[fetcher.mock.calls.length - 1][1].body);
+    const body = JSON.parse(fetcher.mock.calls[fetcher.mock.calls.length - 1][1]?.body ?? '{}');
     expect(body.snapshot).toEqual(edited);
-    expect(body.watch).toBe(true);
+    expect(body.watch).toBe(false);
     expect(store.snapshot.data.window.minimized).toBe(false);
   });
   it('never lets a late response overwrite an edit made during upload', async () => {
@@ -144,5 +139,46 @@ describe('website configuration connection and live updates', () => {
     await flush();
     expect(store.snapshot).toEqual(edited);
     expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+  it('backs off while offline and resets the delay after reconnecting', async () => {
+    fetcher.mockRejectedValue(new TypeError('offline'));
+    connection.start();
+    await flush();
+    await vi.advanceTimersByTimeAsync(499);
+    expect(fetcher).toHaveBeenCalledOnce();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    fetcher.mockImplementation(async () => response(store.snapshot));
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(fetcher).toHaveBeenCalledTimes(3);
+    fetcher.mockRejectedValue(new TypeError('offline again'));
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(fetcher).toHaveBeenCalledTimes(4);
+    await vi.advanceTimersByTimeAsync(500);
+    expect(fetcher).toHaveBeenCalledTimes(5);
+  });
+  it('aborts on stop and ignores a response from an obsolete core address', async () => {
+    let resolve: (value: Response) => void = () => undefined;
+    fetcher.mockImplementationOnce(
+      () =>
+        new Promise((done) => {
+          resolve = done;
+        }),
+    );
+    connection.start();
+    const before = store.snapshot;
+    const signal = fetcher.mock.calls[0][1]?.signal;
+    store.update((data) => {
+      data.config.api.port = '3300';
+    });
+    fetcher.mockImplementation(async () => response(store.snapshot));
+    resolve(response(before));
+    await flush();
+    expect(signal?.aborted).toBe(true);
+    expect(store.snapshot.data.config.api.port).toBe('3300');
+    expect(new URL(fetcher.mock.calls[1][0]).port).toBe('3300');
+    const active = fetcher.mock.calls[1][1]?.signal;
+    connection.stop();
+    expect(active?.aborted).toBe(true);
   });
 });

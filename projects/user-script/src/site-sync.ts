@@ -1,5 +1,8 @@
 import { type UserScriptSnapshot } from '../../shared/userscript-config.ts';
 import { type SiteStore } from './site-store.ts';
+import { requestCore } from './api/request.ts';
+
+const pollInterval = 2000;
 
 export function coreUrl(config: UserScriptSnapshot['data']['config'], path: string) {
   const url = new URL(config.api.host);
@@ -18,10 +21,10 @@ export function coreUrl(config: UserScriptSnapshot['data']['config'], path: stri
   url.hash = '';
   return url;
 }
-/** 每次成功连接都先同步，再订阅即时通知；离线编辑先落本地，恢复后重试。 */
+/** 使用油猴 HTTP 轮询接收更新；页面 WebSocket 同样受 connect-src 限制。 */
 export class SiteConfigConnection {
   private stopped = true;
-  private socket?: WebSocket;
+  private connected = false;
   private abort?: AbortController;
   private retry?: ReturnType<typeof setTimeout>;
   private running = false;
@@ -45,12 +48,11 @@ export class SiteConfigConnection {
   }
   stop() {
     this.stopped = true;
+    this.connected = false;
     this.generation++;
     clearTimeout(this.retry);
     this.retry = undefined;
     this.abort?.abort();
-    this.socket?.close();
-    this.socket = undefined;
     this.store.removeEventListener('change', this.changed);
     window.removeEventListener('online', this.reconnect);
     window.removeEventListener('pageshow', this.reconnect);
@@ -60,8 +62,7 @@ export class SiteConfigConnection {
     if (key !== this.connectionKey && this.connectionKey) {
       this.generation++;
       this.abort?.abort();
-      this.socket?.close();
-      this.socket = undefined;
+      this.connected = false;
     }
     if (
       (event as CustomEvent<{ source: string }>).detail.source === 'local' ||
@@ -72,20 +73,18 @@ export class SiteConfigConnection {
   };
   private reconnect = () => {
     if (!this.stopped) {
-      this.socket?.close();
-      this.socket = undefined;
+      this.connected = false;
       void this.sync();
     }
   };
-  private schedule() {
+  private schedule(delay = this.retryDelay) {
     if (this.stopped || this.retry) {
       return;
     }
     this.retry = setTimeout(() => {
       this.retry = undefined;
       void this.sync();
-    }, this.retryDelay);
-    this.retryDelay = Math.min(15000, this.retryDelay * 2);
+    }, delay);
   }
   async sync() {
     if (this.stopped) {
@@ -97,26 +96,25 @@ export class SiteConfigConnection {
     }
     this.running = true;
     this.queued = false;
+    clearTimeout(this.retry);
+    this.retry = undefined;
     const generation = this.generation;
     const snapshot = this.store.snapshot,
       config = snapshot.data.config;
     this.connectionKey = this.key();
-    const watch = !this.socket;
     const controller = (this.abort = new AbortController());
     const timeout = setTimeout(() => controller.abort(), 10000);
     try {
       const url = coreUrl(config, '/api/userscript/config/sync');
       url.searchParams.set('site', snapshot.website);
-      const response = await fetch(url, {
+      const response = await requestCore(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${config.api.token}`,
         },
-        body: JSON.stringify({ snapshot, watch }),
+        body: JSON.stringify({ snapshot, watch: false }),
         signal: controller.signal,
-        credentials: 'omit',
-        cache: 'no-store',
       });
       const result = await response.json();
       if (!response.ok || !result.success) {
@@ -133,18 +131,19 @@ export class SiteConfigConnection {
       this.retryDelay = 500;
       clearTimeout(this.retry);
       this.retry = undefined;
-      if (watch && result.data.ticket) {
-        this.subscribe(config, result.data.ticket, generation);
-      }
-      if (watch) {
+      if (!this.connected) {
+        this.connected = true;
         this.store.dispatchEvent(new Event('connected'));
       }
+      this.schedule(pollInterval);
       if (this.store.snapshot.updatedAt > result.data.snapshot.updatedAt) {
         this.queued = true;
       }
     } catch {
       if (!this.stopped && generation === this.generation) {
+        this.connected = false;
         this.schedule();
+        this.retryDelay = Math.min(15000, this.retryDelay * 2);
       }
     } finally {
       clearTimeout(timeout);
@@ -153,39 +152,6 @@ export class SiteConfigConnection {
         void this.sync();
       }
     }
-  }
-  private subscribe(
-    config: UserScriptSnapshot['data']['config'],
-    ticket: string,
-    generation: number,
-  ) {
-    const url = coreUrl(config, '/api/userscript/config/events');
-    url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
-    url.searchParams.set('ticket', ticket);
-    const socket = (this.socket = new WebSocket(url));
-    socket.onmessage = (event) => {
-      if (this.stopped || generation !== this.generation || this.socket !== socket) {
-        return;
-      }
-      try {
-        const message = JSON.parse(String(event.data));
-        if (message.type === 'config.changed' && message.snapshot) {
-          this.store.accept(message.snapshot, true);
-          if (this.store.snapshot.updatedAt > message.snapshot.updatedAt) {
-            void this.sync();
-          }
-        }
-      } catch {
-        socket.close();
-      }
-    };
-    socket.onerror = () => socket.close();
-    socket.onclose = () => {
-      if (this.socket === socket) {
-        this.socket = undefined;
-        this.schedule();
-      }
-    };
   }
   private key() {
     return JSON.stringify([this.store.snapshot.website, this.store.snapshot.data.config.api]);

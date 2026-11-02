@@ -2,6 +2,7 @@ import type { TCrawlData } from '../types/claw.ts';
 import type { TConfig } from '../../../shared/types/config.d.ts';
 import type { PluginConfig, PluginItem, TRequiredOptions } from '../../../shared/types/plugin';
 import { notify } from '../utils/notify.ts';
+import { requestCore } from './request.ts';
 
 /** 请求插件列表 */
 export interface PluginConfigBatch {
@@ -17,7 +18,7 @@ export async function fetchPlugins(
   const previous = options.previousSite
     ? `&previousSite=${encodeURIComponent(options.previousSite)}`
     : '';
-  const res = await fetch(
+  const res = await requestCore(
     `${config.api.host}:${config.api.port.replace(/[^\d]/g, '')}/api/plugin/config?site=${encodeURIComponent(url)}${previous}`,
     {
       method: 'GET',
@@ -78,7 +79,7 @@ export async function triggerPlugin(
     return;
   }
   handleFetchResponse(
-    fetch(
+    requestCore(
       `${config.api.host}:${config.api.port.replace(/[^\d]/g, '')}/api/plugin/toggle?site=${encodeURIComponent(window.location.href)}`,
       {
         method: 'POST',

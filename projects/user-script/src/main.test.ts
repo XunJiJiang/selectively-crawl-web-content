@@ -44,6 +44,7 @@ it('still mounts on ordinary pages and accepts the existing plugin hide message'
   await start();
   const root = document.querySelector<HTMLElement>('scwc-layout-root');
   expect(root).not.toBeNull();
+  expect(document.querySelector('#scwc-userscript-font')).toBeNull();
   window.dispatchEvent(new MessageEvent('message', { data: null }));
   window.dispatchEvent(
     new MessageEvent('message', {

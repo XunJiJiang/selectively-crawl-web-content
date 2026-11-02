@@ -1,12 +1,13 @@
 import type { TCrawlResponse } from '../types/api.d.ts';
 import type { TConfig } from '../../../shared/types/config.d.ts';
+import { requestCore } from './request.ts';
 
 export async function sendCrawlRequest(
   data: SCWC.TDataItem[],
   config: TConfig,
 ): Promise<TCrawlResponse> {
   try {
-    const res = await fetch(
+    const res = await requestCore(
       `${config.api.host}:${config.api.port.replace(/[^\d]/g, '')}/api/metadata/scrape?site=${encodeURIComponent(window.location.href)}`,
       {
         method: 'POST',

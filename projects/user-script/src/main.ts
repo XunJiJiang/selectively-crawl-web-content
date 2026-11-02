@@ -1,6 +1,6 @@
+import './csp.ts';
 import './migrate.ts';
 import './layouts/root.ts';
-import iconFont from '@vscode/codicons/dist/codicon.ttf?inline';
 import '../../shared/components/index.ts';
 import type { TConfig } from '../../shared/store/config.ts';
 
@@ -32,13 +32,6 @@ function mountFloatingWindow() {
   if (inWorkbench()) {
     return;
   }
-  if (!document.getElementById('scwc-userscript-font')) {
-    const font = document.createElement('style');
-    font.id = 'scwc-userscript-font';
-    font.textContent = `@font-face { font-family: codicon; src: url("${iconFont}") format("truetype"); font-display: block; }`;
-    document.head.appendChild(font);
-  }
-
   // 悬浮窗挂载点
   const FLOATING_ID = 'selective-crawl-floating-root';
   let mount = document.getElementById(FLOATING_ID);
