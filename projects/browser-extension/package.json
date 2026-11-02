@@ -1,0 +1,14 @@
+{
+  "name": "@scwc/browser-extension",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.ts",
+    "check": "tsc -p tsconfig.json",
+    "test": "vitest run --config vite.config.ts",
+    "test:browser": "node scripts/smoke.ts",
+    "test:installer": "node scripts/installer-smoke.ts",
+    "lint": "oxlint src scripts vite.config.ts"
+  }
+}

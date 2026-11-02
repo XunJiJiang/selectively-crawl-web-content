@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, type RequestHandler } from 'express';
 import { query } from 'express-validator';
 import z from 'zod';
 import { plugins } from '../plugin/load.ts';
@@ -45,11 +45,11 @@ function parsePluginChannel(fullChannel: string): {
 const siteSchema = z.url();
 
 // 获取浏览器脚本插件配置接口
-router.get('/config', query('site').isURL(), async (req, res) => {
+const getConfig: RequestHandler = async (req, res) => {
   pluginLogger.info(`收到插件配置请求`);
   const { error, data: site } = siteSchema.safeParse(req.query?.site);
 
-  pluginLogger.info(`来源: ${decodeURIComponent(req.query?.site)}`);
+  pluginLogger.info(`来源: ${decodeURIComponent(String(req.query?.site ?? ''))}`);
 
   if (error) {
     pluginLogger.error(`无效的 site 参数: ${req.query?.site}`);
@@ -168,7 +168,10 @@ router.get('/config', query('site').isURL(), async (req, res) => {
     activeIds,
     updatedIds,
   });
-});
+};
+router.get('/config', query('site').isURL(), getConfig);
+// Chrome 扩展后台的 GET 不携带 Origin；POST 使浏览器生成可验证的扩展来源。
+router.post('/config', query('site').isURL(), getConfig);
 
 const toggleSchema = z.object({
   type: z.string(),

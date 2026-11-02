@@ -14,6 +14,9 @@ vi.mock('../../../utils/user-script.ts', () => ({
   requireUserScript: vi.fn(async () => undefined),
   openUserScriptInstaller: vi.fn(async () => ({ url: 'http://localhost/web/userscript/scwc.user.js', message: '已发送安装请求' })),
 }));
+vi.mock('../../../utils/browser-extension.ts', () => ({
+  openBrowserExtensionInstaller: vi.fn(async () => ({ status: 'opened', browser: 'Chrome', message: '已打开扩展安装入口' })),
+}));
 vi.mock('../../../utils/cache.ts', () => ({
   addErrorHandler: () => {
     /* Cache is outside this HTTP fixture. */
@@ -28,6 +31,8 @@ import { loadPlugins, plugins, unloadPlugins } from '../../../plugin/load.ts';
 import { getWorkbench, closeWorkbench } from '../../../workbench/runtime.ts';
 import { closeStorage } from '../../../workbench/storage.ts';
 import { openUserScriptInstaller } from '../../../utils/user-script.ts';
+import { openBrowserExtensionInstaller } from '../../../utils/browser-extension.ts';
+import { issueInstallGuide } from '../../../utils/extension-install-guide.ts';
 
 let root: string, base: string, server: Server;
 const sockets: WebSocket[] = [];
@@ -331,6 +336,31 @@ it('serves the public userscript and requires core authentication for opening th
   expect((await api('/userscript/install', {})).data.message).toBe('已发送安装请求');
   vi.mocked(openUserScriptInstaller).mockRejectedValueOnce(new Error('默认浏览器不可用'));
   expect(await api('/userscript/install', {})).toMatchObject({ status: 503, code: 'userscript_install_failed', message: '默认浏览器不可用' });
+});
+it('authenticates extension installer handoffs and returns Safari unavailability as a warning result', async () => {
+  vi.mocked(openBrowserExtensionInstaller).mockClear();
+  expect((await api('/browser-extension/install', {}, 'wrong')).status).toBe(403);
+  expect(openBrowserExtensionInstaller).not.toHaveBeenCalled();
+  const session = (await api('/page-sessions', { pluginId: 'alpha', tabId: 'extension-install-scope', frameEpoch: 'extension', url: `${base}/web/page/plugin/alpha/` })).data;
+  expect((await api('/browser-extension/install', {}, session.grant)).status).toBe(403);
+  expect(openBrowserExtensionInstaller).not.toHaveBeenCalled();
+  expect((await api('/browser-extension/install', {})).data).toMatchObject({ status: 'opened', browser: 'Chrome' });
+  vi.mocked(openBrowserExtensionInstaller).mockResolvedValueOnce({ status: 'unsupported', browser: 'Safari', message: 'Safari 缺少签名的容器应用' });
+  expect((await api('/browser-extension/install', {})).data).toMatchObject({ status: 'unsupported', message: 'Safari 缺少签名的容器应用' });
+  vi.mocked(openBrowserExtensionInstaller).mockRejectedValueOnce(new Error('浏览器启动失败'));
+  expect(await api('/browser-extension/install', {})).toMatchObject({ status: 503, code: 'extension_install_failed' });
+});
+it('serves the bounded installation guide without leaking credentials or allowing embedding', async () => {
+  const guide = issueInstallGuide({ browser: 'Chrome', directory: '/fixture/browser-extension/chromium', managerUrl: 'chrome://extensions/', variant: 'chromium' }, base, Number(new URL(base).port));
+  const response = await fetch(guide);
+  expect(response.status).toBe(200);
+  expect(response.headers.get('content-security-policy')).toContain("frame-ancestors 'none'");
+  expect(response.headers.get('cache-control')).toBe('no-store');
+  expect(response.headers.get('access-control-allow-origin')).toBeNull();
+  const html = await response.text();
+  expect(html).toContain('复制管理页地址');
+  expect(html).not.toContain(TOKEN);
+  expect((await fetch(base + '/web/browser-extension/install/unknown')).status).toBe(410);
 });
 
 it('scopes page grants and ticket streams, synchronizes backend string CRUD, rejects nonstrings and stale grants', async () => {

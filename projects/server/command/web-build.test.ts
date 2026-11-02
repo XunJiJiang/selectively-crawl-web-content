@@ -22,6 +22,11 @@ vi.mock('../utils/user-script.ts', () => ({
   })),
   notifyUserScriptFailure: vi.fn(async () => undefined),
 }));
+vi.mock('../utils/browser-extension.ts', () => ({
+  openBrowserExtensionInstaller: vi.fn(async () => ({ status: 'opened', message: '已打开扩展安装入口' })),
+  notifyBrowserExtensionFailure: vi.fn(async () => undefined),
+  notifyBrowserExtensionUnsupported: vi.fn(async () => undefined),
+}));
 vi.mock('../utils/command.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../utils/command.ts')>()),
   registerCommand: vi.fn(),
@@ -30,9 +35,27 @@ import { registerDefaultCommands } from './index.ts';
 import { registerCommand } from '../utils/command.ts';
 import { buildPluginWeb } from '../plugin/web/build.ts';
 import { openUserScriptInstaller, notifyUserScriptFailure } from '../utils/user-script.ts';
+import { openBrowserExtensionInstaller, notifyBrowserExtensionUnsupported, notifyBrowserExtensionFailure } from '../utils/browser-extension.ts';
 import { createCommandCompletionCache } from '../utils/commandCompletion.ts';
 
 describe('global plugin page build command', () => {
+  it('exposes server install-extension and publishes an unavailable-browser notification', async () => {
+    const logger = { info: vi.fn(), pathInfo: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    registerDefaultCommands(logger);
+    const command = vi.mocked(registerCommand).mock.calls.find((call) => call[1] === 'server')?.[5]?.find((item) => item.name === 'install-extension');
+    if (!command) { throw new Error('Missing install-extension'); }
+    const scope = new TaskRegistry().create('test', { executionId: 'extension-test', windowId: 'extension-window' });
+    try {
+      await command.execute(logger, [], [], ['server', 'install-extension'], scope.context);
+      expect(logger.info).toHaveBeenCalledWith('已打开扩展安装入口');
+      vi.mocked(openBrowserExtensionInstaller).mockResolvedValueOnce({ status: 'unsupported', browser: 'Safari', message: 'Safari 需要签名应用' });
+      await command.execute(logger, [], [], ['server', 'install-extension'], scope.context);
+      expect(notifyBrowserExtensionUnsupported).toHaveBeenCalledWith('Safari 需要签名应用');
+      vi.mocked(openBrowserExtensionInstaller).mockRejectedValueOnce(new Error('扩展产物缺失'));
+      await expect(command.execute(logger, [], [], ['server', 'install-extension'], scope.context)).rejects.toThrow('扩展产物缺失');
+      expect(notifyBrowserExtensionFailure).toHaveBeenCalledWith('扩展产物缺失');
+    } finally { scope.finish(); }
+  });
   it('exposes server install-userscript and notifies on a confirmed failure', async () => {
     const logger = { info: vi.fn(), pathInfo: vi.fn(), warn: vi.fn(), error: vi.fn() };
     registerDefaultCommands(logger);

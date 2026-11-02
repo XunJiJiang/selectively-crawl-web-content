@@ -185,6 +185,22 @@ export async function copyReleaseFiles(
   }
   await fs.copyFile(path.join(root, 'docs/core.env.example'), path.join(directory, '.env'));
   await fs.copyFile(path.join(root, 'LICENSE'), path.join(directory, 'LICENSE'));
+  const extensionSource = path.join(root, 'dist/browser-extension');
+  const extensionTarget = path.join(directory, 'browser-extension');
+  // 安装到持久 sidecar，不能让用户把已解压扩展指向 SEA 的临时 runtime。
+  await fs.mkdir(extensionTarget, { recursive: true });
+  for (const variant of ['chromium', 'firefox', 'safari']) {
+    await fs.access(path.join(extensionSource, variant, 'manifest.json'));
+    await fs.cp(path.join(extensionSource, variant), path.join(extensionTarget, variant), { recursive: true });
+  }
+  for (const entry of await fs.readdir(extensionSource)) {
+    if (/^scwc-(chromium|firefox|safari)-[\d.]+\.zip$/.test(entry)) {
+      await fs.copyFile(path.join(extensionSource, entry), path.join(extensionTarget, entry));
+    }
+  }
+  for (const name of ['README.md', 'PRIVACY.md', 'PUBLISHING.md']) {
+    await fs.copyFile(path.join(root, 'projects/browser-extension', name), path.join(extensionTarget, name));
+  }
 }
 
 /** Stream files into ZIP with Unix modes, then atomically replace only the final archive. */

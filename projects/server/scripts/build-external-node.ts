@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { build } from 'esbuild';
 import { BUILD_ROOT, buildRuntime } from './build-runtime.ts';
+import { buildBrowserExtensions } from '../../browser-extension/scripts/build.ts';
 import { currentNodeInfo, type ExternalNodeBuildInfo } from './external-node-runtime.ts';
 import {
   parseReleaseArgs,
@@ -26,6 +27,7 @@ export async function buildExternalNodeDistribution(
   if (Number(process.versions.node.split('.')[0]) < 25) {
     throw new Error('外置 Node 运行时版构建需要 Node.js >=25');
   }
+  await buildBrowserExtensions();
   const host = currentNodeInfo();
   const name = releaseName('external-node');
   const staging = await fs.mkdtemp(path.join(os.tmpdir(), 'scwc-external-node-build-'));

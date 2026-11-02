@@ -19,6 +19,7 @@ import { taskRegistry, currentIdentity, invocationStorage } from '../common/task
 import { pageSessions, requestOrigin } from '../workbench/page-sessions.ts';
 import { attachUpgradeDispatcher } from './web/workbench/websocket.ts';
 import userScriptRouter from './user-script.ts';
+import { extensionApiPaths, isExtensionOrigin } from './extension-origin.ts';
 
 export const app = express();
 app.use((_req, res, next) => {
@@ -114,7 +115,17 @@ app.use((req, res, next) => {
     res.status(400).json({ success: false, message: '验证不通过' });
     return;
   }
-  if (!isSameDomain(origin ?? referer ?? '', req.query.site.toString())) {
+  const extension = isExtensionOrigin(origin) && extensionApiPaths.has(req.path);
+  let validSite = false;
+  try {
+    validSite = ['http:', 'https:'].includes(new URL(req.query.site.toString()).protocol);
+  } catch {
+    /* 下方统一拒绝 */
+  }
+  if (
+    !validSite ||
+    (!extension && !isSameDomain(origin ?? referer ?? '', req.query.site.toString()))
+  ) {
     serverLogger.warn(`请求的主机不匹配: ${req.method} ${req.url}`);
     serverLogger.warn(`- origin: ${decodeURIComponent(origin ?? '未知')}`);
     serverLogger.warn(`- referer: ${decodeURIComponent(referer ?? '未知')}`);
@@ -122,6 +133,8 @@ app.use((req, res, next) => {
     res.status(400).json({ success: false, message: '验证不通过' });
     return;
   }
+
+  res.locals.browserExtension = extension;
 
   // 权限验证
   // 如果没有配置 TOKEN, 则不进行验证, 直接放行

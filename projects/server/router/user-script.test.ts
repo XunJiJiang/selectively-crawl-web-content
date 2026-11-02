@@ -124,6 +124,28 @@ function message(socket: WebSocket) {
   });
 }
 describe('authenticated website sync and live notification', () => {
+  it('authenticates extension origins, shares data and binds tickets to the requesting extension', async () => {
+    const value = snapshot('https://extension-http.example');
+    value.data.window.pos = { x: 800, y: 600 };
+    value.data.window.minimized = false;
+    await sync(value);
+    const next = snapshot(value.website, '2026-11-01T00:00:00.000Z');
+    next.data.items = [{ selector: '#extension', label: '正文', prefix: '' }];
+    const origin = 'chrome-extension://abcdefghijklmnopabcdefghijklmnop';
+    const response = await sync(next, { origin, watch: true });
+    expect(response.status).toBe(200);
+    expect(response.data.snapshot.data.window).toEqual(value.data.window);
+    expect(response.data.snapshot.data.items).toEqual(next.data.items);
+    const socket = connect(response.data.ticket, origin);
+    expect((await message(socket)).snapshot.data.items).toEqual(next.data.items);
+    expect((await sync(next, { origin, token: 'wrong' })).status).toBe(403);
+    expect((await sync(next, { origin: 'https://pretend-extension.example' })).status).toBe(400);
+    expect((await sync(next, { origin: origin + '/fake-page' })).status).toBe(400);
+    const firefox = await sync(next, {
+      origin: 'moz-extension://12345678-1234-1234-1234-123456789012',
+    });
+    expect(firefox.status).toBe(200);
+  });
   it('shares origin subscriptions across host paths, iframe paths and direct visits', async () => {
     const host = snapshot('https://frames.example/host');
     const child = snapshot('https://frames.example/child');
@@ -190,6 +212,33 @@ describe('authenticated website sync and live notification', () => {
   });
 });
 describe('per-plugin refresh HTTP contract', () => {
+  it('supports extension POST config loading without relaxing source or Bearer validation', async () => {
+    const url = base + '/api/plugin/config?site=https%3A%2F%2Fone.example%2Fa';
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        origin: 'chrome-extension://test-extension',
+        authorization: `Bearer ${TOKEN}`,
+        'content-type': 'application/json',
+      },
+      body: '{}',
+    });
+    expect(response.status).toBe(200);
+    expect((await response.json()).data.map((plugin: { id: string }) => plugin.id)).toEqual([
+      'query',
+      'path',
+    ]);
+    const denied = await fetch(url, {
+      method: 'POST',
+      headers: { origin: 'chrome-extension://test-extension', authorization: 'Bearer wrong' },
+    });
+    expect(denied.status).toBe(403);
+    const absent = await fetch(url, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${TOKEN}` },
+    });
+    expect(absent.status).toBe(400);
+  });
   async function config(site: string, previousSite?: string) {
     const params = new URLSearchParams({ site, ...(previousSite ? { previousSite } : {}) });
     const response = await fetch(base + '/api/plugin/config?' + params, {

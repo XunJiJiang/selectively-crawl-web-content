@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { build } from 'esbuild';
 import { BUILD_ROOT, buildRuntime } from './build-runtime.ts';
+import { buildBrowserExtensions } from '../../browser-extension/scripts/build.ts';
 import {
   parseReleaseArgs,
   assertNativeBuild,
@@ -24,6 +25,7 @@ export async function buildBundledNodeDistribution(options: ReleaseOptions): Pro
       '内置 Node 运行时版构建需要 Node.js >=25.5（--build-sea）；源码服务仍支持 Node.js 24。',
     );
   }
+  await buildBrowserExtensions();
   const temporary = await fs.mkdtemp(path.join(os.tmpdir(), 'scwc-bundled-node-build-'));
   try {
     const runtime = path.join(temporary, 'runtime');

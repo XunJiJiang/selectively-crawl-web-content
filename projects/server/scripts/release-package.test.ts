@@ -28,6 +28,17 @@ async function fixture() {
     path.join(root, 'docs/core.env.example'),
   );
   await fs.writeFile(path.join(root, 'LICENSE'), 'license');
+  await fs.mkdir(path.join(root, 'projects/browser-extension'), { recursive: true });
+  for (const name of ['README.md', 'PRIVACY.md', 'PUBLISHING.md']) {
+    await fs.writeFile(path.join(root, 'projects/browser-extension', name), 'extension docs');
+  }
+  for (const variant of ['chromium', 'firefox', 'safari']) {
+    await fs.mkdir(path.join(root, 'dist/browser-extension', variant), { recursive: true });
+    await fs.writeFile(path.join(root, 'dist/browser-extension', variant, 'manifest.json'), '{}');
+    await fs.writeFile(path.join(root, 'dist/browser-extension', `scwc-${variant}-1.0.0.zip`), 'extension zip');
+  }
+  await fs.mkdir(path.join(root, 'dist/browser-extension/previews'));
+  await fs.writeFile(path.join(root, 'dist/browser-extension/previews/private.png'), 'not a release asset');
   for (const [folder, examples] of [
     ['projects/server/plugins', ['template', 'test']],
     ['projects/terminal/plugins', ['template']],
@@ -112,6 +123,8 @@ describe('release ZIP contract', () => {
         { ...parseReleaseArgs([]), terminalPlugins: true, corePlugins },
         root,
       );
+      expect(await fs.readdir(path.join(output, 'browser-extension'))).toEqual(expect.arrayContaining(['chromium', 'firefox', 'safari', 'scwc-chromium-1.0.0.zip', 'README.md']));
+      expect(existsSync(path.join(output, 'browser-extension/previews'))).toBe(false);
       expect(await fs.readdir(path.join(output, 'plugins'))).toEqual(
         corePlugins === 'none'
           ? ['plugin-env.d.ts']
@@ -171,7 +184,7 @@ describe('release ZIP contract', () => {
     }
     expect(await fs.readdir(path.dirname(archive))).toEqual(['release.zip']);
     const previous = await fs.readFile(archive);
-    await fs.symlink(path.join(source, 'start.sh'), path.join(source, 'invalid-link'));
+    await fs.symlink(process.platform === 'win32' ? source : path.join(source, 'start.sh'), path.join(source, 'invalid-link'), process.platform === 'win32' ? 'junction' : 'file');
     await expect(archiveRelease(source, archive)).rejects.toThrow('归档不接受链接');
     expect(await fs.readFile(archive)).toEqual(previous);
     expect(await fs.readdir(path.dirname(archive))).toEqual(['release.zip']);

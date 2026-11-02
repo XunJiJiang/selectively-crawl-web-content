@@ -22,6 +22,7 @@ import {
 import { TOKEN, ACTIVE_PORT, HOST } from '../common/env.ts';
 import { InvocationInputError, setInputHandler } from '../common/interaction.ts';
 import { openUserScriptInstaller, notifyUserScriptFailure } from '../utils/user-script.ts';
+import { openBrowserExtensionInstaller, notifyBrowserExtensionFailure, notifyBrowserExtensionUnsupported } from '../utils/browser-extension.ts';
 
 let interruptInput: (() => boolean) | undefined;
 export function cancelStdinInput() {
@@ -92,6 +93,24 @@ export function registerDefaultCommands(serverLogger: SCWC.TLogger) {
           serverLogger.info('服务器信息:');
           serverLogger.info(`- URL: ${HOST}:${ACTIVE_PORT}`);
           serverLogger.info(`- TOKEN: ${TOKEN ?? '未设置'}`);
+        },
+      },
+      {
+        name: 'install-extension',
+        description: '在默认浏览器打开 SCWC 浏览器扩展安装入口',
+        exampleUsage: 'server install-extension',
+        execute: async (logger) => {
+          try {
+            const result = await openBrowserExtensionInstaller();
+            if (result.status === 'unsupported') {
+              logger.warn(result.message);
+              await notifyBrowserExtensionUnsupported(result.message);
+            } else { logger.info(result.message); }
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            await notifyBrowserExtensionFailure(message);
+            throw new CommandError(message, false);
+          }
         },
       },
       {

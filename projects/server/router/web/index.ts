@@ -9,10 +9,21 @@ import { pluginResourceRouter } from './api/load.ts';
 import { localConfig } from './local-config.ts';
 import { redirectDevelopmentPage } from './workbench/dev-proxy.ts';
 import { requireUserScript, userScriptPath } from '../../utils/user-script.ts';
+import { installGuidePage } from '../../utils/extension-install-guide.ts';
 
 /** /web */
 const router = Router();
 router.get('/local-config', localConfig);
+router.get('/browser-extension/install/:ticket', (req, res) => {
+  res.removeHeader('Access-Control-Allow-Origin');
+  const page = installGuidePage(String(req.params.ticket));
+  res.set('Cache-Control', 'no-store');
+  res.set('Referrer-Policy', 'no-referrer');
+  res.set('X-Content-Type-Options', 'nosniff');
+  if (!page) { res.status(410).type('text').send('安装向导已过期，请重新执行 server install-extension 或 Web 的“安装浏览器扩展”。'); return; }
+  res.set('Content-Security-Policy', page.csp);
+  res.type('html').send(page.html);
+});
 router.get('/userscript/scwc.user.js', async (_req, res, next) => {
   try {
     await requireUserScript();
@@ -32,12 +43,12 @@ const WEB_DIR = path.join(PUBLIC_DIR, 'web');
 if (isProd) {
   // 生产模式下, 挂载 /web 路径到 server/public/web 目录
   // 挂载 public/index.html
-  router.get('/index.html', (req, res) => {
+  router.get('/index.html', (_req, res) => {
     const indexHtmlPath = path.join(WEB_DIR, 'index.html');
     res.sendFile(indexHtmlPath);
   });
   // 重载 / 请求到 /index.html
-  router.get('/', (req, res) => {
+  router.get('/', (_req, res) => {
     const indexHtmlPath = path.join(WEB_DIR, 'index.html');
     res.sendFile(indexHtmlPath);
   });

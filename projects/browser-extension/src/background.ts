@@ -1,0 +1,239 @@
+import { browser, type BrowserTab, type MessageSender, type Reply } from './browser.ts';
+import { ExtensionStore } from './storage.ts';
+import { requestCore } from './core.ts';
+import { draftKey, type Draft, type Settings, type SiteData, type Snapshot } from './model.ts';
+import { websiteOrigin } from '../../shared/userscript-config.ts';
+import type { PluginConfig } from '../../shared/types/plugin.d.ts';
+
+export interface Init {
+  tab?: BrowserTab;
+  snapshot?: Snapshot;
+  settings: Settings;
+  draft?: Draft;
+}
+export interface PluginBatch {
+  data: PluginConfig[];
+  activeIds: string[];
+  updatedIds: string[];
+}
+export interface CrawlData {
+  result: SCWC.TDataItem[];
+  failed: string[];
+}
+export type Request =
+  | { type: 'init' }
+  | { type: 'settings.save'; settings: Settings }
+  | { type: 'site.patch'; site: string; patch: Partial<SiteData> }
+  | { type: 'core.sync'; site: string }
+  | { type: 'plugins'; tab: number; site: string; previousSite?: string }
+  | { type: 'crawl'; tab: number; site: string }
+  | {
+      type: 'trigger';
+      tab: number;
+      site: string;
+      plugin: string;
+      channel: string;
+      value: string | number | boolean | null;
+      relatedValues: Record<string, unknown>;
+      requireFullContent: boolean;
+      event: 'click' | 'change';
+    }
+  | {
+      type: 'page';
+      tab: number;
+      site: string;
+      command: 'start' | 'parent' | 'undo' | 'cancel' | 'confirm' | 'highlight';
+      selector?: string;
+    }
+  | { type: 'picker.selection'; draft: Draft | null };
+
+const store = new ExtensionStore(browser.storage.local);
+// Chromium 可禁止内容脚本直接读取 token 等扩展存储；其他浏览器仍通过消息边界隔离页面。
+void browser.storage.local
+  .setAccessLevel?.({ accessLevel: 'TRUSTED_CONTEXTS' })
+  .catch(() => undefined);
+const syncing = new Map<string, Promise<Snapshot>>();
+async function sync(site: string) {
+  const running = syncing.get(site);
+  if (running) {
+    await running;
+    return sync(site);
+  }
+  const work = (async () => {
+    const snapshot = await store.load(site);
+    const response = await requestCore<{ data: { snapshot: unknown } }>(
+      snapshot.data.config,
+      site,
+      '/api/userscript/config/sync',
+      { snapshot: store.wire(snapshot), watch: false },
+    );
+    return store.accept(site, response.data.snapshot, snapshot.updatedAt);
+  })();
+  syncing.set(site, work);
+  try {
+    return await work;
+  } finally {
+    if (syncing.get(site) === work) {
+      syncing.delete(site);
+    }
+  }
+}
+async function tabAt(tab: number, site: string) {
+  const current = await browser.tabs.get(tab);
+  if (current.url !== site) {
+    throw new Error('网页地址已变化，请重新打开插件');
+  }
+  websiteOrigin(site);
+  return current;
+}
+async function page<T>(tab: number, site: string, command: unknown): Promise<T> {
+  await tabAt(tab, site);
+  try {
+    await browser.tabs.sendMessage(tab, { type: 'scwc.page', command: 'ping' });
+  } catch {
+    await browser.scripting.executeScript({ target: { tabId: tab }, files: ['content.js'] });
+  }
+  const reply = await browser.tabs.sendMessage<Reply<T>>(tab, {
+    type: 'scwc.page',
+    site,
+    ...(command as object),
+  });
+  if (!reply?.ok) {
+    throw new Error(reply?.error ?? '无法读取当前网页');
+  }
+  return reply.data as T;
+}
+async function extract(tab: number, site: string, full = true) {
+  const snapshot = await store.load(site);
+  const data = await page<CrawlData>(tab, site, { command: 'extract', items: snapshot.data.items });
+  await tabAt(tab, site);
+  if (full && data.failed.length) {
+    throw new Error(`以下抓取项在当前页面不存在：${data.failed.join('、')}`);
+  }
+  return { snapshot, data };
+}
+async function handle(message: Request, sender: MessageSender): Promise<unknown> {
+  if (message.type === 'picker.selection') {
+    const tab = sender.tab;
+    if (sender.id !== browser.runtime.id || tab?.id === undefined || !sender.url) {
+      throw new Error('选择结果来源无效');
+    }
+    const current = await browser.tabs.get(tab.id);
+    if (
+      sender.url !== current.url ||
+      (message.draft &&
+        (message.draft.site !== sender.url ||
+          typeof message.draft.selector !== 'string' ||
+          message.draft.selector.length > 16384))
+    ) {
+      throw new Error('页面已经切换');
+    }
+    if (message.draft) {
+      await browser.storage.local.set({ [draftKey(tab.id)]: message.draft });
+    } else {
+      await browser.storage.local.remove(draftKey(tab.id));
+    }
+    return;
+  }
+  // 仅扩展自己的弹窗可操作核心与凭据；网页内容脚本不能借消息代理任意请求。
+  if (
+    sender.id !== browser.runtime.id ||
+    sender.tab ||
+    sender.url !== browser.runtime.getURL('index.html')
+  ) {
+    throw new Error('请求来源不是扩展弹窗');
+  }
+  switch (message.type) {
+    case 'init': {
+      const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+      const settings = await store.settings();
+      if (!tab?.url || tab.id === undefined || !/^https?:/.test(tab.url)) {
+        return { tab, settings };
+      }
+      const draft = (await browser.storage.local.get(draftKey(tab.id)))[draftKey(tab.id)] as
+        | Draft
+        | undefined;
+      return {
+        tab,
+        settings,
+        snapshot: await store.load(tab.url),
+        draft: draft?.site === tab.url ? draft : undefined,
+      };
+    }
+    case 'settings.save':
+      return store.saveSettings(message.settings);
+    case 'site.patch':
+      return store.patch(message.site, message.patch);
+    case 'core.sync':
+      return sync(message.site);
+    case 'plugins': {
+      await tabAt(message.tab, message.site);
+      const snapshot = await store.load(message.site);
+      return requestCore(
+        snapshot.data.config,
+        message.site,
+        '/api/plugin/config',
+        {},
+        message.previousSite,
+      );
+    }
+    case 'page': {
+      const result = await page(message.tab, message.site, {
+        command: message.command,
+        selector: message.selector,
+      });
+      if (
+        message.command === 'confirm' ||
+        message.command === 'cancel' ||
+        message.command === 'start'
+      ) {
+        await browser.storage.local.remove(draftKey(message.tab));
+      }
+      if (message.command === 'parent' || message.command === 'undo') {
+        await browser.storage.local.set({ [draftKey(message.tab)]: result });
+      }
+      return result;
+    }
+    case 'crawl': {
+      const { snapshot, data } = await extract(message.tab, message.site);
+      return requestCore(snapshot.data.config, message.site, '/api/metadata/scrape', {
+        site: message.site,
+        data: data.result,
+      });
+    }
+    case 'trigger': {
+      const { snapshot, data } = await extract(
+        message.tab,
+        message.site,
+        message.requireFullContent,
+      );
+      return requestCore(snapshot.data.config, message.site, '/api/plugin/toggle', {
+        type: message.event,
+        channel: message.channel,
+        id: message.plugin,
+        context: {
+          data: data.result,
+          site: message.site,
+          relatedValues: message.relatedValues,
+          value: message.value,
+        },
+      });
+    }
+  }
+}
+browser.runtime.onMessage.addListener((input, sender, respond) => {
+  void handle(input as Request, sender).then(
+    (data) => respond({ ok: true, data }),
+    (error: unknown) =>
+      respond({ ok: false, error: error instanceof Error ? error.message : String(error) }),
+  );
+  return true;
+});
+browser.tabs.onRemoved.addListener((tab) => {
+  void browser.storage.local.remove(draftKey(tab));
+});
+browser.tabs.onUpdated.addListener((tab, change) => {
+  if (change.status === 'loading') {
+    void browser.storage.local.remove(draftKey(tab));
+  }
+});

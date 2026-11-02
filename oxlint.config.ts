@@ -152,6 +152,7 @@ export default defineConfig({
     {
       files: [
         'projects/user-script/**/*.ts',
+        'projects/browser-extension/**/*.ts',
         'projects/web/**/*.ts',
         'projects/webutils/**/*.ts',
         'projects/shared/**/*.ts',

@@ -3,7 +3,11 @@ import fs from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { ENV_DIR } from '../common/paths.ts';
 import { openDatabase, WorkbenchError } from '../workbench/storage.ts';
-import { websiteOrigin, type UserScriptSnapshot } from '../../shared/userscript-config.ts';
+import {
+  defaultSiteData,
+  websiteOrigin,
+  type UserScriptSnapshot,
+} from '../../shared/userscript-config.ts';
 import { snapshotSchema } from '../../shared/userscript-config-schema.ts';
 
 export class UserScriptConfigDatabase {
@@ -29,7 +33,7 @@ export class UserScriptConfigDatabase {
       .get(key) as { value_json: string } | undefined;
     return row ? JSON.parse(row.value_json) : null;
   }
-  sync(input: unknown): UserScriptSnapshot {
+  sync(input: unknown, options: { preserveFloatingWindow?: boolean } = {}): UserScriptSnapshot {
     const parsed = snapshotSchema.safeParse(input);
     if (!parsed.success || Buffer.byteLength(JSON.stringify(parsed.data)) > 512 * 1024) {
       throw new WorkbenchError('invalid_site_config', '网站配置格式错误或超过 512 KiB', 400);
@@ -41,6 +45,12 @@ export class UserScriptConfigDatabase {
       // 日期相同时保留核心已有版本，所有客户端都以同一结果收敛。
       if (previous && previous.updatedAt >= next.updatedAt) {
         return previous;
+      }
+      // 扩展不读写悬浮窗坐标与最小化状态；合并发生在同一事务内，避免覆盖油猴端刚保存的位置。
+      if (options.preserveFloatingWindow) {
+        const window = previous?.data.window ?? defaultSiteData().window;
+        next.data.window.pos = window.pos;
+        next.data.window.minimized = window.minimized;
       }
       this.db
         .prepare(

@@ -24,6 +24,20 @@ function snapshot(
   return { version: 1, website: websiteOrigin(website), updatedAt, data: defaultSiteData() };
 }
 describe('separate website configuration database', () => {
+  it('preserves userscript floating coordinates and minimization during extension writes', () => {
+    const db = new UserScriptConfigDatabase(':memory:');
+    databases.push(db);
+    const script = snapshot('https://extension.example');
+    script.data.window = { pos: { x: 800, y: 620 }, minimized: false, selectionExpanded: false };
+    db.sync(script);
+    const extension = snapshot(script.website, '2026-11-01T00:00:00.000Z');
+    extension.data.items = [{ selector: '#extension', label: '扩展', prefix: '' }];
+    extension.data.window.selectionExpanded = true;
+    const merged = db.sync(extension, { preserveFloatingWindow: true });
+    expect(merged.data.window).toEqual({ ...script.data.window, selectionExpanded: true });
+    expect(merged.data.items).toEqual(extension.data.items);
+    expect(db.get(script.website)).toEqual(merged);
+  });
   it('reads and updates one origin row from every same-origin path', async () => {
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'scwc-origin-migration-'));
     try {

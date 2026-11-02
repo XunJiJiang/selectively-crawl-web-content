@@ -1,6 +1,7 @@
 {
   "files": [],
   "references": [
+    { "path": "./projects/browser-extension/tsconfig.json" },
     { "path": "./projects/vite-plugin/tsconfig.json" },
     { "path": "./tsconfig.terminal.json" },
     {

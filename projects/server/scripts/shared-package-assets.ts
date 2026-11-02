@@ -8,6 +8,7 @@ export const sharedExternalPackages = [
   'better-sqlite3',
   'trash',
   'open',
+  'default-browser',
   'node-notifier',
   // jsdom reads its stylesheet and spawns an XHR worker relative to its package;
   // css-tree loads JSON through createRequire(import.meta.url).

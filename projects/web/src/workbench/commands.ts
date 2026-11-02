@@ -63,6 +63,7 @@ export const commands: Command[] = [
   command('newTerminal', '新建命令终端', '工具'),
   command('output', '打开输出', '工具'),
   command('installUserscript', '安装油猴脚本', '工具', [], '在默认浏览器唤起 SCWC 油猴脚本安装'),
+  command('installBrowserExtension', '安装浏览器扩展', '工具', [], '在核心所在机器的默认浏览器打开 SCWC 扩展安装入口'),
   command('notifications', '通知中心', '工具'),
   command('export', '导出工作区草稿', '工具'),
   command('welcome', '欢迎', '帮助'),

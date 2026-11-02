@@ -99,6 +99,32 @@ async function fixture() {
 }
 
 describe('userscript installation entry', () => {
+  it('shows extension installation under quick access > and warns when Safari cannot install', async () => {
+    const root = await fixture();
+    const request = vi.spyOn(app.store.api, 'request').mockResolvedValue({ status: 'unsupported', message: 'Safari 缺少签名的容器应用' });
+    const toast = vi.spyOn(app.store, 'toast').mockImplementation(() => undefined);
+    await app.command('quickOpen');
+    const input = requireValue(root.querySelector<HTMLInputElement>('#quick-input'));
+    input.value = '>安装浏览器'; input.dispatchEvent(new Event('input', { bubbles: true })); await app.updateComplete;
+    const result = [...root.querySelectorAll<HTMLButtonElement>('.quick-results button')].find((item) => item.textContent?.includes('安装浏览器扩展'));
+    requireValue(result).click();
+    await vi.waitFor(() => expect(request).toHaveBeenCalledWith('/browser-extension/install', {}, expect.any(AbortSignal), false, false, true));
+    expect(toast).toHaveBeenCalledWith('Safari 缺少签名的容器应用', 'warn');
+  });
+  it('starts the installer immediately while workspace requests are paused and shows progress', async () => {
+    const root = await fixture();
+    app.store.api.requests.pause();
+    app.store.api.beforeRequest = () => new Promise<void>(() => undefined);
+    const fetchRequest = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ success: true, data: { status: 'opened', message: '已打开安装向导' } }), { headers: { 'content-type': 'application/json' } }));
+    const toast = vi.spyOn(app.store, 'toast').mockImplementation(() => undefined);
+    await app.command('quickOpen');
+    const input = requireValue(root.querySelector<HTMLInputElement>('#quick-input'));
+    input.value = '>安装浏览器扩展'; input.dispatchEvent(new Event('input', { bubbles: true })); await app.updateComplete;
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, composed: true }));
+    expect(toast).toHaveBeenCalledWith('正在打开浏览器扩展安装向导…', 'info');
+    await vi.waitFor(() => expect(fetchRequest).toHaveBeenCalledWith('/web/api/workbench/browser-extension/install', expect.objectContaining({ method: 'POST' })));
+    await vi.waitFor(() => expect(toast).toHaveBeenCalledWith('已打开安装向导', 'info'));
+  });
   it('appears under quick access > and hands installation to the core with a notification', async () => {
     const root = await fixture();
     const request = vi.spyOn(app.store.api, 'request').mockResolvedValue({ message: '已发送安装请求' });

@@ -135,6 +135,7 @@ export class AppRoot extends LitElement {
   @state() private accessor quickQuery = '';
   @state() private accessor quickOpen = false;
   @state() private accessor quickIndex = 0;
+  private extensionInstallRunning = false;
   @state() private accessor sidebarQuery = '';
   @state() private accessor notificationOpen = false;
   @state() private accessor notificationFilter = 'all';
@@ -687,6 +688,21 @@ export class AppRoot extends LitElement {
     this.renderRoot.querySelector<HTMLElement>('.sidebar-content')?.focus();
   }
   async command(id: string, args?: unknown): Promise<unknown> {
+    if (id === 'installBrowserExtension') {
+      if (this.extensionInstallRunning) { return; }
+      this.extensionInstallRunning = true;
+      this.store.toast('正在打开浏览器扩展安装向导…', 'info');
+      // 此操作不依赖工作区租约；绕过休眠重连等待，失败或超时直接反馈给用户。
+      const signal = AbortSignal.timeout(20000);
+      try {
+        const result = await this.store.api.request<{ status: 'opened' | 'unsupported'; message: string }>('/browser-extension/install', {}, signal, false, false, true);
+        this.store.toast(result.message, result.status === 'unsupported' ? 'warn' : 'info');
+      } catch (error) {
+        if (signal.aborted) { throw Object.assign(new Error('打开安装向导超时，请检查核心运行状态后重试。'), { cause: error }); }
+        throw error;
+      } finally { this.extensionInstallRunning = false; }
+      return;
+    }
     if (id === 'installUserscript') {
       const result = await this.store.api.request<{ message: string }>('/userscript/install', {});
       this.store.toast(result.message, 'info');

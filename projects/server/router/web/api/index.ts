@@ -30,7 +30,7 @@ router.get('/safeId/:pluginDir', (req: Request<{ pluginDir: string }>, res: Resp
 });
 
 // 获取全部挂载了 ui 的插件信息
-router.get('/pages', (req, res) => {
+router.get('/pages', (_req, res) => {
   const pluginsWithUI = plugins.filter(
     (plugin) => plugin.handler?.ui && plugin.handler.ui.entry,
   ) as (SCWC.IPluginMeta & {

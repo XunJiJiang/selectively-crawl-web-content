@@ -8,6 +8,7 @@ export default defineConfig({
       'projects/web',
       'projects/terminal',
       'projects/shared',
+      'projects/browser-extension',
     ],
   },
 });

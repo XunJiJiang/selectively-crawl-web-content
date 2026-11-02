@@ -34,6 +34,7 @@
         "cheerio": "^1.2.0",
         "css-tree": "^3.2.1",
         "dayjs": "^1.11.21",
+        "default-browser": "^5.5.0",
         "dompurify": "^3.4.14",
         "dotenv": "^17.4.2",
         "es-toolkit": "^1.49.0",
@@ -80,6 +81,10 @@
         "vite-plugin-monkey": "^8.1.0",
         "vitest": "^4.1.10",
       },
+    },
+    "projects/browser-extension": {
+      "name": "@scwc/browser-extension",
+      "version": "1.0.0",
     },
     "projects/server": {
       "name": "selectively-crawl-web-content-server",
@@ -2051,6 +2056,9 @@
         "cpu": "x64"
       },
       "sha512-BfzEnDJOt9T8M989/lA37EcJgat01wLRnoi5dQf3QzOH7jzpqTAzdDbVfRljVr5r+jzKqpbHeyOfAaXxAd0PAA=="
+    ],
+    "@scwc/browser-extension": [
+      "@scwc/browser-extension@workspace:projects/browser-extension"
     ],
     "@scwc/shared": [
       "@scwc/shared@workspace:projects/shared"

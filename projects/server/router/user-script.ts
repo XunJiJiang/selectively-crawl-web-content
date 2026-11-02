@@ -7,17 +7,22 @@ import { getUserScriptConfig } from '../user-script/config.ts';
 import { websiteOrigin } from '../../shared/userscript-config.ts';
 import { WorkbenchError } from '../workbench/storage.ts';
 
-const tickets = new Map<string, { website: string; expires: number }>();
+const tickets = new Map<string, { website: string; origin: string; expires: number }>();
 const router = Router();
 // 此路由经核心 Bearer 鉴权；不提供工作台编辑接口，也不接受插件页面的会话 grant。
 router.post('/config/sync', (req, res) => {
   try {
     const website = websiteOrigin(String(req.query.site));
-    const origin = websiteOrigin(req.get('origin') || req.get('referer') || '');
-    if (origin !== website || req.body?.snapshot?.website !== website) {
+    const extension = res.locals.browserExtension === true;
+    const origin = extension
+      ? (req.get('origin') as string)
+      : websiteOrigin(req.get('origin') || req.get('referer') || '');
+    if ((!extension && origin !== website) || req.body?.snapshot?.website !== website) {
       throw new WorkbenchError('site_mismatch', '配置只能由对应网站的悬浮窗同步', 403);
     }
-    const snapshot = getUserScriptConfig().sync(req.body.snapshot);
+    const snapshot = getUserScriptConfig().sync(req.body.snapshot, {
+      preserveFloatingWindow: extension,
+    });
     let ticket: string | undefined;
     if (req.body.watch === true) {
       for (const [key, value] of tickets) {
@@ -29,7 +34,7 @@ router.post('/config/sync', (req, res) => {
         throw new WorkbenchError('too_many_connections', '配置连接过多', 503);
       }
       ticket = randomUUID();
-      tickets.set(ticket, { website, expires: Date.now() + 30000 });
+      tickets.set(ticket, { website, origin, expires: Date.now() + 30000 });
     }
     res.set('Cache-Control', 'no-store').json({ success: true, data: { snapshot, ticket } });
   } catch (error) {
@@ -63,7 +68,7 @@ export function attachUserScriptConfigSockets(server: Server) {
     if (
       !ticket ||
       ticket.expires <= Date.now() ||
-      req.headers.origin !== ticket.website ||
+      req.headers.origin !== ticket.origin ||
       wss.clients.size >= 2000
     ) {
       socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');
