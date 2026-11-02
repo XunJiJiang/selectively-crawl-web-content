@@ -9,20 +9,61 @@ import {
 } from './default-browser.ts';
 
 describe('default browser selection and launch commands', () => {
-  it('reads the exact macOS HTTP handler without depending on plist field order or Finder access', () => {
+  it('reads the exact macOS HTTP handler despite nested preferred versions and plist field order', () => {
     expect(
       macDefaultBrowserId(
-        '( { LSHandlerURLScheme = https; LSHandlerRoleAll = "org.mozilla.firefox"; }, { LSHandlerRoleAll = "com.google.Chrome"; LSHandlerURLScheme = http; } )',
+        JSON.stringify({
+          LSHandlers: [
+            { LSHandlerURLScheme: 'https', LSHandlerRoleAll: 'org.mozilla.firefox' },
+            {
+              LSHandlerPreferredVersions: { LSHandlerRoleAll: '-' },
+              LSHandlerRoleAll: 'com.google.Chrome',
+              LSHandlerModificationDate: 0,
+              LSHandlerURLScheme: 'http',
+            },
+          ],
+        }),
       ),
     ).toBe('com.google.Chrome');
     expect(
       macDefaultBrowserId(
-        '( { LSHandlerURLScheme = http; LSHandlerRoleAll = "com.apple.Safari"; } )',
+        JSON.stringify({
+          LSHandlers: [{ LSHandlerURLScheme: 'http', LSHandlerRoleAll: 'com.apple.Safari' }],
+        }),
       ),
     ).toBe('com.apple.Safari');
-    expect(macDefaultBrowserId('()')).toBe('com.apple.Safari');
+    expect(macDefaultBrowserId('{"LSHandlers":[]}')).toBe('com.apple.Safari');
+  });
+  it.each([undefined, '-', '', 123, 'invalid bundle id'])(
+    'rejects an invalid explicit HTTP handler %s instead of reporting Safari',
+    (id) => {
+      expect(() =>
+        macDefaultBrowserId(
+          JSON.stringify({
+            LSHandlers: [{ LSHandlerURLScheme: 'http', LSHandlerRoleAll: id }],
+          }),
+        ),
+      ).toThrow('无效');
+    },
+  );
+  it.each(['not a plist', '{}', '{"LSHandlers":{}}'])(
+    'rejects unreadable registration data %s instead of reporting Safari',
+    (text) => {
+      expect(() => macDefaultBrowserId(text)).toThrow();
+    },
+  );
+  it('does not treat a nested preferred version as the registered browser', () => {
     expect(() =>
-      macDefaultBrowserId('({ LSHandlerURLScheme = http; LSHandlerRoleAll = "-"; })'),
+      macDefaultBrowserId(
+        JSON.stringify({
+          LSHandlers: [
+            {
+              LSHandlerURLScheme: 'http',
+              LSHandlerPreferredVersions: { LSHandlerRoleAll: 'com.google.Chrome' },
+            },
+          ],
+        }),
+      ),
     ).toThrow('无效');
   });
   it.each([

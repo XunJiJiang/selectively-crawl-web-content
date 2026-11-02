@@ -52,11 +52,17 @@ export function browserKind(id: string): ExtensionBrowser {
 export async function detectDefaultBrowser(): Promise<DefaultBrowser> {
   if (process.platform === 'darwin') {
     // 直接读取 LaunchServices，避免为获取显示名触发 Finder/System Events 自动化授权。
-    const { stdout } = await execute(
+    const { stdout: plist } = await execute(
       '/usr/bin/defaults',
-      ['read', 'com.apple.LaunchServices/com.apple.launchservices.secure', 'LSHandlers'],
+      ['export', 'com.apple.LaunchServices/com.apple.launchservices.secure', '-'],
       { timeout: 5000 },
     );
+    // LSHandlers 含嵌套字典；使用系统 plist 解析器，不能按大括号正则截取记录。
+    const conversion = execute('/usr/bin/plutil', ['-convert', 'json', '-o', '-', '-'], {
+      timeout: 5000,
+    });
+    conversion.child.stdin?.end(plist);
+    const { stdout } = await conversion;
     const id = macDefaultBrowserId(stdout);
     const kind = browserKind(id);
     const names = {
@@ -76,14 +82,18 @@ export async function detectDefaultBrowser(): Promise<DefaultBrowser> {
   return { ...browser, kind: browserKind(browser.id) };
 }
 export function macDefaultBrowserId(text: string) {
-  const record = (text.match(/\{[^{}]*\}/g) ?? []).find((entry) =>
-    /LSHandlerURLScheme\s*=\s*"?http"?\s*;/.test(entry),
-  );
-  const id = record?.match(/LSHandlerRoleAll\s*=\s*"?([^";\s]+)"?\s*;/)?.[1];
-  if (record && (!id || id === '-')) {
+  const handlers: unknown = JSON.parse(text)?.LSHandlers;
+  if (!Array.isArray(handlers)) {
     throw new Error('默认 HTTP 浏览器的 LaunchServices 登记无效');
   }
-  return id ?? 'com.apple.Safari';
+  const record = handlers.find(
+    (entry) => entry && typeof entry === 'object' && entry.LSHandlerURLScheme === 'http',
+  );
+  const id: unknown = record?.LSHandlerRoleAll;
+  if (record && (typeof id !== 'string' || !/^[\w-]+(?:\.[\w-]+)+$/.test(id))) {
+    throw new Error('默认 HTTP 浏览器的 LaunchServices 登记无效');
+  }
+  return typeof id === 'string' ? id : 'com.apple.Safari';
 }
 export function extensionManager(browser: ExtensionBrowser) {
   if (browser === 'firefox') {
