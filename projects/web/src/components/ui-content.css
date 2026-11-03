@@ -19,7 +19,7 @@
   min-width: 0;
   min-height: 0;
   overflow: auto;
-  padding: 12px;
+  padding: 8px;
   box-sizing: border-box;
 }
 #content > :is([data-layout], .ui-tabs) {
@@ -36,7 +36,7 @@
   flex-direction: column;
   height: 100%;
 }
-.ui-direct #content { overflow: hidden; }
+.ui-direct #content { overflow: visible; }
 .ui-scroll {
   flex: 0 1 auto;
   min-width: 0;
@@ -56,8 +56,16 @@
 .ui-scroll-tabs::part(content) { height: 100%; }
 .ui-scroll > .ui-tabs { width: 100%; }
 .ui-scroll > .ui-tab-panel {
-  flex: 1;
+  flex: 1 0 auto;
   overflow: visible;
+  width: 100%;
+}
+.ui-tab-panel > form:has(> .ui-tabs) { flex: 1; min-height: 0; }
+.ui-scroll > .ui-tab-panel:has(> form > .ui-tabs),
+.ui-scroll > .ui-tab-panel:has(> .ui-tabs) {
+  flex: 1 1 0;
+  height: 100%;
+  min-height: 0;
 }
 .ui-scroll-tab-list { flex: 0 0 auto; }
 .ui-scroll-row { flex: 0 0 auto; }
@@ -70,6 +78,7 @@
   min-width: 0;
 }
 .ui-select-field { display: none !important; }
+.ui-select::part(control) { border-radius: 8px; }
 .ui-root[data-surface='statusBar'] #content {
   padding: 0;
   gap: 0;
@@ -115,15 +124,7 @@
   min-width: 0;
   overflow-wrap: anywhere;
 }
-[data-ui-key^='config-item-'] {
-  padding: 12px;
-  border-radius: var(--radius-sm, 4px);
-  background: var(--surface-2, #0f131c);
-  margin-bottom: 12px;
-}
 [data-ui-key='config-actions'] {
-  position: sticky;
-  bottom: 0;
   padding: 8px 0;
   background: var(--surface-1, #0a0d12);
 }

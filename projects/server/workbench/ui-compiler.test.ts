@@ -12,6 +12,23 @@ const options = {
   },
 };
 describe('safe UI compilation', () => {
+  it('compiles setting groups with accessible captions and rejects ambiguous automatic bindings', () => {
+    const root = { type: 'group', label: '常规', description: '组说明', footer: '组下方说明', children: [
+      { type: 'setting', name: 'setting.limit', config: 'app.limit', valueType: 'number', label: '数量', description: '行说明', min: 0, max: 10 },
+      { type: 'setting', label: '勾选', children: [{ type: 'checkbox', name: 'check', checked: false }] },
+    ] };
+    const result = compileUI({ format: 'json', version: 1, root }, options);
+    const all = result.nodes.flatMap(function visit(node): typeof result.nodes { return [node, ...(node.children ?? []).flatMap(visit)]; });
+    const field = all.find((node) => node.tag === 'input' && node.attrs?.type === 'number');
+    expect(field?.attrs).toMatchObject({ min: '0', max: '10', step: 'any', name: 'setting.limit' });
+    expect(all.find((node) => node.attrs?.id === field?.attrs?.['aria-labelledby'])?.children?.[0].text).toBe('数量');
+    expect(all.find((node) => node.attrs?.id === field?.attrs?.['aria-describedby'])?.children?.[0].text).toBe('行说明');
+    expect(all.some((node) => node.attrs?.class === 'ui-setting ui-setting-checkbox')).toBe(true);
+    const bound = root.children[0];
+    for (const extra of [{ children: [] }, { events: { change: 'save' } }, { valueType: 'object' }, { config: '__proto__.x' }]) {
+      expect(() => compileUI({ format: 'json', version: 1, root: { ...bound, ...extra } }, options)).toThrow();
+    }
+  });
   it('expands nested trigger dependencies and rejects static trigger cycles',()=>{
     const result=compileUI({format:'html',version:1,html:`<input name="q"><button name="parent" onclick="core:event.trigger('child','click')">Parent</button><button name="child" for="q" onclick="save">Child</button>`},options);
     expect(result.events[0].capture).toContain('q');

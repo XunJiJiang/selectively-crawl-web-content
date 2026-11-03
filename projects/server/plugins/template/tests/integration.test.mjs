@@ -649,7 +649,8 @@ test('声明式 HTTP/IPC：参数返回、核心处理器、监听初值更新�
 test('后端配置权威：CRUD、异步校验、值/定义双 CAS、页面授权拒写', async () => {
   const read = () => pluginApi('/validation/config', { action: 'list' });
   let snapshot = await read();
-  assert.equal(snapshot.definitions.flatMap((d) => d.items).length, 7);
+  assert.equal(snapshot.definitions.flatMap((d) => d.items).length, 8);
+  assert.equal(snapshot.definitions.flatMap((d) => d.groups ?? []).length, 5);
   assert.ok(Object.values(snapshot.definitionSources).every((v) => v === 'backend'));
   const original = snapshot;
   snapshot = await pluginApi('/validation/config', {
@@ -876,14 +877,26 @@ test('核心页面信息模板：保存/重置/保留草稿/丢弃与冲突，�
   });
   assert.equal(view.compiled.format, 'json');
   assert.doesNotMatch(JSON.stringify(view.compiled), /ui:template/);
+  const nodes = allNodes(view.compiled.nodes);
+  const groups = nodes.filter((node) => node.attrs?.class === 'ui-setting-group');
+  assert.equal(groups.length, 5);
+  assert.deepEqual(groups.map((group) => allNodes(group.children ?? []).find((node) => node.attrs?.class === 'ui-group-label')?.children?.[0]?.text), [
+    '开关与勾选', '显示', '接口信息', '验证说明', '任务限制',
+  ]);
+  assert.equal(nodes.filter((node) => node.attrs?.['data-ui-tabs']).length, 1, '配置分组直接连续显示，不再嵌套标签页');
+  assert.ok(nodes.some((node) => node.text === '分组标题下方的说明文字。'));
+  assert.ok(nodes.some((node) => node.text === '分组下方的说明：数量必须为 1–10 之间的整数。'));
+  assert.equal(nodes.filter((node) => node.attrs?.class === 'ui-setting ui-setting-checkbox').length, 1);
   const field = (key) => 'config.f' + createHash('sha256').update(key).digest('hex').slice(0, 16);
   const current = await api('/plugins/template/config');
+  const booleanKeys = new Set(current.definitions.flatMap((definition) => definition.items.filter((item) => ['switch', 'checkbox'].includes(item.control)).map((item) => item.key)));
   const values = Object.fromEntries(
     Object.entries(current.effectiveValues)
       .filter(([k]) => k !== 'validation.contract')
-      .map(([key, value]) => [field(key), key === 'validation.enabled' ? value === 'true' : value]),
+      .map(([key, value]) => [field(key), booleanKeys.has(key) ? value === 'true' : value]),
   );
   values[field('validation.note')] = 'draft to save';
+  values[field('validation.confirm')] = true;
   await api(`/ui/instances/${view.id}/data`, {
     renderRevision: view.renderRevision,
     fields: values,
@@ -908,6 +921,7 @@ test('核心页面信息模板：保存/重置/保留草稿/丢弃与冲突，�
     });
   };
   assert.equal((await execute('save')).status, 'succeeded');
+  assert.equal((await api('/plugins/template/config')).effectiveValues['validation.confirm'], 'true');
   assert.equal(
     (await api('/plugins/template/config')).effectiveValues['validation.note'],
     'draft to save',
@@ -924,6 +938,7 @@ test('核心页面信息模板：保存/重置/保留草稿/丢弃与冲突，�
   assert.equal((await execute('save')).status, 'succeeded');
   assert.equal((await execute('discard')).effects[0].type, 'config.saved');
   assert.equal((await execute('reset')).status, 'succeeded');
+  assert.equal((await api('/plugins/template/config')).effectiveValues['validation.confirm'], 'false');
   await api(`/ui/instances/${view.id}/release`, {});
   const main = await api('/ui/instances', {
     pluginId: 'template',

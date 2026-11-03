@@ -1,5 +1,5 @@
-import { css, html, LitElement } from 'lit';
-import { property } from 'lit/decorators.js';
+import { css, html } from 'lit';
+import { WbIconBase } from '../../web/src/components/icon-base.ts';
 import { unsafeSVG } from 'lit/directives/unsafe-svg.js';
 import { customElement } from '../../shared/utils/customElement.ts';
 import selection from '@vscode/codicons/src/icons/list-selection.svg?raw';
@@ -8,7 +8,6 @@ import minimize from '@vscode/codicons/src/icons/chrome-minimize.svg?raw';
 import right from '@vscode/codicons/src/icons/chevron-right.svg?raw';
 import down from '@vscode/codicons/src/icons/chevron-down.svg?raw';
 import check from '@vscode/codicons/src/icons/check.svg?raw';
-import fallback from '@vscode/codicons/src/icons/question.svg?raw';
 
 const icons: Record<string, string> = {
   'list-selection': selection,
@@ -19,19 +18,12 @@ const icons: Record<string, string> = {
   check,
 };
 
-/** 在菜单组件注册 wb-icon 之前安装 SVG 实现，不加载受 font-src 限制的字体。 */
+/** Float-window glyphs use SVG for CSP; other names retain the full workbench contract. */
 @customElement('wb-icon')
-export class UserScriptIcon extends LitElement {
-  @property() accessor name = 'list-selection';
-  @property() accessor size = '';
+export class UserScriptIcon extends WbIconBase {
   static styles = css`
-    :host {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      line-height: 1;
-    }
-    span,
+    ${WbIconBase.styles}
+    span:has(svg),
     svg {
       display: block;
       width: 1em;
@@ -39,8 +31,11 @@ export class UserScriptIcon extends LitElement {
     }
   `;
   render() {
+    if (!icons[this.name]) {
+      return super.render();
+    }
     return html`<span aria-hidden="true" style=${`font-size:${this.size === 'sm' ? 1 : 16 / 14}rem`}
-      >${unsafeSVG(icons[this.name] ?? fallback)}</span
+      >${unsafeSVG(icons[this.name])}</span
     >`;
   }
 }

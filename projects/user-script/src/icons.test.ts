@@ -1,6 +1,7 @@
 import { afterEach, expect, it } from 'vitest';
 import { UserScriptIcon } from './icons.ts';
 import './theme.ts';
+import { WbIcon } from '../../web/src/components/icon.ts';
 
 afterEach(() => document.body.replaceChildren());
 it.each(['list-selection', 'plugins', 'chrome-minimize', 'right', 'down', 'check'])(
@@ -16,3 +17,26 @@ it.each(['list-selection', 'plugins', 'chrome-minimize', 'right', 'down', 'check
     expect(icon.shadowRoot?.innerHTML).not.toMatch(/@font-face|data:font|url\(/);
   },
 );
+
+it.each([
+  'pages',
+  'history',
+  'search',
+  'settings',
+  'close',
+  'refresh',
+  'sidebar',
+  'panel',
+  'arrow-left',
+])('preserves %s when the userscript registers before the workbench', async (name) => {
+  const registered = customElements.get('wb-icon');
+  const icon = document.createElement('wb-icon') as UserScriptIcon;
+  icon.name = name;
+  document.body.append(icon);
+  await icon.updateComplete;
+  expect(registered).toBe(UserScriptIcon);
+  expect(WbIcon).not.toBe(registered);
+  expect(customElements.get('wb-icon')).toBe(registered);
+  expect(icon.shadowRoot?.querySelector('.codicon')).not.toBeNull();
+  expect(icon.shadowRoot?.querySelector('svg')).toBeNull();
+});

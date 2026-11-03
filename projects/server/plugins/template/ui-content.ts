@@ -158,6 +158,18 @@ export function mainContent(note = '静态 JSON 来源'): UIContent {
           id: 'core',
           label: '配置 / 核心',
           children: [
+            {
+              type: 'group',
+              label: '自动绑定配置',
+              description: '无需自定义控制器；更改控件后自动保存并同步。',
+              footer: '数字和布尔配置在数据库中仍保存为字符串。',
+              children: [
+                { type: 'setting', label: '验证说明', description: '使用已注册的后端规范化和校验规则。', config: 'validation.note', valueType: 'string', maxLength: 120 },
+                { type: 'setting', label: '数量上限', config: 'validation.limit', valueType: 'integer', min: 1, max: 10 },
+                { type: 'setting', label: '启用验证', config: 'validation.enabled', valueType: 'boolean' },
+                { type: 'setting', label: '布局密度', config: 'validation.mode', options: ['compact', 'comfortable'] },
+              ],
+            },
             ...coreExamples.map(([label, program]) =>
               button(label, `${program}|demo.record($prev)`, { for: 'query' }),
             ),

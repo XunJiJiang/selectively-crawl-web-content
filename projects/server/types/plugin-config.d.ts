@@ -14,15 +14,35 @@ export interface ConfigSnapshot {
   definitions: ConfigDefinition[];
   definitionSources?: Record<string, 'backend' | 'legacy-unverified'>;
 }
+/** Layout-only grouping; itemIds reference ids in the definition's authoritative items list. */
+export interface ConfigGroup {
+  id: string;
+  label?: string;
+  description?: string;
+  footer?: string;
+  itemIds: string[];
+}
 export interface ConfigDefinition {
   id: string;
   schemaVersion: string;
+  label?: string;
+  description?: string;
+  footer?: string;
+  groups?: ConfigGroup[];
   items: {
     id: string;
     key: string;
     label: string;
     description?: string;
-    control: 'text' | 'textarea' | 'number' | 'switch' | 'select' | 'color' | 'readonly';
+    control:
+      | 'text'
+      | 'textarea'
+      | 'number'
+      | 'switch'
+      | 'checkbox'
+      | 'select'
+      | 'color'
+      | 'readonly';
     defaultValue?: string;
     validationPolicy?: 'declarative' | 'page-required' | 'backend-required';
     rules?: {

@@ -32,7 +32,11 @@ export function createJSONComponents(): UIRendererComponents {
       select.value = node.value;
       select.disabled = node.disabled;
       select.hidden = node.hidden;
-      select.label = node.getAttribute('aria-label') || '请选择';
+      const labelId = node.getAttribute('aria-labelledby');
+      select.label =
+        node.getAttribute('aria-label') ||
+        (labelId ? content.querySelector(`[id="${CSS.escape(labelId)}"]`)?.textContent : '') ||
+        '请选择';
     }
   };
   return {
@@ -41,31 +45,26 @@ export function createJSONComponents(): UIRendererComponents {
       containers.clear();
       selects.clear();
       content = element;
-      for (const node of content.querySelectorAll<HTMLElement>(
-        '[data-layout],form,.ui-tabs,.ui-tab-panel,.ui-tab-list',
-      )) {
+      for (const node of content.querySelectorAll<HTMLElement>('.ui-tab-panel,.ui-tab-list')) {
         const scroll = document.createElement('wb-scroll-container');
         const kind = node.classList.contains('ui-tab-list')
           ? 'tab-list'
-          : node.classList.contains('ui-tab-panel')
-            ? 'panel'
-            : node.classList.contains('ui-tabs')
-              ? 'tabs'
-              : 'container';
+          : 'panel';
         scroll.className = `ui-scroll ui-scroll-${kind}`;
-        scroll.classList.toggle('ui-scroll-row', node.dataset.layout === 'row');
         scroll.dataset.uiScroll = node.getAttribute('data-scwc-node') ?? '';
         if (kind === 'tab-list') {
           scroll.wheelDirection = 'horizontal';
           scroll.thin = true;
         }
-        const gap = Number(node.getAttribute('data-gap'));
-        if (node.hasAttribute('data-gap') && Number.isFinite(gap) && gap >= 0 && gap <= 100) {
-          node.style.setProperty('--ui-gap', `${gap}px`);
-        }
         node.replaceWith(scroll);
         scroll.append(node);
         containers.set(node, scroll);
+      }
+      for (const node of content.querySelectorAll<HTMLElement>('[data-gap]')) {
+        const gap = Number(node.getAttribute('data-gap'));
+        if (Number.isFinite(gap) && gap >= 0 && gap <= 100) {
+          node.style.setProperty('--ui-gap', `${gap}px`);
+        }
       }
       for (const node of content.querySelectorAll('select')) {
         const select = document.createElement('wb-menu-select');
@@ -120,6 +119,13 @@ export function createJSONComponents(): UIRendererComponents {
           select.removeEventListener('click', click, true);
         });
         selects.set(node, select);
+        for (const label of content.querySelectorAll('label[for]')) {
+          if (label.getAttribute('for') === node.id) {
+            const focus = () => select.focus();
+            label.addEventListener('click', focus);
+            cleanups.push(() => label.removeEventListener('click', focus));
+          }
+        }
       }
       for (const node of content.querySelectorAll('.core-icon')) {
         const icon = document.createElement('wb-icon');

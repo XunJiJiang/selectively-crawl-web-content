@@ -146,6 +146,38 @@ export interface UINode {
   events?: Record<string, string>;
   [key: string]: unknown;
 }
+export type UISettingValueType = 'string' | 'boolean' | 'number' | 'integer';
+export type UISettingControl =
+  | 'text'
+  | 'textarea'
+  | 'number'
+  | 'switch'
+  | 'checkbox'
+  | 'select'
+  | 'color'
+  | 'readonly';
+/** Omit children/events when binding directly to the current plugin's configuration. */
+export interface UISettingNode extends UINode {
+  type: 'setting';
+  label: string;
+  description?: string;
+  config?: string;
+  valueType?: UISettingValueType;
+  control?: UISettingControl;
+  defaultValue?: string;
+  options?: (string | { value: string; label: string })[];
+  min?: number;
+  max?: number;
+  maxLength?: number;
+  disabled?: boolean | string;
+}
+export interface UISettingGroupNode extends UINode {
+  type: 'group';
+  label?: string;
+  description?: string;
+  footer?: string;
+  children: UISettingNode[];
+}
 export interface UITab {
   id: string;
   label: string;

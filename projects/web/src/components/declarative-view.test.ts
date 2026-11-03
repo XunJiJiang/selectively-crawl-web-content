@@ -7,6 +7,7 @@ import { DeclarativeMenu } from './declarative-menu.ts';
 import { requireValue } from '../../../shared/workbench-protocol.ts';
 import type { WbMenuSelect } from './context-menu/wb-menu-select.ts';
 import { WorkbenchScrollContainer } from './scroll-container.ts';
+import { ApiError } from '../api/workbench.ts';
 
 beforeEach(() => {
   vi.spyOn(WorkbenchScrollContainer.prototype, 'scrollTo').mockImplementation(function (
@@ -253,6 +254,130 @@ describe('DeclarativeView rendering', () => {
     expect(root.querySelectorAll<HTMLElement>('[role=tabpanel]')[0].hidden).toBe(true);
   });
 
+  it('serializes overlapping auxiliary template refreshes and reads only the final revision', async () => {
+    const { view, store, request, instance } = await renderedFixture(content, 'auxiliarySidebar');
+    const root = requireValue(view.shadowRoot);
+    await vi.waitFor(() =>
+      expect(root.querySelector('[data-ui-key=result]')?.textContent).toContain('<img'),
+    );
+    (root.querySelectorAll('[role=tab]')[1] as HTMLElement).click();
+    const input = requireValue(root.querySelector('input'));
+    input.value = 'local draft';
+    input.dispatchEvent(new Event('input'));
+    input.focus();
+    const responses: { revision: number; resolve(value: unknown): void }[] = [];
+    let revision = 1;
+    const dataRevisions: number[] = [];
+    request.mockImplementation((path, body) => {
+      if (path.endsWith('/content')) {
+        const next = ++revision;
+        return new Promise((resolve) => responses.push({ revision: next, resolve }));
+      }
+      if (path.endsWith('/data')) {
+        const current = (body as { renderRevision: number }).renderRevision;
+        dataRevisions.push(current);
+        return current === revision
+          ? Promise.resolve({ updates: [] })
+          : Promise.reject(new ApiError('UI_STALE_RENDER', '模板版本已变化', 400));
+      }
+      return Promise.resolve({});
+    });
+    const first = view.refresh();
+    await vi.waitFor(() => expect(responses).toHaveLength(1));
+    const second = view.refresh();
+    expect(responses).toHaveLength(1);
+    store.dispatchEvent(
+      new CustomEvent('server-event', {
+        detail: { type: 'ui.data.changed', entityId: instance.id },
+      }),
+    );
+    expect(dataRevisions).toEqual([]);
+    requireValue(responses[0]).resolve({ ...instance, renderRevision: 2 });
+    await vi.waitFor(() => expect(responses).toHaveLength(2));
+    expect(dataRevisions).toEqual([]);
+    requireValue(responses[1]).resolve({ ...instance, renderRevision: 3 });
+    await Promise.all([first, second]);
+    await vi.waitFor(() => expect(dataRevisions).toContain(3));
+    expect(dataRevisions.every((value) => value === 3)).toBe(true);
+    expect(root.querySelector('.error')).toBeNull();
+    const restored = requireValue(root.querySelector('input'));
+    expect(restored.value).toBe('local draft');
+    expect(root.activeElement).toBe(restored);
+  });
+
+  it('reloads a stale read once and preserves the auxiliary draft without replaying events', async () => {
+    const { view, store, request, instance } = await renderedFixture(content, 'auxiliarySidebar');
+    const root = requireValue(view.shadowRoot);
+    await vi.waitFor(() =>
+      expect(root.querySelector('[data-ui-key=result]')?.textContent).toContain('<img'),
+    );
+    (root.querySelectorAll('[role=tab]')[1] as HTMLElement).click();
+    const input = requireValue(root.querySelector('input'));
+    input.value = 'unsaved draft';
+    input.dispatchEvent(new Event('input'));
+    request.mockImplementation(async (path, body) => {
+      if (path.endsWith('/content')) {
+        return { ...instance, renderRevision: 2 };
+      }
+      if (path.endsWith('/data')) {
+        if ((body as { renderRevision: number }).renderRevision === 1) {
+          throw new ApiError('UI_STALE_RENDER', '模板版本已变化', 400);
+        }
+        return { updates: [] };
+      }
+      return {};
+    });
+    request.mockClear();
+    store.dispatchEvent(
+      new CustomEvent('server-event', {
+        detail: { type: 'ui.data.changed', entityId: instance.id },
+      }),
+    );
+    await vi.waitFor(() =>
+      expect(
+        request.mock.calls.some(
+          ([path, body]) =>
+            path.endsWith('/data') && (body as { renderRevision: number }).renderRevision === 2,
+        ),
+      ).toBe(true),
+    );
+    expect(request.mock.calls.filter(([path]) => path.endsWith('/content'))).toHaveLength(1);
+    expect(request.mock.calls.some(([path]) => path.endsWith('/events'))).toBe(false);
+    expect(root.querySelector('.error')).toBeNull();
+    expect(root.querySelector('input')?.value).toBe('unsaved draft');
+  });
+
+  it('stops recovery when a refreshed template still reports a stale revision', async () => {
+    const { view, store, request, instance } = await renderedFixture(content, 'auxiliarySidebar');
+    await vi.waitFor(() =>
+      expect(view.shadowRoot?.querySelector('[data-ui-key=result]')?.textContent).toContain('<img'),
+    );
+    request.mockImplementation(async (path) => {
+      if (path.endsWith('/content')) {
+        return { ...instance, renderRevision: 2 };
+      }
+      if (path.endsWith('/data')) {
+        throw new ApiError('UI_STALE_RENDER', '模板版本已变化', 400);
+      }
+      return {};
+    });
+    request.mockClear();
+    store.dispatchEvent(
+      new CustomEvent('server-event', {
+        detail: { type: 'ui.data.changed', entityId: instance.id },
+      }),
+    );
+    await vi.waitFor(() =>
+      expect(view.shadowRoot?.querySelector('.error')?.textContent).toContain('模板版本已变化'),
+    );
+    expect(request.mock.calls.filter(([path]) => path.endsWith('/content'))).toHaveLength(1);
+    request.mockImplementation(async (path) =>
+      path.endsWith('/content') ? { ...instance, renderRevision: 3 } : { updates: [] },
+    );
+    await view.refresh();
+    expect(view.shadowRoot?.querySelector('.error')).toBeNull();
+  });
+
   it('keeps HTML templates in a sandbox iframe', async () => {
     const { view } = await renderedFixture({ format: 'html', version: 1, html: '<p>HTML</p>' });
     await vi.waitFor(() => expect(view.shadowRoot?.querySelector('iframe')).not.toBeNull());
@@ -319,10 +444,11 @@ describe('DeclarativeView rendering', () => {
       );
       const root = requireValue(view.shadowRoot);
       await vi.waitFor(() => expect(root.querySelectorAll('wb-menu-select')).toHaveLength(2));
-      for (const container of root.querySelectorAll(
-        '[data-layout],form,.ui-tabs,.ui-tab-list,.ui-tab-panel',
-      )) {
+      for (const container of root.querySelectorAll('.ui-tab-list,.ui-tab-panel')) {
         expect(container.parentElement?.localName).toBe('wb-scroll-container');
+      }
+      for (const container of root.querySelectorAll('[data-layout],form,.ui-tabs')) {
+        expect(container.parentElement?.localName).not.toBe('wb-scroll-container');
       }
       const tabs = requireValue(
         root.querySelector<WorkbenchScrollContainer>('.ui-scroll-tab-list'),

@@ -74,6 +74,7 @@ export class WbMenuSelect extends LitElement {
   render() {
     if (resolveMenuPresentation(this.presentation) === 'native') {
       return html`<select
+        part="control"
         class="wb-select wb-menu-select__native"
         .value=${this.value}
         ?disabled=${this.disabled}
@@ -91,6 +92,7 @@ export class WbMenuSelect extends LitElement {
 
     const selected = this.options.find((option) => option.value === this.value);
     return html`<button
+        part="control"
         class="wb-outline-button wb-menu-select__button"
         type="button"
         ?disabled=${this.disabled}

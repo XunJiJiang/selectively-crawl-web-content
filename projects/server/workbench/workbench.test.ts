@@ -47,6 +47,60 @@ const definition = {
 };
 
 describe('persistent plugin strings', () => {
+  it('stores grouping metadata without changing configuration values and rejects invalid references', async () => {
+    const { config } = fixture();
+    const grouped = {
+      ...definition,
+      groups: [
+        {
+          id: 'limits',
+          label: '限制',
+          description: '组上方说明',
+          footer: '组下方说明',
+          itemIds: ['limit'],
+        },
+      ],
+    };
+    let snapshot = config.define('grouped', grouped, 0);
+    expect(snapshot.definitions[0].groups).toEqual(grouped.groups);
+    expect(snapshot.effectiveValues['global.limit']).toBe('10');
+    snapshot = await config.update(
+      'grouped',
+      { 'global.limit': '20' },
+      { baseRevision: snapshot.revision },
+    );
+    snapshot = config.define(
+      'grouped',
+      { ...grouped, groups: [{ ...grouped.groups[0], label: '调整后的分组' }] },
+      snapshot.revision,
+    );
+    expect(snapshot.values['global.limit']).toBe('20');
+    const revision = snapshot.revision;
+    for (const groups of [
+      [{ id: 'bad', itemIds: ['unknown'] }],
+      [{ id: 'bad', itemIds: ['limit', 'limit'] }],
+      [
+        { id: 'one', itemIds: ['limit'] },
+        { id: 'two', itemIds: ['limit'] },
+      ],
+      [
+        { id: 'duplicate', itemIds: ['limit'] },
+        { id: 'duplicate', itemIds: ['limit'] },
+      ],
+    ]) {
+      expect(() => config.define('grouped', { ...grouped, groups }, revision)).toThrow();
+      expect(config.snapshot('grouped').revision).toBe(revision);
+    }
+    expect(() =>
+      config.define(
+        'grouped',
+        { ...grouped, items: [...grouped.items, { ...grouped.items[0], key: 'another.limit' }] },
+        revision,
+      ),
+    ).toThrow();
+    await config.update('grouped', {}, { reset: ['global.limit'], baseRevision: revision });
+    expect(config.get('grouped', 'global.limit')).toBe('10');
+  });
   it('keeps plugin namespaces, literal dotted keys and empty strings; rejects nonstrings atomically', async () => {
     const { config } = fixture();
     await config.update('a', { a: '', 'a.b': '{"n":1}' });

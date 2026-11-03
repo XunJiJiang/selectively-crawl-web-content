@@ -68,6 +68,7 @@ interface Instance {
   fields: Record<string, UIValue>;
   configFields?: Map<string, string>;
   baseline?: ConfigSnapshot;
+  boundConfigs?: Map<string, { key: string; value: string | undefined; schemaRevision: number }>;
   inspector?: Record<string, UIValue>;
   watches: Map<string, { key: string; stop: () => void }>;
   queue: Promise<unknown>;
@@ -91,6 +92,7 @@ const pureNames = new Set([
   'validate',
   'value.read',
   'config.read',
+  'config.bound.read',
   'get',
 ]);
 const effectNames = new Set([
@@ -116,6 +118,7 @@ const coreNames = new Set([
   'value.write',
   'event.trigger',
   'config.write',
+  'config.bound.write',
   'inspector.config.save',
   'inspector.config.reset',
   'inspector.config.rebase',
@@ -234,7 +237,7 @@ export class DeclarativeUIService {
         '模板中只能调用只读处理器',
       );
       uiAssert(
-        !watch || ['get', 'config.read', 'value.read'].includes(key),
+        !watch || ['get', 'config.read', 'config.bound.read', 'value.read'].includes(key),
         'UI_WATCH_UNSUPPORTED',
         '该核心处理器没有变更源',
       );
@@ -930,6 +933,7 @@ export class DeclarativeUIService {
     instance.registryRevision = reg?.revision ?? 0;
     instance.revision++;
     instance.fields = {};
+    instance.boundConfigs = undefined;
   }
   async inspector(instance: Instance) {
     const { pluginCatalog } = await import('./catalog.ts');
@@ -1053,10 +1057,8 @@ export class DeclarativeUIService {
       ? (data.properties as unknown as { key: string; label: string; value: string }[])
       : [];
     const configFields = new Set<string>();
-    const definitions = config.definitions.map((definition, definitionIndex) => ({
-      id: `config-${definitionIndex}`,
-      label: definition.id,
-      children: definition.items.map((item, itemIndex): UINode => {
+    const configSections = config.definitions.flatMap((definition, definitionIndex): UINode[] => {
+      const rows = definition.items.map((item, itemIndex): UINode => {
         const name = 'config.f' + createHash('sha256').update(item.key).digest('hex').slice(0, 16);
         const disabled =
           item.control === 'readonly' ||
@@ -1070,12 +1072,11 @@ export class DeclarativeUIService {
         const input: UINode =
           item.control === 'readonly'
             ? text(`${key}-value`, configWatch(item.key))
-            : item.control === 'switch'
+            : item.control === 'switch' || item.control === 'checkbox'
               ? {
-                  type: 'checkbox',
+                  type: item.control === 'switch' ? 'toggle' : 'checkbox',
                   key: `${key}-control`,
                   name: disabled ? undefined : name,
-                  label: item.label,
                   checked: `\${core:boolean.parse(core:default(watch:core:config.read(${JSON.stringify(item.key)}), 'false'))}`,
                   disabled,
                 }
@@ -1110,29 +1111,77 @@ export class DeclarativeUIService {
                       disabled,
                     };
         return {
-          type: 'stack',
+          type: 'setting',
           key,
-          gap: 'small',
-          children: [
-            item.control === 'switch' ? input : text(`${key}-label`, item.label, 'title'),
-            ...(item.description ? [text(`${key}-description`, item.description, 'muted')] : []),
-            ...(item.control === 'switch' ? [] : [input]),
-            text(`${key}-key`, item.key, 'code'),
+          label: item.label,
+          description: [
+            item.description,
             ...(item.validationPolicy === 'page-required'
-              ? [text(`${key}-migration`, '此配置需要原页面校验；请由插件后端重新声明校验规则。', 'muted')]
+              ? ['此配置需要原页面校验；请由插件后端重新声明校验规则。']
+              : []),
+          ]
+            .filter(Boolean)
+            .join(' '),
+          children: [input],
+        };
+      });
+      if (!definition.groups?.length) {
+        return [
+          {
+            type: 'group',
+            key: `config-definition-${definitionIndex}`,
+            label: definition.label ?? definition.id,
+            description: definition.description,
+            footer: definition.footer,
+            children: rows,
+          },
+        ];
+      }
+      const byId = new Map(definition.items.map((item, index) => [item.id, rows[index]]));
+      const assigned = new Set(definition.groups.flatMap((group) => group.itemIds));
+      const sectionKey = `config-definition-${definitionIndex}`;
+      return [
+        {
+          type: 'stack',
+          key: sectionKey,
+          gap: 'large',
+          children: [
+            ...(definition.label ? [text(`${sectionKey}-label`, definition.label, 'title')] : []),
+            ...(definition.description
+              ? [text(`${sectionKey}-description`, definition.description, 'muted')]
+              : []),
+            ...definition.groups.map(
+              (group): UINode => ({
+                type: 'group',
+                key: `${sectionKey}-${group.id}`,
+                label: group.label,
+                description: group.description,
+                footer: group.footer,
+                children: group.itemIds.map((id) => {
+                  const row = byId.get(id);
+                  uiAssert(row, 'UI_INVALID_CONTENT', '配置分组引用了不存在的配置项');
+                  return row;
+                }),
+              }),
+            ),
+            ...definition.items.flatMap((item, index) =>
+              assigned.has(item.id) ? [] : [rows[index]],
+            ),
+            ...(definition.footer
+              ? [text(`${sectionKey}-footer`, definition.footer, 'muted')]
               : []),
           ],
-        };
-      }),
-    }));
+        },
+      ];
+    });
     const configForm: UINode = {
       type: 'form',
       key: 'inspector-config-form',
       name: 'inspectorConfig',
       events: { submit: 'core:inspector.config.save($event)' },
       children: [
-        ...(definitions.length
-          ? [{ type: 'tabs', key: 'config-groups', label: '配置分组', tabs: definitions } as UINode]
+        ...(configSections.length
+          ? configSections
           : [text('no-config', '插件后端尚未注册配置项。', 'muted')]),
         ...(configFields.size
           ? [
@@ -1290,6 +1339,7 @@ export class DeclarativeUIService {
       '处理器注册版本已变化',
     );
     const dataGeneration = (ownerInstance.dataGeneration = (ownerInstance.dataGeneration ?? 0) + 1);
+    ownerInstance.boundConfigs ??= new Map();
     const instance = {
       ...ownerInstance,
       fields: this.capture(ownerInstance, body.fields),
@@ -1660,6 +1710,71 @@ export class DeclarativeUIService {
         event,
         depth + 1,
       );
+    }
+    if (name === 'config.bound.read') {
+      const key = string(first),
+        field = string(args[1]),
+        fallback = string(args[2]);
+      const snapshot = getPluginConfig().snapshot(instance.pluginId);
+      const value = snapshot.effectiveValues[key];
+      instance.boundConfigs ??= new Map();
+      const baseline = instance.boundConfigs.get(field);
+      // Remote refreshes advance a clean field's baseline, while local drafts keep
+      // the value they were edited against so same-key conflicts cannot overwrite data.
+      if (
+        !baseline ||
+        baseline.key !== key ||
+        String(instance.fields[field]) === (baseline.value ?? fallback)
+      ) {
+        instance.boundConfigs.set(field, { key, value, schemaRevision: snapshot.schemaRevision });
+      }
+      return value ?? fallback;
+    }
+    if (name === 'config.bound.write') {
+      const key = string(first),
+        field = string(args[1]);
+      const baseline = instance.boundConfigs?.get(field);
+      const snapshot = getPluginConfig().snapshot(instance.pluginId);
+      uiAssert(baseline?.key === key, 'UI_INVALID_CONTENT', '请先读取配置基线');
+      uiAssert(
+        baseline.schemaRevision === snapshot.schemaRevision &&
+          baseline.value === snapshot.effectiveValues[key],
+        'UI_CONFIG_CONFLICT',
+        '此配置已被其他调用更新；请刷新后重新编辑',
+      );
+      const result = await getPluginConfig().update(
+        instance.pluginId,
+        { [key]: string(args[2]) },
+        {
+          baseRevision: snapshot.revision,
+          schemaRevision: snapshot.schemaRevision,
+          verifiedDefinitions: true,
+        },
+      );
+      uiAssert(
+        !instance.executionDeadline || Date.now() < instance.executionDeadline,
+        'UI_EXECUTION_TIMEOUT',
+        '配置调用已超时，请重新读取权威状态',
+      );
+      const value = result.effectiveValues[key];
+      instance.boundConfigs?.set(field, { key, value, schemaRevision: result.schemaRevision });
+      const boolean =
+        instance.compiled.fields.find((item) => item.name === field)?.kind === 'boolean';
+      effects.push({
+        id: randomUUID(),
+        type: 'value.write',
+        args: [field, boolean ? value === 'true' : value],
+        instanceId: instance.id,
+        renderRevision: instance.revision,
+      });
+      effects.push({
+        id: randomUUID(),
+        type: 'config.saved',
+        args: [],
+        instanceId: instance.id,
+        renderRevision: instance.revision,
+      });
+      return value;
     }
     if (name === 'config.read') {
       instance.baseline ??= getPluginConfig().snapshot(instance.pluginId);

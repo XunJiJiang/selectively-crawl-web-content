@@ -23,6 +23,7 @@ import {
 import { evaluateArgument, evaluateTemplate } from '../../../shared/ui-expressions.ts';
 import type { WorkbenchStore } from '../workbench/store.ts';
 import type { FramePool } from '../workbench/frames.ts';
+import { ApiError } from '../api/workbench.ts';
 
 type FieldSnapshot = Record<string, { value: UIValue; editSequence: number }>;
 interface ViewState {
@@ -59,6 +60,8 @@ export class DeclarativeView extends LitElement {
   private fields: FieldSnapshot = {};
   private watches = new Map<string, { id: string; key: string; value?: UIValue }>();
   private pending = false;
+  private contentRefresh?: { instance: ViewState; queued: boolean; promise: Promise<void> };
+  private recoveringStaleData = false;
   private opening=false;
   private openingContext?: string;
   private reopenAfterOpening = false;
@@ -129,6 +132,8 @@ export class DeclarativeView extends LitElement {
     }
   }
   private release() {
+    this.contentRefresh = undefined;
+    this.recoveringStaleData = false;
     this.stopWatches();
     this.inputPending.clear();
     this.port?.close();
@@ -403,17 +408,33 @@ export class DeclarativeView extends LitElement {
       void this.updateValues();
     }
   };
-  async refresh() {
+  refresh(): Promise<void> {
     const instance = this.instance;
     if (!instance) {
-      await this.open();
-      return;
+      return this.open();
     }
     this.valueGeneration++;
+    const current = this.contentRefresh;
+    if (current?.instance === instance) {
+      current.queued = true;
+      return current.promise;
+    }
     this.stopWatches();
-    try {
-      const value = await this.store.api.request<ViewState>(`/ui/instances/${instance.id}/content`);
-      if (this.instance === instance) {
+    const task = { instance, queued: false, promise: Promise.resolve() };
+    this.contentRefresh = task;
+    task.promise = Promise.resolve().then(async () => {
+      let ready = false;
+      try {
+        let value: ViewState;
+        // A queued invalidation can already make the first response obsolete.
+        // Publish one final template, then let initialization resume data reads.
+        do {
+          task.queued = false;
+          value = await this.store.api.request<ViewState>(`/ui/instances/${instance.id}/content`);
+          if (this.instance !== instance) {
+            return;
+          }
+        } while (task.queued);
         if (instance.compiled.format !== value.compiled.format) {
           this.directRenderer?.dispose();
           this.directRenderer = undefined;
@@ -422,14 +443,23 @@ export class DeclarativeView extends LitElement {
           this.frameReady = false;
           this.uiNonce = crypto.randomUUID();
         }
+        this.error = '';
         this.instance = value;
-        void this.initialize();
+        ready = true;
+      } catch {
+        if (this.instance === instance) {
+          await this.open();
+        }
+      } finally {
+        if (this.contentRefresh === task) {
+          this.contentRefresh = undefined;
+        }
       }
-    } catch {
-      if (this.instance === instance) {
-        await this.open();
+      if (ready) {
+        await this.initialize();
       }
-    }
+    });
+    return task.promise;
   }
   private frontRegistry = () => {
     if (
@@ -520,7 +550,7 @@ export class DeclarativeView extends LitElement {
     return undefined;
   }
   private async updateValues() {
-    if (!this.instance || !this.frameReady) {
+    if (!this.instance || !this.frameReady || this.contentRefresh?.instance === this.instance) {
       return;
     }
     if (this.pending) {
@@ -581,6 +611,7 @@ export class DeclarativeView extends LitElement {
         }
       }
       if (this.instance === instance && generation === this.valueGeneration) {
+        this.recoveringStaleData = false;
         if (instance.compiled.format === 'json') {
           for (const update of result.updates) {
             const binding = instance.compiled.expressions.find((item) => item.id === update.id);
@@ -604,6 +635,16 @@ export class DeclarativeView extends LitElement {
       }
     } catch (error) {
       if (this.instance === instance && generation === this.valueGeneration) {
+        if (
+          error instanceof ApiError &&
+          error.code === 'UI_STALE_RENDER' &&
+          !this.recoveringStaleData
+        ) {
+          // Recover reads once; never replay a submitted event or loop on a broken server.
+          this.recoveringStaleData = true;
+          await this.refresh();
+          return;
+        }
         this.error = this.store.message(error);
         if (this.surface === 'contextMenu') {
           this.store.toast(this.error, 'error');

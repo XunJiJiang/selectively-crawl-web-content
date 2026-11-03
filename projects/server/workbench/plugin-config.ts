@@ -17,6 +17,23 @@ const definitionSchema = z
   .object({
     id: z.string().min(1).max(200),
     schemaVersion: z.string().min(1).max(100),
+    label: z.string().max(500).optional(),
+    description: z.string().max(4000).optional(),
+    footer: z.string().max(4000).optional(),
+    groups: z
+      .array(
+        z
+          .object({
+            id: keySchema,
+            label: z.string().max(500).optional(),
+            description: z.string().max(4000).optional(),
+            footer: z.string().max(4000).optional(),
+            itemIds: z.array(keySchema).min(1).max(200),
+          })
+          .strict(),
+      )
+      .max(50)
+      .optional(),
     items: z
       .array(
         z
@@ -30,6 +47,7 @@ const definitionSchema = z
               'textarea',
               'number',
               'switch',
+              'checkbox',
               'select',
               'color',
               'readonly',
@@ -51,7 +69,42 @@ const definitionSchema = z
       )
       .max(200),
   })
-  .strict();
+  .strict()
+  .superRefine((definition, context) => {
+    if (!definition.groups?.length) {
+      return;
+    }
+    const ids = new Set(definition.items.map((item) => item.id));
+    if (ids.size !== definition.items.length) {
+      context.addIssue({
+        code: 'custom',
+        message: '分组配置中的配置项 id 必须唯一',
+        path: ['items'],
+      });
+    }
+    const groupIds = new Set<string>();
+    const assigned = new Set<string>();
+    definition.groups.forEach((group, index) => {
+      if (groupIds.has(group.id)) {
+        context.addIssue({
+          code: 'custom',
+          message: '配置分组 id 重复',
+          path: ['groups', index, 'id'],
+        });
+      }
+      groupIds.add(group.id);
+      group.itemIds.forEach((id, itemIndex) => {
+        if (!ids.has(id) || assigned.has(id)) {
+          context.addIssue({
+            code: 'custom',
+            message: '分组引用了不存在或已分组的配置项',
+            path: ['groups', index, 'itemIds', itemIndex],
+          });
+        }
+        assigned.add(id);
+      });
+    });
+  });
 type Validator = (values: Record<string, string>) => Promise<Record<string, string>>;
 export class PluginConfigService {
   private validators = new Map<string, Validator>();

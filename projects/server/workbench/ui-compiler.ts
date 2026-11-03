@@ -1,10 +1,12 @@
 import { JSDOM } from 'jsdom';
 import createDOMPurify from 'dompurify';
 import * as css from 'css-tree';
+import { createHash } from 'node:crypto';
 import {
   UI_LIMITS,
   uiAssert,
   uiName,
+  safeKey,
   type UIContent,
   type UINode,
   type SafeNode,
@@ -72,6 +74,7 @@ const attributes = [
   'placeholder',
   'min',
   'max',
+  'step',
   'maxlength',
   'title',
   'alt',
@@ -88,6 +91,7 @@ const attributes = [
   'aria-selected',
   'aria-controls',
   'aria-labelledby',
+  'aria-describedby',
   'data-ui-key',
   'data-ui-for',
   'data-ui-tabs',
@@ -232,7 +236,7 @@ function jsonHTML(node: UINode, depth = 0, path = '0'): string {
     icon: ['icon', 'label'],
     image: ['src', 'alt'],
     button: ['text', 'icon', 'disabled', 'submit'],
-    input: ['value', 'inputType', 'placeholder', 'disabled'],
+    input: ['value', 'inputType', 'placeholder', 'disabled', 'min', 'max', 'step', 'maxLength'],
     textarea: ['value', 'placeholder', 'disabled'],
     select: ['value', 'options', 'disabled'],
     checkbox: ['checked', 'label', 'disabled'],
@@ -242,6 +246,21 @@ function jsonHTML(node: UINode, depth = 0, path = '0'): string {
     badge: ['text', 'tone'],
     divider: [],
     tabs: ['label', 'tabs'],
+    setting: [
+      'label',
+      'description',
+      'children',
+      'config',
+      'valueType',
+      'control',
+      'defaultValue',
+      'options',
+      'min',
+      'max',
+      'maxLength',
+      'disabled',
+    ],
+    group: ['label', 'description', 'footer', 'children'],
   };
   uiAssert(Object.hasOwn(properties, node.type), 'UI_INVALID_CONTENT', '组件类型无效');
   const allowed = new Set([
@@ -255,7 +274,7 @@ function jsonHTML(node: UINode, depth = 0, path = '0'): string {
   ]);
   const unknownProperty = Object.keys(node).find((key) => !allowed.has(key));
   uiAssert(!unknownProperty, 'UI_INVALID_CONTENT', `组件含未知属性：${unknownProperty ?? ''}`);
-  for (const key of ['text', 'label', 'src', 'alt', 'placeholder']) {
+  for (const key of ['text', 'label', 'description', 'footer', 'src', 'alt', 'placeholder']) {
     if (node[key] !== undefined) {
       uiAssert(typeof node[key] === 'string', 'UI_INVALID_VALUE_TYPE', `${key} 需要字符串`);
     }
@@ -314,7 +333,7 @@ function jsonHTML(node: UINode, depth = 0, path = '0'): string {
     value === undefined ? '' : ` ${key}="${escape(value)}"`;
   const base =
     attr('data-ui-visible', node.visible) +
-    attr('name', node.name) +
+    attr('name', node.type === 'setting' && node.config !== undefined ? undefined : node.name) +
     attr('for', Array.isArray(node.for) ? node.for.join(' ') : node.for) +
     attr('data-ui-key', node.key) +
     Object.entries(node.events ?? {})
@@ -335,6 +354,156 @@ function jsonHTML(node: UINode, depth = 0, path = '0'): string {
     return node.children.map((n, index) => jsonHTML(n, depth + 1, `${path}-${index}`)).join('');
   };
   switch (node.type) {
+    case 'group': {
+      uiAssert(
+        Array.isArray(node.children) && node.children.every((child) => child.type === 'setting'),
+        'UI_INVALID_CONTENT',
+        '分组仅包含 setting 设置行',
+      );
+      return `<div${base} class="ui-setting-group">${node.label ? `<div class="ui-group-label">${escape(node.label)}</div>` : ''}${node.description ? `<div class="ui-setting-description">${escape(node.description)}</div>` : ''}<div class="ui-group-body">${children()}</div>${node.footer ? `<div class="ui-setting-description ui-group-footer">${escape(node.footer)}</div>` : ''}</div>`;
+    }
+    case 'setting': {
+      let control: UINode;
+      if (node.config !== undefined) {
+        uiAssert(
+          typeof node.config === 'string' &&
+            node.config.length > 0 &&
+            node.config.length <= 200 &&
+            !/[\x00-\x1f\x7f]/.test(node.config),
+          'UI_INVALID_CONTENT',
+          '配置键无效',
+        );
+        safeKey(node.config);
+        uiAssert(
+          node.children === undefined && node.events === undefined,
+          'UI_INVALID_CONTENT',
+          '自动配置绑定不能同时声明 children 或 events',
+        );
+        const valueType = node.valueType ?? 'string';
+        uiAssert(
+          ['string', 'boolean', 'number', 'integer'].includes(String(valueType)),
+          'UI_INVALID_CONTENT',
+          '配置参数类型无效',
+        );
+        const kind =
+          node.control ??
+          (node.options
+            ? 'select'
+            : valueType === 'boolean'
+              ? 'switch'
+              : valueType === 'string'
+                ? 'text'
+                : 'number');
+        uiAssert(
+          [
+            'text',
+            'textarea',
+            'number',
+            'switch',
+            'checkbox',
+            'select',
+            'color',
+            'readonly',
+          ].includes(String(kind)),
+          'UI_INVALID_CONTENT',
+          '配置控件无效',
+        );
+        uiAssert(
+          (valueType === 'boolean') === ['switch', 'checkbox'].includes(String(kind)) ||
+            kind === 'readonly',
+          'UI_INVALID_CONTENT',
+          '布尔参数必须使用 switch 或 checkbox',
+        );
+        uiAssert(
+          node.defaultValue === undefined || typeof node.defaultValue === 'string',
+          'UI_INVALID_VALUE_TYPE',
+          '配置默认值必须为字符串',
+        );
+        for (const key of ['min', 'max', 'maxLength']) {
+          uiAssert(
+            node[key] === undefined ||
+              (typeof node[key] === 'number' &&
+                Number.isFinite(node[key]) &&
+                (key !== 'maxLength' || (Number.isInteger(node[key]) && Number(node[key]) >= 0))),
+            'UI_INVALID_VALUE_TYPE',
+            '配置约束必须为有效数字',
+          );
+        }
+        const name =
+          node.name ??
+          'setting.' + createHash('sha256').update(node.config).digest('hex').slice(0, 20);
+        uiName(name);
+        const key = JSON.stringify(node.config),
+          field = JSON.stringify(name);
+        const fallback = JSON.stringify(
+          node.defaultValue ?? (valueType === 'boolean' ? 'false' : ''),
+        );
+        const read = `watch:core:config.bound.read(${key},${field},${fallback})`;
+        const rules: Record<string, unknown> = { codec: valueType };
+        for (const key of ['min', 'max', 'maxLength']) {
+          if (node[key] !== undefined) {
+            rules[key] = node[key];
+          }
+        }
+        if (node.options) {
+          uiAssert(Array.isArray(node.options), 'UI_INVALID_CONTENT', 'options 必须是数组');
+          rules.options = node.options.map((option) =>
+            typeof option === 'string' ? option : (option as { value: string }).value,
+          );
+        }
+        const write = `core:validate($for:${name},${JSON.stringify(rules)})|core:string.toString($prev)|core:config.bound.write(${key},${field},$prev)`;
+        const shared = {
+          name,
+          key: node.key ? `${node.key}-control` : undefined,
+          disabled: node.disabled,
+          events: { change: write },
+        };
+        control =
+          kind === 'readonly'
+            ? { type: 'text', text: `\${${read}}` }
+            : kind === 'switch' || kind === 'checkbox'
+              ? {
+                  ...shared,
+                  type: kind === 'switch' ? 'toggle' : 'checkbox',
+                  checked: `\${core:boolean.parse(${read})}`,
+                }
+              : kind === 'select'
+                ? { ...shared, type: 'select', value: `\${${read}}`, options: node.options ?? [] }
+                : {
+                    ...shared,
+                    type: kind === 'textarea' ? 'textarea' : 'input',
+                    ...(kind === 'textarea'
+                      ? {}
+                      : {
+                          inputType:
+                            kind === 'number' ? 'number' : kind === 'color' ? 'color' : 'text',
+                          min: node.min,
+                          max: node.max,
+                          step: valueType === 'number' ? 'any' : undefined,
+                          maxLength: node.maxLength,
+                        }),
+                    value: `\${${read}}`,
+                  };
+      } else {
+        uiAssert(
+          Array.isArray(node.children) && node.children.length === 1,
+          'UI_INVALID_CONTENT',
+          '设置行需要一个控件或 config 绑定',
+        );
+        control = node.children[0];
+      }
+      const checkbox = control.type === 'checkbox';
+      const controlId = `setting-${path}`;
+      const labelId = `${controlId}-label`,
+        descriptionId = `${controlId}-description`;
+      const markup = jsonHTML(control, depth + 1, `${path}-control`);
+      // The caption labels the actual native field, including the select retained by the adapter.
+      const labelled = markup.replace(
+        /<(input|textarea|select|button|span)(?=[\s>])/,
+        `<$1 id="${controlId}" aria-labelledby="${labelId}"${node.description ? ` aria-describedby="${descriptionId}"` : ''}`,
+      );
+      return `<div${base} class="ui-setting${checkbox ? ' ui-setting-checkbox' : ''}"><div class="ui-setting-copy"><label id="${labelId}" for="${controlId}" class="ui-setting-label">${escape(node.label ?? '')}</label>${node.description ? `<span id="${descriptionId}" class="ui-setting-description">${escape(node.description)}</span>` : ''}</div><div class="ui-setting-control">${labelled}</div></div>`;
+    }
     case 'stack':
       return `<div${base}${attr('data-layout', node.direction ?? 'column')}${attr('data-gap', node.gap ?? 'medium')}>${children()}</div>`;
     case 'text':
@@ -346,7 +515,7 @@ function jsonHTML(node: UINode, depth = 0, path = '0'): string {
     case 'button':
       return `<button${base} type="${node.submit === true ? 'submit' : 'button'}"${attr('disabled', node.disabled)}>${node.icon ? `<span class="ui-button-icon">${jsonHTML({ type: 'icon', icon: node.icon }, depth + 1, `${path}-icon`)}</span>` : ''}<span>${text}</span></button>`;
     case 'input':
-      return `<input${base}${attr('type', node.inputType ?? 'text')}${attr('value', node.value ?? '')}${attr('placeholder', node.placeholder)}${attr('disabled', node.disabled)}>`;
+      return `<input${base}${attr('type', node.inputType ?? 'text')}${attr('value', node.value ?? '')}${attr('placeholder', node.placeholder)}${attr('disabled', node.disabled)}${attr('min', node.min)}${attr('max', node.max)}${attr('step', node.step)}${attr('maxlength', node.maxLength)}>`;
     case 'textarea':
       return `<textarea${base}${attr('value', node.value ?? '')}${attr('placeholder', node.placeholder)}${attr('disabled', node.disabled)}></textarea>`;
     case 'checkbox':
