@@ -2,7 +2,7 @@
 
 日期：2026-10-30。以当前源码为准；“实现”不等于已经完成全部浏览器验收。未修改核心/SDK 源码，仅按用户授权重建 SDK 产物。所有演示有明确点击入口，加载不写配置、不弹通知、不启动业务任务。
 
-测试编号：T1 真实 API/资源/反馈 IPC；T2 独立浏览器 SDK+Lit；T3 宿主状态/Fetch/DOM 资源；T4 真实 Socket；T5 声明式 HTTP/IPC/核心处理器/资源/回滚/释放；T6 配置 CRUD/双 CAS/页面拒写；T7 两页配置队列与页面处理器；T8 跨插件隔离；T9 核心配置表单与取消。均位于 `tests/integration.test.mjs`。Node 原生加载后端；JSDOM 与 MessageChannel 仅证明 DOM/桥接语义，不证明像素和完整工作台调度。
+测试编号：T1 真实 API/资源/反馈 IPC；T2 独立浏览器 SDK+Lit；T3 宿主状态/Fetch/DOM 资源；T4 真实 Socket；T5 声明式 HTTP/IPC/核心处理器/资源/回滚/释放；T6 配置 CRUD/双 CAS/页面拒写；T7 两页配置队列与页面处理器；T8 跨插件隔离；T9 核心配置表单与取消；T10 脚本配置 v2 的 JSON 编译、默认值、字段快照、数字管道及七个通知处理器。均位于 `tests/integration.test.mjs`。Node 原生加载后端；JSDOM 与 MessageChannel 仅证明 DOM/桥接语义，不证明像素和完整工作台调度。
 
 ## 后端 SDK
 

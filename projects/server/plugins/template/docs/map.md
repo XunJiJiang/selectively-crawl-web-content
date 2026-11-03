@@ -10,7 +10,8 @@
 - 核心承载 HTTP、鉴权、静态资源、Range 和真实 WebSocket；插件不能额外监听端口。
 - 本次契约依据当前源码与 docs/模板插件完整最小接入实现提示词.md 核对；历史开发说明不能覆盖已删除接口。
 
-- `index.ts` 保留抓取、命令、脚本控件及原有业务 API；导出 configuration。onLoad 保存配置订阅并注册声明式演示，onUnload 释放 UI、配置订阅、探针和反馈对象。
+- `index.ts` 保留抓取、命令、脚本控件及原有业务 API；引用 v2 scripts 并导出 configuration。onLoad 保存配置订阅并注册声明式演示，onUnload 释放 UI、配置订阅、探针和反馈对象。
+- `script-ui.ts` 提供脚本/扩展共用的 v2 JSON 控件与后端 handlers，保留七个原有操作；Toggle 自动触发，其他字段显式按钮触发。字段快照从 this.values 读取，数字输入由事件管道转换，演示无需完整抓取。
 - `configuration.ts` 定义两个配置分组、七种控件、字符串默认值、异步 normalize/validate；提供限定 validation.note/memo 的显式业务 CRUD API。写入要求调用方提供已读 baseRevision，不自动补最新版本；onChange 与 subscribe 记录注明不同来源。
 - `ui-content.ts` 提供 JSON 主侧栏、JSON/HTML 辅助页、三种格式状态 tooltip、完整菜单，以及可执行的核心处理器示例表。使用核心编译器允许的组件与样式，资源只指向挂载路径。HTML 的主题变量回退使用前置常量声明，规避当前编译器对 var() fallback Raw 节点的拒绝。
 - `declarative-ui.ts` 是一个后端演示状态及句柄控制器。事务原子注册/注销三类贡献、静态挂载和处理器；run 用普通函数取得 this，watch 无定时轮询。参数/事件/上下文可观察；定向 setContent 只用核心绑定 instanceId。非法隐藏、跨域链和循环模板在隔离候选中拒绝，不把非法定义注册为线上初始内容。

@@ -3,7 +3,7 @@
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/===
 .gitattributes[FR4T]: F:统一检出换行 | R:- | A:* text=auto eol=lf | S:强制LF覆盖autocrlf，避免原始字节Baseline出现整仓伪漂移
 .gitignore[FC5M]: F:界定版本控制资产 | R:- | A:Git忽略规则 | S:生成Web与工具包不跟踪；插件模板及终端scwc目录有显式例外
-AGENTS.md[SG8S]: F:约定仓库认知使用与约束入口 | R:code:docs/env&limit.txt | A:Agent执行合同 | S:任务开始先核验AOCI版本再读约束；压缩后强制完整重载且只尝试一次认知证明；插件开发不维护根索引；限制文档重建时保留
+AGENTS.md[SG8S]: F:约定仓库认知使用与约束入口 | R:code:docs/env&limit.txt | A:Agent执行合同 | S:任务先核验AOCI版本再读约束；压缩后强制完整重载且只尝试一次认知证明；普通插件不维护根索引，template由根维护；限制文档重建时保留
 LICENSE[SG2T]: F:授予使用许可 | R:- | A:MIT许可条款 | S:再分发须保留版权及许可声明
 bun.lock[FV5L]: F:锁定工作区及外部依赖解析 | R:code:package.json,code:projects/shared/package.json | A:lockfileVersion,configVersion,workspaces,packages | S:扩展与shared均登记为工作区；default-browser及其平台依赖按锁定版本解析
 oxfmt.config.ts[FQ4T]: F:约束源码格式 | R:code:package.json | A:defineConfig | S:只格式化TS，LF及两空格；忽略构建目录与编辑器配置
@@ -1464,7 +1464,7 @@ styles.css[ZU3L]: F:排版滚动组件演示页 | R:code:projects/shared/compone
 .gitignore[FC3S]: F:排除模板本地产物与验证临时数据 | R:- | A:Git忽略规则 | S:-
 bun.lock[FV3T]: F:保存模板历史开发依赖锁定 | R:code:projects/server/plugins/template/package.json | A:lockfileVersion,workspaces,packages | S:仍锁定asmr-one和TS5.8，与当前manifest不一致
 feedback-demo.ts[AE5S]: F:共用前后端任务与通知验证动作 | R:code:projects/shared/workbench-feedback.ts | A:FeedbackDemo,feedbackActions,FeedbackSnapshot | S:仅接收公开工厂，回调留创建侧；系统提醒延迟三秒且禁自动已读，定时器随dispose取消
-index.ts[EE5M]: F:注册模板生命周期、后端配置与各类验证通道 | R:code:projects/server/plugins/template/configuration.ts,code:projects/server/plugins/template/declarative-ui.ts,code:projects/server/plugins/template/validation.ts | A:default SCWC.IPluginHandler | S:onLoad保存配置订阅并注册UI，onUnload释放UI配置与探针；原抓取命令和脚本控件保留；已有web/dist须主动重建并重载HTML
+index.ts[EE5S]: F:注册模板生命周期、后端配置、v2脚本及验证通道 | R:code:projects/server/plugins/template/configuration.ts,code:projects/server/plugins/template/declarative-ui.ts,code:projects/server/plugins/template/script-ui.ts,code:projects/server/plugins/template/validation.ts | A:default SCWC.IPluginHandler | S:onLoad保存配置订阅并注册UI，onUnload释放UI配置与探针；已有web/dist须主动重建并重载HTML
 package.json[FE5T]: F:声明模板入口、构建与验证脚本 | R:code:projects/server/plugins/template/index.ts,code:projects/server/plugins/template/vite.config.ts | A:main,scripts,runtime,scwc.ui,enabled,commandName | S:请求截止240秒以容纳延时探针；build:web为核心可解析的Vite声明
 tsconfig.json[FQ4T]: F:检查模板后端和构建配置类型 | R:code:projects/server/plugins/plugin-env.d.ts,code:projects/server/plugin/sdk/modules.d.ts | A:files,include,exclude,compilerOptions | S:只纳入根TS，排除web和tests；严格无输出并引用核心便携声明
 validation.ts[TE5S]: F:提供延时请求、资源、Socket和后端反馈探针 | R:code:projects/server/plugins/template/feedback-demo.ts,code:projects/server/types/plugin-process.d.ts | A:loadValidation,unloadValidation,validationApis,validationResources,validationSockets | S:浏览器中止不取消后端延时；SVG不嵌用户输入，Socket连接清理定时器
@@ -1472,9 +1472,10 @@ vite.config.ts[FV5T]: F:构建模板Lit页面 | R:code:projects/server/plugins/t
 declarative-ui.ts[AE6M]: F:编排模板声明式UI处理器、贡献及资源生命周期 | R:code:projects/server/plugins/template/ui-content.ts,code:projects/shared/declarative-ui.ts | A:DeclarativeDemo,registerDeclarativeDemo,unloadDeclarativeDemo,declarativeApis | S:每区域一项，定向更新仅用核心身份；先撤视图引用再释放处理器资源；非法候选回滚；tab定向属性失效在当前宿主仍为全量
 configuration.ts[AC6S]: F:定义模板字符串配置并提供受限业务读写接口 | R:code:projects/server/types/plugin-config.d.ts,code:projects/server/plugins/template/index.ts | A:configuration,loadConfiguration,unloadConfiguration,configurationApis | S:写请求须显式携带已读baseRevision，不补最新版本；仅写note和memo；异步规范化校验；订阅与onChange分别记录来源并在卸载释放
 ui-content.ts[FU5M]: F:定义模板JSON组件、HTML辅助页和状态菜单示例 | R:code:projects/shared/declarative-ui.ts,code:projects/server/plugins/template/declarative-ui.ts | A:ids,mainContent,auxiliaryContent,statusDefinition,coreExamples,negativePrograms | S:text提示用静态内容，JSON和HTML可异步；CSS变量回退用前置常量；事件内更新模板可能收到陈旧回执，普通页业务API提供更新入口
+script-ui.ts[FE5S]: F:声明脚本与扩展共用的v2 JSON控件及七个后端通知操作 | R:code:projects/server/plugins/template/index.ts,code:projects/shared/script-ui.ts,code:projects/server/user-script/ui.ts | A:scripts | S:数字字段保存字符串并由管道转换；Toggle自动change，其余字段按钮触发；原字段名按v2独立持久化，不沿用v1通道值
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/plugins/template/tests/===
-integration.test.mjs[TE6L]: F:验证模板UI配置、进程、页面SDK与延时通知 | R:code:projects/server/plugins/template/index.ts,code:projects/shared/config-dispatch.ts,code:projects/server/plugins/template/tests/isolate-environment.mjs | A:node:test,JSDOM,MessageChannel | S:真实Node、HTTP与SQLite隔离数据；验证前后端三秒发布及通知选项，DOM断言不证明真实系统横幅或节能计时
+integration.test.mjs[TE6L]: F:验证模板UI配置、页面SDK及v2脚本的真实进程边界 | R:code:projects/server/plugins/template/index.ts,code:projects/server/plugins/template/script-ui.ts,code:projects/shared/config-dispatch.ts,code:projects/server/plugins/template/tests/isolate-environment.mjs | A:node:test,JSDOM,MessageChannel | S:原生Node及HTTP与SQLite隔离数据；v2实测默认值、七个通知及数字管道；按钮文本递归定位；DOM断言不证明系统横幅或节能计时
 isolate-environment.mjs[TQ5T]: F:隔离集成测试环境文件加载 | R:code:projects/server/common/environment.ts,code:projects/server/plugins/template/tests/integration.test.mjs | A:registerHooks,load | S:只替换environment模块，父子进程均注入，阻止真实.env覆盖临时数据路径
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/plugins/template/web/===

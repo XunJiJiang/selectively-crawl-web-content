@@ -477,7 +477,7 @@ test('真实插件 WebSocket：缺省连接保护、可中断连接恢复和手�
 const allNodes = (nodes) => nodes.flatMap((node) => [node, ...allNodes(node.children ?? [])]);
 const namedButton = (view, label) => {
   const node = allNodes(view.compiled.nodes).find(
-    (n) => n.tag === 'button' && (n.children ?? []).map((c) => c.text ?? '').join('') === label,
+    (n) => n.tag === 'button' && allNodes(n.children ?? []).map((c) => c.text ?? '').join('') === label,
   );
   assert.ok(node, label);
   const binding = view.compiled.events.find((e) => e.nodeId === node.id && e.event === 'click');
@@ -945,4 +945,111 @@ test('核心页面信息模板：保存/重置/保留草稿/丢弃与冲突，�
   const cancelled = await pending;
   assert.equal(cancelled.status, 'failed');
   assert.ok(['UI_EXECUTION_FAILED', 'UI_STALE_RENDER'].includes(cancelled.error.code));
+});
+
+test('脚本配置 v2：真实 HTTP/IPC 编译、默认值、字段快照与七个通知处理器', async () => {
+  const headers = {
+    origin,
+    authorization: `Bearer ${token}`,
+    'content-type': 'application/json',
+    'X-SCWC-Version': '3.2.0',
+  };
+  const query = new URLSearchParams({ site: `${origin}/article`, pluginId: 'template' });
+  const response = await fetch(`${origin}/api/plugin/config?${query}`, { headers });
+  const body = await response.json();
+  assert.equal(response.status, 200, JSON.stringify(body));
+  const config = body.data.find((item) => item.id === 'template');
+  assert.ok(config);
+  assert.equal(config.version, 'v2');
+  assert.equal(config.configError, undefined);
+  assert.equal(config.requireFullContent, false);
+  assert.deepEqual(config.controls, []);
+  const model = config.ui;
+  assert.equal(model.compiled.format, 'json');
+  assert.deepEqual(
+    model.compiled.fields.map(({ name, kind }) => [name, kind]),
+    [
+      ['testToggle', 'boolean'],
+      ['testSelect', 'string'],
+      ['testInputText', 'string'],
+      ['testInputNumber', 'string'],
+      ['testCheckbox', 'boolean'],
+    ],
+  );
+  const nodes = allNodes(model.compiled.nodes);
+  for (const [name, value] of [
+    ['testSelect', 'option1'],
+    ['testInputText', 'default text'],
+    ['testInputNumber', '42'],
+  ]) {
+    assert.equal(nodes.find((node) => node.attrs?.name === name).attrs.value, value);
+  }
+  assert.equal(
+    Object.hasOwn(nodes.find((n) => n.attrs?.name === 'testToggle').attrs, 'checked'),
+    false,
+  );
+  assert.equal(
+    Object.hasOwn(nodes.find((n) => n.attrs?.name === 'testCheckbox').attrs, 'checked'),
+    true,
+  );
+  const send = async (binding, snapshot = {}, expectedStatus = 200) => {
+    const result = await fetch(`${origin}/api/plugin/event?${query}`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        version: 'v2',
+        id: 'template',
+        instanceId: model.instanceId,
+        eventId: crypto.randomUUID(),
+        bindingId: binding.id,
+        fields: Object.fromEntries(
+          Object.entries(snapshot).map(([name, value]) => [name, { value, editSequence: 1 }]),
+        ),
+        data: [],
+      }),
+    });
+    const reply = await result.json();
+    assert.equal(result.status, expectedStatus, JSON.stringify(reply));
+    return reply;
+  };
+  const snapshot = {
+    testToggle: true,
+    testSelect: 'option3',
+    testInputText: '  用户输入  ',
+    testInputNumber: '18.5',
+    testCheckbox: false,
+  };
+  const toggleField = model.compiled.fields.find((field) => field.name === 'testToggle');
+  const toggle = model.compiled.events.find(
+    (binding) => binding.nodeId === toggleField.nodeId && binding.event === 'change',
+  );
+  assert.ok(toggle);
+  const cases = [
+    [namedButton(model, '示例按钮'), 'info', '你点击了示例按钮'],
+    [namedButton(model, '测试 Button 控件'), 'success', 'Button 控件触发了'],
+    [toggle, 'success', 'Toggle 控件触发了, 当前值: true, 相关值: {"testSelect":"option3"}'],
+    [
+      namedButton(model, '触发 Select 控件'),
+      'success',
+      'Select 控件触发了, 当前值: option3, 相关值: {"testToggle":true,"testInputText":"  用户输入  "}',
+    ],
+    [
+      namedButton(model, '触发 Input text 控件'),
+      'success',
+      'Input text 控件触发了, 当前值:   用户输入  ',
+    ],
+    [
+      namedButton(model, '触发 Input number 控件'),
+      'success',
+      'Input number 控件触发了, 当前值: 18.5',
+    ],
+    [namedButton(model, '触发 Checkbox 控件'), 'success', 'Checkbox 控件触发了, 当前值: false'],
+  ];
+  for (const [binding, type, message] of cases) {
+    const reply = await send(binding, snapshot);
+    assert.deepEqual(reply.data.result, { type: 'notification', data: { type, message } });
+  }
+  const defaults = await send(namedButton(model, '触发 Input number 控件'));
+  assert.equal(defaults.data.result.data.message, 'Input number 控件触发了, 当前值: 42');
+  await send(namedButton(model, '触发 Input number 控件'), { testInputNumber: 'invalid' }, 400);
 });

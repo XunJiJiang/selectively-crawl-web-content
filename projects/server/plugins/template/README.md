@@ -1,8 +1,16 @@
 # 模板插件 · 接入验证
 
-本模板保留抓取、命令和用户脚本控件示例，提供 Vite + Lit 验证页、声明式主侧栏/辅助页/状态项及后端配置。当前 manifest 为 `enabled: true`；复制时按需调整。加载时不自动创建通知或任务，不自动运行探针。没有新增依赖；构建使用核心共享的 Lit、Vite 和 `@scwc/vite-plugin`。
+本模板保留抓取、命令和脚本/扩展的 v2 JSON 控件示例，提供 Vite + Lit 验证页、声明式主侧栏/辅助页/状态项及后端配置。当前 manifest 为 `enabled: true`；复制时按需调整。加载时不自动创建通知或任务，不自动运行探针。没有新增依赖；构建使用核心共享的 Lit、Vite 和 `@scwc/vite-plugin`。
 
 完整接口覆盖、测试证据与已知核心缺口见 [接口覆盖表](docs/coverage.md)，源码分工见 [项目地图](docs/map.md)。
+
+## 脚本与扩展配置
+
+`index.ts` 的 `pluginConfig.scripts` 引用 `script-ui.ts`，按[配置迁移文档](../../../../docs/client-plugin-ui.md)显式声明 `version: 'v2'`。内容为 `{ format: 'json', version: 1, root }`，由脚本与扩展的共用渲染器加载；v2 要求客户端 3.2.0 或更高版本。
+
+原有示例按钮、Button、Toggle、Select、文本输入、数字输入和 Checkbox 均保留。Toggle 通过 `change` 自动触发；其余字段通过各自按钮显式触发。事件以 `events` 绑定 `handlers`，普通方法中的 `this.logger` 和 `this.values` 分别提供调用日志与当前字段快照，替代旧 `trigger(logger, context)` 和 `relatedChannel`。数字输入默认值为字符串 `'42'`，通过 `core:number.parse(...)|testInputNumber($prev)` 转换后传给后端。
+
+演示统一声明 `requireFullContent: false`，无需完整抓取即可操作。字段沿用原名称，但客户端按 `v2:字段名` 独立保存，不自动读取原 v1 通道值；初次迁移使用新默认值，之后刷新恢复 v2 已存值。这里的脚本配置与 `configuration.ts` 的工作台后端持久配置分别使用各自协议。集成测试最后一项覆盖真实 HTTP/插件 IPC 编译、默认值、七个事件处理器与通知返回。
 
 ## 最短接入与操作
 
