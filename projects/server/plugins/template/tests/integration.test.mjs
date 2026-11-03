@@ -602,7 +602,7 @@ test('声明式 HTTP/IPC：参数返回、核心处理器、监听初值更新�
   view = await api(`/ui/instances/${view.id}/content`);
   assert.ok(allNodes(view.compiled.nodes).some((n) => n.text?.startsWith('定向实例 ')));
   const aux = await create('auxiliarySidebar', ids.aux);
-  assert.equal(aux.compiled.format, 'html');
+  assert.equal(aux.compiled.format, 'json');
   for (const [action, format] of [
     ['aux.json', 'json'],
     ['aux.html', 'html'],
@@ -1235,4 +1235,147 @@ test('配置新样例：分组全局绑定、后端校验、本站隔离及刷�
     (await api('/plugins/template/config')).effectiveValues['validation.note'],
     '来自其他视图',
   );
+});
+
+test('主辅侧栏配置：分组自动绑定与显式控制器共享持久值、校验及草稿冲突', async () => {
+  await pluginApi('/validation/ui', { action: 'restore' });
+  const lease = await api('/workspaces/template-sidebar-settings/lease', { action: 'acquire' });
+  const create = (surface, viewId) =>
+    api('/ui/instances', {
+      pluginId: 'template',
+      surface,
+      viewId,
+      workspaceId: lease.workspaceId,
+      lease: lease.token,
+    });
+  const main = await create('mainSidebar', 'template-overview');
+  const aux = await create('auxiliarySidebar', 'template-details');
+  let sequence = 0;
+  const renderedFields = new Map([main, aux].map((view) => [view.id, {}]));
+  // 模拟渲染器回传上次展示的值，服务端才能区分干净控件与本地草稿。
+  const read = async (view) => {
+    const fields = renderedFields.get(view.id);
+    const data = await api(`/ui/instances/${view.id}/data`, {
+      renderRevision: view.renderRevision,
+      fields,
+    });
+    for (const field of view.compiled.fields) {
+      const expression = view.compiled.expressions.find(
+        (binding) =>
+          binding.nodeId === field.nodeId && ['value', 'checked'].includes(binding.attribute),
+      );
+      const update = data.updates.find((update) => update.id === expression?.id);
+      if (update && !update.error) fields[field.name] = update.value;
+    }
+    return data;
+  };
+  const valueOf = (view, data, name) => {
+    const field = view.compiled.fields.find((field) => field.name === name);
+    const expression = view.compiled.expressions.find(
+      (expression) =>
+        expression.nodeId === field?.nodeId && ['value', 'checked'].includes(expression.attribute),
+    );
+    assert.ok(expression, name);
+    return data.updates.find((update) => update.id === expression.id)?.value;
+  };
+  const send = async (view, name, value) => {
+    const field = view.compiled.fields.find((field) => field.name === name);
+    assert.ok(field, name);
+    const binding = view.compiled.events.find(
+      (binding) => binding.nodeId === field.nodeId && binding.event === 'change',
+    );
+    assert.ok(binding, name);
+    renderedFields.get(view.id)[name] = value;
+    const result = await api(`/ui/instances/${view.id}/events`, {
+      lease: lease.token,
+      eventId: crypto.randomUUID(),
+      renderRevision: view.renderRevision,
+      bindingId: binding.id,
+      fields: { [name]: { value, editSequence: ++sequence } },
+    });
+    for (const effect of result.effects ?? []) {
+      if (effect.type === 'value.write')
+        renderedFields.get(view.id)[effect.args[0]] = effect.args[1];
+    }
+    return result;
+  };
+  try {
+    for (const view of [main, aux]) {
+      assert.equal(view.compiled.format, 'json');
+      const nodes = allNodes(view.compiled.nodes);
+      const tabs = nodes.filter((node) => node.attrs?.role === 'tab');
+      assert.ok(tabs.some((node) => node.children[0]?.text === '自动绑定配置'));
+      assert.ok(tabs.some((node) => node.children[0]?.text === '控制器配置'));
+      const group = nodes.find((node) => node.attrs?.['data-ui-key'] === 'controller-settings');
+      assert.ok(group);
+      assert.equal(
+        allNodes([group]).filter((node) => node.attrs?.class?.split(' ').includes('ui-setting'))
+          .length,
+        3,
+      );
+      assert.ok(
+        allNodes([group]).some((node) => node.attrs?.class === 'ui-setting ui-setting-checkbox'),
+      );
+      const note = view.compiled.fields.find((field) => field.name === 'controller.note');
+      assert.ok(
+        view.compiled.events.some(
+          (binding) =>
+            binding.nodeId === note.nodeId &&
+            binding.program.branches.some((chain) =>
+              chain.some((call) => call.name === 'demo.normalize'),
+            ),
+        ),
+      );
+      await read(view);
+    }
+    assert.equal((await send(main, 'plugin.note', '  自动绑定保存  ')).status, 'succeeded');
+    let data = await read(aux);
+    assert.equal(valueOf(aux, data, 'controller.note'), '自动绑定保存');
+    assert.equal(valueOf(aux, data, 'plugin.note'), '自动绑定保存');
+
+    const normalized = await send(aux, 'controller.note', '  控制器   合并   空白  ');
+    assert.equal(normalized.status, 'succeeded', JSON.stringify(normalized));
+    assert.ok(
+      normalized.effects.some(
+        (effect) =>
+          effect.type === 'value.write' &&
+          effect.args[0] === 'controller.note' &&
+          effect.args[1] === '控制器 合并 空白',
+      ),
+    );
+    assert.equal(
+      (await pluginApi('/validation/ui', { action: 'inspect' })).last.args[0],
+      '控制器 合并 空白',
+    );
+    data = await read(main);
+    assert.equal(valueOf(main, data, 'plugin.note'), '控制器 合并 空白');
+    assert.equal(valueOf(main, data, 'controller.note'), '控制器 合并 空白');
+
+    assert.equal((await send(aux, 'controller.limit', '2.5')).status, 'failed');
+    assert.equal((await send(aux, 'controller.limit', '8')).status, 'succeeded');
+    assert.equal((await send(aux, 'controller.confirm', true)).status, 'succeeded');
+    const snapshot = await api('/plugins/template/config');
+    assert.equal(snapshot.effectiveValues['validation.limit'], '8');
+    assert.equal(snapshot.effectiveValues['validation.confirm'], 'true');
+    data = await read(main);
+    assert.equal(valueOf(main, data, 'plugin.confirm'), true);
+    assert.equal(valueOf(main, data, 'controller.limit'), '8');
+    assert.equal((await send(aux, 'controller.note', 'reject')).status, 'failed');
+    assert.equal(
+      (await api('/plugins/template/config')).effectiveValues['validation.note'],
+      '控制器 合并 空白',
+    );
+
+    assert.equal((await send(aux, 'controller.note', '其他侧栏已更新')).status, 'succeeded');
+    const conflict = await send(main, 'controller.note', '旧草稿');
+    assert.equal(conflict.status, 'failed');
+    assert.equal(conflict.error.code, 'UI_CONFIG_CONFLICT');
+    assert.equal(
+      (await api('/plugins/template/config')).effectiveValues['validation.note'],
+      '其他侧栏已更新',
+    );
+  } finally {
+    await api(`/ui/instances/${main.id}/release`, {});
+    await api(`/ui/instances/${aux.id}/release`, {});
+  }
 });

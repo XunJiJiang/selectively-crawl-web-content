@@ -181,7 +181,7 @@ export class DeclarativeDemo {
         icon: { kind: 'asset', path: '/demo.svg' },
         content: async (context) => {
           context.signal.throwIfAborted();
-          return auxiliaryContent('html');
+          return auxiliaryContent('json');
         },
       });
       this.status = await draft.registerStatusBar(

@@ -1,5 +1,5 @@
 import type { UIContent, UINode, StatusBarDefinition } from '../../../shared/declarative-ui.ts';
-import { globalSettings } from './settings-ui.ts';
+import { controllerSettings, globalSettings } from './settings-ui.ts';
 
 export const ids = { main: 'template-overview', aux: 'template-details', status: 'template-state' };
 const text = (value: string): UINode => ({ type: 'text', text: value });
@@ -69,37 +69,79 @@ export function mainContent(note = '静态 JSON 来源'): UIContent {
               events: { submit: 'demo.capture' },
               children: [
                 {
-                  type: 'input',
-                  key: 'query',
-                  name: 'query',
-                  value: '  hello   world  ',
-                  placeholder: 'query',
-                  events: {
-                    input: 'demo.record',
-                    change: 'demo.record',
-                    focus: 'demo.record',
-                    blur: 'demo.record',
-                  },
-                },
-                { type: 'textarea', name: 'memo', value: '备注' },
-                {
-                  type: 'select',
-                  name: 'choice',
-                  value: 'a',
-                  options: [
-                    { value: 'a', label: '选项 A' },
-                    { value: 'b', label: '选项 B' },
+                  type: 'group',
+                  label: '文本参数',
+                  description: '使用 setting.children 放置控件，并显式调用事件控制器。',
+                  children: [
+                    {
+                      type: 'setting',
+                      label: '查询内容',
+                      description: '输入、修改、聚焦和失焦均调用 demo.record。',
+                      children: [
+                        {
+                          type: 'input',
+                          key: 'query',
+                          name: 'query',
+                          value: '  hello   world  ',
+                          placeholder: 'query',
+                          events: {
+                            input: 'demo.record',
+                            change: 'demo.record',
+                            focus: 'demo.record',
+                            blur: 'demo.record',
+                          },
+                        },
+                      ],
+                    },
+                    {
+                      type: 'setting',
+                      label: '备注',
+                      description: '与查询内容一起提交给 demo.capture。',
+                      children: [{ type: 'textarea', name: 'memo', value: '备注' }],
+                    },
                   ],
-                  events: { change: 'demo.record' },
                 },
                 {
-                  type: 'checkbox',
-                  name: 'checked',
-                  checked: true,
-                  label: 'checkbox',
-                  events: { change: 'demo.record' },
+                  type: 'group',
+                  label: '选择参数',
+                  footer: '此表单演示自定义参数控制器；全局配置示例见另外两个配置标签。',
+                  children: [
+                    {
+                      type: 'setting',
+                      label: '选项',
+                      children: [
+                        {
+                          type: 'select',
+                          name: 'choice',
+                          value: 'a',
+                          options: [
+                            { value: 'a', label: '选项 A' },
+                            { value: 'b', label: '选项 B' },
+                          ],
+                          events: { change: 'demo.record' },
+                        },
+                      ],
+                    },
+                    {
+                      type: 'setting',
+                      label: '勾选参数',
+                      description: 'checkbox 位于文字左侧。',
+                      children: [
+                        {
+                          type: 'checkbox',
+                          name: 'checked',
+                          checked: true,
+                          events: { change: 'demo.record' },
+                        },
+                      ],
+                    },
+                    {
+                      type: 'setting',
+                      label: '开关参数',
+                      children: [{ type: 'toggle', name: 'toggle', checked: false }],
+                    },
+                  ],
                 },
-                { type: 'toggle', name: 'toggle', checked: false, label: 'toggle' },
                 { type: 'button', text: '提交声明字段', submit: true },
               ],
             },
@@ -156,10 +198,19 @@ export function mainContent(note = '静态 JSON 来源'): UIContent {
           ],
         },
         {
+          id: 'settings',
+          label: '自动绑定配置',
+          children: globalSettings(),
+        },
+        {
+          id: 'controllers',
+          label: '控制器配置',
+          children: controllerSettings(),
+        },
+        {
           id: 'core',
-          label: '配置 / 核心',
+          label: '核心处理器',
           children: [
-            ...globalSettings(),
             ...coreExamples.map(([label, program]) =>
               button(label, `${program}|demo.record($prev)`, { for: 'query' }),
             ),
@@ -233,6 +284,15 @@ export function auxiliaryContent(format: 'html' | 'json'): UIContent {
         children: [
           text('辅助页 JSON · ${watch:demo.counter()}'),
           text('${watch:ui:template.selection()}'),
+          {
+            type: 'tabs',
+            key: 'aux-settings-tabs',
+            label: '辅助侧栏配置示例',
+            tabs: [
+              { id: 'automatic', label: '自动绑定配置', children: globalSettings() },
+              { id: 'controllers', label: '控制器配置', children: controllerSettings() },
+            ],
+          },
           button('此实例定向更新', "demo.manage('target')"),
           button('恢复页面信息', "demo.manage('show')"),
           button('切换 HTML', "demo.manage('aux.html')"),

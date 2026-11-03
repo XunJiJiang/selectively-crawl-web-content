@@ -94,6 +94,75 @@ export function globalSettings(): UINode[] {
   ];
 }
 
+/** 工作台的显式控制器写法：自己声明控件和事件，核心仍负责配置基线、校验和持久化。 */
+export function controllerSettings(): UINode[] {
+  return [
+    {
+      type: 'group',
+      key: 'controller-settings',
+      label: '自定义控制器',
+      description: '显式声明控件与事件；说明由 demo.normalize 控制器合并连续空白。',
+      footer: '修改后保存到同一份全局配置，可在自动绑定页和“页面信息 → 配置”中查看。',
+      children: [
+        {
+          type: 'setting',
+          label: '验证说明',
+          description: '去除首尾空格、合并连续空白；包含 reject 时仍由后端拒绝。',
+          children: [
+            {
+              type: 'input',
+              name: 'controller.note',
+              maxLength: 120,
+              value: "${watch:core:config.bound.read('validation.note','controller.note','')}",
+              events: {
+                change:
+                  "core:string.trim($for:controller.note)|demo.normalize($prev)|core:validate($prev,{codec:'string',maxLength:120})|core:config.bound.write('validation.note','controller.note',$prev)|demo.record($prev)",
+              },
+            },
+          ],
+        },
+        {
+          type: 'setting',
+          label: '数量上限',
+          description: '显式解析并校验整数，再保存配置和记录控制器调用。',
+          children: [
+            {
+              type: 'input',
+              name: 'controller.limit',
+              inputType: 'number',
+              min: 1,
+              max: 10,
+              value: "${watch:core:config.bound.read('validation.limit','controller.limit','3')}",
+              events: {
+                change:
+                  "core:validate($for:controller.limit,{codec:'integer',min:1,max:10})|core:string.toString($prev)|core:config.bound.write('validation.limit','controller.limit',$prev)|demo.record($prev)",
+              },
+            },
+          ],
+        },
+        {
+          type: 'setting',
+          label: '勾选验证项',
+          description: '自定义 checkbox 的 change 事件，控件在文字左侧。',
+          children: [
+            {
+              type: 'checkbox',
+              name: 'controller.confirm',
+              checked:
+                "${core:boolean.parse(watch:core:config.bound.read('validation.confirm','controller.confirm','false'))}",
+              events: {
+                change:
+                  "core:validate($for:controller.confirm,{codec:'boolean'})|core:string.toString($prev)|core:config.bound.write('validation.confirm','controller.confirm',$prev)|demo.record($prev)",
+              },
+            },
+          ],
+        },
+      ],
+    },
+    { type: 'text', text: '最近控制器调用：${core:json.stringify(watch:demo.snapshot())}' },
+  ];
+}
+
 /** site 仅面向脚本/扩展，按 origin 保存，不进入插件全局 configuration.items。 */
 export function siteSettings(): UINode[] {
   return [
