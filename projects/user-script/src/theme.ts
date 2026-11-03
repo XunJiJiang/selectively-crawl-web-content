@@ -6,7 +6,11 @@ import '../../web/src/components/context-menu/wb-menu-select.ts';
 
 // 把工作台主题限定在浮窗宿主内，避免覆盖被采集网页的主题。
 export const theme = css`
-  ${unsafeCSS(workbenchTheme.replace(/:root/g, ':host'))}
+  ${unsafeCSS(
+    workbenchTheme.replace(/:root((?:\[[^\]]+\])*)/g, (_match, attributes: string) =>
+      attributes ? `:host(${attributes})` : ':host',
+    ),
+  )}
 `;
 export const controls = css`
   :host {

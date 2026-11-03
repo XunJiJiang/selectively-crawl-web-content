@@ -57,6 +57,7 @@ export interface Reply<T> {
   ok: boolean;
   data?: T;
   error?: string;
+  errorCode?: string;
 }
 export async function call<T>(message: unknown): Promise<T> {
   const reply = await browser.runtime.sendMessage<Reply<T>>(message);
@@ -64,7 +65,7 @@ export async function call<T>(message: unknown): Promise<T> {
     window.dispatchEvent(new CustomEvent('scwc-version-notice', { detail: reply.versionNotice }));
   }
   if (!reply?.ok) {
-    throw new Error(reply?.error ?? '扩展后台没有响应');
+    throw Object.assign(new Error(reply?.error ?? '扩展后台没有响应'), { code: reply?.errorCode });
   }
   return reply.data as T;
 }

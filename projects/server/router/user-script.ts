@@ -22,6 +22,7 @@ router.post('/config/sync', routeVersion('3.2.0'), (req, res) => {
       throw new WorkbenchError('site_mismatch', '配置只能由对应网站的悬浮窗同步', 403);
     }
     const snapshot = getUserScriptConfig().sync(req.body.snapshot, {
+      preserveBoundConfigs: true,
       preserveFloatingWindow: extension,
     });
     let ticket: string | undefined;

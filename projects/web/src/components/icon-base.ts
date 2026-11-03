@@ -59,6 +59,9 @@ const names: Record<string, string> = {
   circle: 'circle-filled',
   loading: 'loading',
 };
+export function iconGlyph(name: string) {
+  return names[name] ?? name;
+}
 /** Complete icon contract shared by both guarded wb-icon registrations. */
 export class WbIconBase extends LitElement {
   @property() accessor name = 'pages';
@@ -74,7 +77,7 @@ export class WbIconBase extends LitElement {
   render() {
     return html`<span
       aria-hidden="true"
-      class=${`codicon codicon-${names[this.name] ?? this.name}`}
+      class=${`codicon codicon-${iconGlyph(this.name)}`}
       style=${`font-size:${this.size === 'sm' ? 1 : 16 / 14}rem`}
     ></span>`;
   }

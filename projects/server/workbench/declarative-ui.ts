@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import { validateUIValue } from '../../shared/ui-validation.ts';
 import path from 'node:path';
 import { randomUUID, createHash } from 'node:crypto';
 import { compileUI, compileCSS, validateAttribute } from './ui-compiler.ts';
@@ -1594,56 +1595,7 @@ export class DeclarativeUIService {
       );
     }
     if (name === 'validate') {
-      const rule = valuesObject(args[1]);
-      uiAssert(
-        Object.keys(rule).every((key) =>
-          ['codec', 'min', 'max', 'maxLength', 'options'].includes(key),
-        ),
-        'UI_INVALID_CONTENT',
-        '校验规则含未知字段',
-      );
-      if (rule.maxLength !== undefined) {
-        uiAssert(string(first).length <= Number(rule.maxLength), 'UI_INVALID_VALUE_TYPE', '值过长');
-      }
-      if (rule.options) {
-        uiAssert(
-          array(rule.options).some((value) => JSON.stringify(value) === JSON.stringify(first)),
-          'UI_INVALID_VALUE_TYPE',
-          '值不在选项中',
-        );
-      }
-      if (rule.codec === 'string') {
-        string(first);
-      }
-      if (rule.codec === 'boolean') {
-        uiAssert(
-          typeof first === 'boolean' || first === 'true' || first === 'false',
-          'UI_INVALID_VALUE_TYPE',
-          '需要布尔值',
-        );
-      }
-      if (
-        rule.codec === 'number' ||
-        rule.codec === 'integer' ||
-        rule.min !== undefined ||
-        rule.max !== undefined
-      ) {
-        const numeric =
-          typeof first === 'number'
-            ? first
-            : typeof first === 'string' && /^-?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?$/i.test(first)
-              ? Number(first)
-              : NaN;
-        uiAssert(
-          Number.isFinite(numeric) &&
-            (rule.codec !== 'integer' || Number.isInteger(numeric)) &&
-            (rule.min === undefined || numeric >= Number(rule.min)) &&
-            (rule.max === undefined || numeric <= Number(rule.max)),
-          'UI_INVALID_VALUE_TYPE',
-          '数值不符合声明式规则',
-        );
-      }
-      return first;
+      return validateUIValue(first, args[1]);
     }
     if (name === 'flow.stop') {
       throw new UIError('UI_FLOW_STOP', '分支结束');

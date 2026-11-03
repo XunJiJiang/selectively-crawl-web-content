@@ -23,6 +23,77 @@ const jsonConfig: ScriptConfigV2 = {
       tabs: [
         { id: 'edit', label: '编辑', children: [{ type: 'custom', component: 'editor' }] },
         { id: 'about', label: '说明', children: [{ type: 'text', text: '后端生成的 JSON 配置' }] },
+        {
+          id: 'layout',
+          label: '设置布局',
+          children: [
+            {
+              type: 'group',
+              label: '常规',
+              description: '分组上方说明',
+              footer: '分组下方说明',
+              children: [
+                {
+                  type: 'setting',
+                  label: '文本',
+                  description: '较长的说明在窄屏上应换行且保持控件右齐',
+                  children: [{ type: 'input', name: 'layout.text', value: 'draft' }],
+                },
+                {
+                  type: 'setting',
+                  label: '数量',
+                  children: [
+                    { type: 'input', inputType: 'number', name: 'layout.number', value: '3' },
+                  ],
+                },
+                {
+                  type: 'setting',
+                  label: '开关',
+                  children: [{ type: 'toggle', name: 'layout.toggle', checked: true }],
+                },
+                {
+                  type: 'setting',
+                  label: '勾选',
+                  description: '勾选框始终在文字左侧',
+                  children: [{ type: 'checkbox', name: 'layout.check' }],
+                },
+                {
+                  type: 'setting',
+                  label: '模式',
+                  children: [
+                    { type: 'select', name: 'layout.mode', options: ['a', 'b'], value: 'a' },
+                  ],
+                },
+                {
+                  type: 'setting',
+                  label: '颜色',
+                  children: [
+                    { type: 'input', inputType: 'color', name: 'layout.color', value: '#38bdf8' },
+                  ],
+                },
+                {
+                  type: 'setting',
+                  label: '备注',
+                  children: [{ type: 'textarea', name: 'layout.memo', value: 'long content' }],
+                },
+                { type: 'setting', label: '只读', children: [{ type: 'text', text: '只读配置' }] },
+                ...Array.from({ length: 8 }, (_, i) => ({
+                  type: 'setting',
+                  label: `更多设置 ${i + 1}`,
+                  children: [{ type: 'input', name: `layout.extra${i}`, value: '' }],
+                })),
+              ],
+            },
+            {
+              type: 'button',
+              key: 'layout-save',
+              text: '保存',
+              for: 'layout.text',
+              events: { click: 'submit($for:layout.text)' },
+            },
+            { type: 'icon', icon: { kind: 'builtin', name: 'settings' } },
+          ],
+        },
       ],
     },
   },
@@ -160,6 +231,11 @@ const fixture = createServer(async (request, response) => {
     }
   } else {
     response.setHeader('content-type', 'text/html');
+    if (url.pathname === '/strict')
+      response.setHeader(
+        'content-security-policy',
+        "script-src 'self'; connect-src 'none'; font-src 'none'; img-src 'none'",
+      );
     response.end(
       '<!doctype html><meta charset="utf-8"><title>采集测试页</title><article id="article"><h1>网页采集测试</h1><p id="text">Hello <b>SCWC</b></p></article>',
     );
@@ -239,6 +315,30 @@ try {
   socket = new WebSocket(`ws://127.0.0.1:${port}${endpoint}`);
   socket.onmessage = (event) => {
     const message = JSON.parse(String(event.data));
+    if (message.method === 'Runtime.bindingCalled' && message.params.name === 'scwcGM') {
+      const request = JSON.parse(message.params.payload);
+      void fetch(request.url, {
+        method: request.method,
+        headers: request.headers,
+        body: request.data,
+      })
+        .then(async (response) => {
+          const result = {
+            status: response.status,
+            statusText: response.statusText,
+            responseText: await response.text(),
+            responseHeaders: 'content-type: application/json',
+          };
+          await cdp(
+            'Runtime.evaluate',
+            {
+              expression: `globalThis.scwcGMReplies.get(${request.id})?.onload(${JSON.stringify(result)}); globalThis.scwcGMReplies.delete(${request.id})`,
+            },
+            message.sessionId,
+          );
+        })
+        .catch((error) => console.error('GM bridge', error));
+    }
     const request = pending.get(message.id);
     if (request) {
       pending.delete(message.id);
@@ -381,7 +481,9 @@ try {
     await app.saveTail; await app.updateComplete;
   })()`);
   assert.equal(
-    await evaluate("document.querySelector('scwc-extension').snapshot.data.controls[0].value"),
+    await evaluate(
+      "document.querySelector('scwc-extension').snapshot.data.controls.find(item => item.pluginId === 'demo' && item.channel === 'format').value",
+    ),
     'text',
   );
   const pluginShot = await cdp('Page.captureScreenshot', { format: 'png' }, session);
@@ -428,6 +530,46 @@ try {
   await delay(400);
   assert.equal(configRequests.get('json'), jsonRequests);
   assert.equal(await evaluate("document.querySelector('scwc-extension').activePlugin"), 'json');
+  await evaluate(`(async () => {
+    const app=document.querySelector('scwc-extension'); const view=app.shadowRoot.querySelector('scwc-script-ui');
+    view.shadowRoot.querySelector('[data-ui-tab-trigger="layout"]').click();
+    await app.updateComplete;
+  })()`);
+  assert.equal(
+    await evaluate(
+      `document.querySelector('scwc-extension').shadowRoot.querySelector('scwc-script-ui').shadowRoot.querySelectorAll('.ui-scroll-panel').length`,
+    ),
+    0,
+  );
+  await evaluate("document.body.style.width='320px'");
+  await delay(100);
+  assert.equal(
+    await evaluate(`(() => {
+    const root=document.querySelector('scwc-extension').shadowRoot.querySelector('scwc-script-ui').shadowRoot;
+    const row=root.querySelector('.ui-setting'), copy=row.querySelector('.ui-setting-copy').getBoundingClientRect(), control=row.querySelector('.ui-setting-control').getBoundingClientRect();
+    const checkbox=root.querySelector('.ui-setting-checkbox');
+    return control.top >= copy.bottom && control.right <= row.getBoundingClientRect().right && checkbox.querySelector('.ui-setting-control').getBoundingClientRect().right <= checkbox.querySelector('.ui-setting-copy').getBoundingClientRect().left;
+  })()`),
+    true,
+    '窄屏控件换行、右齐且 checkbox 左置',
+  );
+  await evaluate(
+    `(() => { const app=document.querySelector('scwc-extension'); const scroll=app.shadowRoot.querySelector('.main-scroll'); scroll.scrollTo({top:99999,behavior:'instant'}); })()`,
+  );
+  await delay(100);
+  assert.equal(
+    await evaluate(
+      `(() => { const app=document.querySelector('scwc-extension'), button=app.shadowRoot.querySelector('scwc-script-ui').shadowRoot.querySelector('[data-ui-key="layout-save"]'); return button.getBoundingClientRect().bottom <= app.shadowRoot.querySelector('footer').getBoundingClientRect().top; })()`,
+    ),
+    true,
+    '分组底部的保存按钮可滚动到达',
+  );
+  const narrowShot = await cdp('Page.captureScreenshot', { format: 'png' }, session);
+  await fs.writeFile(
+    path.join(root, 'dist/browser-extension/previews/chromium-json-narrow.png'),
+    Buffer.from(String(narrowShot.data), 'base64'),
+  );
+  await evaluate("document.body.style.width='480px'");
   const jsonShot = await cdp('Page.captureScreenshot', { format: 'png' }, session);
   await fs.writeFile(
     path.join(root, 'dist/browser-extension/previews/chromium-json.png'),
@@ -441,6 +583,99 @@ try {
     path.join(root, 'dist/browser-extension/previews/chromium-light.png'),
     Buffer.from(String(lightShot.data), 'base64'),
   );
+  // Execute the installed userscript bundle with a GM network bridge; the page itself has no network/font grants.
+  await cdp(
+    'Page.navigate',
+    { url: `http://localhost:${fixturePort}/strict` },
+    String(pageAttached.sessionId),
+  );
+  await delay(200);
+  const pageSession = String(pageAttached.sessionId);
+  await cdp('Runtime.addBinding', { name: 'scwcGM' }, pageSession);
+  const scriptSnapshot = {
+    version: 1,
+    website: `http://localhost:${fixturePort}`,
+    updatedAt: new Date().toISOString(),
+    data: defaultSiteData(config),
+  };
+  scriptSnapshot.data.plugin = { expanded: true, activeTab: 'json' };
+  scriptSnapshot.data.window.pos = { x: 8, y: 8 };
+  scriptSnapshot.data.window.minimized = false;
+  await cdp(
+    'Runtime.evaluate',
+    {
+      expression: `localStorage.setItem('__scwc_website_config__',${JSON.stringify(JSON.stringify(scriptSnapshot))}); globalThis.unsafeWindow=window; globalThis.scwcGMReplies=new Map(); let gmId=0; globalThis.GM_xmlhttpRequest=options=>{const id=++gmId;scwcGMReplies.set(id,options);scwcGM(JSON.stringify({id,url:options.url,method:options.method,headers:options.headers,data:options.data}));return {abort(){scwcGMReplies.delete(id)}}};`,
+    },
+    pageSession,
+  );
+  const bundle = await fs.readFile(path.join(root, 'dist/user-script/scwc.user.js'), 'utf8');
+  const injected = await cdp('Runtime.evaluate', { expression: bundle }, pageSession);
+  assert.ok(!injected.exceptionDetails, JSON.stringify(injected.exceptionDetails));
+  const scriptRoot = `document.querySelector('scwc-layout-root').shadowRoot.querySelector('scwc-layout-content').shadowRoot.querySelector('scwc-layout-content-plugin').shadowRoot`;
+  for (let i = 0; i < 60; i++) {
+    const value = await cdp(
+      'Runtime.evaluate',
+      {
+        expression: `${scriptRoot}?.querySelector('scwc-script-ui')?.shadowRoot?.querySelector('input')?.value`,
+        returnByValue: true,
+      },
+      pageSession,
+    );
+    if ((value.result as { value?: string })?.value) break;
+    await delay(100);
+  }
+  await cdp(
+    'Runtime.evaluate',
+    {
+      expression: `${scriptRoot}.querySelector('scwc-script-ui').shadowRoot.querySelector('[data-ui-tab-trigger="layout"]').click()`,
+    },
+    pageSession,
+  );
+  await cdp(
+    'Emulation.setDeviceMetricsOverride',
+    { width: 320, height: 580, deviceScaleFactor: 1, mobile: false },
+    pageSession,
+  );
+  await delay(100);
+  const scriptCheck = await cdp(
+    'Runtime.evaluate',
+    {
+      expression: `(() => {const root=${scriptRoot}.querySelector('scwc-script-ui').shadowRoot; const row=root.querySelector('.ui-setting'), copy=row.querySelector('.ui-setting-copy').getBoundingClientRect(), control=row.querySelector('.ui-setting-control').getBoundingClientRect();return {wrap:control.top>=copy.bottom, svg:!!root.querySelector('wb-icon')?.shadowRoot.querySelector('svg'), panels:root.querySelectorAll('.ui-scroll-panel').length};})()`,
+      returnByValue: true,
+    },
+    pageSession,
+  );
+  assert.deepEqual((scriptCheck.result as { value: unknown }).value, {
+    wrap: true,
+    svg: true,
+    panels: 0,
+  });
+  for (const theme of ['dark-2026', 'light-2026']) {
+    await cdp(
+      'Runtime.evaluate',
+      {
+        expression: `document.querySelector('scwc-layout-root').setAttribute('data-theme','${theme}')`,
+      },
+      pageSession,
+    );
+    const color = await cdp(
+      'Runtime.evaluate',
+      {
+        expression: `getComputedStyle(document.querySelector('scwc-layout-root')).getPropertyValue('--surface-1').trim()`,
+        returnByValue: true,
+      },
+      pageSession,
+    );
+    assert.equal(
+      (color.result as { value: string }).value,
+      theme === 'light-2026' ? '#f5f6f7' : '#0a0d12',
+    );
+    const shot = await cdp('Page.captureScreenshot', { format: 'png' }, pageSession);
+    await fs.writeFile(
+      path.join(root, `dist/browser-extension/previews/userscript-${theme}.png`),
+      Buffer.from(String(shot.data), 'base64'),
+    );
+  }
   console.log(
     'PASS: Chromium popup, selection/reopen, parent/undo, persistence, root version header, v1/v2 JSON, backend pipeline, targeted tab refresh/loading, crawl, menus, footer bounds and themes',
   );

@@ -1,7 +1,8 @@
 import style from './content-plugin.css?raw';
 import { controls } from '../theme.ts';
 
-import { LitElement, html, css, unsafeCSS } from 'lit';
+import { LitElement, html, css, unsafeCSS, nothing } from 'lit';
+import { repeat } from 'lit/directives/repeat.js';
 import { customElement, property } from 'lit/decorators.js';
 import type { Item } from '../types/claw.d.ts';
 import { styleMap } from 'lit/directives/style-map.js';
@@ -78,20 +79,32 @@ export class SCWCContentPlugin extends LitElement {
         <!-- Plugin Content -->
         <wb-scroll-container class="plugin-content-scroll"
           ><div class="plugin-window-content" role="tabpanel">
+            ${repeat(
+              (plugins ?? []).filter(
+                (p) => p.version === 'v2' && p.ui && !p.configError && !scriptConfigProblem(p),
+              ),
+              (p) => p.id,
+              (plugin) => html`<scwc-script-ui
+                ?hidden=${activeTab !== plugin.id}
+                .identity=${plugin.id}
+                .active=${this.expanded && activeTab === plugin.id}
+                .model=${plugin.ui}
+                .values=${this.pluginsController.jsonValues(plugin)}
+                .saveValues=${(values: Record<string, FieldValue>) =>
+                  this.pluginsController.saveJsonValues(plugin, values)}
+                .invoke=${(request: ScriptUIEvent) =>
+                  this.pluginsController.invokeJson(plugin, request)}
+                .refreshModel=${(previous: { instanceId: string; dirtyFields: string[] }) =>
+                  this.pluginsController.refreshJsonModel(plugin, previous)}
+              ></scwc-script-ui>`,
+            )}
             ${activeTab && activePlugin
               ? activePlugin.configError || scriptConfigProblem(activePlugin)
                 ? html`<div role="alert">
                     ${activePlugin.configError ?? scriptConfigProblem(activePlugin)}
                   </div>`
                 : activePlugin.version === 'v2' && activePlugin.ui
-                  ? html`<scwc-script-ui
-                      .model=${activePlugin.ui}
-                      .values=${this.pluginsController.jsonValues(activePlugin)}
-                      .saveValues=${(values: Record<string, FieldValue>) =>
-                        this.pluginsController.saveJsonValues(activePlugin, values)}
-                      .invoke=${(request: ScriptUIEvent) =>
-                        this.pluginsController.invokeJson(activePlugin, request)}
-                    ></scwc-script-ui>`
+                  ? nothing
                   : activePlugin.controls.map((control) => {
                       switch (control.type) {
                         case 'button':

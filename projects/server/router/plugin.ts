@@ -125,6 +125,14 @@ const getConfig: RequestHandler = async (req, res) => {
           site: siteInfo(decodedSite),
           data: [],
           values: {},
+          previousInstanceId: z.string().uuid().optional().parse(req.query.instanceId),
+          dirtyFields:
+            req.query.dirtyFields === undefined
+              ? undefined
+              : z
+                  .array(z.string().max(200))
+                  .max(256)
+                  .parse(JSON.parse(String(req.query.dirtyFields))),
           logger: plugin.logger,
         });
         updatedIds.push(plugin.pluginId);
@@ -369,6 +377,7 @@ const eventSchema = z.object({
   instanceId: z.string().uuid(),
   eventId: z.string().min(1).max(200),
   bindingId: z.string().min(1),
+  readOnly: z.boolean().optional(),
   fields: z.record(
     z.string(),
     z.object({
@@ -414,6 +423,10 @@ router.post('/event', routeVersion('3.2.0'), async (req, res) => {
   } catch (error) {
     res
       .status(400)
-      .json({ code: 400, message: error instanceof Error ? error.message : '插件事件失败' });
+      .json({
+        code: 400,
+        errorCode: error instanceof Error && 'code' in error ? error.code : undefined,
+        message: error instanceof Error ? error.message : '插件事件失败',
+      });
   }
 });

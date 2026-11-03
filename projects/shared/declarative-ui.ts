@@ -162,6 +162,8 @@ export interface UISettingNode extends UINode {
   label: string;
   description?: string;
   config?: string;
+  /** Defaults to plugin (global). site uses the scripts' existing origin snapshot. */
+  configScope?: 'plugin' | 'site';
   valueType?: UISettingValueType;
   control?: UISettingControl;
   defaultValue?: string;

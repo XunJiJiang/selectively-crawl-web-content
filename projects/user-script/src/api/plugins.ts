@@ -13,14 +13,21 @@ export interface PluginConfigBatch {
 }
 export async function fetchPlugins(
   config: TConfig,
-  options: { site?: string; previousSite?: string; signal?: AbortSignal } = {},
+  options: {
+    site?: string;
+    previousSite?: string;
+    signal?: AbortSignal;
+    pluginId?: string;
+    instanceId?: string;
+    dirtyFields?: string[];
+  } = {},
 ): Promise<PluginConfigBatch> {
   const url = options.site ?? window.location.href;
   const previous = options.previousSite
     ? `&previousSite=${encodeURIComponent(options.previousSite)}`
     : '';
   const res = await requestCore(
-    `${config.api.host}:${config.api.port.replace(/[^\d]/g, '')}/api/plugin/config?site=${encodeURIComponent(url)}${previous}`,
+    `${config.api.host}:${config.api.port.replace(/[^\d]/g, '')}/api/plugin/config?site=${encodeURIComponent(url)}${previous}${options.pluginId ? `&pluginId=${encodeURIComponent(options.pluginId)}` : ''}${options.instanceId ? `&instanceId=${encodeURIComponent(options.instanceId)}&dirtyFields=${encodeURIComponent(JSON.stringify(options.dirtyFields ?? []))}` : ''}`,
     {
       method: 'GET',
       signal: options.signal,
@@ -112,7 +119,7 @@ export async function invokeScriptUI(
   data: TCrawlData,
   config: TConfig,
 ): Promise<ScriptUIResult> {
-  if (plugin.requireFullContent !== false && data.failed.length) {
+  if (!request.readOnly && plugin.requireFullContent !== false && data.failed.length) {
     throw new Error(`以下抓取项在当前页面不存在：${data.failed.join('、')}`);
   }
   const response = await requestCore(
@@ -123,9 +130,14 @@ export async function invokeScriptUI(
       body: JSON.stringify({ ...request, version: 'v2', id: plugin.id, data: data.result }),
     },
   );
-  const result = (await response.json()) as { code: number; message: string; data: ScriptUIResult };
+  const result = (await response.json()) as {
+    code: number;
+    message: string;
+    errorCode?: string;
+    data: ScriptUIResult;
+  };
   if (!response.ok || result.code !== 200) {
-    throw new Error(result.message);
+    throw Object.assign(new Error(result.message), { code: result.errorCode });
   }
   const notification = result.data.result as
     | { type?: string; data?: { type: 'info' | 'success' | 'warn' | 'error'; message: string } }

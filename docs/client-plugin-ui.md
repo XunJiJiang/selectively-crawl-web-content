@@ -60,8 +60,33 @@ pluginConfig: {
 
 自定义控件声明在 `components` 中，由后端函数返回标准 JSON 节点，再经同一个编译器验证。引用格式为 `{ type: 'custom', component: 'editor', props: { ... } }`；函数签名为 `(props, context) => UINode | Promise<UINode>`。自定义函数、事件处理器与可执行程序均留在插件进程，不发送到浏览器。脚本配置不调用插件页面处理器，也不加载远程脚本或样式。
 
-事件语法沿用现有受限表达式，包括 `$event`、`$for:字段`、`$prev`、管道及分支。模板只能调用声明了 `readOnly: true` 的后端处理器；脚本配置不支持 `ui:` 前端处理器及 `watch:` 订阅。可用的计算处理器为 `core:string.trim/concat/lower/upper`、`core:json.parse/stringify`、`core:number.parse/add/multiply`、`core:boolean.parse`、`core:not`、`core:equal`、`core:default` 和 `core:value.read`。处理器可返回原有 notification 对象供客户端显示。
+事件语法沿用现有受限表达式，包括 `$event`、`$for:字段`、`$prev`、管道及分支。模板只能调用声明了 `readOnly: true` 的后端处理器；脚本配置不支持 `ui:` 前端处理器及自定义 `watch:` 订阅；核心配置绑定的 watch 由核心按现有取值协议轮询。可用的计算处理器为 `core:string.trim/concat/lower/upper`、`core:json.parse/stringify`、`core:number.parse/add/multiply`、`core:boolean.parse`、`core:not`、`core:equal`、`core:default` 和 `core:value.read`。处理器可返回原有 notification 对象供客户端显示。
 
 字段值继续与网站配置同步，v2 字段使用 `v2:字段名` 保存，多选值编码为 JSON 字符串。刷新会恢复已保存值。v1 触发请求携带 `version: 'v1'`（省略仍默认 v1）；v2 事件请求携带 `version: 'v2'`、后端签发的实例与绑定身份、事件身份及字段快照。后端仅执行已编译的绑定，按页面地址隔离实例，重复事件身份保持幂等。刷新后迟到的客户端响应被丢弃。事件每实例串行，队列最多 32 项，执行超时 10 秒并向处理器传递取消信号。
 
 扩展的插件标签刷新只请求被点击的插件配置，不刷新其他插件内容；刷新不切换当前标签。当前标签显示刷新按钮，其他标签在悬停或键盘聚焦时显示，加载期间显示 loading 图标。
+
+
+## 设置行、分组和配置作用域
+
+脚本和扩展复用工作台的 `setting`、`group`、JSON 编译器、固定渲染器和共享样式。`setting.children` 可提供单个自定义控件；`config` 自动绑定不能同时声明 `children` 或 `events`。
+
+```ts
+{
+  type: 'group', label: '常规', description: '分组上方说明', footer: '分组下方说明',
+  children: [
+    { type: 'setting', label: '全局名称', config: 'name', valueType: 'string' },
+    { type: 'setting', label: '本站启用', description: '同 origin 的路径共享',
+      config: 'enabled', configScope: 'site', valueType: 'boolean', defaultValue: 'false' },
+    { type: 'setting', label: '数量', config: 'limit', valueType: 'integer', min: 1, max: 10 },
+  ],
+}
+```
+
+`configScope` 默认是 `plugin`，与工作台一致，读取插件全局配置数据库，保留字符串值、字符串默认值、后端定义规则与校验器、值和定义双 revision 并发校验。`site` 仅用于脚本/扩展，复用核心按 HTTP(S) origin 隔离的网站快照和已有同步通知协议，以 `v2:config:配置键` 保存，布尔控件仍存布尔值，数字输入仍存字符串。自动绑定字段不复制到普通 `v2:字段名` 草稿；自定义控件继续使用原字段存储和多选 JSON 编码。
+
+`valueType` 支持 string、boolean、number、integer；默认生成文本框、开关或数字输入，提供 `options` 时生成下拉框。`control` 可显式选择 text、textarea、number、switch、checkbox、select、color、readonly；min、max、maxLength 和 options 在核心校验，数字不会因校验而改变持久化类型。
+
+`configuration.definitions[].groups` 是全局配置定义的布局元数据，`itemIds` 只引用同一定义的权威 `items[].id`。它不等同于 JSON 节点 `group.children`，不会复制值或改键；重复组 id、重复归组和悬空引用仍由后端拒绝，未归组项独立显示，旧平铺定义兼容。
+
+同一模板的刷新串行并合并重复通知，只发布最终模板。切换插件保留各自视图、标签和草稿；模板替换复用渲染器以保持焦点、选区与滚动。自动绑定在活动视图每四秒只读取值。过期实例的读取最多恢复一次，成功清除错误，持续失败停止自动轮询；提交事件不会自动重放。恢复模板时携带脏字段的旧基线，同键远端变更仍拒绝覆盖草稿。

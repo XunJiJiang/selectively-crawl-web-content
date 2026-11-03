@@ -4,6 +4,7 @@ import {
   readScriptValues,
   saveScriptValues,
   SCRIPT_CONFIG_RANGES,
+  ScriptUIRefreshQueue,
 } from './script-ui.ts';
 import type { ScriptUIModel } from './script-ui.ts';
 it('defaults to retained v1 and refuses unsupported or too-new JSON configurations', () => {
@@ -20,6 +21,26 @@ it('defaults to retained v1 and refuses unsupported or too-new JSON configuratio
   expect(
     scriptConfigProblem({ version: 'v3', compatibleVersions: { v3: '4.0.0-*' } }, '3.2.0'),
   ).toContain('4.0.0-*');
+});
+
+it('serializes and coalesces template invalidations and preserves reserved site config channels', async () => {
+  const queue = new ScriptUIRefreshQueue<number>();
+  const resolvers: ((value: number) => void)[] = [];
+  const read = () => new Promise<number>((resolve) => resolvers.push(resolve));
+  const first = queue.run('p', read);
+  await Promise.resolve();
+  const second = queue.run('p', read);
+  queue.run('p', read);
+  expect(resolvers).toHaveLength(1);
+  resolvers.shift()!(1);
+  await Promise.resolve();
+  await Promise.resolve();
+  expect(resolvers).toHaveLength(1);
+  resolvers.shift()!(2);
+  expect(await first).toBe(2);
+  expect(await second).toBe(2);
+  const reserved = { pluginId: 'p', channel: 'v2:config:enabled', value: true };
+  expect(saveScriptValues('p', { q: 'draft' }, [reserved])).toContainEqual(reserved);
 });
 it('persists v2 fields alongside legacy values and round-trips multiple selections', () => {
   const saved = saveScriptValues('plugin', { q: 'draft', enabled: false, choices: ['a', 'b'] }, [

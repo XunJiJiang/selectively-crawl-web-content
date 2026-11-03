@@ -32,8 +32,10 @@ import {
   saveScriptValues,
   type ScriptUIEvent,
   type ScriptUIResult,
+  ScriptUIRefreshQueue,
 } from '../../shared/script-ui.ts';
 import type { FieldValue } from '../../shared/declarative-ui.ts';
+import type { ScriptUIView } from '../../shared/components/script-ui.ts';
 
 // 原生弹窗在小屏幕上会被浏览器压低；缩短内部布局以保持底栏可见。
 window.addEventListener('resize', () => {
@@ -75,6 +77,7 @@ export class ExtensionPopup extends LitElement {
   private controlTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private lastSite = '';
   private pluginGeneration = 0;
+  private templates = new ScriptUIRefreshQueue<PluginBatch>();
   @state() private accessor refreshingPlugins = new Set<string>();
   private versionNotice = (event: Event) => {
     const notice = (event as CustomEvent<VersionNotice>).detail;
@@ -82,6 +85,15 @@ export class ExtensionPopup extends LitElement {
       call({ type: 'version.dismiss', notice }).then(() => undefined),
     );
   };
+  private selectPlugin(id: string) {
+    for (const view of this.shadowRoot?.querySelectorAll<ScriptUIView>('scwc-script-ui') ?? [])
+      if (view.identity === this.activePlugin) view.preserveInteraction();
+    this.activePlugin = id;
+    void this.updateComplete.then(() => {
+      for (const view of this.shadowRoot?.querySelectorAll<ScriptUIView>('scwc-script-ui') ?? [])
+        if (view.identity === id) view.restoreInteraction();
+    });
+  }
   private get snapshot() {
     return this.context.snapshot;
   }
@@ -290,7 +302,14 @@ export class ExtensionPopup extends LitElement {
       generation = this.pluginGeneration;
     this.refreshingPlugins = new Set([...this.refreshingPlugins, id]);
     try {
-      const batch = await call<PluginBatch>({ type: 'plugins', tab: this.tab, site, pluginId: id });
+      const previous = [
+        ...(this.shadowRoot?.querySelectorAll<ScriptUIView>('scwc-script-ui') ?? []),
+      ]
+        .find((view) => view.identity === id)
+        ?.refreshBaseline();
+      const batch = await this.templates.run(id, () =>
+        call<PluginBatch>({ type: 'plugins', tab: this.tab, site, pluginId: id, ...previous }),
+      );
       if (site !== this.site || generation !== this.pluginGeneration) {
         return;
       }
@@ -308,6 +327,22 @@ export class ExtensionPopup extends LitElement {
     } finally {
       this.refreshingPlugins = new Set([...this.refreshingPlugins].filter((entry) => entry !== id));
     }
+  }
+  private async refreshJsonModel(
+    plugin: PluginConfig,
+    previous?: { instanceId: string; dirtyFields: string[] },
+  ) {
+    const site = this.site,
+      generation = this.pluginGeneration;
+    const batch = await this.templates.run(plugin.id, () =>
+      call<PluginBatch>({ type: 'plugins', tab: this.tab, site, pluginId: plugin.id, ...previous }),
+    );
+    if (site !== this.site || generation !== this.pluginGeneration || !this.isConnected)
+      throw new Error('插件实例已经切换');
+    const next = batch.data.find((p) => p.id === plugin.id);
+    if (!next?.ui) throw new Error(next?.configError ?? '插件模板未就绪');
+    this.plugins = this.plugins.map((p) => (p.id === next.id ? next : p));
+    return next.ui;
   }
   private saveJsonValues(plugin: PluginConfig, values: Record<string, FieldValue>) {
     void this.save({
@@ -728,7 +763,7 @@ export class ExtensionPopup extends LitElement {
                     role="tab"
                     aria-selected=${entry.id === this.activePlugin}
                     @click=${() => {
-                      this.activePlugin = entry.id;
+                      this.selectPlugin(entry.id);
                       void this.save({ plugin: { expanded: true, activeTab: entry.id } });
                     }}
                   >
@@ -754,26 +789,35 @@ export class ExtensionPopup extends LitElement {
           <h3>暂无适用插件</h3>
           <p>确认核心已运行，并已启用适用于当前网址的插件。</p>
         </div>`}
-    ${plugin
+    ${repeat(
+      this.plugins.filter(
+        (p) => p.version === 'v2' && p.ui && !p.configError && !scriptConfigProblem(p),
+      ),
+      (p) => p.id,
+      (entry) => html`<section class="plugin-form" ?hidden=${entry.id !== this.activePlugin}>
+        <p>${entry.description}</p>
+        <scwc-script-ui
+          .identity=${entry.id}
+          .active=${this.panel === 'plugins' && entry.id === this.activePlugin}
+          .model=${entry.ui}
+          .values=${readScriptValues(entry.id, entry.ui!, this.snapshot?.data.controls ?? [])}
+          .saveValues=${(values: Record<string, FieldValue>) => this.saveJsonValues(entry, values)}
+          .invoke=${(request: ScriptUIEvent) => this.invokeJson(entry, request)}
+          .refreshModel=${(previous: { instanceId: string; dirtyFields: string[] }) =>
+            this.refreshJsonModel(entry, previous)}
+        ></scwc-script-ui>
+        <p class="muted">网址刷新规则：${entry.refreshRule ?? '//'}</p>
+      </section>`,
+    )}
+    ${plugin &&
+    !(plugin.version === 'v2' && plugin.ui && !plugin.configError && !scriptConfigProblem(plugin))
       ? html`<section class="plugin-form">
           <p>${plugin.description}</p>
           ${plugin.configError || scriptConfigProblem(plugin)
             ? html`<p role="alert">${plugin.configError ?? scriptConfigProblem(plugin)}</p>`
-            : plugin.version === 'v2' && plugin.ui
-              ? html`<scwc-script-ui
-                  .model=${plugin.ui}
-                  .values=${readScriptValues(
-                    plugin.id,
-                    plugin.ui,
-                    this.snapshot?.data.controls ?? [],
-                  )}
-                  .saveValues=${(values: Record<string, FieldValue>) =>
-                    this.saveJsonValues(plugin, values)}
-                  .invoke=${(request: ScriptUIEvent) => this.invokeJson(plugin, request)}
-                ></scwc-script-ui>`
-              : plugin.controls.map(
-                  (control) => html`<div class="control">${this.control(plugin, control)}</div>`,
-                )}
+            : plugin.controls.map(
+                (control) => html`<div class="control">${this.control(plugin, control)}</div>`,
+              )}
           <p class="muted">网址刷新规则：${plugin.refreshRule ?? '//'}</p>
         </section>`
       : nothing}`;
@@ -881,13 +925,10 @@ export class ExtensionPopup extends LitElement {
       </nav>
       <wb-scroll-container class="main-scroll"
         ><main>
-          ${!this.loaded
-            ? html`<p class="muted">正在加载…</p>`
-            : this.panel === 'capture'
-              ? this.capture()
-              : this.panel === 'plugins'
-                ? this.pluginPanel()
-                : this.settingsPanel()}
+          ${!this.loaded ? html`<p class="muted">正在加载…</p>` : nothing}
+          <div ?hidden=${this.panel !== 'capture'}>${this.loaded ? this.capture() : nothing}</div>
+          <div ?hidden=${this.panel !== 'plugins'}>${this.pluginPanel()}</div>
+          <div ?hidden=${this.panel !== 'settings'}>${this.settingsPanel()}</div>
           ${this.notice
             ? html`<div class="notice" role="status" ?data-error=${this.noticeError}>
                 ${this.notice}<button

@@ -13,6 +13,7 @@ import { publishLog, type LogLevel } from '../../utils/log.ts';
 import path from 'node:path';
 import { preparePluginWeb } from '../web/build.ts';
 import { getPluginConfig } from '../../workbench/plugin-config.ts';
+import { scriptConfigStorage } from '../../user-script/ui-config.ts';
 import { workbenchEvents, type WorkbenchEvent } from '../../workbench/events.ts';
 import { getNotifications } from '../../workbench/notifications.ts';
 import type { InputRequest, InvocationIdentity, TaskSnapshot } from '../../types/task.d.ts';
@@ -250,6 +251,16 @@ export class PluginProcessClient {
     if (method.startsWith('config.')) {
       const service = getPluginConfig(),
         pluginId = this.options.pluginId ?? this.options.name;
+      if (method === 'config.script.read') {
+        return scriptConfigStorage(pluginId).read(
+          ...(args as { args: Parameters<ReturnType<typeof scriptConfigStorage>['read']> }).args,
+        );
+      }
+      if (method === 'config.script.write') {
+        return scriptConfigStorage(pluginId).write(
+          ...(args as { args: Parameters<ReturnType<typeof scriptConfigStorage>['write']> }).args,
+        );
+      }
       const data = args as {
         key: string;
         values: unknown;

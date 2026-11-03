@@ -37,6 +37,15 @@ it.each([
   expect(registered).toBe(UserScriptIcon);
   expect(WbIcon).not.toBe(registered);
   expect(customElements.get('wb-icon')).toBe(registered);
-  expect(icon.shadowRoot?.querySelector('.codicon')).not.toBeNull();
-  expect(icon.shadowRoot?.querySelector('svg')).toBeNull();
+  expect(icon.shadowRoot?.querySelector('svg')).not.toBeNull();
+  expect(icon.shadowRoot?.querySelector('image,use,img')).toBeNull();
+});
+
+it('renders unknown names with the inline question fallback under strict font-src', async () => {
+  const icon = document.createElement('wb-icon') as UserScriptIcon;
+  icon.name = 'missing-icon-name';
+  document.body.append(icon);
+  await icon.updateComplete;
+  expect(icon.shadowRoot?.querySelector('svg')).not.toBeNull();
+  expect(icon.shadowRoot?.innerHTML).not.toMatch(/@font-face|data:font|url\(/);
 });

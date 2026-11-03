@@ -1,4 +1,5 @@
 import { siteStore } from '../../site-store.ts';
+import type { ScriptUIView } from '../../../../shared/components/script-ui.ts';
 import type { ReactiveController } from 'lit';
 import type { PluginConfig, PluginItem, TRequiredOptions } from '../../../../shared/types/plugin';
 import type { ScriptConfig, ScriptConfigItem } from '../../../../shared/types/config.d.ts';
@@ -8,6 +9,7 @@ import {
   readScriptValues,
   saveScriptValues,
   type ScriptUIEvent,
+  ScriptUIRefreshQueue,
 } from '../../../../shared/script-ui.ts';
 import type { FieldValue } from '../../../../shared/declarative-ui.ts';
 import { getCrawlData } from '../../utils/claw.ts';
@@ -34,6 +36,8 @@ export class PluginsController implements ReactiveController {
   private request?: AbortController;
   private generation = 0;
   private loading?: Promise<void>;
+  private requestKey = '';
+  private templates = new ScriptUIRefreshQueue<Awaited<ReturnType<typeof fetchPlugins>>>();
   private lastSite?: string;
   private initial = true;
   private timers = new Map<PluginItem, ReturnType<typeof setTimeout>>();
@@ -117,14 +121,21 @@ export class PluginsController implements ReactiveController {
   private async loadPlugins(force: boolean) {
     const generation = ++this.generation,
       site = window.location.href;
-    this.request?.abort();
-    this.request = new AbortController();
+    const key = JSON.stringify([site, this.configController.config.api]);
+    if (key !== this.requestKey || !this.request || this.request.signal.aborted) {
+      this.request?.abort();
+      this.request = new AbortController();
+      this.requestKey = key;
+    }
+    const request = this.request;
     try {
-      const batch = await fetchPlugins(this.configController.config, {
-        site,
-        previousSite: force ? undefined : this.lastSite,
-        signal: this.request.signal,
-      });
+      const batch = await this.templates.run(`all:${key}`, () =>
+        fetchPlugins(this.configController.config, {
+          site,
+          previousSite: force ? undefined : this.lastSite,
+          signal: request.signal,
+        }),
+      );
       if (generation !== this.generation) {
         return;
       }
@@ -270,8 +281,16 @@ export class PluginsController implements ReactiveController {
   }
   setActiveTab(activeTab: string) {
     if (activeTab !== this.activeTab) {
+      for (const view of this.host.shadowRoot?.querySelectorAll<ScriptUIView>('scwc-script-ui') ??
+        [])
+        if (view.identity === this.activeTab) view.preserveInteraction();
       this.activeTab = activeTab;
       this.host.requestUpdate();
+      void this.host.updateComplete.then(() => {
+        for (const view of this.host.shadowRoot?.querySelectorAll<ScriptUIView>('scwc-script-ui') ??
+          [])
+          if (view.identity === this.activeTab) view.restoreInteraction();
+      });
     }
   }
   jsonValues(plugin: PluginConfig) {
@@ -291,6 +310,23 @@ export class PluginsController implements ReactiveController {
       getCrawlData(this.host.clawItems),
       this.configController.config,
     );
+  }
+  async refreshJsonModel(
+    plugin: PluginConfig,
+    previous?: { instanceId: string; dirtyFields: string[] },
+  ) {
+    while (this.loading) await this.loading;
+    const site = location.href,
+      generation = this.generation;
+    const batch = await this.templates.run(plugin.id, () =>
+      fetchPlugins(this.configController.config, { site, pluginId: plugin.id, ...previous }),
+    );
+    if (site !== location.href || generation !== this.generation || !this.host.isConnected)
+      throw new Error('插件实例已经切换');
+    const next = batch.plugins.find((p) => p.id === plugin.id);
+    if (!next?.ui) throw new Error(next?.configError ?? '插件模板未就绪');
+    this.setPlugins((this.plugins ?? []).map((p) => (p.id === next.id ? next : p)));
+    return next.ui;
   }
   setActivePlugin(activePlugin: PluginConfig | ScriptConfig | null) {
     if (activePlugin !== this.activePlugin) {

@@ -8,6 +8,8 @@ export interface ScriptContext {
   site: Parameters<SCWC.TCreatePluginItem>[1]['site'];
   data: SCWC.TDataItem[];
   values: Record<string, FieldValue>;
+  previousInstanceId?: string;
+  dirtyFields?: string[];
   signal?: AbortSignal;
   tasks?: SCWC.TaskReporter;
   logger: SCWC.TLogger;
@@ -38,6 +40,8 @@ export interface ScriptConfigV2 {
 }
 export interface ScriptUIModel {
   instanceId: string;
+  /** Automatic bindings are authoritative in core storage, never copied into local drafts. */
+  boundFields?: string[];
   compiled: CompiledUI;
   updates: { id: string; value: UIValue }[];
 }
@@ -46,12 +50,50 @@ export interface ScriptUIEvent {
   instanceId: string;
   eventId: string;
   bindingId: string;
+  /** Only the reserved $read binding accepts this; it never executes event programs. */
+  readOnly?: boolean;
   fields: Record<string, { value: FieldValue; editSequence: number }>;
   event?: { modifiers?: { alt: boolean; ctrl: boolean; meta: boolean; shift: boolean } };
 }
 export interface ScriptUIResult {
   result?: UIValue;
+  saved?: Record<string, FieldValue>;
   updates: ScriptUIModel['updates'];
+}
+
+/** One in-flight template per key; duplicate invalidations coalesce into one trailing read. */
+export class ScriptUIRefreshQueue<T> {
+  private tasks = new Map<
+    string,
+    { queued: boolean; promise: Promise<T>; read: () => Promise<T> }
+  >();
+  run(key: string, read: () => Promise<T>): Promise<T> {
+    const running = this.tasks.get(key);
+    if (running) {
+      running.queued = true;
+      running.read = read;
+      return running.promise;
+    }
+    const task: { queued: boolean; promise: Promise<T>; read: () => Promise<T> } = {
+      queued: false,
+      promise: Promise.resolve(undefined as T),
+      read,
+    };
+    task.promise = Promise.resolve().then(async () => {
+      try {
+        let result: T;
+        do {
+          task.queued = false;
+          result = await task.read();
+        } while (task.queued);
+        return result;
+      } finally {
+        if (this.tasks.get(key) === task) this.tasks.delete(key);
+      }
+    });
+    this.tasks.set(key, task);
+    return task.promise;
+  }
 }
 export function scriptConfigProblem(
   config: { version?: string; compatibleVersions?: Record<string, string> },
@@ -78,6 +120,7 @@ export function readScriptValues(
 ): Record<string, FieldValue> {
   const values: Record<string, FieldValue> = {};
   for (const field of model.compiled.fields) {
+    if (model.boundFields?.includes(field.name)) continue;
     const saved = controls.find(
       (item) => item.pluginId === pluginId && item.channel === `v2:${field.name}`,
     );
@@ -107,7 +150,12 @@ export function saveScriptValues(
   controls: SavedControl[],
 ): SavedControl[] {
   return [
-    ...controls.filter((item) => item.pluginId !== pluginId || !item.channel.startsWith('v2:')),
+    ...controls.filter(
+      (item) =>
+        item.pluginId !== pluginId ||
+        !item.channel.startsWith('v2:') ||
+        item.channel.startsWith('v2:config:'),
+    ),
     ...Object.entries(values).map(([name, value]) => ({
       pluginId,
       channel: `v2:${name}`,

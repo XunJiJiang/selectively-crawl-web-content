@@ -36,7 +36,15 @@ export type Request =
   | { type: 'settings.save'; settings: Settings }
   | { type: 'site.patch'; site: string; patch: Partial<SiteData> }
   | { type: 'core.sync'; site: string }
-  | { type: 'plugins'; tab: number; site: string; previousSite?: string; pluginId?: string }
+  | {
+      type: 'plugins';
+      tab: number;
+      site: string;
+      previousSite?: string;
+      pluginId?: string;
+      instanceId?: string;
+      dirtyFields?: string[];
+    }
   | { type: 'crawl'; tab: number; site: string }
   | {
       type: 'trigger';
@@ -158,11 +166,10 @@ async function handle(message: Request, sender: MessageSender): Promise<unknown>
     case 'version.dismiss':
       return dismissVersionNotice(message.notice);
     case 'plugin.event': {
-      const { snapshot, data } = await extract(
-        message.tab,
-        message.site,
-        message.requireFullContent,
-      );
+      await tabAt(message.tab, message.site);
+      const { snapshot, data } = message.request.readOnly
+        ? { snapshot: await store.load(message.site), data: { result: [] } }
+        : await extract(message.tab, message.site, message.requireFullContent);
       return requestCore(snapshot.data.config, message.site, '/api/plugin/event', {
         ...message.request,
         version: 'v2',
@@ -202,6 +209,9 @@ async function handle(message: Request, sender: MessageSender): Promise<unknown>
         {},
         message.previousSite,
         message.pluginId,
+        message.instanceId
+          ? { instanceId: message.instanceId, dirtyFields: message.dirtyFields ?? [] }
+          : undefined,
       );
     }
     case 'page': {
@@ -253,7 +263,11 @@ browser.runtime.onMessage.addListener((input, sender, respond) => {
   void handle(input as Request, sender).then(
     (data) => respond({ ok: true, data, versionNotice: pendingVersionNotice }),
     (error: unknown) =>
-      respond({ ok: false, error: error instanceof Error ? error.message : String(error) }),
+      respond({
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+        errorCode: error instanceof Error && 'code' in error ? error.code : undefined,
+      }),
   );
   return true;
 });

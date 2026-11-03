@@ -6,13 +6,21 @@ import type { WbMenuSelect } from './context-menu/wb-menu-select.ts';
 import type { UIRendererComponents } from './ui-renderer.js';
 
 /** Enhance validated native nodes; plugin models never choose custom element tags. */
-export function createJSONComponents(): UIRendererComponents {
+export function createJSONComponents(
+  options: { scrollPanels?: boolean } = {},
+): UIRendererComponents {
   let content: HTMLElement;
   const containers = new Map<HTMLElement, WorkbenchScrollContainer>();
   const selects = new Map<HTMLSelectElement, WbMenuSelect>();
   const cleanups: (() => void)[] = [];
   const scrolls = () => {
-    const outer = content?.closest<WorkbenchScrollContainer>('wb-scroll-container');
+    let ancestor: Element | null = content;
+    let outer: WorkbenchScrollContainer | null = null;
+    while (ancestor && !outer) {
+      outer = ancestor.closest<WorkbenchScrollContainer>('wb-scroll-container');
+      const root = ancestor.getRootNode();
+      ancestor = root instanceof ShadowRoot ? root.host : null;
+    }
     return [...(outer ? [outer] : []), ...containers.values()];
   };
   const key = (scroll: WorkbenchScrollContainer) => scroll.dataset.uiScroll ?? 'content';
@@ -45,11 +53,11 @@ export function createJSONComponents(): UIRendererComponents {
       containers.clear();
       selects.clear();
       content = element;
-      for (const node of content.querySelectorAll<HTMLElement>('.ui-tab-panel,.ui-tab-list')) {
+      for (const node of content.querySelectorAll<HTMLElement>(
+        options.scrollPanels === false ? '.ui-tab-list' : '.ui-tab-panel,.ui-tab-list',
+      )) {
         const scroll = document.createElement('wb-scroll-container');
-        const kind = node.classList.contains('ui-tab-list')
-          ? 'tab-list'
-          : 'panel';
+        const kind = node.classList.contains('ui-tab-list') ? 'tab-list' : 'panel';
         scroll.className = `ui-scroll ui-scroll-${kind}`;
         scroll.dataset.uiScroll = node.getAttribute('data-scwc-node') ?? '';
         if (kind === 'tab-list') {
@@ -67,6 +75,7 @@ export function createJSONComponents(): UIRendererComponents {
         }
       }
       for (const node of content.querySelectorAll('select')) {
+        if (node.multiple) continue;
         const select = document.createElement('wb-menu-select');
         select.className = 'ui-select';
         for (const name of ['name', 'data-ui-key', 'aria-label']) {

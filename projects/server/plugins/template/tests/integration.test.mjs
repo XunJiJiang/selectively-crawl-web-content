@@ -174,6 +174,8 @@ after(async () => {
     );
   await runtime?.closeWorkbench();
   storage?.closeStorage();
+  const { closeUserScriptConfig } = await core('user-script/config.ts');
+  await closeUserScriptConfig();
   server?.closeAllConnections();
   if (server?.listening) await new Promise((resolve) => server.close(resolve));
   if (root) await fs.rm(root, { recursive: true, force: true });
@@ -477,7 +479,11 @@ test('真实插件 WebSocket：缺省连接保护、可中断连接恢复和手�
 const allNodes = (nodes) => nodes.flatMap((node) => [node, ...allNodes(node.children ?? [])]);
 const namedButton = (view, label) => {
   const node = allNodes(view.compiled.nodes).find(
-    (n) => n.tag === 'button' && allNodes(n.children ?? []).map((c) => c.text ?? '').join('') === label,
+    (n) =>
+      n.tag === 'button' &&
+      allNodes(n.children ?? [])
+        .map((c) => c.text ?? '')
+        .join('') === label,
   );
   assert.ok(node, label);
   const binding = view.compiled.events.find((e) => e.nodeId === node.id && e.event === 'click');
@@ -880,16 +886,34 @@ test('核心页面信息模板：保存/重置/保留草稿/丢弃与冲突，�
   const nodes = allNodes(view.compiled.nodes);
   const groups = nodes.filter((node) => node.attrs?.class === 'ui-setting-group');
   assert.equal(groups.length, 5);
-  assert.deepEqual(groups.map((group) => allNodes(group.children ?? []).find((node) => node.attrs?.class === 'ui-group-label')?.children?.[0]?.text), [
-    '开关与勾选', '显示', '接口信息', '验证说明', '任务限制',
-  ]);
-  assert.equal(nodes.filter((node) => node.attrs?.['data-ui-tabs']).length, 1, '配置分组直接连续显示，不再嵌套标签页');
+  assert.deepEqual(
+    groups.map(
+      (group) =>
+        allNodes(group.children ?? []).find((node) => node.attrs?.class === 'ui-group-label')
+          ?.children?.[0]?.text,
+    ),
+    ['开关与勾选', '显示', '接口信息', '验证说明', '任务限制'],
+  );
+  assert.equal(
+    nodes.filter((node) => node.attrs?.['data-ui-tabs']).length,
+    1,
+    '配置分组直接连续显示，不再嵌套标签页',
+  );
   assert.ok(nodes.some((node) => node.text === '分组标题下方的说明文字。'));
   assert.ok(nodes.some((node) => node.text === '分组下方的说明：数量必须为 1–10 之间的整数。'));
-  assert.equal(nodes.filter((node) => node.attrs?.class === 'ui-setting ui-setting-checkbox').length, 1);
+  assert.equal(
+    nodes.filter((node) => node.attrs?.class === 'ui-setting ui-setting-checkbox').length,
+    1,
+  );
   const field = (key) => 'config.f' + createHash('sha256').update(key).digest('hex').slice(0, 16);
   const current = await api('/plugins/template/config');
-  const booleanKeys = new Set(current.definitions.flatMap((definition) => definition.items.filter((item) => ['switch', 'checkbox'].includes(item.control)).map((item) => item.key)));
+  const booleanKeys = new Set(
+    current.definitions.flatMap((definition) =>
+      definition.items
+        .filter((item) => ['switch', 'checkbox'].includes(item.control))
+        .map((item) => item.key),
+    ),
+  );
   const values = Object.fromEntries(
     Object.entries(current.effectiveValues)
       .filter(([k]) => k !== 'validation.contract')
@@ -921,7 +945,10 @@ test('核心页面信息模板：保存/重置/保留草稿/丢弃与冲突，�
     });
   };
   assert.equal((await execute('save')).status, 'succeeded');
-  assert.equal((await api('/plugins/template/config')).effectiveValues['validation.confirm'], 'true');
+  assert.equal(
+    (await api('/plugins/template/config')).effectiveValues['validation.confirm'],
+    'true',
+  );
   assert.equal(
     (await api('/plugins/template/config')).effectiveValues['validation.note'],
     'draft to save',
@@ -938,7 +965,10 @@ test('核心页面信息模板：保存/重置/保留草稿/丢弃与冲突，�
   assert.equal((await execute('save')).status, 'succeeded');
   assert.equal((await execute('discard')).effects[0].type, 'config.saved');
   assert.equal((await execute('reset')).status, 'succeeded');
-  assert.equal((await api('/plugins/template/config')).effectiveValues['validation.confirm'], 'false');
+  assert.equal(
+    (await api('/plugins/template/config')).effectiveValues['validation.confirm'],
+    'false',
+  );
   await api(`/ui/instances/${view.id}/release`, {});
   const main = await api('/ui/instances', {
     pluginId: 'template',
@@ -982,7 +1012,9 @@ test('脚本配置 v2：真实 HTTP/IPC 编译、默认值、字段快照与七�
   const model = config.ui;
   assert.equal(model.compiled.format, 'json');
   assert.deepEqual(
-    model.compiled.fields.map(({ name, kind }) => [name, kind]),
+    model.compiled.fields
+      .filter(({ name }) => !model.boundFields.includes(name))
+      .map(({ name, kind }) => [name, kind]),
     [
       ['testToggle', 'boolean'],
       ['testSelect', 'string'],
@@ -1067,4 +1099,140 @@ test('脚本配置 v2：真实 HTTP/IPC 编译、默认值、字段快照与七�
   const defaults = await send(namedButton(model, '触发 Input number 控件'));
   assert.equal(defaults.data.result.data.message, 'Input number 控件触发了, 当前值: 42');
   await send(namedButton(model, '触发 Input number 控件'), { testInputNumber: 'invalid' }, 400);
+});
+
+test('配置新样例：分组全局绑定、后端校验、本站隔离及刷新后的草稿冲突', async () => {
+  const site = `${origin}/settings-example`;
+  const headersFor = (site) => ({
+    origin: new URL(site).origin,
+    authorization: `Bearer ${token}`,
+    'content-type': 'application/json',
+    'X-SCWC-Version': '3.2.0',
+  });
+  const load = async (site, previous) => {
+    const query = new URLSearchParams({ site, pluginId: 'template' });
+    if (previous) {
+      query.set('instanceId', previous.instanceId);
+      query.set('dirtyFields', JSON.stringify(['plugin.note']));
+    }
+    const response = await fetch(`${origin}/api/plugin/config?${query}`, {
+      headers: headersFor(site),
+    });
+    const body = await response.json();
+    assert.equal(response.status, 200, JSON.stringify(body));
+    const plugin = body.data.find((item) => item.id === 'template');
+    assert.equal(plugin.configError, undefined);
+    return plugin.ui;
+  };
+  const send = async (model, name, value, site, expectedStatus = 200) => {
+    const field = model.compiled.fields.find((field) => field.name === name);
+    assert.ok(field, name);
+    const binding = model.compiled.events.find(
+      (binding) => binding.nodeId === field.nodeId && binding.event === 'change',
+    );
+    assert.ok(binding, name);
+    const response = await fetch(`${origin}/api/plugin/event?${new URLSearchParams({ site })}`, {
+      method: 'POST',
+      headers: headersFor(site),
+      body: JSON.stringify({
+        version: 'v2',
+        id: 'template',
+        instanceId: model.instanceId,
+        eventId: crypto.randomUUID(),
+        bindingId: binding.id,
+        fields: { [name]: { value, editSequence: 1 } },
+        data: [],
+      }),
+    });
+    const body = await response.json();
+    assert.equal(response.status, expectedStatus, JSON.stringify(body));
+    return body;
+  };
+  const valueOf = (model, name) => {
+    const field = model.compiled.fields.find((field) => field.name === name);
+    const expression = model.compiled.expressions.find(
+      (binding) =>
+        binding.nodeId === field?.nodeId && ['value', 'checked'].includes(binding.attribute),
+    );
+    assert.ok(expression, name);
+    return model.updates.find((update) => update.id === expression.id)?.value;
+  };
+  const model = await load(site);
+  const nodes = allNodes(model.compiled.nodes);
+  assert.deepEqual(
+    nodes.filter((node) => node.attrs?.role === 'tab').map((node) => node.children[0].text),
+    ['插件全局配置', '本站配置', '自定义控制器'],
+  );
+  assert.equal(nodes.filter((node) => node.attrs?.class === 'ui-setting-group').length, 4);
+  assert.equal(
+    nodes.filter((node) => node.attrs?.class?.includes('ui-setting-checkbox')).length,
+    2,
+  );
+  assert.equal(
+    model.compiled.fields.some((field) => field.name === 'plugin.contract'),
+    false,
+  );
+  assert.equal(valueOf(model, 'site.prefix'), '采集');
+  assert.equal(valueOf(model, 'site.scale'), '1');
+  assert.equal(valueOf(model, 'site.enabled'), true);
+
+  const globalValues = {
+    'plugin.note': ['  来自脚本的全局配置  ', '来自脚本的全局配置', 'validation.note'],
+    'plugin.memo': ['共享多行\n说明', '共享多行\n说明', 'validation.memo'],
+    'plugin.limit': ['6', '6', 'validation.limit'],
+    'plugin.enabled': [false, 'false', 'validation.enabled'],
+    'plugin.confirm': [true, 'true', 'validation.confirm'],
+    'plugin.mode': ['comfortable', 'comfortable', 'validation.mode'],
+    'plugin.color': ['#102030', '#102030', 'validation.color'],
+  };
+  for (const [name, [input, persisted, key]] of Object.entries(globalValues)) {
+    await send(model, name, input, site);
+    const snapshot = await api('/plugins/template/config');
+    assert.equal(snapshot.effectiveValues[key], persisted);
+    assert.equal(typeof snapshot.effectiveValues[key], 'string');
+  }
+  await send(model, 'plugin.note', 'reject', site, 400);
+  await send(model, 'plugin.limit', '2.5', site, 400);
+  await send(model, 'plugin.mode', 'invalid', site, 400);
+
+  const siteValues = {
+    'site.enabled': false,
+    'site.prefix': '本站',
+    'site.scale': '1.75',
+    'site.limit': '5',
+    'site.format': 'text',
+  };
+  for (const [name, value] of Object.entries(siteValues)) {
+    const reply = await send(model, name, value, site);
+    assert.equal(reply.data.saved[name], value);
+  }
+  await send(model, 'site.scale', '5', site, 400);
+  await send(model, 'site.limit', '1.5', site, 400);
+  await send(model, 'site.prefix', 'x'.repeat(25), site, 400);
+  const sameOrigin = await load(`${origin}/another/path`);
+  for (const [name, value] of Object.entries(siteValues))
+    assert.equal(valueOf(sameOrigin, name), value);
+  const otherOrigin = await load('https://other-template.example/article');
+  assert.equal(valueOf(otherOrigin, 'site.prefix'), '采集');
+  assert.equal(valueOf(otherOrigin, 'site.scale'), '1');
+  assert.equal(valueOf(otherOrigin, 'site.enabled'), true);
+  assert.equal(valueOf(otherOrigin, 'plugin.note'), '来自脚本的全局配置');
+  const { getUserScriptConfig } = await core('user-script/config.ts');
+  const saved = getUserScriptConfig().get(site).data.controls;
+  assert.equal(saved.find((item) => item.channel === 'v2:config:enabled').value, false);
+  assert.equal(saved.find((item) => item.channel === 'v2:config:scale').value, '1.75');
+
+  const snapshot = await api('/plugins/template/config');
+  await api('/plugins/template/config/update', {
+    values: { 'validation.note': '来自其他视图' },
+    baseRevision: snapshot.revision,
+    schemaRevision: snapshot.schemaRevision,
+  });
+  const refreshed = await load(site, model);
+  const conflict = await send(refreshed, 'plugin.note', '旧草稿', site, 400);
+  assert.equal(conflict.errorCode, 'UI_CONFIG_CONFLICT');
+  assert.equal(
+    (await api('/plugins/template/config')).effectiveValues['validation.note'],
+    '来自其他视图',
+  );
 });

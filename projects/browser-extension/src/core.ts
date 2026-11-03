@@ -20,6 +20,7 @@ export async function requestCore<T>(
   body?: unknown,
   previousSite?: string,
   pluginId?: string,
+  previousInstance?: { instanceId: string; dirtyFields: string[] },
 ): Promise<T> {
   if (!(await browser.permissions.contains({ origins: [permissionOrigin(config)] }))) {
     throw new Error('请在连接设置中授权访问核心主机');
@@ -31,6 +32,10 @@ export async function requestCore<T>(
   }
   if (pluginId) {
     url.searchParams.set('pluginId', pluginId);
+  }
+  if (previousInstance) {
+    url.searchParams.set('instanceId', previousInstance.instanceId);
+    url.searchParams.set('dirtyFields', JSON.stringify(previousInstance.dirtyFields));
   }
   const response = await fetch(url, {
     method: body === undefined ? 'GET' : 'POST',
@@ -57,7 +62,9 @@ export async function requestCore<T>(
     result.success === false ||
     (typeof result.code === 'number' && result.code !== 200)
   ) {
-    throw new Error(result.message ?? `核心请求失败 (${response.status})`);
+    throw Object.assign(new Error(result.message ?? `核心请求失败 (${response.status})`), {
+      code: result.errorCode,
+    });
   }
   return result as T;
 }

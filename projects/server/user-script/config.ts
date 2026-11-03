@@ -33,7 +33,10 @@ export class UserScriptConfigDatabase {
       .get(key) as { value_json: string } | undefined;
     return row ? JSON.parse(row.value_json) : null;
   }
-  sync(input: unknown, options: { preserveFloatingWindow?: boolean } = {}): UserScriptSnapshot {
+  sync(
+    input: unknown,
+    options: { preserveFloatingWindow?: boolean; preserveBoundConfigs?: boolean } = {},
+  ): UserScriptSnapshot {
     const parsed = snapshotSchema.safeParse(input);
     if (!parsed.success || Buffer.byteLength(JSON.stringify(parsed.data)) > 512 * 1024) {
       throw new WorkbenchError('invalid_site_config', '网站配置格式错误或超过 512 KiB', 400);
@@ -51,6 +54,14 @@ export class UserScriptConfigDatabase {
         const window = previous?.data.window ?? defaultSiteData().window;
         next.data.window.pos = window.pos;
         next.data.window.minimized = window.minimized;
+      }
+      // Automatic settings are changed by bound events with field CAS. Ordinary
+      // client snapshot uploads may predate an acknowledged event and cannot overwrite them.
+      if (previous && options.preserveBoundConfigs) {
+        next.data.controls = [
+          ...next.data.controls.filter((item) => !item.channel.startsWith('v2:config:')),
+          ...previous.data.controls.filter((item) => item.channel.startsWith('v2:config:')),
+        ];
       }
       this.db
         .prepare(

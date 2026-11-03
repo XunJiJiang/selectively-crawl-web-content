@@ -467,7 +467,10 @@ async function dispatch(method: string, args: unknown, id: string): Promise<unkn
       }
       case 'script.render':
       case 'script.event': {
-        scriptUI ??= new (await import('../../user-script/ui.ts')).ScriptUIRuntime();
+        scriptUI ??= new (await import('../../user-script/ui.ts')).ScriptUIRuntime({
+          read: (...args) => peer.call('config.script.read', { args }, 10_000),
+          write: (...args) => peer.call('config.script.write', { args }, 10_000),
+        });
         const config = plugin.pluginConfig?.scripts;
         if (config?.version !== 'v2') {
           throw new Error('插件配置协议不匹配');

@@ -2,7 +2,10 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { ScriptUIView } from './script-ui.ts';
 import type { ScriptUIModel } from '../script-ui.ts';
 
-afterEach(() => document.body.replaceChildren());
+afterEach(() => {
+  document.body.replaceChildren();
+  vi.useRealTimers();
+});
 it('restores saved fields, persists edits and sends v2 events using the current field snapshot', async () => {
   const view = new ScriptUIView();
   view.model = {
@@ -61,4 +64,96 @@ it('restores saved fields, persists edits and sends v2 events using the current 
   view.values = { q: 'edited' };
   await view.updateComplete;
   expect(view.shadowRoot?.querySelector('input')?.value).toBe('edited');
+});
+
+function model(instanceId = 'initial'): ScriptUIModel {
+  return {
+    instanceId,
+    compiled: {
+      format: 'json',
+      styles: [],
+      expressions: [{ id: 'value', nodeId: 'q', attribute: 'value', parts: [] }],
+      fields: [{ name: 'q', nodeId: 'q', kind: 'string' }],
+      events: [
+        {
+          id: 'submit',
+          nodeId: 'save',
+          event: 'click',
+          capture: ['q'],
+          for: ['q'],
+          program: { branches: [] },
+        },
+      ],
+      nodes: [
+        {
+          id: 'root',
+          tag: 'div',
+          attrs: { 'data-layout': 'column' },
+          children: [
+            { id: 'q', tag: 'input', attrs: { name: 'q', value: 'initial' } },
+            { id: 'save', tag: 'button', children: [{ id: 'caption', text: 'Save' }] },
+          ],
+        },
+      ],
+    },
+    updates: [],
+  };
+}
+it('keeps a focused draft and selection during template replacement and ignores late results', async () => {
+  const view = new ScriptUIView();
+  view.identity = 'p';
+  view.model = model();
+  view.values = {};
+  let finish!: (result: { updates: { id: string; value: string }[] }) => void;
+  view.invoke = vi.fn(
+    () =>
+      new Promise<{ updates: { id: string; value: string }[] }>((resolve) => {
+        finish = resolve;
+      }),
+  );
+  document.body.append(view);
+  await view.updateComplete;
+  const input = view.shadowRoot!.querySelector('input')!;
+  input.focus();
+  input.value = 'unsaved draft';
+  input.setSelectionRange(2, 7);
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+  view.shadowRoot!.querySelector('button')!.click();
+  view.model = { ...model('next'), updates: [{ id: 'value', value: 'remote' }] };
+  await view.updateComplete;
+  const next = view.shadowRoot!.querySelector('input')!;
+  expect(next.value).toBe('unsaved draft');
+  expect(view.shadowRoot!.activeElement).toBe(next);
+  expect([next.selectionStart, next.selectionEnd]).toEqual([2, 7]);
+  finish({ updates: [{ id: 'value', value: 'late' }] });
+  await Promise.resolve();
+  expect(next.value).toBe('unsaved draft');
+});
+it('recovers stale reads once, clears recovered errors and never replays a failed submission', async () => {
+  vi.useFakeTimers();
+  const view = new ScriptUIView();
+  view.identity = 'p';
+  view.model = { ...model(), boundFields: ['q'] };
+  const stale = Object.assign(new Error('stale'), { code: 'UI_STALE_INSTANCE' });
+  const invoke = vi.fn().mockRejectedValueOnce(stale).mockResolvedValue({ updates: [] });
+  const refresh = vi.fn(async () => ({ ...model('recovered'), boundFields: ['q'] }));
+  view.invoke = invoke;
+  view.refreshModel = refresh;
+  document.body.append(view);
+  await view.updateComplete;
+  await view.readValues();
+  expect(refresh).toHaveBeenCalledTimes(1);
+  expect(invoke).toHaveBeenCalledTimes(2);
+  expect(view.shadowRoot!.querySelector('#error')!.textContent).toBe('');
+  invoke.mockRejectedValue(stale);
+  view.shadowRoot!.querySelector('button')!.click();
+  await Promise.resolve();
+  await Promise.resolve();
+  expect(refresh).toHaveBeenCalledTimes(1);
+  expect(invoke).toHaveBeenCalledTimes(3);
+  await view.readValues();
+  expect(refresh).toHaveBeenCalledTimes(2);
+  const count = invoke.mock.calls.length;
+  await vi.advanceTimersByTimeAsync(20000);
+  expect(invoke).toHaveBeenCalledTimes(count);
 });

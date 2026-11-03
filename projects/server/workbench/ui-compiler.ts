@@ -251,6 +251,7 @@ function jsonHTML(node: UINode, depth = 0, path = '0'): string {
       'description',
       'children',
       'config',
+      'configScope',
       'valueType',
       'control',
       'defaultValue',
@@ -375,6 +376,12 @@ function jsonHTML(node: UINode, depth = 0, path = '0'): string {
         );
         safeKey(node.config);
         uiAssert(
+          node.configScope === undefined || ['plugin', 'site'].includes(String(node.configScope)),
+          'UI_INVALID_CONTENT',
+          '配置作用域无效',
+        );
+        const configHandler = node.configScope === 'site' ? 'site.config.bound' : 'config.bound';
+        uiAssert(
           node.children === undefined && node.events === undefined,
           'UI_INVALID_CONTENT',
           '自动配置绑定不能同时声明 children 或 events',
@@ -410,7 +417,8 @@ function jsonHTML(node: UINode, depth = 0, path = '0'): string {
         );
         uiAssert(
           (valueType === 'boolean') === ['switch', 'checkbox'].includes(String(kind)) ||
-            kind === 'readonly',
+            kind === 'readonly' ||
+            kind === 'select',
           'UI_INVALID_CONTENT',
           '布尔参数必须使用 switch 或 checkbox',
         );
@@ -431,14 +439,18 @@ function jsonHTML(node: UINode, depth = 0, path = '0'): string {
         }
         const name =
           node.name ??
-          'setting.' + createHash('sha256').update(node.config).digest('hex').slice(0, 20);
+          'setting.' +
+            createHash('sha256')
+              .update((node.configScope === 'site' ? 'site:' : '') + node.config)
+              .digest('hex')
+              .slice(0, 20);
         uiName(name);
         const key = JSON.stringify(node.config),
           field = JSON.stringify(name);
         const fallback = JSON.stringify(
           node.defaultValue ?? (valueType === 'boolean' ? 'false' : ''),
         );
-        const read = `watch:core:config.bound.read(${key},${field},${fallback})`;
+        const read = `watch:core:${configHandler}.read(${key},${field},${fallback})`;
         const rules: Record<string, unknown> = { codec: valueType };
         for (const key of ['min', 'max', 'maxLength']) {
           if (node[key] !== undefined) {
@@ -451,7 +463,7 @@ function jsonHTML(node: UINode, depth = 0, path = '0'): string {
             typeof option === 'string' ? option : (option as { value: string }).value,
           );
         }
-        const write = `core:validate($for:${name},${JSON.stringify(rules)})|core:string.toString($prev)|core:config.bound.write(${key},${field},$prev)`;
+        const write = `core:validate($for:${name},${JSON.stringify(rules)})|core:string.toString($prev)|core:${configHandler}.write(${key},${field},$prev)`;
         const shared = {
           name,
           key: node.key ? `${node.key}-control` : undefined,
