@@ -1,4 +1,10 @@
 import { GM_xmlhttpRequest, type GmAbortHandle } from 'vite-plugin-monkey/dist/client';
+import {
+  CLIENT_VERSION,
+  VERSION_HEADER,
+  type VersionNotice,
+} from '../../../shared/client-version.ts';
+import { showVersionNotice } from '../../../shared/components/version-notice.ts';
 
 interface CoreRequestOptions {
   method?: 'GET' | 'POST';
@@ -46,6 +52,7 @@ export function requestCore(
         method: options.method ?? 'GET',
         headers: {
           ...options.headers,
+          [VERSION_HEADER]: CLIENT_VERSION,
           // 后台请求也保留当前网站身份，供核心校验 site 与来源。
           Origin: location.origin,
           Referer: `${location.origin}/`,
@@ -61,6 +68,14 @@ export function requestCore(
               const colon = line.indexOf(':');
               if (colon > 0) {
                 headers.append(line.slice(0, colon).trim(), line.slice(colon + 1).trim());
+              }
+            }
+            const encodedNotice = headers.get('X-SCWC-Version-Notice');
+            if (encodedNotice) {
+              try {
+                showVersionNotice(JSON.parse(decodeURIComponent(encodedNotice)) as VersionNotice);
+              } catch {
+                /* malformed metadata must not hide the response */
               }
             }
             finish(

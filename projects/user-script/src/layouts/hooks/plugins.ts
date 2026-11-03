@@ -3,7 +3,13 @@ import type { ReactiveController } from 'lit';
 import type { PluginConfig, PluginItem, TRequiredOptions } from '../../../../shared/types/plugin';
 import type { ScriptConfig, ScriptConfigItem } from '../../../../shared/types/config.d.ts';
 import { ConfigController, isConfig, isConfigItem } from '../../../../shared/store/config.ts';
-import { fetchPlugins, triggerPlugin } from '../../api/plugins.ts';
+import { fetchPlugins, triggerPlugin, invokeScriptUI } from '../../api/plugins.ts';
+import {
+  readScriptValues,
+  saveScriptValues,
+  type ScriptUIEvent,
+} from '../../../../shared/script-ui.ts';
+import type { FieldValue } from '../../../../shared/declarative-ui.ts';
 import { getCrawlData } from '../../utils/claw.ts';
 import type { SCWCContentPlugin } from '../content-plugin.ts';
 import { notify } from '../../utils/notify.ts';
@@ -267,6 +273,24 @@ export class PluginsController implements ReactiveController {
       this.activeTab = activeTab;
       this.host.requestUpdate();
     }
+  }
+  jsonValues(plugin: PluginConfig) {
+    return plugin.ui
+      ? readScriptValues(plugin.id, plugin.ui, siteStore.snapshot.data.controls)
+      : {};
+  }
+  saveJsonValues(plugin: PluginConfig, values: Record<string, FieldValue>) {
+    siteStore.update((data) => {
+      data.controls = saveScriptValues(plugin.id, values, data.controls);
+    });
+  }
+  invokeJson(plugin: PluginConfig, request: ScriptUIEvent) {
+    return invokeScriptUI(
+      plugin,
+      request,
+      getCrawlData(this.host.clawItems),
+      this.configController.config,
+    );
   }
   setActivePlugin(activePlugin: PluginConfig | ScriptConfig | null) {
     if (activePlugin !== this.activePlugin) {

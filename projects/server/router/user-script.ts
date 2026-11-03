@@ -1,3 +1,4 @@
+import { routeVersion } from './version.ts';
 import { Router } from 'express';
 import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, Server } from 'node:http';
@@ -10,7 +11,7 @@ import { WorkbenchError } from '../workbench/storage.ts';
 const tickets = new Map<string, { website: string; origin: string; expires: number }>();
 const router = Router();
 // 此路由经核心 Bearer 鉴权；不提供工作台编辑接口，也不接受插件页面的会话 grant。
-router.post('/config/sync', (req, res) => {
+router.post('/config/sync', routeVersion('3.2.0'), (req, res) => {
   try {
     const website = websiteOrigin(String(req.query.site));
     const extension = res.locals.browserExtension === true;

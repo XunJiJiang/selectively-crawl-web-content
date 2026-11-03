@@ -1,3 +1,4 @@
+import { routeVersion } from '../../version.ts';
 import { Router } from 'express';
 import { PluginProcessError } from '../../../plugin/process/protocol.ts';
 
@@ -27,6 +28,7 @@ export function registerPluginApi(plugin: SCWC.IPluginMeta) {
       const fullPath = `${slash}${api.path}`;
       pluginRouter[api.method.toLowerCase() as 'get' | 'post' | 'put' | 'delete'](
         fullPath,
+        routeVersion('3.2.0'),
         async (req, res) => {
           try {
             const result = await api.handler(req.body, { req, res });
@@ -87,7 +89,7 @@ export function registerPluginResources(plugin: SCWC.IPluginMeta) {
   for (const resource of resources) {
     const slash = resource.path.startsWith('/') ? '' : '/';
     const fullPath = `${slash}${resource.path}`;
-    pluginRouter.get(fullPath, async (req, res) => {
+    pluginRouter.get(fullPath, routeVersion('3.2.0'), async (req, res) => {
       try {
         await resource.handler(req.query, { req, res });
       } catch (error) {

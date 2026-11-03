@@ -8,7 +8,7 @@ LICENSE[SG2T]: F:授予使用许可 | R:- | A:MIT许可条款 | S:再分发须�
 bun.lock[FV5L]: F:锁定工作区及外部依赖解析 | R:code:package.json,code:projects/shared/package.json | A:lockfileVersion,configVersion,workspaces,packages | S:扩展与shared均登记为工作区；default-browser及其平台依赖按锁定版本解析
 oxfmt.config.ts[FQ4T]: F:约束源码格式 | R:code:package.json | A:defineConfig | S:只格式化TS，LF及两空格；忽略构建目录与编辑器配置
 oxlint.config.ts[FQ5S]: F:配置类型感知检查与平台环境 | R:code:package.json | A:defineConfig | S:强制ts/js显式扩展名；浏览器覆盖包含browser-extension与小写webutils
-package.json[FV8S]: F:组织工作区依赖与构建启动 | R:code:projects/server/scripts/setup.ts,code:projects/browser-extension/scripts/build.ts | A:workspaces,scripts,dependencies,engines | S:build先类型检查再构建扩展；默认发行含终端插件；开发Web3201；engines不替代发行探针
+package.json[FV8S]: F:组织工作区依赖、构建启动与客户端统一版本来源 | R:code:projects/server/scripts/setup.ts,code:projects/browser-extension/scripts/build.ts,code:projects/user-script/vite.config.ts | A:version,workspaces,scripts,dependencies,engines | S:脚本与扩展请求版本取本文件而非各自包版本；build先类型检查；默认发行含终端插件；开发Web3201；engines不替代发行探针
 tsconfig.app.json[FQ5T]: F:检查浏览器应用源码 | R:code:projects/shared/store/config.ts,code:projects/user-script/src/main.ts,code:projects/web/src/main.ts | A:compilerOptions,include | S:启用旧装饰器和严格无输出检查；显式包含服务端插件全局声明以供SCWC类型使用
 tsconfig.json[FQ5T]: F:聚合工作区类型检查项目 | R:code:tsconfig.app.json,code:tsconfig.serve.json,code:projects/browser-extension/tsconfig.json | A:references | S:根files为空；扩展、Vite插件、终端及插件Web按各自引用边界检查
 tsconfig.node.json[FQ4T]: F:检查Node构建配置与Web开发脚本 | R:code:tsconfig.json,code:projects/web/vite.config.ts,code:projects/web/scripts/dev.ts | A:compilerOptions,include | S:纳入根配置及Web配置、开发脚本和测试；严格无输出，采用bundler解析
@@ -61,14 +61,14 @@ load.ts[AE8L]: F:治理插件加载 | R:code:projects/server/plugin/process/clie
 log.ts[CO4T]: F:提供插件日志实例 | R:code:projects/server/utils/log.ts | A:pluginLogger | S:-
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/plugin/process/===
-client.ts[IE9L]: F:代理隔离插件、声明式UI与工作台反馈 | R:code:projects/server/plugin/process/host.ts,code:projects/server/workbench/declarative-ui.ts | A:PluginProcessClient,ClientOptions,pluginClients | S:UI快照和定向内容按宿主owner安装，清理时释放该owner全部实例；函数留宿主，文件不经IPC；输入和页面准备暂停超时；反馈延迟导入运行时；失联清理进程树
-host.ts[EE9L]: F:运行隔离插件并供给后端与声明式能力 | R:code:projects/server/plugin/process/ui-host.ts,code:projects/server/plugin/process/rpc.ts | A:插件IPC进程入口 | S:SDK先注册再导入；onLoad先于清单发布，UI暂存后激活；刷新声明进清单，函数留宿主；页面失败不阻止后端，断连清理进程树
+client.ts[IE9L]: F:代理隔离插件、脚本JSON与工作台能力 | R:code:projects/server/plugin/process/host.ts,code:projects/server/workbench/declarative-ui.ts,code:projects/shared/script-ui.ts | A:PluginProcessClient,ClientOptions,pluginClients | S:脚本v2仅代理render与event，回调不离开宿主；v1控件加载限1500ms；UI按owner安装并释放；输入与页面准备暂停超时；文件不经IPC；失联清理进程树
+host.ts[EE9L]: F:运行隔离插件并分派脚本双协议及声明式能力 | R:code:projects/server/plugin/process/ui-host.ts,code:projects/server/plugin/process/rpc.ts,code:projects/server/user-script/ui.ts | A:插件IPC进程入口,script.render,script.event | S:SDK先注册再导入，onLoad先于清单发布；脚本版本原样入清单；只有v2调用时延迟加载JSON运行器；回调注入当前logger、tasks与signal；页面失败不阻止后端
 installed-plugins.test.ts[TE5S]: F:验证本机插件原生隔离 | R:code:projects/server/plugin/process/client.ts,code:projects/server/plugin/process/options.ts | A:Vitest用例 | S:动态枚举真实插件并隔离数据；可选模块在用例内部导入；卸载保留插件独立Redis缓存以免清理挂起
 loader.test.ts[TE6M]: F:验证默认进程加载 | R:code:projects/server/plugin/load.ts,code:projects/server/plugin/web/build.ts | A:Vitest用例 | S:使用真实子进程验证页面先于onLoad准备，缺省runtime也须隔离
 options.test.ts[TE4T]: F:验证运行选项 | R:code:projects/server/plugin/process/options.ts | A:Vitest用例 | S:-
 options.ts[FE6T]: F:校验进程选项 | R:code:projects/server/types/plugin-process.d.ts | A:resolveProcessOptions | S:缺省或部分配置都使用process及契约2；超时只接受100至600000整数，不回退进程内模式
-process.test.ts[TE7L]: F:验证插件进程、HTTP、资源与脚本控件协议 | R:code:projects/server/plugin/process/client.ts,code:projects/server/plugin/process/fixtures/plugin.ts | A:Vitest集成用例 | S:原生子进程覆盖刷新规则传输及控件调用；验证文件Range，Windows跳过父进程突失，可选插件按存在性执行
-protocol.ts[FN8T]: F:定义隔离插件消息与能力清单 | R:code:projects/server/plugin/process/rpc.ts,code:projects/shared/declarative-ui.ts | A:Manifest,Initialize,Message,PluginProcessError,remoteError,PROTOCOL_VERSION | S:版本2，单消息16MiB且待答64；脚本刷新规则可传输，处理器不传函数；远程错误截为8000字符
+process.test.ts[TE7L]: F:验证真实插件进程、HTTP资源及两代脚本控件契约 | R:code:projects/server/plugin/process/client.ts,code:projects/server/router/plugin.ts | A:Vitest集成用例 | S:v2用真实Node和HTTP证明自定义控件、管道与采集上下文；低根版本在路由前拒绝；保留v1隔离、Range及失联用例
+protocol.ts[FN8T]: F:定义隔离插件消息和含脚本版本的能力清单 | R:code:projects/server/plugin/process/rpc.ts,code:projects/shared/script-ui.ts | A:Manifest,Initialize,Message,PluginProcessError,PROTOCOL_VERSION | S:IPC仍为2，单消息16MiB、待答64；scripts.version与完整采集要求可传，处理器函数不传；远程错误截8000字符
 resource.ts[IN6T]: F:发送插件资源响应 | R:code:projects/server/types/plugin-process.d.ts | A:requestData,sendResource | S:文件必须绝对路径并由Express发送，保留Range与背压；连接销毁后忽略传输错误
 rpc.test.ts[TN6S]: F:验证有界插件RPC | R:code:projects/server/plugin/process/rpc.ts | A:Vitest用例 | S:伪时钟验证输入暂停剩余超时；慢发送验证输出有序和溢出标记
 rpc.ts[IN8M]: F:传递插件RPC消息 | R:code:projects/server/plugin/process/protocol.ts | A:RpcPeer | S:发送前v8序列化限制消息；超时只拒绝调用方，业务仍可能运行；事件队列有独立上限及日志截断标记
@@ -1037,21 +1037,23 @@ workbench-BdT375X4.js[LU5L]: F:分发工作台组件、命令及事件连接工�
 index.html[EU5T]: F:装载生产工作台并标记页面身份 | R:code:projects/server/public/web/assets/index-up5Ks3yC.js,code:projects/server/public/web/assets/index-C0tSgCCc.css | A:/web/HTML入口,scwc-app元标记,ICO favicon | S:预载local-config；资源基于/web/assets；初始dark-2026；元标记供脚本跳过浮窗
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/router/===
-index.ts[MN8M]: F:接入采集、工作台与脚本及扩展HTTP | R:code:projects/server/router/extension-origin.ts,code:projects/server/router/user-script.ts | A:app,listen,/api/metadata/scrape | S:扩展仅在四个采集配置路径豁免同主机检查，仍验HTTP(S) site及Bearer；管理接口可用受限grant；响应关闭结束任务
-plugin.ts[EE7M]: F:供给并触发按URL增量刷新的插件控件 | R:code:projects/server/plugin/load.ts,code:projects/server/user-script/refresh.ts | A:GET及POST /api/plugin/config,/api/plugin/toggle | S:POST供扩展后台产生Origin；previousSite须同源，activeIds与updatedIds区分保留及替换；通道含名称与目录
+index.ts[MN8M]: F:接入采集、工作台和带客户端版本的HTTP请求 | R:code:projects/server/router/extension-origin.ts,code:projects/server/router/user-script.ts,code:projects/server/router/version.ts | A:app,listen,/api/metadata/scrape | S:仅明确扩展路径豁免同主机检查，仍验HTTP(S) site与Bearer；CORS允许版本头并暴露通知头；采集路由显式版本门槛；响应关闭结束任务
+plugin.ts[EE8L]: F:按网站供给兼容配置、定向刷新并分派双协议控件事件 | R:code:projects/server/user-script/refresh.ts,code:projects/server/user-script/ui.ts,code:projects/shared/script-ui.ts,code:projects/server/router/version.ts | A:/api/plugin/config,/toggle,/event | S:配置未声明版本按v1；v2附编译实例与范围且事件必须显式v2；pluginId仅刷新目标；previousSite须同源；v1超时不妨碍其他插件；v2事件校验插件适用站点后才入宿主
 user-script.test.ts[TC6M]: F:验证脚本及扩展配置鉴权与插件刷新HTTP契约 | R:code:projects/server/router/user-script.ts,code:projects/server/router/plugin.ts | A:Vitest集成用例 | S:真实HTTP和Socket覆盖扩展精确来源、Bearer及票据；同origin共享并保留浮窗字段，POST控件加载不放松鉴权
-user-script.ts[IN8S]: F:同步网站配置并推送同origin更新 | R:code:projects/server/user-script/config.ts,code:projects/server/router/extension-origin.ts | A:/config/sync,attachUserScriptConfigSockets | S:扩展同步事务保留浮窗位置及最小化；票据30秒单次且绑定请求者精确origin；拒页面grant并限制心跳及积压
-extension-origin.ts[MS7T]: F:限定可访问采集与配置接口的扩展来源 | R:code:projects/server/router/index.ts | A:isExtensionOrigin,extensionApiPaths | S:只接受三类扩展协议的纯origin，拒绝端口、凭据及路径；仅放行四个既有API路径
+user-script.ts[IN8S]: F:同步网站配置并推送同origin更新 | R:code:projects/server/user-script/config.ts,code:projects/server/router/extension-origin.ts,code:projects/server/router/version.ts | A:/config/sync,attachUserScriptConfigSockets | S:同步路由硬编码版本；扩展写入保留浮窗位置及最小化；票据30秒单次并绑定请求者精确origin；拒页面grant且限制心跳和积压
+extension-origin.ts[MS7T]: F:限定可访问采集、同步与插件事件接口的扩展来源 | R:code:projects/server/router/index.ts | A:isExtensionOrigin,extensionApiPaths | S:只接受三类扩展协议的纯origin，拒端口、凭据和路径；放行集合含v2事件但不放松Bearer
+version.test.ts[TN5T]: F:验证客户端版本边界、警告保留数据与过旧阻断 | R:code:projects/server/router/version.ts,code:projects/shared/client-version.ts | A:Vitest用例 | S:覆盖路由版本相等边界、无版本Web、预发布数字排序及构建元信息忽略
+version.ts[MN8T]: F:按路由最低版本与统一最新版本治理客户端请求 | R:code:projects/shared/client-version.ts | A:routeVersion,LATEST_ROUTE_VERSION | S:无头保留既有Web入口；达到路由门槛但低于最新时保留数据附warning；过旧426且不执行处理器；畸形400；单路由字面量与统一常量需同步维护
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/router/utils/===
 index.ts[KN6T]: F:匹配插件适用链接与站点规则 | R:code:projects/server/router/plugin.ts,code:projects/server/user-script/refresh.ts | A:getRootUrl,matchLink | S:普通项前缀匹配，通配项按顺序首匹配并支持否定及去协议；仅正通配列表未命中不回退全匹配
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/router/web/api/===
-index.ts[EE6T]: F:挂载工作台与插件管理API | R:code:projects/server/router/web/api/load.ts,code:projects/server/router/web/workbench/index.ts | A:/web/api/workbench,/pages,/safeId/:pluginDir | S:safeId按目录basename查找；页面清单只返回带UI入口的已加载插件
-load.ts[IE7S]: F:挂载插件HTTP接口 | R:code:projects/server/plugin/process/client.ts,code:projects/server/plugin/process/protocol.ts | A:registerPluginApi,registerPluginResources,unregisterPluginRoutes,pluginResourceRouter,default Router | S:媒体资源置于API外，鉴权票据由插件处理；safeId路由映射可撤销，进程错误状态保留
+index.ts[EE6T]: F:挂载带版本门槛的工作台及插件管理API | R:code:projects/server/router/web/api/load.ts,code:projects/server/router/web/workbench/index.ts,code:projects/server/router/version.ts | A:/web/api/workbench,/pages,/safeId/:pluginDir | S:safeId按目录basename查找；页面列表只返回带UI入口的已加载插件
+load.ts[IE7S]: F:挂载带固定版本的插件HTTP与媒体资源接口 | R:code:projects/server/plugin/process/client.ts,code:projects/server/plugin/process/protocol.ts,code:projects/server/router/version.ts | A:registerPluginApi,registerPluginResources,unregisterPluginRoutes,pluginResourceRouter | S:动态路由由核心硬编码门槛；媒体资源在API外且票据由插件处理；safeId映射可撤销，保留进程错误状态
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/router/web/===
-index.ts[EN7T]: F:挂载工作台、脚本安装资源及扩展安装向导 | R:code:projects/server/utils/extension-install-guide.ts,code:projects/server/utils/user-script.ts | A:default /web Router | S:向导票据过期返回410，清CORS并禁缓存；脚本JS公开；UI资产另验cap；开发页面跳Vite
+index.ts[EN7T]: F:挂载工作台、脚本安装资源与扩展安装向导 | R:code:projects/server/utils/extension-install-guide.ts,code:projects/server/utils/user-script.ts,code:projects/server/router/version.ts | A:default /web Router | S:各具体路由声明版本；向导票据过期410并清CORS禁缓存；脚本JS公开；UI资产另验cap；开发页面跳Vite
 local-config.test.ts[TI5S]: F:验证本机凭据加载边界 | R:code:projects/server/router/web/local-config.ts | A:Vitest用例 | S:真实HTTP覆盖开发代理仅在指定端口放行；远端、跨站和缺失身份仍拒绝，响应不得带CORS通配符
 local-config.ts[EI8T]: F:供给本机启动配置 | R:code:projects/server/common/env.ts,code:projects/server/common/setupParam.ts | A:localConfig | S:要求回环对端、专用头及精确同源来源；仅开发允许回环Host的WEB_PORT代理，返回页面同源配置；清除CORS且禁止缓存
 websocket.test.ts[TN5S]: F:验证插件通道隔离 | R:code:projects/server/router/web/websocket.ts | A:Vitest用例 | S:用真实连接确认同名通道按safeId隔离并拒绝缺失site的握手
@@ -1059,16 +1061,16 @@ websocket.ts[IN8M]: F:托管插件实时通道 | R:code:projects/server/workbenc
 development.test.ts[TI6S]: F:验证开发代理认证、跳转与公共资源过滤 | R:code:projects/server/router/web/page/index.ts,code:projects/web/vite.config.ts,code:projects/server/router/web/local-config.ts | A:Vitest集成用例 | S:真实双HTTP校验来源和票据；公共CSS无token，macos同样404；夹具禁Vite依赖扫描
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/router/web/page/===
-index.ts[EE7M]: F:供给插件页面与过滤公共资源 | R:code:projects/server/plugin/load.ts,code:projects/server/router/web/page/worry.html | A:default /web/page Router,RESOURCE_FILTERS | S:UI按真实路径限根；SPA资产不回退HTML；macos过滤请求及实路径并归一大小写；HTML最前注入最新工具
+index.ts[EE7M]: F:供给带版本声明的插件页面并过滤公共资源 | R:code:projects/server/plugin/load.ts,code:projects/server/router/web/page/worry.html,code:projects/server/router/version.ts | A:default /web/page Router,RESOURCE_FILTERS | S:UI按真实路径限根；SPA资产不回退HTML；macos过滤请求及实路径并归一大小写；HTML最前注入最新工具
 worry.html[SU2T]: F:提供错误页模板 | R:code:projects/server/router/web/page/index.ts | A:{{title}},{{status}},{{message}} | S:-
 resources.test.ts[TN5S]: F:验证公共资源过滤与路径边界 | R:code:projects/server/router/web/page/index.ts | A:Vitest HTTP用例 | S:真实HTTP覆盖GET/HEAD、编码大小写及目录链接绕过；同名前缀不误拦
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/router/web/workbench/===
 backend.test.ts[TE7L]: F:验证工作台HTTP、插件进程及安装唤起边界 | R:code:projects/server/router/web/workbench/index.ts,code:projects/server/utils/extension-install-guide.ts | A:Vitest集成用例 | S:真实IPC和HTTP覆盖通知及UI；安装拒普通grant，Safari返回警告结果；向导不泄露凭据且禁止嵌入
 dev-proxy.ts[EN6T]: F:重定向开发页面入口 | R:code:projects/server/common/setupParam.ts,code:projects/server/router/web/index.ts | A:redirectDevelopmentPage | S:按WEB_ORIGIN跳转并保留路径与查询，/web规范为/web/；不探测Vite可用性，避免IPv4地址假阴性
-index.ts[EU8L]: F:提供工作台接口、原生安装及通知宿主能力 | R:code:projects/server/workbench/runtime.ts,code:projects/server/utils/browser-extension.ts | A:createWorkbenchRouter,resolvePluginUrl,/bootstrap,/browser-extension/install | S:安装与聚焦上报拒普通页面grant；写入验owner、租约及revision；本地聚焦仅采信回环对端和来源；旧定义接口410
+index.ts[EU8L]: F:提供带逐路由版本门槛的工作台及原生安装接口 | R:code:projects/server/workbench/runtime.ts,code:projects/server/utils/browser-extension.ts,code:projects/server/router/version.ts | A:createWorkbenchRouter,resolvePluginUrl,/bootstrap,/browser-extension/install | S:路由辅助函数调用各自传版本字面量；安装和聚焦拒普通grant；写入验owner、租约与revision；本地聚焦仅采信回环对端和来源；旧定义接口410
 websocket.ts[IN8M]: F:分派工作台、插件及脚本配置Socket升级 | R:code:projects/server/workbench/events.ts,code:projects/server/workbench/page-sessions.ts,code:projects/server/router/user-script.ts | A:attachUpgradeDispatcher | S:脚本配置由专用票据处理；工作台票据单次且五秒内resume；反馈匹配文档epoch，回放缺口重同步，积压超2MiB关闭
-declarative-ui.ts[EU8S]: F:提供声明式UI实例、事件与资源路由 | R:code:projects/server/workbench/declarative-ui.ts,code:projects/server/workbench/workspace.ts | A:declarativeRouter,uiAsset | S:普通页面grant拒绝访问UI接口；创建校验窗口、租约及来源标签，事件写入再验租约；释放核验窗口归属；资源凭cap访问，隐藏内部错误
+declarative-ui.ts[EU8S]: F:提供带版本声明的UI实例、事件与资源路由 | R:code:projects/server/workbench/declarative-ui.ts,code:projects/server/workbench/workspace.ts,code:projects/server/router/version.ts | A:declarativeRouter,uiAsset | S:普通页面grant拒访问；实例创建验窗口、租约及来源标签，写事件再验租约；释放核验归属；资源凭cap且隐藏内部错误
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/scripts/===
 build-bundled-node.ts[OV7S]: F:构建携带浏览器扩展的内置Node发行包 | R:code:projects/server/scripts/build-runtime.ts,code:projects/browser-extension/scripts/build.ts | A:buildBundledNodeDistribution | S:先构建扩展，再用Node25.5以上生成SEA；仅原生平台，macOS临时签名；扩展目录位于持久部署侧
@@ -1105,7 +1107,7 @@ command.d.ts[FU7T]: F:定义命令执行契约 | R:code:projects/server/utils/co
 log.d.ts[FO4T]: F:声明日志能力 | R:code:projects/server/utils/log.ts | A:TLogger | S:-
 notifications.d.ts[FM5T]: F:转出任务与通知控制接口 | R:code:projects/shared/workbench-feedback.ts | A:NotificationLogger,NotificationController,NotificationOptions,TaskManager,TaskController | S:前后端共享同一控制对象契约，创建和更新均异步
 plugin-config.d.ts[FC8T]: F:定义插件字符串配置与定义来源契约 | R:code:projects/server/workbench/plugin-config.ts | A:PluginConfig,ConfigDefinition,ConfigSnapshot,ConfigChange | S:值及默认值都是字符串，不做JSON转换；数据与定义双revision；来源区分backend与legacy-unverified；保留旧page-required类型供迁移识别
-plugin-process.d.ts[FN8T]: F:定义隔离插件契约 | R:code:projects/server/plugin/process/client.ts,code:projects/server/plugin/process/host.ts | A:ProcessPluginHandler,ProcessOptions,ProcessInfo,PluginRequest,ProcessApi,ResourceResponse | S:跨进程仅传数据和描述，不传Express或活Socket；API版本省略按2处理，文件资源返回描述由核心发送
+plugin-process.d.ts[FN8T]: F:定义隔离插件、脚本配置与HTTP资源契约 | R:code:projects/server/plugin/process/client.ts,code:projects/server/plugin/process/host.ts,code:projects/shared/script-ui.ts | A:ProcessPluginHandler,ProcessOptions,ProcessInfo,PluginRequest,ProcessApi,ResourceResponse | S:插件端可声明v2内容与后端函数，核心代理仅留描述；跨进程不传Express和活Socket；API版本省略按2；文件描述交核心发送
 task.d.ts[FW8T]: F:定义调用任务身份 | R:code:projects/server/common/tasks.ts,code:projects/server/common/interaction.ts | A:InvocationIdentity,InvocationContext,TaskReporter,TaskSnapshot,InputResult,PluginLogger | S:输入返回错误或值二元组，支持五种构造类型；windowId可空，parentExecutionId串联子任务，快照有递增revision
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/utils/===
@@ -1179,6 +1181,9 @@ select.ts[LU5T]: F:封装并导出共享下拉选择 | R:code:projects/shared/co
 toggle.ts[LU5T]: F:封装并导出布尔切换控件 | R:code:projects/shared/components/checkbox.ts | A:SCWCToggle,scwc-toggle,SCWCToggleEventMap | S:内部复用checkbox并转发布尔change，组件仍由外部回写checked
 trigger.ts[LU5T]: F:封装并导出动作触发控件 | R:code:projects/shared/components/button.ts | A:SCWCTrigger,scwc-trigger,SCWCTriggerEventMap | S:将内部button点击转换为冒泡trigger事件
 notify.test.ts[TU5T]: F:验证通知外观重构后六向定位与回调保留 | R:code:projects/shared/components/notify.ts | A:Vitest用例 | S:伪帧与时钟覆盖点击、悬停暂停、自动及静默手动关闭，不证明实际排版
+script-ui.test.ts[TU5T]: F:验证JSON控件保存、旧快照保护及v2事件字段传输 | R:code:projects/shared/components/script-ui.ts | A:Vitest DOM用例 | S:真实固定渲染器与组件适配器组合，核验编辑值不被迟到远端值覆盖及刷新后恢复
+script-ui.ts[LU7M]: F:为脚本和扩展渲染验证后的JSON并保存字段及触发事件 | R:code:projects/web/src/components/ui-renderer.js,code:projects/web/src/components/json-components.ts,code:projects/shared/script-ui.ts | A:ScriptUIView,scwc-script-ui | S:先验JSON白名单再建DOM；按实例拒迟到结果；本地脏值在回写确认前拒旧快照；字段用v2事件传送并保留编辑序号；更新表达式逐属性复验
+version-notice.ts[LU6S]: F:为两端显示可按版本抑制的升级通知 | R:code:projects/shared/client-version.ts | A:showVersionNotice,scwc-version-notice | S:警告按当前与最新版本去重并可持久关闭；错误不使用警告抑制键；存储不可用时仍保留本会话去重
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/shared/store/===
 config.ts[CC7M]: F:协调浏览器设置控件和同页配置传播 | R:code:projects/shared/utils/storage.ts,code:projects/shared/userscript-config.ts | A:ConfigController,configContext,defaultValue,parseRefreshRule,isConfig,isConfigItem | S:使用固定公共设置键接受同origin存储事件；同页修改广播控制器并发配置事件，断连注销；连接字段共用防抖，全局URL刷新规则不供编辑
@@ -1187,7 +1192,7 @@ config.ts[CC7M]: F:协调浏览器设置控件和同页配置传播 | R:code:pro
 api.d.ts[FN4T]: F:声明共享响应封装 | R:- | A:ResponseData | S:data可缺省，成功与消息字段始终存在
 config.d.ts[FC6T]: F:声明脚本设置与本地控件契约 | R:code:projects/shared/store/config.ts,code:projects/shared/types/plugin.d.ts | A:TConfig,ScriptConfig,ScriptConfigItem | S:refreshRule仅保留旧数据兼容，不决定插件刷新；本地控件以私有Symbol绑定trigger
 notify.d.ts[FM5T]: F:声明浮层通知状态 | R:code:projects/shared/components/notify.ts | A:INotifyOptions,TNotify | S:onclose仅区分auto/user；内部状态包含隐式测高、进出场及移除阶段
-plugin.d.ts[FE5T]: F:声明浏览器插件控件与只读刷新规则 | R:code:projects/shared/types/config.d.ts | A:PluginItem,PluginConfig,TRequiredOptions,GetCrawlData | S:浏览器控件不含后端trigger，采集函数同时返回结果与失败选择项
+plugin.d.ts[FE5T]: F:声明浏览器双代插件配置与采集回调数据 | R:code:projects/shared/types/config.d.ts,code:projects/shared/script-ui.ts | A:PluginItem,PluginConfig,TRequiredOptions,GetCrawlData | S:未声明版本按v1；浏览器控件不含后端trigger；v2可携编译实例与兼容范围
 utils.d.ts[FD4T]: F:描述配置函数数组 | R:code:projects/shared/utils/storage.ts | A:JSONValue,JSONValueWithFunction,ArrayProcessor,JSONValueToFunction,ResolvedJSONValue | S:数组配置以处理器函数表达，用条件类型恢复最终JSON数组
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/shared/utils/===
@@ -1225,6 +1230,9 @@ userscript-config-schema.ts[FC7T]: F:校验网站同步快照与历史路径副�
 userscript-config.ts[FC7T]: F:定义网站配置身份、快照及默认数据 | R:code:projects/shared/types/config.d.ts | A:UserScriptSnapshot,UserScriptSiteData,websiteOrigin,defaultSiteData,copySiteData | S:版本1仅使用HTTP或HTTPS的origin，路径、query、hash和iframe身份均不区分；新默认epoch不覆盖已修改数据
 system-notifications.ts[CM7T]: F:共享系统通知设置与内核浏览器发送选择 | R:- | A:SystemNotificationMode,SystemNotificationSettings,initialSystemNotificationSettings,isLoopbackHostname,browserNotificationRoute,coreNotificationRoute | S:初始内核加非回环浏览器且未开启；localhost、127/8、::1及映射地址判回环，桌面模式强制仅内核
 command-history.ts[FC5T]: F:统一Web与独立终端的命令历史容量 | R:- | A:COMMAND_HISTORY_LIMIT | S:当前固定1000条，预留以后接入设置
+client-version.ts[KN7T]: F:定义客户端版本身份并比较语义版本及兼容范围 | R:code:package.json | A:CLIENT_VERSION,VERSION_HEADER,compareVersions,inVersionRange,versionNoticeKey | S:根版本由构建注入；构建元信息不参与排序，预发布数字按数值；范围含端点且星号无上限；通知键绑定当前和最新版本
+script-ui.test.ts[TC5T]: F:验证配置代际选择与v2字段持久兼容 | R:code:projects/shared/script-ui.ts | A:Vitest用例 | S:未声明配置仍走保留的v1；未知代际显示范围；多选编码不破坏其他插件和旧字段
+script-ui.ts[FU7S]: F:定义脚本JSON协议、兼容诊断及网站字段保存转换 | R:code:projects/shared/declarative-ui.ts,code:projects/shared/client-version.ts | A:ScriptConfigV2,ScriptContext,ScriptUIEvent,ScriptUIModel,scriptConfigProblem,saveScriptValues | S:v2必须显式声明且沿用内层JSON格式1；当前客户端继续保留v1，范围表示代际；字段用v2前缀，多选编码为字符串，不覆盖旧字段
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/terminal/===
 clipboard.ts[IU4T]: F:写入系统剪贴板 | R:code:projects/terminal/controller.ts | A:copyText | S:按平台依次尝试原生工具，全部失败后向终端发送OSC52
@@ -1275,20 +1283,20 @@ tsconfig.json[FQ3T]: F:检查终端模板类型 | R:code:projects/terminal/plugi
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/user-script/===
 .gitignore[FC2T]: F:排除脚本开发产物 | R:- | A:Git忽略规则 | S:-
-package.json[FV4T]: F:声明用户脚本版本与构建命令 | R:code:projects/user-script/vite.config.ts | A:version,dev,build,lint | S:油猴元数据版本读取此处
-vite.config.ts[FV5T]: F:构建全站用户脚本并配置DOM测试 | R:code:projects/user-script/src/main.ts,code:projects/user-script/package.json | A:Vite defineConfig,monkey | S:授予unsafeWindow与GM_xmlhttpRequest，connect含常用核心及动态主机；Host和Port有明确默认值，输出不压缩且清目录
+package.json[FV4T]: F:声明用户脚本安装版本与构建命令 | R:code:projects/user-script/vite.config.ts | A:version,dev,build,lint | S:油猴安装元数据取此包，请求版本取根包
+vite.config.ts[FV5T]: F:构建全站用户脚本并注入根包请求版本 | R:code:projects/user-script/src/main.ts,code:projects/user-script/package.json,code:package.json | A:Vite defineConfig,monkey,__SCWC_VERSION__ | S:安装元数据仍取脚本包；请求版本取根包；授unsafeWindow及GM网络权限；Host和Port有默认值；清输出且不压缩
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/user-script/src/api/===
 crawl.ts[IN6T]: F:经脚本管理器向核心提交页面采集内容 | R:code:projects/user-script/src/api/request.ts | A:sendCrawlRequest | S:site随查询及JSON发送并带Bearer；按响应success归一结果，网络或JSON异常转换失败值
-plugins.ts[IE6M]: F:经脚本管理器请求增量插件控件并触发操作 | R:code:projects/user-script/src/api/request.ts,code:projects/server/router/plugin.ts | A:fetchPlugins,triggerPlugin,PluginConfigBatch | S:previousSite及取消信号传到核心；非按钮需autoTrigger，缺失必需内容阻止调用；响应通知异步处理
-request.test.ts[TN6S]: F:验证脚本管理器请求、身份传播及取消清理 | R:code:projects/user-script/src/api/request.ts | A:Vitest用例 | S:页面fetch设为CSP失败；验证不回退fetch、不带Cookie、保留HTTP失败且取消后忽略迟到回调
-request.ts[IN7T]: F:封装脚本管理器后台网络请求为Response | R:code:projects/user-script/vite.config.ts | A:requestCore,CoreRequestOptions | S:保留页面Origin及Referer，匿名禁缓存且拒重定向；支持AbortSignal并清监听；缺GM权限直接失败，不回退页面fetch
+plugins.ts[IE6M]: F:请求双代插件配置并提交通道或JSON事件 | R:code:projects/user-script/src/api/request.ts,code:projects/server/router/plugin.ts,code:projects/shared/script-ui.ts | A:fetchPlugins,triggerPlugin,invokeScriptUI,PluginConfigBatch | S:v1触发显式带版本；v2传实例、绑定及字段快照；按完整采集要求阻止缺项调用；previousSite与取消信号保留；处理原通知结果
+request.test.ts[TN6S]: F:验证脚本管理器请求的根版本、身份及取消清理 | R:code:projects/user-script/src/api/request.ts | A:Vitest用例 | S:页面fetch设为CSP失败；确认根版本头、禁Cookie、保留HTTP失败，取消后忽略迟到回调
+request.ts[IN7S]: F:经脚本管理器提交带根版本请求并显示升级通知 | R:code:projects/user-script/vite.config.ts,code:projects/shared/client-version.ts,code:projects/shared/components/version-notice.ts | A:requestCore,CoreRequestOptions | S:保留当前网站Origin和Referer；匿名禁缓存、拒重定向，缺GM不回退fetch；通知头解析失败不影响原响应；取消释放监听
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/user-script/src/layouts/===
 content-claw.css[ZU3T]: F:排版工作台风格抓取列表与选择表单 | R:code:projects/user-script/src/layouts/content-claw.ts | A:.claw-header,.claw-item-list,.claw-item | S:列表高度受视口限制，滚动由共享容器承接
 content-claw.ts[AU7L]: F:选择网页元素并保存页面抓取项与提交内容 | R:code:projects/user-script/src/site-store.ts,code:projects/user-script/src/utils/selector.ts,code:projects/user-script/src/api/crawl.ts | A:scwc-layout-content-claw,scwc-element-highlight | S:排除浮窗和通知根；数据来自当前页面Store，输入即保存；空列表仍提交空数组，任一选择提取失败阻止普通采集，重复selector删除全部
 content-plugin.css[ZU3S]: F:排版浮窗插件标签与表单控件 | R:code:projects/user-script/src/layouts/content-plugin.ts | A:.plugin-window,.plugin-window-tabs,.plugin-content-scroll | S:标签横向滚动，内容高度受视口限制，使用共享滚动包装
-content-plugin.ts[AU5S]: F:渲染插件页签、设置及远程控件 | R:code:projects/user-script/src/layouts/hooks/plugins.ts,code:projects/user-script/src/theme.ts | A:scwc-layout-content-plugin | S:展开才请求初始列表；输入即时交控制器，select复用菜单，输入数字仍以字符串传递
+content-plugin.ts[AU6M]: F:按配置代际渲染插件标签、旧控件与JSON视图 | R:code:projects/user-script/src/layouts/hooks/plugins.ts,code:projects/shared/components/script-ui.ts,code:projects/shared/script-ui.ts | A:scwc-layout-content-plugin | S:未声明仍走v1；不兼容时显示原因而不渲染；展开才初次请求；JSON字段和事件交控制器；旧输入数字仍传字符串
 content.ts[AU4T]: F:连接浮窗抓取项与插件页签 | R:code:projects/user-script/src/layouts/content-claw.ts,code:projects/user-script/src/layouts/content-plugin.ts | A:scwc-layout-content,claw-items-changed,current-plugin-tab-changed | S:子组件事件显式转发，抓取项以属性传给插件区
 footer.ts[ZU2T]: F:保留空浮窗页脚组件 | R:- | A:scwc-layout-footer | S:-
 header.css[ZU3T]: F:排版浮窗标题与拖拽操作栏 | R:code:projects/user-script/src/layouts/header.ts | A:.scwc-layout-header,button | S:栏高复用工作台标签尺寸变量
@@ -1301,7 +1309,7 @@ content.css[ZU3T]: F:约束浮窗抓取和插件区的纵向布局 | R:code:proj
 layouts.test.ts[TU5S]: F:验证浮窗共享组件、网站数据及空采集 | R:code:projects/user-script/src/layouts/root.ts,code:projects/user-script/src/layouts/content-claw.ts | A:Vitest用例 | S:几何夹具证明远端坐标只在本页钳制；覆盖菜单切换、公共存储键保存和空数组提交
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/user-script/src/layouts/hooks/===
-plugins.ts[AE7M]: F:协调脚本控件与各插件的URL刷新 | R:code:projects/user-script/src/site-store.ts,code:projects/user-script/src/api/plugins.ts,code:projects/user-script/src/utils/url-watch.ts | A:PluginsController | S:按activeIds和updatedIds保留未刷新控件；值来自origin快照，URL响应有代数保护；输入先保存再防抖触发并等待刷新决定
+plugins.ts[AE7M]: F:协调双代控件保存、事件调用及各插件URL刷新 | R:code:projects/user-script/src/site-store.ts,code:projects/user-script/src/api/plugins.ts,code:projects/shared/script-ui.ts | A:PluginsController | S:activeIds与updatedIds保留未刷新项；v2字段与v1值共存于origin快照；URL响应有代数保护；旧输入先保存再防抖触发并等待刷新
 plugins.test.ts[TE6S]: F:验证插件增量刷新、持久化及同源导航输入 | R:code:projects/user-script/src/layouts/hooks/plugins.ts,code:projects/shared/store/config.ts | A:Vitest用例 | S:覆盖保留未刷新控件、旧URL响应拒收和待触发动作等待刷新；同origin路径导航保留连接字段的防抖修改
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/user-script/src/===
@@ -1503,7 +1511,9 @@ fetch.ts[IN5S]: F:声明请求接口并提供旧版safeId工厂 | R:code:project
 config.test.ts[TC6S]: F:验证网站配置日期裁决及扩展写入合并 | R:code:projects/server/user-script/config.ts | A:Vitest用例 | S:同origin只一记录；扩展保留脚本浮窗坐标及最小化；覆盖备份重开、同日期裁决与非法值拒写
 config.ts[PD8S]: F:持久化按origin隔离的脚本与扩展配置 | R:code:projects/server/workbench/storage.ts,code:projects/shared/userscript-config-schema.ts | A:UserScriptConfigDatabase,getUserScriptConfig,closeUserScriptConfig | S:独立SQLite且同日期核心优先，单快照512KiB；扩展写入在同一事务保留浮窗坐标及最小化；关闭保存健康备份
 refresh.test.ts[TC5T]: F:验证插件独立站点刷新策略 | R:code:projects/server/user-script/refresh.ts | A:Vitest用例 | S:覆盖首个站点规则、默认规则、新适用插件及未匹配正通配项
-refresh.ts[KC7T]: F:决定单个插件在当前网站的URL刷新时机 | R:code:projects/shared/utils/refreshRuleMatcher.ts,code:projects/server/router/utils/index.ts | A:pluginRefreshRule,shouldRefreshPlugin | S:首个匹配站点覆盖插件默认，缺省双斜杠；声明限4096字符且必须可解析，首次或新适用插件必加载
+refresh.ts[KC7T]: F:按共用元数据决定双代插件的URL刷新时机 | R:code:projects/shared/utils/refreshRuleMatcher.ts,code:projects/server/router/utils/index.ts | A:pluginRefreshRule,shouldRefreshPlugin | S:首个匹配站点覆盖默认，缺省双斜杠；规则限4096字符且可解析；首次或新适用插件必加载
+ui.test.ts[TU6T]: F:验证脚本JSON展开、后端管道及事件绑定隔离 | R:code:projects/server/user-script/ui.ts | A:Vitest用例 | S:覆盖默认字段模板、捕获采集上下文、重复事件幂等及正文冲突；拒异站实例、未知绑定、前端处理器和递归组件
+ui.ts[AU8M]: F:在插件宿主编译脚本JSON并执行绑定事件管道 | R:code:projects/server/workbench/ui-compiler.ts,code:projects/shared/ui-expressions.ts,code:projects/shared/script-ui.ts | A:ScriptUIRuntime.render,ScriptUIRuntime.event | S:组件与回调留后端，模板只调只读处理器且拒ui与watch；实例按完整URL隔离，最多128且15分钟过期；事件正文绑定ID，串行待排32，步骤传10秒取消信号；仅执行保存的绑定
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/user-script/src/test/===
 setup.ts[TQ4T]: F:为脚本DOM测试提供可写浏览器存储 | R:code:projects/user-script/vite.config.ts | A:MemoryStorage,vi.stubGlobal | S:覆盖Node原生localStorage占位，避免遮蔽测试存储
@@ -1522,29 +1532,30 @@ scwc.svg[ZU3T]: F:绘制SCWC选框与采集箭头标识 | R:code:projects/server
 PRIVACY.md[SS5T]: F:说明扩展本地存储、采集传输与数据删除边界 | R:code:projects/browser-extension/src/background.ts,code:projects/browser-extension/src/storage.ts | A:隐私说明 | S:网站配置含令牌并发往用户核心；卸载只删除浏览器副本
 PUBLISHING.md[SV5T]: F:说明商店发布与随核心附包的分发条件 | R:code:projects/browser-extension/scripts/build.ts,code:projects/server/utils/browser-extension.ts | A:Chrome商店、Firefox及Safari发布说明 | S:安装唤起只交付向导；Firefox须签名长期安装，Safari仅提供转换源包
 index.html[EU4T]: F:装载原生扩展弹窗 | R:code:projects/browser-extension/src/popup.ts | A:scwc-extension,模块入口 | S:-
-package.json[FV5T]: F:声明扩展版本及构建验证命令 | R:code:projects/browser-extension/scripts/build.ts,code:projects/browser-extension/vite.config.ts | A:version,scripts,type | S:私有ESM工作区；版本同时用于三种扩展清单及ZIP名
+package.json[FV5T]: F:声明扩展安装版本及构建验证命令 | R:code:projects/browser-extension/scripts/build.ts,code:projects/browser-extension/vite.config.ts | A:version,scripts,type | S:此版本用于三类扩展清单及ZIP名，请求兼容版本另取根包
 tsconfig.json[FQ4T]: F:检查扩展源码及浏览器验证脚本 | R:code:tsconfig.app.json | A:compilerOptions,include | S:目标ES2022，显式纳入核心插件全局声明及Vite类型
-vite.config.ts[FV5T]: F:构建扩展弹窗并配置DOM测试 | R:code:projects/browser-extension/index.html | A:Vite defineConfig | S:base为相对路径；默认清空Chromium产物目录；测试以browser-extension命名并用jsdom
+vite.config.ts[FV5T]: F:构建扩展弹窗并注入统一客户端版本 | R:code:package.json,code:projects/browser-extension/index.html | A:Vite defineConfig,__SCWC_VERSION__ | S:请求版本取根包；base相对路径；默认清空Chromium输出；测试以browser-extension命名并用jsdom
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/browser-extension/scripts/===
-build.ts[OV7S]: F:构建三种浏览器扩展目录与ZIP | R:code:projects/browser-extension/vite.config.ts,code:projects/browser-extension/src/background.ts | A:buildBrowserExtensions | S:Chromium用MV3 Worker；Firefox用事件后台与数据声明；Safari是非持久后台源包，均不含签名
+build.ts[OV7S]: F:构建三类扩展目录、后台脚本与ZIP | R:code:projects/browser-extension/vite.config.ts,code:projects/browser-extension/src/background.ts,code:package.json | A:buildBrowserExtensions | S:后台与内容脚本注入根包版本；清单仍取扩展包；Chromium用MV3 Worker，Firefox和Safari用事件后台；产物无签名
 installer-smoke.ts[TU6M]: F:验证工作台安装命令与浏览器安装向导 | R:code:projects/server/utils/extension-install-guide.ts,code:projects/web/src/layouts/root.ts | A:Node冒烟脚本 | S:替换系统安装器并隔离数据库及Chrome配置；验证暂停时请求与复制反馈，不安装真实扩展
-smoke.ts[TE6M]: F:验证真实Chromium弹窗、页面选择与核心交互 | R:code:projects/browser-extension/src/popup.ts,code:projects/browser-extension/src/content.ts | A:Node与CDP冒烟脚本 | S:仅给隔离扩展副本预授夹具主机权限；浏览器路径可覆盖，截图写dist预览目录
+smoke.ts[TE6L]: F:验证真实Chromium采集、JSON配置及标签刷新链路 | R:code:projects/browser-extension/src/popup.ts,code:projects/server/user-script/ui.ts | A:Node与CDP冒烟入口 | S:只给隔离扩展副本授夹具权限；核验根版本头、v1与v2及后端管道；刷新不换焦点也不重载其他插件；截图存dist
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/browser-extension/src/===
 background.test.ts[TS6T]: F:验证扩展后台消息与凭据访问边界 | R:code:projects/browser-extension/src/background.ts | A:Vitest用例 | S:拒绝内容脚本代理核心请求；选择草稿须来自当前文档及自身扩展
-background.ts[AE8M]: F:编排扩展消息、页面注入、采集与核心同步 | R:code:projects/browser-extension/src/storage.ts,code:projects/browser-extension/src/core.ts | A:Request,Init,PluginBatch,运行时消息入口 | S:核心请求只接受自身弹窗；页面草稿核验扩展及当前URL；同站同步串行，导航后清草稿；支持时限制存储为可信上下文
-browser.ts[LE5T]: F:统一扩展API子集与后台消息响应 | R:code:projects/browser-extension/src/background.ts | A:browser,call,BrowserTab,MessageSender,Reply | S:优先browser再chrome；失败Reply转换为异常
+background.ts[AE8M]: F:编排扩展采集、配置同步及两代插件请求 | R:code:projects/browser-extension/src/storage.ts,code:projects/browser-extension/src/core.ts,code:projects/shared/script-ui.ts | A:Request,Init,PluginBatch,运行时消息入口 | S:仅自身弹窗可调用核心和保存凭据；v2事件先从当前页面提取采集数据；逐插件刷新传pluginId；版本警告随Reply返回；同站同步串行并保留浮窗字段
+browser.ts[LE5T]: F:统一扩展API与含版本通知的后台响应 | R:code:projects/browser-extension/src/background.ts,code:projects/shared/client-version.ts | A:browser,call,Reply | S:优先browser再chrome；Reply失败转异常；版本通知只在有window的弹窗派发
 content.test.ts[TU5T]: F:验证页面元素选择、父级回退及采集格式 | R:code:projects/browser-extension/src/content.ts | A:Vitest DOM用例 | S:确认和Esc清高亮；选择器失效单独报告，文字前缀沿用脚本格式
 content.ts[IU7S]: F:在当前网页选择、高亮并提取抓取元素 | R:code:projects/user-script/src/utils/claw.ts,code:projects/user-script/src/utils/selector.ts | A:scwc.page消息与picker.selection | S:按文档幂等注入，只接受自身扩展消息；URL变化拒收；不挂浮窗，确认、Esc或pagehide清理高亮
-core.ts[IN7T]: F:从扩展后台向用户核心提交鉴权请求 | R:code:projects/browser-extension/src/model.ts,code:projects/browser-extension/src/browser.ts | A:requestCore | S:先验可选主机权限；带site与Bearer，不带Cookie或跟随重定向；25秒超时
+core.ts[IN7T]: F:向用户核心提交带根版本的鉴权请求并记录升级警告 | R:code:projects/browser-extension/src/model.ts,code:projects/shared/client-version.ts | A:requestCore,pendingVersionNotice,dismissVersionNotice | S:先验主机权限；25秒超时、禁Cookie和重定向；警告按客户端与最新路由版本保存抑制；pluginId仅限定配置刷新
 model.ts[FC7T]: F:定义扩展快照、存储键与脚本协议转换 | R:code:projects/shared/userscript-config.ts,code:projects/shared/userscript-config-schema.ts | A:Snapshot,Settings,fromWire,toWire,coreAddress,permissionOrigin | S:按origin共享；本地丢弃坐标与最小化，wire补默认窗口；主机授权不含端口，地址拒绝凭据
 popup.css[ZU3T]: F:限定原生弹窗画布与基础排版 | R:code:projects/browser-extension/src/popup.ts | A:html,body,scwc-extension | S:固定480×580且隐藏页面原生滚动
-popup.ts[AU7L]: F:提供采集、插件控件及核心连接的扩展弹窗 | R:code:projects/browser-extension/src/background.ts,code:projects/web/src/components/scroll-container.ts | A:ExtensionPopup,scwc-extension | S:选择后关闭弹窗；输入立即交后台保存，4秒轮询；代数拒迟到响应；主机权限在点击中申请，控件输入防抖500ms
+popup.ts[AU7L]: F:提供采集、双协议插件渲染与核心设置弹窗 | R:code:projects/browser-extension/src/background.ts,code:projects/shared/components/script-ui.ts,code:projects/shared/script-ui.ts | A:ExtensionPopup,scwc-extension | S:逐标签刷新不切换焦点并按代数拒迟到结果；未声明版本走v1，v2复用JSON组件并先保存字段再触发；主机授权在点击中申请；4秒轮询；旧输入防抖500ms
 storage.test.ts[TD6T]: F:验证扩展网站存储及脚本快照互操作 | R:code:projects/browser-extension/src/storage.ts,code:projects/browser-extension/src/model.ts | A:Vitest用例 | S:覆盖并发字段保存、跨站隔离、同日期核心裁决与上传中编辑保护；不落盘浮窗坐标
 storage.ts[PD7T]: F:串行保存扩展设置并裁决网站同步快照 | R:code:projects/browser-extension/src/model.ts | A:ExtensionStore,load,patch,accept,wire | S:按origin保存且日期单调；写成功才返回；同日期远端仅覆盖未被上传后编辑的副本，拒跨站响应
-surface.css[ZU4M]: F:排版扩展三页签、抓取表单与状态反馈 | R:code:projects/browser-extension/src/popup.ts,code:projects/web/var.css | A:宿主布局、表单、导航与通知样式 | S:主滚动区可收缩，复用工作台主题变量
+surface.css[ZU4M]: F:排版扩展导航、表单及带居中圆角方形刷新按钮的插件标签 | R:code:projects/browser-extension/src/popup.ts,code:projects/web/var.css | A:宿主布局,plugin-tab,plugin-refresh,spinning | S:两级标签等高；刷新当前项常显、其余悬停或聚焦显示；减弱动态禁旋转
+popup.test.ts[TU5T]: F:验证逐插件刷新时焦点、内容及加载态保留 | R:code:projects/browser-extension/src/popup.ts | A:Vitest DOM用例 | S:用待决后台Promise核验loading周期；未刷新的插件保持原对象
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/public/lib/===
-scwcutils.iife.mvzcvxpm.js[LE5T]: F:分发页面会话、反馈与请求代理SDK | R:code:projects/webutils/lib/index.ts,code:projects/webutils/lib/workbench.ts | A:scwcutils,ready,logger,tasks,fetch,websocket | S:HTTP先等ready；Socket须显式等待；仅interruptible请求可暂停重放
+scwcutils.iife.mw02c9va.js[LE5T]: F:分发页面会话、UI处理器及请求代理SDK | R:code:projects/webutils/lib/index.ts,code:projects/webutils/lib/workbench.ts | A:scwcutils,ready,fetch,resource,websocket | S:HTTP先等ready；同步Socket须先await ready；页面销毁释放会话与监听
 

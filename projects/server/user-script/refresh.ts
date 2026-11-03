@@ -2,7 +2,10 @@ import { matchLink } from '../router/utils/index.ts';
 import { shouldRefreshUrl } from '../../shared/utils/refreshRuleMatcher.ts';
 import { RefreshRuleParser } from '../../shared/utils/refreshRuleParser.ts';
 
-type Scripts = NonNullable<NonNullable<SCWC.IPluginHandler['pluginConfig']>['scripts']>;
+type Scripts = Pick<
+  SCWC.TScriptConfigV1,
+  'title' | 'description' | 'refreshRule' | 'refreshRules'
+> & { controls?: SCWC.TScriptConfigV1['controls'] };
 export function pluginRefreshRule(scripts: Scripts, site: string) {
   const rule =
     scripts.refreshRules?.find((profile) => matchLink(site, profile.sites))?.rule ??

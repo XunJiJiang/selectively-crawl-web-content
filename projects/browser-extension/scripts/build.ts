@@ -8,6 +8,9 @@ import { zipSync } from 'fflate';
 const project = path.resolve(import.meta.dirname, '..');
 const defaultOutput = path.resolve(project, '../../dist/browser-extension');
 export async function buildBrowserExtensions(output = defaultOutput) {
+  const rootMetadata = JSON.parse(
+    await fs.readFile(path.resolve(project, '../../package.json'), 'utf8'),
+  ) as { version: string };
   const metadata = JSON.parse(await fs.readFile(path.join(project, 'package.json'), 'utf8')) as {
     version: string;
   };
@@ -25,6 +28,7 @@ export async function buildBrowserExtensions(output = defaultOutput) {
       platform: 'browser',
       target: ['chrome120', 'firefox128', 'safari18'],
       minify: false,
+      define: { __SCWC_VERSION__: JSON.stringify(rootMetadata.version) },
       tsconfig: path.join(project, 'tsconfig.json'),
     });
   }

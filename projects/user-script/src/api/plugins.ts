@@ -3,6 +3,7 @@ import type { TConfig } from '../../../shared/types/config.d.ts';
 import type { PluginConfig, PluginItem, TRequiredOptions } from '../../../shared/types/plugin';
 import { notify } from '../utils/notify.ts';
 import { requestCore } from './request.ts';
+import type { ScriptUIEvent, ScriptUIResult } from '../../../shared/script-ui.ts';
 
 /** 请求插件列表 */
 export interface PluginConfigBatch {
@@ -88,6 +89,7 @@ export async function triggerPlugin(
           Authorization: `Bearer ${config.api.token}`,
         },
         body: JSON.stringify({
+          version: 'v1',
           type,
           channel,
           id: pluginId,
@@ -102,6 +104,41 @@ export async function triggerPlugin(
     ),
     /* pluginId, channel, control, */ config,
   );
+}
+
+export async function invokeScriptUI(
+  plugin: PluginConfig,
+  request: ScriptUIEvent,
+  data: TCrawlData,
+  config: TConfig,
+): Promise<ScriptUIResult> {
+  if (plugin.requireFullContent !== false && data.failed.length) {
+    throw new Error(`以下抓取项在当前页面不存在：${data.failed.join('、')}`);
+  }
+  const response = await requestCore(
+    `${config.api.host}:${config.api.port.replace(/[^\d]/g, '')}/api/plugin/event?site=${encodeURIComponent(location.href)}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.api.token}` },
+      body: JSON.stringify({ ...request, version: 'v2', id: plugin.id, data: data.result }),
+    },
+  );
+  const result = (await response.json()) as { code: number; message: string; data: ScriptUIResult };
+  if (!response.ok || result.code !== 200) {
+    throw new Error(result.message);
+  }
+  const notification = result.data.result as
+    | { type?: string; data?: { type: 'info' | 'success' | 'warn' | 'error'; message: string } }
+    | undefined;
+  if (notification?.type === 'notification' && notification.data) {
+    notify({
+      title: '插件处理结果',
+      description: notification.data.message,
+      type: notification.data.type,
+      placement: config.notify.placement,
+    });
+  }
+  return result.data;
 }
 
 /** 处理需要 fetch 的控件的请求返回值 */

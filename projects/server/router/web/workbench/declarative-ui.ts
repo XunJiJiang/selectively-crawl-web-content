@@ -1,3 +1,4 @@
+import { routeVersion } from '../../version.ts';
 import { Router, type Request, type Response, type NextFunction } from 'express';
 import { z } from 'zod';
 import { declarativeUI } from '../../../workbench/declarative-ui.ts';
@@ -9,17 +10,22 @@ function windowId(req: Request) {
   return z.string().min(1).max(200).parse(req.get('x-scwc-client-window'));
 }
 export function declarativeRouter() {
+  /* /web/api/workbench/ui */
   const router = Router();
   router.use((_req, res, next) => {
     uiAssert(!res.locals.pageSession, 'UI_RESOURCE_DENIED', '普通页面授权不能调用声明式 UI 接口');
     next();
   });
+  /** 
+   * /web/api/workbench/ui/{path}
+   */
   const route = (
     method: 'get' | 'post' | 'delete',
     url: string,
+    version: string,
     run: (req: Request, res: Response) => unknown | Promise<unknown>,
   ) =>
-    router[method](url, async (req, res, next) => {
+    router[method](url, routeVersion(version), async (req, res, next) => {
       try {
         const data = await run(req, res);
         res.json({ success: true, message: 'success', code: 'ok', data });
@@ -37,8 +43,8 @@ export function declarativeRouter() {
     );
     return owner;
   };
-  route('get', '/registry', (req) => declarativeUI.registry(windowId(req)));
-  route('post', '/instances', async (req) => {
+  route('get', '/registry', '3.2.0', (req) => declarativeUI.registry(windowId(req)));
+  route('post', '/instances', '3.2.0', async (req) => {
     const body = z
       .object({
         pluginId: z.string().min(1),
@@ -84,16 +90,16 @@ export function declarativeRouter() {
     );
     return declarativeUI.create({ ...body, windowId: owner, surface: body.surface as UISurface });
   });
-  route('get', '/instances/:id/content', (req) =>
+  route('get', '/instances/:id/content', '3.2.0', (req) =>
     declarativeUI.refresh(String(req.params.id), windowId(req)),
   );
-  route('post', '/instances/:id/data', (req) =>
+  route('post', '/instances/:id/data', '3.2.0', (req) =>
     declarativeUI.data(String(req.params.id), windowId(req), req.body),
   );
-  route('post', '/instances/:id/subscriptions', (req) =>
+  route('post', '/instances/:id/subscriptions', '3.2.0', (req) =>
     declarativeUI.data(String(req.params.id), windowId(req), req.body),
   );
-  route('post', '/instances/:id/events/continue', (req) =>
+  route('post', '/instances/:id/events/continue', '3.2.0', (req) =>
     declarativeUI.continueEvent(
       String(req.params.id),
       requireLease(req),
@@ -101,27 +107,27 @@ export function declarativeRouter() {
       req.body.succeeded === true,
     ),
   );
-  route('post', '/instances/:id/events', (req) =>
+  route('post', '/instances/:id/events', '3.2.0', (req) =>
     declarativeUI.execute(String(req.params.id), requireLease(req), req.body),
   );
-  route('delete', '/instances/:id/subscriptions/:subscriptionId', (req) =>
+  route('delete', '/instances/:id/subscriptions/:subscriptionId', '3.2.0', (req) =>
     declarativeUI.unsubscribe(
       String(req.params.id),
       windowId(req),
       String(req.params.subscriptionId),
     ),
   );
-  route('post', '/instances/:id/release', (req) => {
+  route('post', '/instances/:id/release', '3.2.0', (req) => {
     declarativeUI.get(String(req.params.id), windowId(req));
     declarativeUI.release(String(req.params.id));
     return { released: true };
   });
-  route('delete', '/instances/:id', (req) => {
+  route('delete', '/instances/:id', '3.2.0', (req) => {
     declarativeUI.get(String(req.params.id), windowId(req));
     declarativeUI.release(String(req.params.id));
     return { released: true };
   });
-  route('post', '/instances/:id/effects/ack', (req) => {
+  route('post', '/instances/:id/effects/ack', '3.2.0', (req) => {
     declarativeUI.get(String(req.params.id), windowId(req));
     return { acknowledged: true };
   });

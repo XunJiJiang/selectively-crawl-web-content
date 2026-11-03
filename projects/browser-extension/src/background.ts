@@ -1,6 +1,8 @@
 import { browser, type BrowserTab, type MessageSender, type Reply } from './browser.ts';
 import { ExtensionStore } from './storage.ts';
-import { requestCore } from './core.ts';
+import { requestCore, pendingVersionNotice, dismissVersionNotice } from './core.ts';
+import type { VersionNotice } from '../../shared/client-version.ts';
+import type { ScriptUIEvent } from '../../shared/script-ui.ts';
 import { draftKey, type Draft, type Settings, type SiteData, type Snapshot } from './model.ts';
 import { websiteOrigin } from '../../shared/userscript-config.ts';
 import type { PluginConfig } from '../../shared/types/plugin.d.ts';
@@ -21,11 +23,20 @@ export interface CrawlData {
   failed: string[];
 }
 export type Request =
+  | { type: 'version.dismiss'; notice: VersionNotice }
+  | {
+      type: 'plugin.event';
+      tab: number;
+      site: string;
+      plugin: string;
+      requireFullContent: boolean;
+      request: ScriptUIEvent;
+    }
   | { type: 'init' }
   | { type: 'settings.save'; settings: Settings }
   | { type: 'site.patch'; site: string; patch: Partial<SiteData> }
   | { type: 'core.sync'; site: string }
-  | { type: 'plugins'; tab: number; site: string; previousSite?: string }
+  | { type: 'plugins'; tab: number; site: string; previousSite?: string; pluginId?: string }
   | { type: 'crawl'; tab: number; site: string }
   | {
       type: 'trigger';
@@ -144,6 +155,21 @@ async function handle(message: Request, sender: MessageSender): Promise<unknown>
     throw new Error('请求来源不是扩展弹窗');
   }
   switch (message.type) {
+    case 'version.dismiss':
+      return dismissVersionNotice(message.notice);
+    case 'plugin.event': {
+      const { snapshot, data } = await extract(
+        message.tab,
+        message.site,
+        message.requireFullContent,
+      );
+      return requestCore(snapshot.data.config, message.site, '/api/plugin/event', {
+        ...message.request,
+        version: 'v2',
+        id: message.plugin,
+        data: data.result,
+      });
+    }
     case 'init': {
       const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
       const settings = await store.settings();
@@ -175,6 +201,7 @@ async function handle(message: Request, sender: MessageSender): Promise<unknown>
         '/api/plugin/config',
         {},
         message.previousSite,
+        message.pluginId,
       );
     }
     case 'page': {
@@ -208,6 +235,7 @@ async function handle(message: Request, sender: MessageSender): Promise<unknown>
         message.requireFullContent,
       );
       return requestCore(snapshot.data.config, message.site, '/api/plugin/toggle', {
+        version: 'v1',
         type: message.event,
         channel: message.channel,
         id: message.plugin,
@@ -223,7 +251,7 @@ async function handle(message: Request, sender: MessageSender): Promise<unknown>
 }
 browser.runtime.onMessage.addListener((input, sender, respond) => {
   void handle(input as Request, sender).then(
-    (data) => respond({ ok: true, data }),
+    (data) => respond({ ok: true, data, versionNotice: pendingVersionNotice }),
     (error: unknown) =>
       respond({ ok: false, error: error instanceof Error ? error.message : String(error) }),
   );

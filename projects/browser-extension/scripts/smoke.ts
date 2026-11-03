@@ -5,11 +5,81 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { createServer } from 'node:http';
 import assert from 'node:assert/strict';
 import { defaultSiteData } from '../../shared/userscript-config.ts';
+import { ScriptUIRuntime } from '../../server/user-script/ui.ts';
+import type { ScriptConfigV2, ScriptContext } from '../../shared/script-ui.ts';
 
 const root = path.resolve(import.meta.dirname, '../../..');
+const rootVersion = JSON.parse(await fs.readFile(path.join(root, 'package.json'), 'utf8')).version;
+const scriptUI = new ScriptUIRuntime();
+const configRequests = new Map<string, number>();
+const jsonConfig: ScriptConfigV2 = {
+  version: 'v2',
+  title: 'JSON 插件',
+  content: {
+    format: 'json',
+    version: 1,
+    root: {
+      type: 'tabs',
+      tabs: [
+        { id: 'edit', label: '编辑', children: [{ type: 'custom', component: 'editor' }] },
+        { id: 'about', label: '说明', children: [{ type: 'text', text: '后端生成的 JSON 配置' }] },
+      ],
+    },
+  },
+  components: {
+    editor: () => ({
+      type: 'stack',
+      children: [
+        { type: 'input', name: 'q', value: 'article', placeholder: '导出名称' },
+        {
+          type: 'button',
+          text: '执行管道',
+          for: 'q',
+          events: { click: 'core:string.trim($for:q)|submit($prev)' },
+        },
+      ],
+    }),
+  },
+  handlers: {
+    submit: {
+      run(value) {
+        return {
+          type: 'notification',
+          data: {
+            type: 'success',
+            message: `JSON ${value} / ${this.data.length} items / ${this.version}`,
+          },
+        };
+      },
+    },
+  },
+};
+function scriptContext(url: string, data: SCWC.TDataItem[] = []): ScriptContext {
+  const site = new URL(url);
+  return {
+    version: 'v2',
+    site: {
+      url,
+      rootUrl: site.origin,
+      origin: site.origin,
+      pathname: site.pathname,
+      host: site.host,
+      hostname: site.hostname,
+    },
+    data,
+    values: {},
+    logger: {
+      info: () => undefined,
+      warn: () => undefined,
+      error: () => undefined,
+      pathInfo: () => undefined,
+    },
+  };
+}
 const fixture = createServer(async (request, response) => {
   const url = new URL(request.url ?? '/', 'http://127.0.0.1');
   if (url.pathname.startsWith('/api/')) {
+    assert.equal(request.headers['x-scwc-version'], rootVersion);
     console.log('HTTP', request.method, url.pathname, request.headers.origin);
     let body = '';
     for await (const chunk of request) {
@@ -20,6 +90,28 @@ const fixture = createServer(async (request, response) => {
     if (url.pathname.endsWith('/sync')) {
       response.end(JSON.stringify({ success: true, data: { snapshot: input.snapshot } }));
     } else if (url.pathname.endsWith('/config')) {
+      const pluginId = url.searchParams.get('pluginId');
+      if (pluginId) {
+        await delay(250);
+      }
+      for (const id of pluginId ? [pluginId] : ['demo', 'json']) {
+        configRequests.set(id, (configRequests.get(id) ?? 0) + 1);
+      }
+      const jsonPlugin =
+        pluginId === 'demo'
+          ? undefined
+          : {
+              id: 'json',
+              version: 'v2',
+              title: 'JSON 插件',
+              description: '分组布局、自定义控件与后端管道',
+              controls: [],
+              ui: await scriptUI.render(
+                jsonConfig,
+                scriptContext(url.searchParams.get('site') ?? ''),
+              ),
+              compatibleVersions: { v1: '0.0.1-3.1.29', v2: '3.2.0-*' },
+            };
       response.end(
         JSON.stringify({
           code: 200,
@@ -43,9 +135,22 @@ const fixture = createServer(async (request, response) => {
                 },
               ],
             },
-          ],
-          activeIds: ['demo'],
-          updatedIds: ['demo'],
+            ...(jsonPlugin ? [jsonPlugin] : []),
+          ].filter((plugin) => !pluginId || plugin.id === pluginId),
+          activeIds: ['demo', 'json'],
+          updatedIds: pluginId ? [pluginId] : ['demo', 'json'],
+        }),
+      );
+    } else if (url.pathname.endsWith('/event')) {
+      assert.equal(input.version, 'v2');
+      const { id: _, data, ...event } = input;
+      response.end(
+        JSON.stringify({
+          code: 200,
+          data: await scriptUI.event(
+            event,
+            scriptContext(url.searchParams.get('site') ?? '', data),
+          ),
         }),
       );
     } else {
@@ -199,7 +304,7 @@ try {
     `document.querySelector('scwc-extension').config=${JSON.stringify(config)}; document.querySelector('scwc-extension').saveConnection()`,
   );
   assert.equal(await evaluate("document.querySelector('scwc-extension').connected"), true);
-  assert.equal(await evaluate("document.querySelector('scwc-extension').plugins.length"), 1);
+  assert.equal(await evaluate("document.querySelector('scwc-extension').plugins.length"), 2);
   await evaluate("document.querySelector('scwc-extension').page('start')");
   await cdp('Target.closeTarget', { targetId: popup.targetId });
   const pageAttached = await cdp('Target.attachToTarget', {
@@ -284,6 +389,50 @@ try {
     path.join(root, 'dist/browser-extension/previews/chromium-plugins.png'),
     Buffer.from(String(pluginShot.data), 'base64'),
   );
+  await evaluate(`(async () => {
+    const app = document.querySelector('scwc-extension'); app.activePlugin='json'; await app.updateComplete;
+    const view = app.shadowRoot.querySelector('scwc-script-ui'); await view.updateComplete;
+    const input = view.shadowRoot.querySelector('input'); input.focus(); input.value='  browser  '; input.dispatchEvent(new Event('input',{bubbles:true}));
+    await app.saveTail; view.shadowRoot.querySelector('button:not([role="tab"])').click();
+  })()`);
+  for (let i = 0; i < 50; i++) {
+    if (
+      await evaluate(
+        "document.querySelector('scwc-extension').results.includes('JSON browser / 1 items / v2')",
+      )
+    ) {
+      break;
+    }
+    await delay(100);
+  }
+  assert.equal(
+    await evaluate(
+      "document.querySelector('scwc-extension').results.includes('JSON browser / 1 items / v2')",
+    ),
+    true,
+    JSON.stringify(
+      await evaluate(
+        "({results:document.querySelector('scwc-extension').results,error:document.querySelector('scwc-extension').shadowRoot.querySelector('scwc-script-ui')?.shadowRoot.querySelector('#error')?.textContent})",
+      ),
+    ),
+  );
+  const jsonRequests = configRequests.get('json');
+  await evaluate("document.querySelector('scwc-extension').refreshPlugin('demo'); true");
+  await delay(30);
+  assert.equal(
+    await evaluate(
+      "!!document.querySelector('scwc-extension').shadowRoot.querySelector('.spinning')",
+    ),
+    true,
+  );
+  await delay(400);
+  assert.equal(configRequests.get('json'), jsonRequests);
+  assert.equal(await evaluate("document.querySelector('scwc-extension').activePlugin"), 'json');
+  const jsonShot = await cdp('Page.captureScreenshot', { format: 'png' }, session);
+  await fs.writeFile(
+    path.join(root, 'dist/browser-extension/previews/chromium-json.png'),
+    Buffer.from(String(jsonShot.data), 'base64'),
+  );
   await evaluate(
     "document.documentElement.dataset.theme='light-2026'; document.querySelector('scwc-extension').panel='capture'; document.querySelector('scwc-extension').updateComplete",
   );
@@ -293,7 +442,7 @@ try {
     Buffer.from(String(lightShot.data), 'base64'),
   );
   console.log(
-    'PASS: Chromium popup, selection/reopen, parent/undo, local persistence, core sync, plugin list, crawl, context menu, menu select, footer bounds and themes',
+    'PASS: Chromium popup, selection/reopen, parent/undo, persistence, root version header, v1/v2 JSON, backend pipeline, targeted tab refresh/loading, crawl, menus, footer bounds and themes',
   );
 } finally {
   try {

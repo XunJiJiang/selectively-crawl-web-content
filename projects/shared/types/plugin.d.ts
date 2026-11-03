@@ -3,6 +3,12 @@ export type PluginItem = Omit<SCWC.TPluginItem, 'trigger'>;
 export type TRequiredOptions = Required<Required<PluginItem>['options']>;
 
 export interface PluginConfig {
+  /** Omitted by older cores: v1. */
+  version?: string;
+  compatibleVersions?: Record<string, string>;
+  ui?: import('../script-ui.ts').ScriptUIModel;
+  requireFullContent?: boolean;
+  configError?: string;
   id: string;
   title: string;
   description: string;

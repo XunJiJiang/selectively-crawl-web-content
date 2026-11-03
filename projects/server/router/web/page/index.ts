@@ -1,3 +1,4 @@
+import { routeVersion } from '../../version.ts';
 import { Router, type Request, type Response } from 'express';
 import { plugins } from '../../../plugin/load.ts';
 import fs from 'node:fs';
@@ -44,7 +45,7 @@ function findLatestLibFile(): string | null {
 }
 
 // 挂载 web utils 库静态资源
-libRouter.get(/^\/scwcutils\.iife\.[a-zA-Z0-9]+\.js$/, (_req, res) => {
+libRouter.get(/^\/scwcutils\.iife\.[a-zA-Z0-9]+\.js$/, routeVersion('3.2.0'), (_req, res) => {
   // 查找最新的 scwcutils.iife.*.js 文件, * 是 36 进制的时间戳, 取最新的文件
   const latestFile = findLatestLibFile();
   if (!latestFile) {
@@ -144,8 +145,8 @@ async function servePlugin(req: Request, res: Response) {
       );
   }
 }
-router.get('/plugin/:pluginDir', servePlugin);
-router.get('/plugin/:pluginDir/{*path}', servePlugin);
+router.get('/plugin/:pluginDir', routeVersion('3.2.0'), servePlugin);
+router.get('/plugin/:pluginDir/{*path}', routeVersion('3.2.0'), servePlugin);
 
 /** 错误定义 */
 const errorDefinitions = {
@@ -167,7 +168,7 @@ const errorPageTemplate = fs.readFileSync(
   'utf-8',
 );
 
-router.get('/worry/:id', (req: Request<{ id: string }>, res: Response) => {
+router.get('/worry/:id', routeVersion('3.2.0'), (req: Request<{ id: string }>, res: Response) => {
   const worryId = req.params.id;
   if (!(worryId in errorDefinitions)) {
     // 转发到 /web/page/worry/404
@@ -184,33 +185,37 @@ router.get('/worry/:id', (req: Request<{ id: string }>, res: Response) => {
 
 // 处理 /web/page/resources/* 的请求
 // 返回对应的资源文件
-resourcesRouter.get('/{*path}', (req: Request<{ path: string[] }>, res: Response) => {
-  const paths = req.params.path ?? [];
-  if (paths.some((p) => p.includes('..'))) {
-    res.status(400).send('invalid path');
-    return;
-  }
-  const suffix = paths.join('/').replaceAll('\\', '/');
-  const resourceFullPath = path.resolve(RESOURCES_DIR, suffix);
-  if (!inside(RESOURCES_DIR, resourceFullPath)) {
-    res.status(400).send('invalid path');
-    return;
-  }
-  if (isResourceFiltered(RESOURCES_DIR, resourceFullPath)) {
-    res.status(404).send('not found');
-    return;
-  }
-  try {
-    const root = fs.realpathSync(RESOURCES_DIR);
-    const file = fs.realpathSync(resourceFullPath);
-    if (!inside(root, file) || isResourceFiltered(root, file) || !fs.statSync(file).isFile()) {
+resourcesRouter.get<{ path: string[] }>(
+  '/{*path}',
+  routeVersion<{ path: string[] }>('3.2.0'),
+  (req, res) => {
+    const paths = req.params.path ?? [];
+    if (paths.some((p) => p.includes('..'))) {
+      res.status(400).send('invalid path');
+      return;
+    }
+    const suffix = paths.join('/').replaceAll('\\', '/');
+    const resourceFullPath = path.resolve(RESOURCES_DIR, suffix);
+    if (!inside(RESOURCES_DIR, resourceFullPath)) {
+      res.status(400).send('invalid path');
+      return;
+    }
+    if (isResourceFiltered(RESOURCES_DIR, resourceFullPath)) {
       res.status(404).send('not found');
       return;
     }
-    res.sendFile(file);
-  } catch {
-    res.status(404).send('not found');
-  }
-});
+    try {
+      const root = fs.realpathSync(RESOURCES_DIR);
+      const file = fs.realpathSync(resourceFullPath);
+      if (!inside(root, file) || isResourceFiltered(root, file) || !fs.statSync(file).isFile()) {
+        res.status(404).send('not found');
+        return;
+      }
+      res.sendFile(file);
+    } catch {
+      res.status(404).send('not found');
+    }
+  },
+);
 
 export default router;

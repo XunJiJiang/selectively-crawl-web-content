@@ -1,3 +1,4 @@
+import { routeVersion } from './version.ts';
 import { Router, type RequestHandler } from 'express';
 import { query } from 'express-validator';
 import z from 'zod';
@@ -5,6 +6,8 @@ import { plugins } from '../plugin/load.ts';
 import { matchLink, getRootUrl } from './utils/index.ts';
 import { pluginLogger } from '../plugin/log.ts';
 import { pluginRefreshRule, shouldRefreshPlugin } from '../user-script/refresh.ts';
+import { SCRIPT_CONFIG_RANGES, type ScriptContext } from '../../shared/script-ui.ts';
+import type { PluginConfig } from '../../shared/types/plugin.d.ts';
 
 /** /api/plugin */
 const router = Router();
@@ -81,14 +84,7 @@ const getConfig: RequestHandler = async (req, res) => {
     root = root.slice(0, -1);
   }
 
-  const pluginConfigs: {
-    id: string;
-    title: string;
-    description: string;
-    'script-config-symbol'?: unknown;
-    controls: Omit<SCWC.TPluginItem, 'trigger'>[];
-    refreshRule: string;
-  }[] = [];
+  const pluginConfigs: PluginConfig[] = [];
   const activeIds: string[] = [],
     updatedIds: string[] = [];
   for (const plugin of plugins) {
@@ -101,16 +97,54 @@ const getConfig: RequestHandler = async (req, res) => {
     }
     activeIds.push(plugin.pluginId);
 
+    if (req.query.pluginId && req.query.pluginId !== plugin.pluginId) {
+      continue;
+    }
+
     try {
-      if (!shouldRefreshPlugin(scripts, plugin.linkWith, previousSite, decodedSite)) {
+      if (
+        !req.query.pluginId &&
+        !shouldRefreshPlugin(scripts, plugin.linkWith, previousSite, decodedSite)
+      ) {
         continue;
       }
       const refreshRule = pluginRefreshRule(scripts, decodedSite);
       const urlObj = new URL(decodedSite);
 
+      if (scripts.version && !['v1', 'v2'].includes(scripts.version)) {
+        throw new Error(`插件配置版本 ${scripts.version} 不兼容，请升级插件及脚本或扩展`);
+      }
+
+      if (scripts.version === 'v2') {
+        const uiHandler = plugin.handler?.scriptUI;
+        if (!uiHandler) {
+          throw new Error('插件配置 v2 后端未就绪');
+        }
+        const ui = await uiHandler.render({
+          version: 'v2',
+          site: siteInfo(decodedSite),
+          data: [],
+          values: {},
+          logger: plugin.logger,
+        });
+        updatedIds.push(plugin.pluginId);
+        pluginConfigs.push({
+          id: plugin.pluginId,
+          version: 'v2',
+          compatibleVersions: SCRIPT_CONFIG_RANGES,
+          title: scripts.title,
+          description: scripts.description ?? scripts.title,
+          refreshRule,
+          controls: [],
+          ui,
+          requireFullContent: scripts.requireFullContent ?? true,
+        });
+        continue;
+      }
+
       const controls =
-        typeof plugin.handler?.pluginConfig?.scripts?.controls === 'function'
-          ? await plugin.handler.pluginConfig.scripts.controls(plugin.logger, {
+        typeof scripts.controls === 'function'
+          ? await scripts.controls(plugin.logger, {
               site: {
                 url: decodedSite,
                 rootUrl: root,
@@ -120,7 +154,7 @@ const getConfig: RequestHandler = async (req, res) => {
                 hostname: urlObj.hostname,
               },
             })
-          : (plugin.handler?.pluginConfig?.scripts?.controls ?? []);
+          : (scripts.controls ?? []);
       updatedIds.push(plugin.pluginId);
 
       if (
@@ -132,6 +166,8 @@ const getConfig: RequestHandler = async (req, res) => {
       ) {
         pluginConfigs.push({
           id: plugin.pluginId,
+          version: 'v1',
+          compatibleVersions: SCRIPT_CONFIG_RANGES,
           refreshRule,
           title: plugin.handler.pluginConfig.scripts.title,
           description:
@@ -139,7 +175,6 @@ const getConfig: RequestHandler = async (req, res) => {
             plugin.handler.pluginConfig.scripts.title,
           // 用于浏览器脚本判断是否为脚本设置, 存在该项的 config 将被认为是脚本设置
           // 插件项不能传递这个值
-          'script-config-symbol': void 0,
           controls:
             controls.map((item) => ({
               ...item,
@@ -159,6 +194,18 @@ const getConfig: RequestHandler = async (req, res) => {
       }
     } catch (error) {
       plugin.logger.warn('读取插件控件失败，继续加载其他插件', error);
+      if (scripts.version && scripts.version !== 'v1') {
+        updatedIds.push(plugin.pluginId);
+        pluginConfigs.push({
+          id: plugin.pluginId,
+          version: scripts.version,
+          compatibleVersions: SCRIPT_CONFIG_RANGES,
+          title: scripts.title,
+          description: scripts.description ?? '',
+          controls: [],
+          configError: error instanceof Error ? error.message : '插件配置加载失败',
+        });
+      }
     }
   }
   res.json({
@@ -167,13 +214,15 @@ const getConfig: RequestHandler = async (req, res) => {
     data: pluginConfigs,
     activeIds,
     updatedIds,
+    compatibleVersions: SCRIPT_CONFIG_RANGES,
   });
 };
-router.get('/config', query('site').isURL(), getConfig);
+router.get('/config', routeVersion('3.2.0'), query('site').isURL(), getConfig);
 // Chrome 扩展后台的 GET 不携带 Origin；POST 使浏览器生成可验证的扩展来源。
-router.post('/config', query('site').isURL(), getConfig);
+router.post('/config', routeVersion('3.2.0'), query('site').isURL(), getConfig);
 
 const toggleSchema = z.object({
+  version: z.literal('v1').default('v1'),
   type: z.string(),
   channel: z.string(),
   id: z.string(),
@@ -197,7 +246,7 @@ const toggleSchema = z.object({
 });
 
 // 插件通道触发接口
-router.post('/toggle', async (req, res) => {
+router.post('/toggle', routeVersion('3.2.0'), async (req, res) => {
   const parsedBody = toggleSchema.safeParse(req.body);
 
   if (!parsedBody.success) {
@@ -254,12 +303,17 @@ router.post('/toggle', async (req, res) => {
     return;
   }
 
+  const scripts = plugin.handler?.pluginConfig?.scripts;
+  if (scripts?.version === 'v2') {
+    res.status(409).json({ code: 409, message: '插件配置需要 v2 请求，请刷新插件配置' });
+    return;
+  }
   const controls =
-    typeof plugin.handler?.pluginConfig?.scripts?.controls === 'function'
-      ? await plugin.handler.pluginConfig.scripts.controls(plugin.logger, {
+    typeof scripts?.controls === 'function'
+      ? await scripts.controls(plugin.logger, {
           site: siteInfo,
         })
-      : (plugin.handler?.pluginConfig?.scripts?.controls ?? []);
+      : (scripts?.controls ?? []);
 
   const pluginItem = controls.find((item) => item.channel === pluginChannel);
 
@@ -269,6 +323,7 @@ router.post('/toggle', async (req, res) => {
       plugin.logger.info(`触发插件通道: ${pluginChannel}`);
       plugin.logger.info(`label: ${pluginItem.label}`);
       const result = await pluginItem.trigger(plugin.logger, {
+        version: 'v1',
         data,
         value,
         relatedValues: (() => {
@@ -296,3 +351,69 @@ router.post('/toggle', async (req, res) => {
 });
 
 export default router;
+
+function siteInfo(site: string): ScriptContext['site'] {
+  const url = new URL(site);
+  return {
+    url: site,
+    rootUrl: getRootUrl(site).replace(/\/$/, ''),
+    origin: url.origin,
+    pathname: url.pathname,
+    host: url.host,
+    hostname: url.hostname,
+  };
+}
+const eventSchema = z.object({
+  version: z.literal('v2'),
+  id: z.string().min(1),
+  instanceId: z.string().uuid(),
+  eventId: z.string().min(1).max(200),
+  bindingId: z.string().min(1),
+  fields: z.record(
+    z.string(),
+    z.object({
+      value: z.union([z.string().max(16384), z.boolean(), z.array(z.string().max(16384)).max(256)]),
+      editSequence: z.number().int().nonnegative(),
+    }),
+  ),
+  event: z
+    .object({
+      modifiers: z
+        .object({ alt: z.boolean(), ctrl: z.boolean(), meta: z.boolean(), shift: z.boolean() })
+        .optional(),
+    })
+    .optional(),
+  data: z.array(z.object({ label: z.string(), value: z.string(), images: z.array(z.string()) })),
+});
+router.post('/event', routeVersion('3.2.0'), async (req, res) => {
+  const parsed = eventSchema.safeParse(req.body);
+  if (!parsed.success || typeof req.query.site !== 'string') {
+    res.status(400).json({ code: 400, message: 'v2 事件请求格式错误' });
+    return;
+  }
+  const plugin = plugins.find(
+    (p) =>
+      p.pluginId === parsed.data.id &&
+      p.linkWith &&
+      matchLink(req.query.site as string, p.linkWith),
+  );
+  if (!plugin?.handler?.scriptUI || plugin.handler.pluginConfig?.scripts?.version !== 'v2') {
+    res.status(409).json({ code: 409, message: '插件配置协议不兼容，请刷新插件配置' });
+    return;
+  }
+  try {
+    const { id: _, data: crawlData, ...request } = parsed.data;
+    const data = await plugin.handler.scriptUI.event(request, {
+      version: 'v2',
+      site: siteInfo(req.query.site),
+      data: crawlData,
+      values: {},
+      logger: plugin.logger,
+    });
+    res.json({ code: 200, message: 'success', data });
+  } catch (error) {
+    res
+      .status(400)
+      .json({ code: 400, message: error instanceof Error ? error.message : '插件事件失败' });
+  }
+});

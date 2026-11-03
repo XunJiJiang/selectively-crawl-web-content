@@ -8,6 +8,9 @@ import { styleMap } from 'lit/directives/style-map.js';
 import { PluginsController } from './hooks/plugins.ts';
 import type { SCWCCheckboxEventMap } from '../../../shared/components/checkbox.ts';
 import type { SCWCInputEventMap } from '../../../shared/components/input.ts';
+import '../../../shared/components/script-ui.ts';
+import { scriptConfigProblem, type ScriptUIEvent } from '../../../shared/script-ui.ts';
+import type { FieldValue } from '../../../shared/declarative-ui.ts';
 
 @customElement('scwc-layout-content-plugin')
 export class SCWCContentPlugin extends LitElement {
@@ -76,83 +79,97 @@ export class SCWCContentPlugin extends LitElement {
         <wb-scroll-container class="plugin-content-scroll"
           ><div class="plugin-window-content" role="tabpanel">
             ${activeTab && activePlugin
-              ? activePlugin.controls.map((control) => {
-                  switch (control.type) {
-                    case 'button':
-                      return html`
-                        <scwc-button
-                          title=${control.label}
-                          aria-label=${control.label}
-                          @click=${() => this.pluginsController.setControlValue(control, null)}
-                          >${control.label}</scwc-button
-                        >
-                      `;
-                    case 'toggle':
-                      return html`
-                        <scwc-checkbox
-                          .checked=${this.pluginsController.getControlValue(control) === true}
-                          label=${control.label}
-                          title=${control.label}
-                          aria-label=${control.label}
-                          @change=${(e: SCWCCheckboxEventMap['change']) =>
-                            this.pluginsController.setControlValue(control, e.detail)}
-                        ></scwc-checkbox>
-                      `;
-                    case 'select':
-                      return html`
-                        <label class="plugin-select"
-                          ><span>${control.label}</span>
-                          <wb-menu-select
-                            .label=${control.label}
-                            .value=${this.pluginsController.getControlValue(control)?.toString() ??
-                            ''}
-                            .options=${control.options?.options ?? []}
-                            @wb-menu-change=${(e: CustomEvent<{ value: string }>) =>
-                              this.pluginsController.setControlValue(control, e.detail.value)}
-                          ></wb-menu-select
-                        ></label>
-                      `;
-                    case 'input:text':
-                      return html`
-                        <scwc-input
-                          type="text"
-                          label=${control.label}
-                          title=${control.label}
-                          aria-label=${control.label}
-                          value=${this.pluginsController.getControlValue(control)?.toString()}
-                          @input=${(e: SCWCInputEventMap['input']) =>
-                            this.pluginsController.setControlValue(control, e.detail)}
-                        ></scwc-input>
-                      `;
-                    case 'input:number':
-                      return html`
-                        <scwc-input
-                          type="number"
-                          label=${control.label}
-                          title=${control.label}
-                          aria-label=${control.label}
-                          value=${this.pluginsController.getControlValue(control)?.toString()}
-                          @input=${(e: SCWCInputEventMap['input']) =>
-                            this.pluginsController.setControlValue(control, e.detail)}
-                        ></scwc-input>
-                      `;
-                    case 'checkbox':
-                      return html`
-                        <scwc-checkbox
-                          .checked=${this.pluginsController.getControlValue(control) === true}
-                          label=${control.label}
-                          title=${control.label}
-                          aria-label=${control.label}
-                          @change=${(e: SCWCCheckboxEventMap['change']) =>
-                            this.pluginsController.setControlValue(control, e.detail)}
-                        ></scwc-checkbox>
-                      `;
-                    default:
-                      return html`
-                        <div class="plugin-placeholder">不支持的控件类型: ${control.type}</div>
-                      `;
-                  }
-                })
+              ? activePlugin.configError || scriptConfigProblem(activePlugin)
+                ? html`<div role="alert">
+                    ${activePlugin.configError ?? scriptConfigProblem(activePlugin)}
+                  </div>`
+                : activePlugin.version === 'v2' && activePlugin.ui
+                  ? html`<scwc-script-ui
+                      .model=${activePlugin.ui}
+                      .values=${this.pluginsController.jsonValues(activePlugin)}
+                      .saveValues=${(values: Record<string, FieldValue>) =>
+                        this.pluginsController.saveJsonValues(activePlugin, values)}
+                      .invoke=${(request: ScriptUIEvent) =>
+                        this.pluginsController.invokeJson(activePlugin, request)}
+                    ></scwc-script-ui>`
+                  : activePlugin.controls.map((control) => {
+                      switch (control.type) {
+                        case 'button':
+                          return html`
+                            <scwc-button
+                              title=${control.label}
+                              aria-label=${control.label}
+                              @click=${() => this.pluginsController.setControlValue(control, null)}
+                              >${control.label}</scwc-button
+                            >
+                          `;
+                        case 'toggle':
+                          return html`
+                            <scwc-checkbox
+                              .checked=${this.pluginsController.getControlValue(control) === true}
+                              label=${control.label}
+                              title=${control.label}
+                              aria-label=${control.label}
+                              @change=${(e: SCWCCheckboxEventMap['change']) =>
+                                this.pluginsController.setControlValue(control, e.detail)}
+                            ></scwc-checkbox>
+                          `;
+                        case 'select':
+                          return html`
+                            <label class="plugin-select"
+                              ><span>${control.label}</span>
+                              <wb-menu-select
+                                .label=${control.label}
+                                .value=${this.pluginsController
+                                  .getControlValue(control)
+                                  ?.toString() ?? ''}
+                                .options=${control.options?.options ?? []}
+                                @wb-menu-change=${(e: CustomEvent<{ value: string }>) =>
+                                  this.pluginsController.setControlValue(control, e.detail.value)}
+                              ></wb-menu-select
+                            ></label>
+                          `;
+                        case 'input:text':
+                          return html`
+                            <scwc-input
+                              type="text"
+                              label=${control.label}
+                              title=${control.label}
+                              aria-label=${control.label}
+                              value=${this.pluginsController.getControlValue(control)?.toString()}
+                              @input=${(e: SCWCInputEventMap['input']) =>
+                                this.pluginsController.setControlValue(control, e.detail)}
+                            ></scwc-input>
+                          `;
+                        case 'input:number':
+                          return html`
+                            <scwc-input
+                              type="number"
+                              label=${control.label}
+                              title=${control.label}
+                              aria-label=${control.label}
+                              value=${this.pluginsController.getControlValue(control)?.toString()}
+                              @input=${(e: SCWCInputEventMap['input']) =>
+                                this.pluginsController.setControlValue(control, e.detail)}
+                            ></scwc-input>
+                          `;
+                        case 'checkbox':
+                          return html`
+                            <scwc-checkbox
+                              .checked=${this.pluginsController.getControlValue(control) === true}
+                              label=${control.label}
+                              title=${control.label}
+                              aria-label=${control.label}
+                              @change=${(e: SCWCCheckboxEventMap['change']) =>
+                                this.pluginsController.setControlValue(control, e.detail)}
+                            ></scwc-checkbox>
+                          `;
+                        default:
+                          return html`
+                            <div class="plugin-placeholder">不支持的控件类型: ${control.type}</div>
+                          `;
+                      }
+                    })
               : html`
                   <div class="plugin-placeholder">
                     ${plugins === null

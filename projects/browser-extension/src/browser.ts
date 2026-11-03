@@ -1,3 +1,4 @@
+import type { VersionNotice } from '../../shared/client-version.ts';
 /** 只声明本扩展使用的 WebExtensions 子集；Chrome MV3、Firefox 和 Safari 共用 Promise API。 */
 export interface BrowserTab {
   id?: number;
@@ -52,12 +53,16 @@ interface BrowserAPI {
 const globals = globalThis as typeof globalThis & { browser?: BrowserAPI; chrome?: BrowserAPI };
 export const browser = (globals.browser ?? globals.chrome) as BrowserAPI;
 export interface Reply<T> {
+  versionNotice?: VersionNotice;
   ok: boolean;
   data?: T;
   error?: string;
 }
 export async function call<T>(message: unknown): Promise<T> {
   const reply = await browser.runtime.sendMessage<Reply<T>>(message);
+  if (reply?.versionNotice && typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('scwc-version-notice', { detail: reply.versionNotice }));
+  }
   if (!reply?.ok) {
     throw new Error(reply?.error ?? '扩展后台没有响应');
   }

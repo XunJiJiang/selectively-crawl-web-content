@@ -8,7 +8,11 @@ const fixture = vi.hoisted(() => ({
     | undefined,
   core: vi.fn(),
 }));
-vi.mock('./core.ts', () => ({ requestCore: fixture.core }));
+vi.mock('./core.ts', () => ({
+  requestCore: fixture.core,
+  pendingVersionNotice: undefined,
+  dismissVersionNotice: vi.fn(),
+}));
 vi.mock('./browser.ts', () => ({
   browser: {
     runtime: {

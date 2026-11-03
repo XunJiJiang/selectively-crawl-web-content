@@ -377,7 +377,7 @@ export class PluginProcessClient {
       return;
     }
     if (event === 'ui.watch.changed') {
-      declarativeUI.watchChanged(this.owner,(value as { id: string }).id);
+      declarativeUI.watchChanged(this.owner, (value as { id: string }).id);
       return;
     }
     if (event === 'notification.workbench') {
@@ -694,24 +694,41 @@ export class PluginProcessClient {
               })),
             }
           : undefined,
-        scripts: manifest.scripts
+        scripts:
+          manifest.scripts?.version === 'v2'
+            ? {
+                ...manifest.scripts,
+                version: 'v2',
+                requireFullContent: manifest.scriptRequireFullContent,
+              }
+            : manifest.scripts
+              ? {
+                  ...manifest.scripts,
+                  version: manifest.scripts.version as 'v1' | undefined,
+                  controls: async (_logger, context) => {
+                    const items = await this.call<Omit<SCWC.TPluginItem, 'trigger'>[]>(
+                      'controls',
+                      context,
+                      1500,
+                    );
+                    return items.map((item) => ({
+                      ...item,
+                      trigger: (_logger, context) =>
+                        this.call('trigger', { channel: item.channel, context }),
+                    }));
+                  },
+                }
+              : undefined,
+      },
+      scriptUI:
+        manifest.scripts?.version === 'v2'
           ? {
-              ...manifest.scripts,
-              controls: async (_logger, context) => {
-                const items = await this.call<Omit<SCWC.TPluginItem, 'trigger'>[]>(
-                  'controls',
-                  context,
-                  1500,
-                );
-                return items.map((item) => ({
-                  ...item,
-                  trigger: (_logger, context) =>
-                    this.call('trigger', { channel: item.channel, context }),
-                }));
-              },
+              render: ({ logger: _, tasks: __, signal: ___, ...context }) =>
+                this.call('script.render', { context }),
+              event: (request, { logger: _, tasks: __, signal: ___, ...context }) =>
+                this.call('script.event', { request, context }),
             }
           : undefined,
-      },
       ui: manifest.ui
         ? {
             entry: manifest.ui.entry,

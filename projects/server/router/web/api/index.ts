@@ -1,3 +1,4 @@
+import { routeVersion } from '../../version.ts';
 import { Router, type Request, type Response } from 'express';
 import { plugins } from '../../../plugin/load.ts';
 import path from 'node:path';
@@ -11,26 +12,30 @@ const router = Router();
 router.use('/workbench', workbenchRouter);
 
 // 请求插件的 safeId
-router.get('/safeId/:pluginDir', (req: Request<{ pluginDir: string }>, res: Response) => {
-  const pluginDir = req.params.pluginDir;
-  const plugin = plugins.find(
-    (p) => path.basename(p.pluginDir).trim() === pluginDir.toString().trim(),
-  );
-  if (!plugin) {
-    res.status(404).send('not found');
-    return;
-  }
-  res.json({
-    success: true,
-    message: '获取插件 safeId 成功',
-    data: {
-      safeId: plugin.safeId,
-    },
-  });
-});
+router.get(
+  '/safeId/:pluginDir',
+  routeVersion('3.2.0'),
+  (req: Request<{ pluginDir: string }>, res: Response) => {
+    const pluginDir = req.params.pluginDir;
+    const plugin = plugins.find(
+      (p) => path.basename(p.pluginDir).trim() === pluginDir.toString().trim(),
+    );
+    if (!plugin) {
+      res.status(404).send('not found');
+      return;
+    }
+    res.json({
+      success: true,
+      message: '获取插件 safeId 成功',
+      data: {
+        safeId: plugin.safeId,
+      },
+    });
+  },
+);
 
 // 获取全部挂载了 ui 的插件信息
-router.get('/pages', (_req, res) => {
+router.get('/pages', routeVersion('3.2.0'), (_req, res) => {
   const pluginsWithUI = plugins.filter(
     (plugin) => plugin.handler?.ui && plugin.handler.ui.entry,
   ) as (SCWC.IPluginMeta & {

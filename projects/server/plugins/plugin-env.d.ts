@@ -78,6 +78,8 @@ namespace SCWC {
   export type TCommandComplete = import('../types/command.d.ts').TCommandComplete;
   export type CommandCompletionCache = import('../types/command.d.ts').CommandCompletionCache;
 
+  export type TScriptConfigV2 = import('../../shared/script-ui.ts').ScriptConfigV2;
+  export type TScriptContext = import('../../shared/script-ui.ts').ScriptContext;
   export interface TDataItem {
     label: string;
     value: string;
@@ -115,6 +117,7 @@ namespace SCWC {
     trigger: (
       logger: SCWC.TLogger,
       context: {
+        version?: 'v1';
         tasks?: import('../types/task.d.ts').TaskReporter;
         signal?: AbortSignal;
         /** 捕获的数据 */
@@ -221,8 +224,30 @@ namespace SCWC {
   export type InvocationInputError = import('../common/interaction.ts').InvocationInputError;
   export type InputResult<T> = import('../types/task.d.ts').InputResult<T>;
 
+  export interface TScriptConfigV1 {
+    version?: 'v1';
+    title: string;
+    description?: string;
+    /** 默认检测 pathname 变化；由插件声明，用户脚本中不可编辑。空字符串忽略同站 URL 变化。 */
+    refreshRule?: string;
+    /** 按 linkWith 同样的匹配语法选择网站规则，首个命中生效。 */
+    refreshRules?: { sites: string[]; rule: string }[];
+    controls: TPluginItem[] | TCreatePluginItem;
+    // TODO: 支持一些钩子函数, 例如: 某网站启动、加载插件配置、调用插件项等
+  }
+
   /** Core-generated adapter. Plugins implement IPluginHandler instead. */
   export interface IHostedPluginHandler {
+    /** Core process proxy; plugin functions remain in their host. */
+    scriptUI?: {
+      render(
+        context: import('../../shared/script-ui.ts').ScriptContext,
+      ): Promise<import('../../shared/script-ui.ts').ScriptUIModel>;
+      event(
+        request: import('../../shared/script-ui.ts').ScriptUIEvent,
+        context: import('../../shared/script-ui.ts').ScriptContext,
+      ): Promise<import('../../shared/script-ui.ts').ScriptUIResult>;
+    };
     name?: string;
     title?: string;
     description?: string;
@@ -304,16 +329,12 @@ namespace SCWC {
         exampleUsage?: string;
         complete?: TCommandComplete;
       };
-      scripts?: {
-        title: string;
-        description?: string;
-        /** 默认检测 pathname 变化；由插件声明，用户脚本中不可编辑。空字符串忽略同站 URL 变化。 */
-        refreshRule?: string;
-        /** 按 linkWith 同样的匹配语法选择网站规则，首个命中生效。 */
-        refreshRules?: { sites: string[]; rule: string }[];
-        controls: TPluginItem[] | TCreatePluginItem;
-        // TODO: 支持一些钩子函数, 例如: 某网站启动、加载插件配置、调用插件项等
-      };
+      scripts?:
+        | TScriptConfigV1
+        | Omit<
+            import('../../shared/script-ui.ts').ScriptConfigV2,
+            'content' | 'components' | 'handlers'
+          >;
     };
     // ui 相关的配置项
     ui?: {

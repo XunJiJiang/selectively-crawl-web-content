@@ -115,7 +115,8 @@ nav button {
   padding: 0 16px;
   color: var(--text-secondary);
 }
-nav button.active {
+nav button.active,
+.plugin-tab[data-active='true'] {
   border-color: var(--accent-primary);
   color: var(--text-primary);
 }
@@ -301,20 +302,65 @@ input::placeholder {
 }
 .plugin-tabs {
   max-width: 100%;
-  margin: 4px 0 16px;
+  margin: -20px -20px 16px;
+  max-width: calc(100% + 40px);
+  border-bottom: 1px solid var(--border-default);
 }
 .plugin-tab-row {
   display: flex;
   width: max-content;
   gap: 0;
 }
-.plugin-tab-row button {
-  padding: 6px 16px;
-  border-radius: 0;
+.plugin-tab {
+  display: flex;
+  align-items: center;
+  height: var(--wb-tab-bar-height);
+  border-bottom: 2px solid transparent;
 }
-.plugin-tab-row .selected {
-  color: var(--accent-primary);
-  background: var(--accent-subtle);
+.plugin-tab-row button {
+  height: calc(var(--wb-tab-bar-height) - 2px);
+  padding: 0 16px;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--text-secondary);
+}
+.plugin-tab[data-active='true'] > button {
+  color: var(--text-primary);
+}
+.plugin-tab-row .plugin-refresh {
+  visibility: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  margin-right: 4px;
+  padding: 0;
+  border-radius: var(--radius-sm);
+}
+.plugin-tab[data-active='true'] .plugin-refresh,
+.plugin-tab:hover .plugin-refresh,
+.plugin-tab:focus-within .plugin-refresh {
+  visibility: visible;
+}
+.plugin-tab-row button:hover {
+  background: var(--surface-3);
+}
+.spinning {
+  display: inline-block;
+  animation: plugin-spin 1s linear infinite;
+}
+@keyframes plugin-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spinning {
+    animation: none;
+  }
 }
 .plugin-form .control {
   margin: 12px 0;

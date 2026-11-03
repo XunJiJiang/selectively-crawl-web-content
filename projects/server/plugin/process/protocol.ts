@@ -22,8 +22,9 @@ export interface Manifest {
   };
   scripts?: Pick<
     NonNullable<SCWC.IPluginHandler['pluginConfig']>['scripts'] & {},
-    'title' | 'description' | 'refreshRule' | 'refreshRules'
+    'title' | 'description' | 'refreshRule' | 'refreshRules' | 'version'
   >;
+  scriptRequireFullContent?: boolean;
   ui?: {
     entry: string;
     hasHtml: boolean;

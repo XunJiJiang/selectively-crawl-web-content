@@ -188,6 +188,53 @@ afterEach(async () => {
 });
 
 describe('isolated plugin host', () => {
+  it('transports explicit v2 JSON and dispatches bound events in the plugin process over HTTP', async () => {
+    const c = setup({
+      source: `export default {onRequest(){},pluginConfig:{scripts:{version:'v2',title:'JSON',components:{editor(){return {type:'stack',children:[{type:'input',name:'q',value:'default'},{type:'button',text:'Save',for:'q',events:{click:'core:string.trim($for:q)|save($prev)'}}]};}},handlers:{save:{run(value){return {pid:process.pid,value,version:this.version,site:this.site.url,data:this.data};}}},content:{format:'json',version:1,root:{type:'custom',component:'editor'}}}}};`,
+    });
+    const handler = await c.client.start();
+    const plugin = metadata(handler, c.client, 'json');
+    plugin.linkWith = ['https://example.com/*'];
+    mocks.plugins.push(plugin);
+    const { origin } = await listen(express().use(express.json()).use('/plugin', pluginRouter));
+    const headers = { 'Content-Type': 'application/json', 'X-SCWC-Version': '3.2.0' };
+    const config = await (
+      await fetch(`${origin}/plugin/config?site=https://example.com/a`, { headers })
+    ).json();
+    expect(config.compatibleVersions).toEqual({ v1: '0.0.1-3.1.29', v2: '3.2.0-*' });
+    expect(config.data[0]).toMatchObject({
+      version: 'v2',
+      title: 'JSON',
+      controls: [],
+      ui: { compiled: { format: 'json' } },
+    });
+    const model = config.data[0].ui;
+    const response = await fetch(`${origin}/plugin/event?site=https://example.com/a`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        version: 'v2',
+        id: 'json',
+        instanceId: model.instanceId,
+        eventId: 'first',
+        bindingId: model.compiled.events[0].id,
+        fields: { q: { value: '  hello  ', editSequence: 1 } },
+        data: [{ label: 'body', value: 'article', images: [] }],
+      }),
+    });
+    expect(response.status).toBe(200);
+    expect((await response.json()).data.result).toEqual({
+      pid: c.client.info.pid,
+      value: 'hello',
+      version: 'v2',
+      site: 'https://example.com/a',
+      data: [{ label: 'body', value: 'article', images: [] }],
+    });
+    const old = await fetch(`${origin}/plugin/config?site=https://example.com/a`, {
+      headers: { 'X-SCWC-Version': '3.1.29' },
+    });
+    expect(old.status).toBe(426);
+  });
   it('runs candidate callbacks in the host with a retained cache, output routing and cancellation without command deadlines', async () => {
     const c = setup({
       timeout: 100,

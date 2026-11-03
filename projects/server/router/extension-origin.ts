@@ -23,5 +23,6 @@ export const extensionApiPaths = new Set([
   '/api/metadata/scrape',
   '/api/plugin/config',
   '/api/plugin/toggle',
+  '/api/plugin/event',
   '/api/userscript/config/sync',
 ]);

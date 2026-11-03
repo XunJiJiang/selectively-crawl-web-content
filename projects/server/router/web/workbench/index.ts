@@ -1,3 +1,4 @@
+import { routeVersion } from '../../version.ts';
 import { declarativeUI } from '../../../workbench/declarative-ui.ts';
 import { declarativeRouter } from './declarative-ui.ts';
 import { Router, type Request, type Response, type NextFunction } from 'express';
@@ -120,6 +121,7 @@ function pageList(
   };
 }
 export function createWorkbenchRouter() {
+  /* /web/api/workbench */
   const router = Router();
   router.use((req, res, next) => {
     res.locals.requestId = randomUUID();
@@ -132,13 +134,17 @@ export function createWorkbenchRouter() {
       next(e);
     }
   });
+  /**
+   * /web/api/workbench/{path}
+   */
   const route = (
     method: 'get' | 'post',
     path: string,
+    version: string,
     run: (req: Request, res: Response) => unknown | Promise<unknown>,
     status = 200,
   ) =>
-    router[method](path, async (req, res, next) => {
+    router[method](path, routeVersion(version), async (req, res, next) => {
       try {
         const data = await run(req, res);
         if (!res.headersSent) {
@@ -154,7 +160,7 @@ export function createWorkbenchRouter() {
         next(e);
       }
     });
-  route('post', '/userscript/install', async (req, res) => {
+  route('post', '/userscript/install', '3.2.0', async (req, res) => {
     assert(!page(res), 'grant_scope', '普通页面授权不能打开系统浏览器', 403);
     owner(req);
     try {
@@ -167,7 +173,7 @@ export function createWorkbenchRouter() {
       );
     }
   });
-  route('post', '/browser-extension/install', async (req, res) => {
+  route('post', '/browser-extension/install', '3.2.0', async (req, res) => {
     assert(!page(res), 'grant_scope', '普通页面授权不能打开系统浏览器', 403);
     owner(req);
     try { return await openBrowserExtensionInstaller(); }
@@ -175,7 +181,7 @@ export function createWorkbenchRouter() {
       throw new WorkbenchError('extension_install_failed', error instanceof Error ? error.message : '浏览器扩展安装唤起失败', 503);
     }
   });
-  route('get', '/bootstrap', (_req) => {
+  route('get', '/bootstrap', '3.2.0', (_req) => {
     const w = getWorkbench();
     return {
       installationId: w.storage.installationId,
@@ -197,7 +203,7 @@ export function createWorkbenchRouter() {
       commands: w.commands.commands(),
     };
   });
-  route('get', '/plugins', async (req, res) => {
+  route('get', '/plugins', '3.2.0', async (req, res) => {
     const items = await pluginCatalog.list();
     const etag = `"${createHash('sha256').update(JSON.stringify(items)).digest('hex')}"`;
     res.set('ETag', etag);
@@ -209,13 +215,13 @@ export function createWorkbenchRouter() {
   });
   route(
     'post',
-    '/plugins/rescan',
+    '/plugins/rescan', '3.2.0',
     (req) => getWorkbench().operations.start('', 'rescan', key(req)),
     202,
   );
   route(
     'post',
-    '/plugins/:id/actions',
+    '/plugins/:id/actions', '3.2.0',
     (req) =>
       getWorkbench().operations.start(
         String(req.params.id),
@@ -224,28 +230,28 @@ export function createWorkbenchRouter() {
       ),
     202,
   );
-  route('get', '/jobs', () => getWorkbench().operations.list());
-  route('get', '/jobs/:id', (req, res) =>
+  route('get', '/jobs', '3.2.0', () => getWorkbench().operations.list());
+  route('get', '/jobs/:id', '3.2.0', (req, res) =>
     page(res)
       ? feedbackRequest(feedbackOwner(req, res), `/jobs/${req.params.id}`, undefined)
       : getWorkbench().operations.get(String(req.params.id)),
   );
-  route('post', '/jobs/:id/cancel', (req, res) =>
+  route('post', '/jobs/:id/cancel', '3.2.0', (req, res) =>
     page(res)
       ? feedbackRequest(feedbackOwner(req, res), `/jobs/${req.params.id}/cancel`, req.body)
       : getWorkbench().operations.cancel(String(req.params.id), revision(req.body.baseRevision)),
   );
-  route('post', '/jobs/ack', (req) => {
+  route('post', '/jobs/ack', '3.2.0', (req) => {
     getWorkbench().operations.acknowledge(req.body.ids);
     return { acknowledged: true };
   });
   for (const path of ['/tasks/create', '/tasks/start', '/tasks/:id/update']) {
-    route('post', path, (req, res) => feedbackRequest(feedbackOwner(req, res), req.path, req.body));
+    route('post', path, '3.2.0', (req, res) => feedbackRequest(feedbackOwner(req, res), req.path, req.body));
   }
-  route('get', '/tasks/:id', (req, res) =>
+  route('get', '/tasks/:id', '3.2.0', (req, res) =>
     feedbackRequest(feedbackOwner(req, res), req.path, undefined),
   );
-  route('post', '/feedback/release', (req, res) => {
+  route('post', '/feedback/release', '3.2.0', (req, res) => {
     const identity = feedbackOwner(req, res);
     if (identity.ownerId) {
       getWorkbench().notifications.releaseOwner(identity.ownerId);
@@ -253,12 +259,12 @@ export function createWorkbenchRouter() {
     }
     return { released: true };
   });
-  route('post', '/url/resolve', async (req, res) => {
+  route('post', '/url/resolve', '3.2.0', async (req, res) => {
     const result = resolvePluginUrl(req.body.url, req.body.pluginId, res.locals.origin);
     await pluginCatalog.require(result.pluginId);
     return result;
   });
-  route('post', '/workspaces/:id/lease', (req) =>
+  route('post', '/workspaces/:id/lease', '3.2.0', (req) =>
     getWorkbench().workspace.lease(
       String(req.params.id),
       owner(req),
@@ -266,14 +272,14 @@ export function createWorkbenchRouter() {
       req.body.lease,
     ),
   );
-  route('get', '/workspaces/:id', (req) => {
+  route('get', '/workspaces/:id', '3.2.0', (req) => {
     const w = getWorkbench();
     return {
       ...w.workspace.get(String(req.params.id)),
       ...w.commands.state(String(req.params.id)),
     };
   });
-  route('post', '/workspaces/:id/save', (req, res) => {
+  route('post', '/workspaces/:id/save', '3.2.0', (req, res) => {
     const s = req.body.snapshot;
     for (const tab of s?.tabs ?? []) {
       if (tab.kind === 'plugin') {
@@ -289,7 +295,7 @@ export function createWorkbenchRouter() {
       key(req),
     );
   });
-  route('post', '/workspaces/:id/close-tabs', (req) =>
+  route('post', '/workspaces/:id/close-tabs', '3.2.0', (req) =>
     getWorkbench().workspace.closeTabs(
       String(req.params.id),
       req.body.tabIds,
@@ -299,21 +305,21 @@ export function createWorkbenchRouter() {
       key(req),
     ),
   );
-  route('post', '/bookmarks/move', (req) => getWorkbench().workspace.moveBookmark(req.body));
-  route('get', '/preferences', () => getWorkbench().workspace.preferences());
-  route('post', '/preferences', (req) =>
+  route('post', '/bookmarks/move', '3.2.0', (req) => getWorkbench().workspace.moveBookmark(req.body));
+  route('get', '/preferences', '3.2.0', () => getWorkbench().workspace.preferences());
+  route('post', '/preferences', '3.2.0', (req) =>
     getWorkbench().workspace.setPreferences(
       req.body.values,
       revision(req.body.baseRevision),
       req.body.reset,
     ),
   );
-  route('get', '/bookmarks', (req) => pageList(req, getWorkbench().workspace.bookmarks()));
-  route('post', '/bookmarks', (req, res) => {
+  route('get', '/bookmarks', '3.2.0', (req) => pageList(req, getWorkbench().workspace.bookmarks()));
+  route('post', '/bookmarks', '3.2.0', (req, res) => {
     resolvePluginUrl(req.body.value?.url, req.body.value?.pluginId, res.locals.origin);
     return getWorkbench().workspace.bookmark(req.body.value);
   });
-  route('post', '/bookmarks/:id/update', (req, res) => {
+  route('post', '/bookmarks/:id/update', '3.2.0', (req, res) => {
     resolvePluginUrl(req.body.value?.url, req.body.value?.pluginId, res.locals.origin);
     return getWorkbench().workspace.bookmark(
       req.body.value,
@@ -321,7 +327,7 @@ export function createWorkbenchRouter() {
       revision(req.body.baseRevision),
     );
   });
-  route('post', '/bookmarks/:id/delete', (req) =>
+  route('post', '/bookmarks/:id/delete', '3.2.0', (req) =>
     getWorkbench().workspace.bookmark(
       undefined,
       String(req.params.id),
@@ -329,12 +335,12 @@ export function createWorkbenchRouter() {
       true,
     ),
   );
-  route('get', '/history', (req) => pageList(req, getWorkbench().workspace.history()));
-  route('post', '/history/delete', (req) => {
+  route('get', '/history', '3.2.0', (req) => pageList(req, getWorkbench().workspace.history()));
+  route('post', '/history/delete', '3.2.0', (req) => {
     getWorkbench().workspace.deleteHistory(req.body.closeIds);
     return { deleted: true };
   });
-  route('post', '/history/restore', (req) => {
+  route('post', '/history/restore', '3.2.0', (req) => {
     const ids =
       req.body.closeIds ??
       getWorkbench()
@@ -351,9 +357,9 @@ export function createWorkbenchRouter() {
       key(req),
     );
   });
-  route('get', '/plugins/:id/config', (req) => getPluginConfig().snapshot(String(req.params.id)));
+  route('get', '/plugins/:id/config', '3.2.0', (req) => getPluginConfig().snapshot(String(req.params.id)));
   for (const path of ['/plugins/:id/config/definitions', '/plugins/:id/config/validation']) {
-    route('post', path, () => {
+    route('post', path, '3.2.0', () => {
       throw new WorkbenchError(
         'page_configuration_removed',
         '页面配置写入与校验能力已移除，请由插件后端注册定义和校验器',
@@ -362,7 +368,7 @@ export function createWorkbenchRouter() {
     });
   }
   for (const action of ['update', 'reset']) {
-    route('post', `/plugins/:id/config/${action}`, async (req, res) => {
+    route('post', `/plugins/:id/config/${action}`, '3.2.0', async (req, res) => {
       assert(!page(res), 'grant_scope', '页面授权不能写入配置', 403);
       const pluginId = String(req.params.id),
         values = action === 'reset' ? {} : req.body.values,
@@ -376,7 +382,7 @@ export function createWorkbenchRouter() {
       });
     });
   }
-  route('post', '/page-sessions', async (req, res) => {
+  route('post', '/page-sessions', '3.2.0', async (req, res) => {
     const w = getWorkbench(),
       id = identifier.parse(req.body.pluginId),
       tabId = identifier.parse(req.body.tabId ?? randomUUID()),
@@ -401,7 +407,7 @@ export function createWorkbenchRouter() {
       origin: new URL(resolved.url).origin,
     });
   });
-  route('post', '/snapshots', (req, res) => {
+  route('post', '/snapshots', '3.2.0', (req, res) => {
     const session = page(res);
     const pluginId = session?.pluginId ?? identifier.parse(req.body.pluginId),
       tabId = session?.tabId ?? identifier.parse(req.body.owner);
@@ -432,7 +438,7 @@ export function createWorkbenchRouter() {
       ),
     );
   });
-  route('post', '/snapshots/preview', (req, res) => {
+  route('post', '/snapshots/preview', '3.2.0', (req, res) => {
     const session = page(res),
       pluginId = session?.pluginId ?? identifier.parse(req.query.pluginId),
       tabId = session?.tabId ?? identifier.parse(req.query.tabId);
@@ -454,7 +460,7 @@ export function createWorkbenchRouter() {
     }
     return getWorkbench().snapshot({ kind: 'preview', owner: tabId, pluginId }, req.body);
   });
-  route('get', '/snapshots/:id', (req, res) => {
+  route('get', '/snapshots/:id', '3.2.0', (req, res) => {
     const s = page(res),
       row = getWorkbench().getSnapshot(String(req.params.id), s?.tabId, s?.pluginId);
     if (row.kind === 'preview') {
@@ -468,13 +474,13 @@ export function createWorkbenchRouter() {
       state: JSON.parse(row.payload.toString()),
     };
   });
-  route('post', '/snapshots/:id/delete', (req, res) =>
+  route('post', '/snapshots/:id/delete', '3.2.0', (req, res) =>
     getWorkbench().deleteSnapshot(String(req.params.id), page(res)?.tabId, page(res)?.pluginId),
   );
-  route('get', '/terminals', (req) =>
+  route('get', '/terminals', '3.2.0', (req) =>
     getWorkbench().commands.terminals(z.string().parse(req.query.workspaceId)),
   );
-  route('post', '/terminals', (req) =>
+  route('post', '/terminals', '3.2.0', (req) =>
     getWorkbench().commands.saveTerminal(
       req.body.workspaceId,
       owner(req),
@@ -483,7 +489,7 @@ export function createWorkbenchRouter() {
     ),
   );
   for (const action of ['close', 'restore', 'clear-output', 'clear-history']) {
-    route('post', `/terminals/:id/${action}`, (req) =>
+    route('post', `/terminals/:id/${action}`, '3.2.0', (req) =>
       getWorkbench().commands.alterTerminal(
         req.body.workspaceId,
         owner(req),
@@ -493,7 +499,7 @@ export function createWorkbenchRouter() {
       ),
     );
   }
-  route('get', '/terminals/:id/output', (req) => {
+  route('get', '/terminals/:id/output', '3.2.0', (req) => {
     const id = String(req.params.id);
     if (id !== 'public') {
       getWorkbench().commands.terminal(id, z.string().parse(req.query.workspaceId));
@@ -515,7 +521,7 @@ export function createWorkbenchRouter() {
   });
   route(
     'post',
-    '/commands/execute',
+    '/commands/execute', '3.2.0',
     (req) =>
       getWorkbench().commands.execute(
         req.body.workspaceId,
@@ -527,7 +533,7 @@ export function createWorkbenchRouter() {
       ),
     202,
   );
-  route('post', '/commands/complete', async (req, res) => {
+  route('post', '/commands/complete', '3.2.0', async (req, res) => {
     const controller = new AbortController();
     const close = () => controller.abort();
     res.once('close', close);
@@ -545,7 +551,7 @@ export function createWorkbenchRouter() {
       res.off('close', close);
     }
   });
-  route('post', '/commands/cancel', (req) =>
+  route('post', '/commands/cancel', '3.2.0', (req) =>
     getWorkbench().commands.cancel(
       req.body.workspaceId,
       owner(req),
@@ -556,7 +562,7 @@ export function createWorkbenchRouter() {
       req.body.force === true,
     ),
   );
-  route('post', '/commands/input', (req) =>
+  route('post', '/commands/input', '3.2.0', (req) =>
     getWorkbench().commands.input(
       req.body.workspaceId,
       owner(req),
@@ -568,8 +574,8 @@ export function createWorkbenchRouter() {
       req.body.value,
     ),
   );
-  route('get', '/notifications', (req) => pageList(req, getWorkbench().notifications.list()));
-  route('post', '/system-notifications/presence', (req, res) => {
+  route('get', '/notifications', '3.2.0', (req) => pageList(req, getWorkbench().notifications.list()));
+  route('post', '/system-notifications/presence', '3.2.0', (req, res) => {
     assert(!page(res), 'grant_scope', '普通页面授权不能上报工作台聚焦', 403);
     const viewer = owner(req);
     const focused = z.boolean().parse(req.body.focused);
@@ -579,35 +585,35 @@ export function createWorkbenchRouter() {
     }
     return { accepted: true };
   });
-  route('post', '/notifications/ack', (req) => {
+  route('post', '/notifications/ack', '3.2.0', (req) => {
     getWorkbench().notifications.change(req.body.ids);
     return { acknowledged: true };
   });
-  route('post', '/notifications/delete', (req) => {
+  route('post', '/notifications/delete', '3.2.0', (req) => {
     getWorkbench().notifications.change(req.body.ids, true);
     return { deleted: true };
   });
-  route('post', '/notifications/publish', (req, res) => {
+  route('post', '/notifications/publish', '3.2.0', (req, res) => {
     const origin = feedbackOwner(req, res);
     return feedbackRequest(origin, req.path, req.body, (id, actionId) => {
       workbenchEvents.publish('notification.action', { id, actionId, ...origin }, id);
     });
   });
-  route('post', '/notifications/visibility', (req) =>
+  route('post', '/notifications/visibility', '3.2.0', (req) =>
     getWorkbench().notifications.visibility(owner(req), req.body.ids),
   );
   for (const action of ['update', 'read', 'close']) {
-    route('post', `/notifications/:id/${action}`, (req, res) =>
+    route('post', `/notifications/:id/${action}`, '3.2.0', (req, res) =>
       feedbackRequest(feedbackOwner(req, res), req.path, req.body),
     );
   }
-  route('get', '/notifications/:id', (req, res) =>
+  route('get', '/notifications/:id', '3.2.0', (req, res) =>
     feedbackRequest(feedbackOwner(req, res), req.path, undefined),
   );
-  route('post', '/notifications/:id/actions/:actionId', (req) =>
+  route('post', '/notifications/:id/actions/:actionId', '3.2.0', (req) =>
     getWorkbench().notifications.invoke(String(req.params.id), String(req.params.actionId)),
   );
-  route('post', '/stream-ticket', (req, res) => {
+  route('post', '/stream-ticket', '3.2.0', (req, res) => {
     const s = page(res);
     if (req.body.workspaceId) {
       getWorkbench().workspace.checkLease(req.body.workspaceId, owner(req), lease(req));
@@ -623,7 +629,7 @@ export function createWorkbenchRouter() {
       coreBootId,
     };
   });
-  route('get', '/inspector', async (req, res) => {
+  route('get', '/inspector', '3.2.0', async (req, res) => {
     assert(!page(res), 'grant_scope', '普通页面授权不能读取 inspector', 403);
     const workspaceId = identifier.parse(req.query.workspaceId),
       tabId = req.query.tabId ? identifier.parse(req.query.tabId) : null;
@@ -635,7 +641,7 @@ export function createWorkbenchRouter() {
     return declarativeUI.project({ pluginId, workspaceId, tabId, windowId: owner(req) });
   });
   for (const action of ['update', 'reset']) {
-    route('post', `/inspector/config/${action}`, async (req, res) => {
+    route('post', `/inspector/config/${action}`, '3.2.0', async (req, res) => {
       assert(!page(res), 'grant_scope', '普通页面授权不能写入 inspector', 403);
       const instance = declarativeUI.get(identifier.parse(req.body.instanceId), owner(req));
       assert(instance.surface === 'currentPage', 'page_owner', '需要核心当前页面模板实例', 403);

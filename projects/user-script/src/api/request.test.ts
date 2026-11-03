@@ -52,6 +52,7 @@ it('sends authenticated JSON through the manager with website identity and no co
     method: 'POST',
     data: '{}',
     headers: {
+      'X-SCWC-Version': '3.2.0',
       Authorization: 'Bearer secret',
       Origin: location.origin,
       Referer: `${location.origin}/`,

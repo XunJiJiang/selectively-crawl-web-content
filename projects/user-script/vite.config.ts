@@ -36,6 +36,7 @@ export default defineConfig(({ mode }) => {
       }),
     ],
     define: {
+      __SCWC_VERSION__: JSON.stringify(require('../../package.json').version),
       'import.meta.env.HOST': JSON.stringify(env.HOST ?? 'http://localhost'),
       'import.meta.env.PORT': JSON.stringify(env.PORT ?? '3200'),
     },

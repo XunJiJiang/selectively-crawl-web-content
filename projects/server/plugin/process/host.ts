@@ -1,3 +1,5 @@
+import type { ScriptUIRuntime } from '../../user-script/ui.ts';
+import type { ScriptContext, ScriptUIEvent } from '../../../shared/script-ui.ts';
 import { HostUI } from './ui-host.ts';
 import { pathToFileURL } from 'node:url';
 import { formatWithOptions } from 'node:util';
@@ -26,6 +28,7 @@ import type {
 } from '../../types/plugin-process.d.ts';
 import type { TPluginCacheableData } from '../../types/cache.d.ts';
 
+let scriptUI: ScriptUIRuntime | undefined;
 const peer = new RpcPeer((message, callback) => {
   if (!process.connected || !process.send) {
     return callback(new Error('插件宿主已断开'));
@@ -231,7 +234,8 @@ function getPlugin(): ProcessPluginHandler {
 async function controls(
   context: Parameters<SCWC.TCreatePluginItem>[1],
 ): Promise<SCWC.TPluginItem[]> {
-  const config = getPlugin().pluginConfig?.scripts?.controls;
+  const scripts = getPlugin().pluginConfig?.scripts;
+  const config = scripts?.version === 'v2' ? undefined : scripts?.controls;
   const current = invocationStorage.getStore();
   const result =
     typeof config === 'function'
@@ -347,8 +351,13 @@ async function initialize(args: Initialize): Promise<Manifest> {
           subCommands: command.subCommands?.map(({ execute: _, ...item }) => item),
         }
       : undefined,
+    scriptRequireFullContent:
+      plugin.pluginConfig?.scripts?.version === 'v2'
+        ? plugin.pluginConfig.scripts.requireFullContent
+        : undefined,
     scripts: plugin.pluginConfig?.scripts
       ? {
+          version: plugin.pluginConfig.scripts.version,
           title: plugin.pluginConfig.scripts.title,
           description: plugin.pluginConfig.scripts.description,
           refreshRule: plugin.pluginConfig.scripts.refreshRule,
@@ -455,6 +464,29 @@ async function dispatch(method: string, args: unknown, id: string): Promise<unkn
           signal: context?.signal,
           logger: context ? scopedLogger(context) : undefined,
         });
+      }
+      case 'script.render':
+      case 'script.event': {
+        scriptUI ??= new (await import('../../user-script/ui.ts')).ScriptUIRuntime();
+        const config = plugin.pluginConfig?.scripts;
+        if (config?.version !== 'v2') {
+          throw new Error('插件配置协议不匹配');
+        }
+        const data = args as { context: ScriptContext; request?: ScriptUIEvent };
+        const scriptContext: ScriptContext = {
+          ...data.context,
+          version: 'v2',
+          logger: invocationLogger,
+          tasks: context?.tasks,
+          signal: context?.signal,
+        };
+        if (method === 'script.render') {
+          return scriptUI.render(config, scriptContext);
+        }
+        if (!data.request) {
+          throw new Error('v2 事件请求缺失');
+        }
+        return scriptUI.event(data.request, scriptContext);
       }
       case 'controls': {
         return (await controls(args as Parameters<SCWC.TCreatePluginItem>[1])).map(

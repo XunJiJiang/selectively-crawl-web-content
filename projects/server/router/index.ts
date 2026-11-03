@@ -1,3 +1,4 @@
+import { routeVersion } from './version.ts';
 import path from 'node:path';
 import express, { type Request } from 'express';
 import { listenAvailable } from '../utils/listen.ts';
@@ -54,7 +55,8 @@ app.use((req, res, next) => {
   // CORS
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-SCWC-Version');
+  res.header('Access-Control-Expose-Headers', 'X-SCWC-Version-Notice');
   if (req.method === 'OPTIONS') {
     res.sendStatus(200);
     return;
@@ -183,6 +185,7 @@ const scrapeSchema = z.object({
 
 metadataRouter.post(
   '/scrape',
+  routeVersion('3.2.0'),
   async (
     req: Request<
       unknown,
