@@ -10,7 +10,7 @@ import { debounce } from '../utils/debounce.ts';
 import { isEqual } from 'es-toolkit';
 import { notify } from '../components/notify.ts';
 import type { JSONValue, JSONValueWithFunction } from '../types/utils';
-import { CONFIG_CHANGED_EVENT } from '../userscript-config.ts';
+import { API_TOKEN_CHANGED_EVENT, CONFIG_CHANGED_EVENT } from '../userscript-config.ts';
 
 /** 匹配规则解析 */
 export const parseRefreshRule = cache((rule: string) => {
@@ -64,6 +64,7 @@ window.addEventListener('storage', (e: StorageEvent) => {
 });
 
 export class ConfigController implements ReactiveController {
+  static syncAuthRequired = false;
   static config: TConfig = loadFromStorage(
     CONFIG_KEY,
     defaultValue as unknown as JSONValueWithFunction,
@@ -88,11 +89,26 @@ export class ConfigController implements ReactiveController {
     }
   }
   static applyConfig(config: TConfig, persist = true) {
+    const tokenChanged = ConfigController.config.api.token !== config.api.token;
     ConfigController.config = config;
+    if (tokenChanged) {
+      ConfigController.setSyncAuthRequired(false);
+      window.dispatchEvent(new Event(API_TOKEN_CHANGED_EVENT));
+    }
     if (persist) {
       saveToStorage(CONFIG_KEY, config as unknown as JSONValue);
     }
     ConfigController.dispatchConfigUpdate();
+  }
+
+  static setSyncAuthRequired(required: boolean) {
+    if (ConfigController.syncAuthRequired === required) {
+      return;
+    }
+    ConfigController.syncAuthRequired = required;
+    for (const controller of ConfigController.allControllers) {
+      controller.refreshControls();
+    }
   }
 
   host: ReactiveControllerHost;
@@ -145,6 +161,9 @@ export class ConfigController implements ReactiveController {
         type: 'input:text',
         label: 'API Token',
         channel: `${configId}-api-token`,
+        syncHint: ConfigController.syncAuthRequired
+          ? '同步已暂停：请填写 Token 或检查 Token 是否正确。修改 Token 后将重新尝试连接。'
+          : undefined,
         options: {
           defaultValue: this.pendingApi.token ?? currentConfig.api.token,
         },
@@ -214,6 +233,15 @@ export class ConfigController implements ReactiveController {
     };
     this.host.requestUpdate();
     this.onConfigUpdate(this.config);
+  }
+
+  private refreshControls() {
+    this.configControls = {
+      ...this.configControls,
+      controls: this.createConfigControls(),
+    };
+    this.onConfigUpdate(this.config);
+    this.host.requestUpdate();
   }
 
   private onConfigUpdate: (config: TConfig) => void = () => {

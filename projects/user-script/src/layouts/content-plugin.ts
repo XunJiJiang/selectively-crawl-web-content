@@ -12,6 +12,7 @@ import type { SCWCInputEventMap } from '../../../shared/components/input.ts';
 import '../../../shared/components/script-ui.ts';
 import { scriptConfigProblem, type ScriptUIEvent } from '../../../shared/script-ui.ts';
 import type { FieldValue } from '../../../shared/declarative-ui.ts';
+import { isConfigItem } from '../../../shared/store/config.ts';
 
 @customElement('scwc-layout-content-plugin')
 export class SCWCContentPlugin extends LitElement {
@@ -153,6 +154,11 @@ export class SCWCContentPlugin extends LitElement {
                               @input=${(e: SCWCInputEventMap['input']) =>
                                 this.pluginsController.setControlValue(control, e.detail)}
                             ></scwc-input>
+                            ${isConfigItem(control) && control.syncHint
+                              ? html`<p class="sync-auth-warning" role="alert">
+                                  ${control.syncHint}
+                                </p>`
+                              : nothing}
                           `;
                         case 'input:number':
                           return html`

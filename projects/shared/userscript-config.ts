@@ -15,6 +15,7 @@ export interface UserScriptSnapshot {
 }
 export const USER_SCRIPT_CONFIG_KEY = '__scwc_website_config__';
 export const CONFIG_CHANGED_EVENT = 'scwc-config-changed';
+export const API_TOKEN_CHANGED_EVENT = 'scwc-api-token-changed';
 export const epoch = '1970-01-01T00:00:00.000Z';
 export const copySiteData = <T>(value: T): T => JSON.parse(JSON.stringify(value));
 export function websiteOrigin(value: string) {

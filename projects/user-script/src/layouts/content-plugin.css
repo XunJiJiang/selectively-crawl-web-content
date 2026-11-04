@@ -61,6 +61,11 @@
   gap: 4px;
   color: var(--text-secondary);
 }
+.sync-auth-warning {
+  margin: -8px 0 0;
+  color: var(--text-error, #f88);
+  font-size: 12px;
+}
 .plugin-placeholder {
   padding: 12px 0;
   text-align: center;

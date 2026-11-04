@@ -5,6 +5,7 @@ import {
   type GmResponseEvent,
 } from 'vite-plugin-monkey/dist/client';
 import { requestCore } from './request.ts';
+import { recordCoreSyncFailure, recordCoreSyncSuccess } from './sync-circuit.ts';
 
 vi.mock('vite-plugin-monkey/dist/client', () => ({ GM_xmlhttpRequest: vi.fn() }));
 const gm = vi.mocked(GM_xmlhttpRequest);
@@ -26,6 +27,7 @@ function load(result = response()) {
   details.onload?.call(result, result);
 }
 beforeEach(() => {
+  recordCoreSyncSuccess();
   gm.mockReset();
   abort.mockReset();
   gm.mockImplementation((options) => {
@@ -39,7 +41,10 @@ beforeEach(() => {
     }),
   );
 });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  recordCoreSyncSuccess();
+  vi.unstubAllGlobals();
+});
 
 it('sends authenticated JSON through the manager with website identity and no cookies', async () => {
   const pending = requestCore(new URL('http://localhost:3200/api/test'), {
@@ -97,6 +102,16 @@ it('does not start a request when already cancelled', async () => {
   await expect(
     requestCore('http://localhost:3200/api/test', { signal: controller.signal }),
   ).rejects.toMatchObject({ name: 'AbortError' });
+  expect(gm).not.toHaveBeenCalled();
+});
+it('does not send any core request after the sync circuit opens', async () => {
+  recordCoreSyncFailure();
+  recordCoreSyncFailure();
+  expect(recordCoreSyncFailure()).toBe(true);
+
+  await expect(requestCore('http://localhost:3200/api/plugin/config')).rejects.toMatchObject({
+    code: 'CORE_SYNC_BLOCKED',
+  });
   expect(gm).not.toHaveBeenCalled();
 });
 it('cleans up after success and rejects invalid network responses without falling back to fetch', async () => {

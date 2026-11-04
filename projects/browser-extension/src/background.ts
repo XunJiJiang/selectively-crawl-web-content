@@ -12,6 +12,7 @@ export interface Init {
   snapshot?: Snapshot;
   settings: Settings;
   draft?: Draft;
+  syncBlocked: boolean;
 }
 export interface PluginBatch {
   data: PluginConfig[];
@@ -67,6 +68,38 @@ export type Request =
   | { type: 'picker.selection'; draft: Draft | null };
 
 const store = new ExtensionStore(browser.storage.local);
+const syncCircuitStorageKey = 'scwc.extension.sync-circuit.v1';
+const maxSyncFailures = 3;
+const syncBlockedMessage = '核心连接已暂停。请修改设置中的 API Token 后重新尝试。';
+interface SyncCircuitState {
+  failures: number;
+  blocked: boolean;
+}
+async function getSyncCircuit(): Promise<SyncCircuitState> {
+  const saved = (await browser.storage.local.get(syncCircuitStorageKey))[syncCircuitStorageKey] as
+    | Partial<SyncCircuitState>
+    | undefined;
+  return {
+    failures:
+      typeof saved?.failures === 'number'
+        ? Math.max(0, Math.min(maxSyncFailures, Math.floor(saved.failures)))
+        : 0,
+    blocked: saved?.blocked === true,
+  };
+}
+async function setSyncCircuit(state: SyncCircuitState) {
+  await browser.storage.local.set({ [syncCircuitStorageKey]: state });
+}
+function syncBlockedError() {
+  return Object.assign(new Error(syncBlockedMessage), { code: 'CORE_SYNC_BLOCKED' });
+}
+async function withCoreCircuit<T>(request: () => Promise<T>): Promise<T> {
+  if ((await getSyncCircuit()).blocked) {
+    throw syncBlockedError();
+  }
+  return request();
+}
+
 // Chromium 可禁止内容脚本直接读取 token 等扩展存储；其他浏览器仍通过消息边界隔离页面。
 void browser.storage.local
   .setAccessLevel?.({ accessLevel: 'TRUSTED_CONTEXTS' })
@@ -79,14 +112,33 @@ async function sync(site: string) {
     return sync(site);
   }
   const work = (async () => {
-    const snapshot = await store.load(site);
-    const response = await requestCore<{ data: { snapshot: unknown } }>(
-      snapshot.data.config,
-      site,
-      '/api/userscript/config/sync',
-      { snapshot: store.wire(snapshot), watch: false },
-    );
-    return store.accept(site, response.data.snapshot, snapshot.updatedAt);
+    if ((await getSyncCircuit()).blocked) {
+      throw syncBlockedError();
+    }
+    try {
+      const snapshot = await store.load(site);
+      const response = await requestCore<{ data: { snapshot: unknown } }>(
+        snapshot.data.config,
+        site,
+        '/api/userscript/config/sync',
+        { snapshot: store.wire(snapshot), watch: false },
+      );
+      const accepted = await store.accept(site, response.data.snapshot, snapshot.updatedAt);
+      await setSyncCircuit({ failures: 0, blocked: false });
+      return accepted;
+    } catch (error) {
+      if (error instanceof Error && 'code' in error && error.code === 'CORE_SYNC_BLOCKED') {
+        throw error;
+      }
+      const circuit = await getSyncCircuit();
+      const failures = Math.min(maxSyncFailures, circuit.failures + 1);
+      const blocked = failures >= maxSyncFailures;
+      await setSyncCircuit({ failures, blocked });
+      if (blocked) {
+        throw syncBlockedError();
+      }
+      throw error;
+    }
   })();
   syncing.set(site, work);
   try {
@@ -170,18 +222,20 @@ async function handle(message: Request, sender: MessageSender): Promise<unknown>
       const { snapshot, data } = message.request.readOnly
         ? { snapshot: await store.load(message.site), data: { result: [] } }
         : await extract(message.tab, message.site, message.requireFullContent);
-      return requestCore(snapshot.data.config, message.site, '/api/plugin/event', {
-        ...message.request,
-        version: 'v2',
-        id: message.plugin,
-        data: data.result,
-      });
+      return withCoreCircuit(() =>
+        requestCore(snapshot.data.config, message.site, '/api/plugin/event', {
+          ...message.request,
+          version: 'v2',
+          id: message.plugin,
+          data: data.result,
+        }),
+      );
     }
     case 'init': {
       const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
       const settings = await store.settings();
       if (!tab?.url || tab.id === undefined || !/^https?:/.test(tab.url)) {
-        return { tab, settings };
+        return { tab, settings, syncBlocked: (await getSyncCircuit()).blocked };
       }
       const draft = (await browser.storage.local.get(draftKey(tab.id)))[draftKey(tab.id)] as
         | Draft
@@ -189,29 +243,47 @@ async function handle(message: Request, sender: MessageSender): Promise<unknown>
       return {
         tab,
         settings,
+        syncBlocked: (await getSyncCircuit()).blocked,
         snapshot: await store.load(tab.url),
         draft: draft?.site === tab.url ? draft : undefined,
       };
     }
-    case 'settings.save':
-      return store.saveSettings(message.settings);
-    case 'site.patch':
-      return store.patch(message.site, message.patch);
+    case 'settings.save': {
+      const previous = await store.settings();
+      const saved = await store.saveSettings(message.settings);
+      if (previous.config.api.token !== message.settings.config.api.token) {
+        await setSyncCircuit({ failures: 0, blocked: false });
+      }
+      return saved;
+    }
+    case 'site.patch': {
+      const previous = await store.load(message.site);
+      const next = await store.patch(message.site, message.patch);
+      if (
+        message.patch.config &&
+        previous.data.config.api.token !== message.patch.config.api.token
+      ) {
+        await setSyncCircuit({ failures: 0, blocked: false });
+      }
+      return next;
+    }
     case 'core.sync':
       return sync(message.site);
     case 'plugins': {
       await tabAt(message.tab, message.site);
       const snapshot = await store.load(message.site);
-      return requestCore(
-        snapshot.data.config,
-        message.site,
-        '/api/plugin/config',
-        {},
-        message.previousSite,
-        message.pluginId,
-        message.instanceId
-          ? { instanceId: message.instanceId, dirtyFields: message.dirtyFields ?? [] }
-          : undefined,
+      return withCoreCircuit(() =>
+        requestCore(
+          snapshot.data.config,
+          message.site,
+          '/api/plugin/config',
+          {},
+          message.previousSite,
+          message.pluginId,
+          message.instanceId
+            ? { instanceId: message.instanceId, dirtyFields: message.dirtyFields ?? [] }
+            : undefined,
+        ),
       );
     }
     case 'page': {
@@ -233,10 +305,12 @@ async function handle(message: Request, sender: MessageSender): Promise<unknown>
     }
     case 'crawl': {
       const { snapshot, data } = await extract(message.tab, message.site);
-      return requestCore(snapshot.data.config, message.site, '/api/metadata/scrape', {
-        site: message.site,
-        data: data.result,
-      });
+      return withCoreCircuit(() =>
+        requestCore(snapshot.data.config, message.site, '/api/metadata/scrape', {
+          site: message.site,
+          data: data.result,
+        }),
+      );
     }
     case 'trigger': {
       const { snapshot, data } = await extract(
@@ -244,18 +318,20 @@ async function handle(message: Request, sender: MessageSender): Promise<unknown>
         message.site,
         message.requireFullContent,
       );
-      return requestCore(snapshot.data.config, message.site, '/api/plugin/toggle', {
-        version: 'v1',
-        type: message.event,
-        channel: message.channel,
-        id: message.plugin,
-        context: {
-          data: data.result,
-          site: message.site,
-          relatedValues: message.relatedValues,
-          value: message.value,
-        },
-      });
+      return withCoreCircuit(() =>
+        requestCore(snapshot.data.config, message.site, '/api/plugin/toggle', {
+          version: 'v1',
+          type: message.event,
+          channel: message.channel,
+          id: message.plugin,
+          context: {
+            data: data.result,
+            site: message.site,
+            relatedValues: message.relatedValues,
+            value: message.value,
+          },
+        }),
+      );
     }
   }
 }

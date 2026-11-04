@@ -51,11 +51,12 @@ export class ExtensionPopup extends LitElement {
       ${unsafeCSS(styles)}
     `,
   ];
-  @state() private accessor context: Init = { settings: initialSettings() };
+  @state() private accessor context: Init = { settings: initialSettings(), syncBlocked: false };
   @state() private accessor panel: 'capture' | 'plugins' | 'settings' = 'capture';
   @state() private accessor plugins: PluginConfig[] = [];
   @state() private accessor activePlugin = '';
   @state() private accessor connected = false;
+  @state() private accessor syncBlocked = false;
   @state() private accessor busy = false;
   @state() private accessor loaded = false;
   @state() private accessor notice = '';
@@ -86,12 +87,18 @@ export class ExtensionPopup extends LitElement {
     );
   };
   private selectPlugin(id: string) {
-    for (const view of this.shadowRoot?.querySelectorAll<ScriptUIView>('scwc-script-ui') ?? [])
-      if (view.identity === this.activePlugin) view.preserveInteraction();
+    for (const view of this.shadowRoot?.querySelectorAll<ScriptUIView>('scwc-script-ui') ?? []) {
+      if (view.identity === this.activePlugin) {
+        view.preserveInteraction();
+      }
+    }
     this.activePlugin = id;
     void this.updateComplete.then(() => {
-      for (const view of this.shadowRoot?.querySelectorAll<ScriptUIView>('scwc-script-ui') ?? [])
-        if (view.identity === id) view.restoreInteraction();
+      for (const view of this.shadowRoot?.querySelectorAll<ScriptUIView>('scwc-script-ui') ?? []) {
+        if (view.identity === id) {
+          view.restoreInteraction();
+        }
+      }
     });
   }
   private get snapshot() {
@@ -137,6 +144,7 @@ export class ExtensionPopup extends LitElement {
   private async initialize() {
     await this.run(async () => {
       this.context = await call<Init>({ type: 'init' });
+      this.syncBlocked = this.context.syncBlocked;
       this.config = structuredClone(this.snapshot?.data.config ?? this.context.settings.config);
       this.theme = this.context.settings.theme;
       document.documentElement.dataset.theme = this.theme;
@@ -146,8 +154,9 @@ export class ExtensionPopup extends LitElement {
       }
       this.loaded = true;
       if (this.snapshot) {
-        await this.sync();
-        await this.loadPlugins();
+        if (await this.sync()) {
+          await this.loadPlugins();
+        }
       }
     });
     this.loaded = true;
@@ -162,6 +171,8 @@ export class ExtensionPopup extends LitElement {
     this.polling = true;
     try {
       const current = await call<Init>({ type: 'init' });
+      const wasSyncBlocked = this.syncBlocked;
+      this.syncBlocked = current.syncBlocked;
       if (current.tab?.url !== this.site) {
         const sameOrigin = current.snapshot?.website === this.snapshot.website;
         this.generation++;
@@ -177,15 +188,18 @@ export class ExtensionPopup extends LitElement {
           this.lastSite = '';
         }
         if (current.snapshot) {
-          await this.sync();
-          await this.loadPlugins();
+          if (await this.sync()) {
+            await this.loadPlugins();
+          }
         } else {
           this.panel = 'settings';
         }
       } else {
         const wasConnected = this.connected;
-        await this.sync();
-        if (!wasConnected && this.connected) {
+        if (!this.syncBlocked) {
+          await this.sync();
+        }
+        if ((!wasConnected && this.connected) || (wasSyncBlocked && !this.syncBlocked)) {
           await this.loadPlugins(true);
         }
       }
@@ -195,18 +209,26 @@ export class ExtensionPopup extends LitElement {
       this.polling = false;
     }
   }
-  private async sync() {
+  private async sync(notifyWhenBlocked = false) {
     if (!this.snapshot) {
-      return;
+      return false;
+    }
+    if (this.syncBlocked) {
+      if (notifyWhenBlocked) {
+        this.say('核心连接已暂停。请修改设置中的 API Token 后重新尝试。', true);
+      }
+      this.connected = false;
+      return false;
     }
     const generation = this.generation,
       edits = this.edits;
     try {
       const next = await call<Snapshot>({ type: 'core.sync', site: this.site });
       if (generation !== this.generation) {
-        return;
+        return false;
       }
       this.connected = true;
+      this.syncBlocked = false;
       if (this.notice.includes('数据已保存在扩展中')) {
         this.notice = '';
         this.noticeError = false;
@@ -217,14 +239,15 @@ export class ExtensionPopup extends LitElement {
           this.activePlugin = next.data.plugin.activeTab;
         }
       }
+      return true;
     } catch (error) {
       if (generation === this.generation) {
         this.connected = false;
-        this.say(
-          `${error instanceof Error ? error.message : String(error)}；数据已保存在扩展中`,
-          true,
-        );
+        if (error instanceof Error && 'code' in error && error.code === 'CORE_SYNC_BLOCKED') {
+          this.syncBlocked = true;
+        }
       }
+      return false;
     }
   }
   private save(patch: Partial<SiteData>) {
@@ -248,7 +271,7 @@ export class ExtensionPopup extends LitElement {
         }
         clearTimeout(this.syncTimer);
         this.syncTimer = setTimeout(() => {
-          void this.sync();
+          void this.sync(true);
         }, 500);
       })
       .catch((error: unknown) => this.say(`保存失败：${String(error)}`, true));
@@ -337,10 +360,13 @@ export class ExtensionPopup extends LitElement {
     const batch = await this.templates.run(plugin.id, () =>
       call<PluginBatch>({ type: 'plugins', tab: this.tab, site, pluginId: plugin.id, ...previous }),
     );
-    if (site !== this.site || generation !== this.pluginGeneration || !this.isConnected)
+    if (site !== this.site || generation !== this.pluginGeneration || !this.isConnected) {
       throw new Error('插件实例已经切换');
+    }
     const next = batch.data.find((p) => p.id === plugin.id);
-    if (!next?.ui) throw new Error(next?.configError ?? '插件模板未就绪');
+    if (!next?.ui) {
+      throw new Error(next?.configError ?? '插件模板未就绪');
+    }
     this.plugins = this.plugins.map((p) => (p.id === next.id ? next : p));
     return next.ui;
   }
@@ -607,6 +633,9 @@ export class ExtensionPopup extends LitElement {
         throw new Error('未授权访问核心主机，设置尚未保存');
       }
       const settings: Settings = { config: structuredClone(this.config), theme: this.theme };
+      const previousToken =
+        this.snapshot?.data.config.api.token ?? this.context.settings.config.api.token;
+      const tokenChanged = previousToken !== settings.config.api.token;
       this.generation++;
       this.pluginGeneration++;
       this.connected = false;
@@ -615,8 +644,16 @@ export class ExtensionPopup extends LitElement {
       document.documentElement.dataset.theme = this.theme;
       if (this.snapshot) {
         await this.save({ config: settings.config });
-        await this.sync();
-        await this.loadPlugins(true);
+        clearTimeout(this.syncTimer);
+        this.syncTimer = undefined;
+        if (tokenChanged) {
+          this.syncBlocked = false;
+        }
+        if (await this.sync(!tokenChanged)) {
+          await this.loadPlugins(true);
+        }
+      } else if (tokenChanged) {
+        this.syncBlocked = false;
       }
       if (this.connected) {
         this.say('连接成功，设置已保存');
@@ -800,7 +837,9 @@ export class ExtensionPopup extends LitElement {
           .identity=${entry.id}
           .active=${this.panel === 'plugins' && entry.id === this.activePlugin}
           .model=${entry.ui}
-          .values=${readScriptValues(entry.id, entry.ui!, this.snapshot?.data.controls ?? [])}
+          .values=${entry.ui
+            ? readScriptValues(entry.id, entry.ui, this.snapshot?.data.controls ?? [])
+            : {}}
           .saveValues=${(values: Record<string, FieldValue>) => this.saveJsonValues(entry, values)}
           .invoke=${(request: ScriptUIEvent) => this.invokeJson(entry, request)}
           .refreshModel=${(previous: { instanceId: string; dirtyFields: string[] }) =>
@@ -848,7 +887,14 @@ export class ExtensionPopup extends LitElement {
             autocomplete="off"
             .value=${this.config.api.token}
             @input=${(e: Event) => this.apiInput('token', (e.target as HTMLInputElement).value)}
-            placeholder="核心的 TOKEN，关闭鉴权时留空" /></label
+            placeholder="核心的 TOKEN，关闭鉴权时留空"
+          />
+          ${this.syncBlocked
+            ? html`<span class="sync-auth-warning" role="alert"
+                >同步已暂停：请填写 Token 或检查 Token 是否正确。修改 Token
+                并点击“保存并连接”后将重新尝试。</span
+              >`
+            : nothing}</label
         ><label
           >通知位置<wb-menu-select
             label="通知位置"

@@ -10,7 +10,9 @@
 * {
   box-sizing: border-box;
 }
-[hidden] { display: none !important; }
+[hidden] {
+  display: none !important;
+}
 header {
   display: flex;
   align-items: center;
@@ -221,6 +223,11 @@ input {
 }
 input::placeholder {
   color: var(--text-tertiary);
+}
+.sync-auth-warning {
+  color: var(--text-error, #f88);
+  font-size: 12px;
+  line-height: 1.5;
 }
 .item-list {
   display: flex;

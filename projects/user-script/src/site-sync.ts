@@ -1,6 +1,12 @@
 import { type UserScriptSnapshot } from '../../shared/userscript-config.ts';
 import { type SiteStore } from './site-store.ts';
 import { requestCore } from './api/request.ts';
+import {
+  isCoreSyncBlocked,
+  notifyCoreSyncBlocked,
+  recordCoreSyncFailure,
+  recordCoreSyncSuccess,
+} from './api/sync-circuit.ts';
 
 const pollInterval = 2000;
 
@@ -32,6 +38,8 @@ export class SiteConfigConnection {
   private generation = 0;
   private retryDelay = 500;
   private connectionKey = '';
+  private connectionToken = '';
+  private hasConnectionToken = false;
   private store: SiteStore;
   constructor(store: SiteStore) {
     this.store = store;
@@ -59,6 +67,11 @@ export class SiteConfigConnection {
   }
   private changed = (event: Event) => {
     const key = this.key();
+    const token = this.store.snapshot.data.config.api.token;
+    if (this.hasConnectionToken && token !== this.connectionToken) {
+      recordCoreSyncSuccess();
+      this.retryDelay = 500;
+    }
     if (key !== this.connectionKey && this.connectionKey) {
       this.generation++;
       this.abort?.abort();
@@ -90,6 +103,10 @@ export class SiteConfigConnection {
     if (this.stopped) {
       return;
     }
+    if (isCoreSyncBlocked()) {
+      notifyCoreSyncBlocked();
+      return;
+    }
     if (this.running) {
       this.queued = true;
       return;
@@ -102,6 +119,8 @@ export class SiteConfigConnection {
     const snapshot = this.store.snapshot,
       config = snapshot.data.config;
     this.connectionKey = this.key();
+    this.connectionToken = config.api.token;
+    this.hasConnectionToken = true;
     const controller = (this.abort = new AbortController());
     const timeout = setTimeout(() => controller.abort(), 10000);
     try {
@@ -129,6 +148,7 @@ export class SiteConfigConnection {
         return;
       }
       this.retryDelay = 500;
+      recordCoreSyncSuccess();
       clearTimeout(this.retry);
       this.retry = undefined;
       if (!this.connected) {
@@ -142,13 +162,19 @@ export class SiteConfigConnection {
     } catch {
       if (!this.stopped && generation === this.generation) {
         this.connected = false;
-        this.schedule();
-        this.retryDelay = Math.min(15000, this.retryDelay * 2);
+        if (recordCoreSyncFailure()) {
+          clearTimeout(this.retry);
+          this.retry = undefined;
+          this.queued = false;
+        } else {
+          this.schedule();
+          this.retryDelay = Math.min(15000, this.retryDelay * 2);
+        }
       }
     } finally {
       clearTimeout(timeout);
       this.running = false;
-      if (this.queued && !this.stopped) {
+      if (this.queued && !this.stopped && !isCoreSyncBlocked()) {
         void this.sync();
       }
     }

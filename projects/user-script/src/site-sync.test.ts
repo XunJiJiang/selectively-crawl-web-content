@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SiteConfigConnection } from './site-sync.ts';
+import { isCoreSyncBlocked, recordCoreSyncSuccess } from './api/sync-circuit.ts';
 import { SiteStore } from './site-store.ts';
 import { requestCore } from './api/request.ts';
+import { ConfigController } from '../../shared/store/config.ts';
 import {
   USER_SCRIPT_CONFIG_KEY,
   defaultSiteData,
@@ -20,6 +22,7 @@ function response(snapshot: UserScriptSnapshot) {
 beforeEach(() => {
   vi.useFakeTimers();
   localStorage.clear();
+  recordCoreSyncSuccess();
   fetcher.mockReset();
   vi.stubGlobal(
     'fetch',
@@ -156,6 +159,33 @@ describe('website configuration connection and live updates', () => {
     expect(fetcher).toHaveBeenCalledTimes(4);
     await vi.advanceTimersByTimeAsync(500);
     expect(fetcher).toHaveBeenCalledTimes(5);
+  });
+  it('stops after three failed syncs and retries only after the token changes', async () => {
+    fetcher.mockRejectedValue(new TypeError('unauthorized'));
+    connection.start();
+    await flush();
+    await vi.advanceTimersByTimeAsync(1500);
+    expect(fetcher).toHaveBeenCalledTimes(3);
+    expect(ConfigController.syncAuthRequired).toBe(true);
+
+    await vi.advanceTimersByTimeAsync(60000);
+    store.update((data) => {
+      data.window.pos.x = 12;
+    });
+    await flush();
+    expect(fetcher).toHaveBeenCalledTimes(3);
+
+    fetcher.mockImplementation(async () => response(store.snapshot));
+    store.update((data) => {
+      data.config.api.token = 'correct-token';
+    });
+    await flush();
+    expect(isCoreSyncBlocked()).toBe(false);
+    expect((connection as unknown as { connectionToken: string }).connectionToken).toBe(
+      'correct-token',
+    );
+    expect(fetcher).toHaveBeenCalledTimes(4);
+    expect(ConfigController.syncAuthRequired).toBe(false);
   });
   it('aborts on stop and ignores a response from an obsolete core address', async () => {
     let resolve: (value: Response) => void = () => undefined;

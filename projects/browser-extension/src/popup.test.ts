@@ -27,6 +27,7 @@ it('refreshes only the clicked plugin tab, retains the focused tab and shows loa
   };
   state.context = {
     settings,
+    syncBlocked: false,
     tab: { id: 1, url: site },
     snapshot: initialSnapshot(site, settings.config),
   };

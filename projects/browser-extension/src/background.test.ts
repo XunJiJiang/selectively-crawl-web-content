@@ -1,5 +1,6 @@
-import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MessageSender } from './browser.ts';
+import { initialSettings, initialSnapshot, toWire } from './model.ts';
 
 const fixture = vi.hoisted(() => ({
   values: new Map<string, unknown>(),
@@ -48,9 +49,15 @@ vi.mock('./browser.ts', () => ({
 beforeAll(async () => {
   await import('./background.ts');
 });
+beforeEach(() => {
+  fixture.values.clear();
+  fixture.core.mockReset();
+});
 function message(input: unknown, sender: MessageSender) {
-  return new Promise<{ ok: boolean; error?: string }>((resolve) => {
-    fixture.listener?.(input, sender, (reply) => resolve(reply as { ok: boolean; error?: string }));
+  return new Promise<{ ok: boolean; error?: string; errorCode?: string }>((resolve) => {
+    fixture.listener?.(input, sender, (reply) =>
+      resolve(reply as { ok: boolean; error?: string; errorCode?: string }),
+    );
   });
 }
 describe('background message trust boundary', () => {
@@ -89,5 +96,47 @@ describe('background message trust boundary', () => {
     expect(
       (await message({ type: 'picker.selection', draft }, { ...sender, id: 'other-extension' })).ok,
     ).toBe(false);
+  });
+  it('stops core requests after three sync failures and resets when the token changes', async () => {
+    const popup = { id: 'test-extension', url: 'chrome-extension://test-extension/index.html' };
+    const site = 'https://one.example/article';
+    fixture.core.mockRejectedValue(new Error('unauthorized'));
+
+    const first = await message({ type: 'core.sync', site }, popup);
+    const second = await message({ type: 'core.sync', site }, popup);
+    const third = await message({ type: 'core.sync', site }, popup);
+    expect(first.ok).toBe(false);
+    expect(second.ok).toBe(false);
+    expect(third.errorCode).toBe('CORE_SYNC_BLOCKED');
+    expect(fixture.core).toHaveBeenCalledTimes(3);
+
+    const blocked = await message({ type: 'core.sync', site }, popup);
+    expect(blocked.errorCode).toBe('CORE_SYNC_BLOCKED');
+    expect(fixture.core).toHaveBeenCalledTimes(3);
+
+    const otherRequest = await message(
+      {
+        type: 'plugin.event',
+        tab: 1,
+        site,
+        plugin: 'test',
+        requireFullContent: false,
+        request: { readOnly: true, fields: {} },
+      },
+      popup,
+    );
+    expect(otherRequest.errorCode).toBe('CORE_SYNC_BLOCKED');
+    expect(fixture.core).toHaveBeenCalledTimes(3);
+
+    const settings = initialSettings();
+    settings.config.api.token = 'correct-token';
+    await message({ type: 'settings.save', settings }, popup);
+    expect((await message({ type: 'init' }, popup)).ok).toBe(true);
+
+    fixture.core.mockResolvedValue({
+      data: { snapshot: toWire(initialSnapshot(site, settings.config)) },
+    });
+    expect((await message({ type: 'core.sync', site }, popup)).ok).toBe(true);
+    expect(fixture.core).toHaveBeenCalledTimes(4);
   });
 });

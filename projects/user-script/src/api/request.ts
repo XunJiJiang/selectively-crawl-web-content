@@ -5,6 +5,7 @@ import {
   type VersionNotice,
 } from '../../../shared/client-version.ts';
 import { showVersionNotice } from '../../../shared/components/version-notice.ts';
+import { assertCoreRequestAllowed } from './sync-circuit.ts';
 
 interface CoreRequestOptions {
   method?: 'GET' | 'POST';
@@ -18,6 +19,11 @@ export function requestCore(
   url: string | URL,
   options: CoreRequestOptions = {},
 ): Promise<Response> {
+  try {
+    assertCoreRequestAllowed();
+  } catch (error) {
+    return Promise.reject(error);
+  }
   return new Promise((resolve, reject) => {
     const { signal } = options;
     let handle: GmAbortHandle | undefined;

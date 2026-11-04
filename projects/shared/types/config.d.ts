@@ -7,6 +7,7 @@ export type ScriptConfig = Omit<PluginConfig, 'controls'> & {
 
 export type ScriptConfigItem = PluginItem & {
   'script-config-symbol': import('../store/config.ts').TConfigSymbol; // 用于标识这是一个脚本配置项
+  syncHint?: string;
   trigger: (value: string | number | boolean | null) => void;
 };
 
