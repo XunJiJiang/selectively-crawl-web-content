@@ -23,8 +23,12 @@ import '../../web/var.css';
 import '@vscode/codicons/dist/codicon.css';
 import './popup.css';
 import styles from './surface.css?raw';
-import { CLIENT_VERSION, type VersionNotice } from '../../shared/client-version.ts';
-import { showVersionNotice } from '../../shared/components/version-notice.ts';
+import {
+  CLIENT_VERSION,
+  versionNoticeKey,
+  type VersionNotice,
+} from '../../shared/client-version.ts';
+import { ExtensionNotifications, type NotificationType } from './notifications.ts';
 import '../../shared/components/script-ui.ts';
 import {
   scriptConfigProblem,
@@ -52,16 +56,13 @@ export class ExtensionPopup extends LitElement {
     `,
   ];
   @state() private accessor context: Init = { settings: initialSettings(), syncBlocked: false };
-  @state() private accessor panel: 'capture' | 'plugins' | 'settings' = 'capture';
+  @state() private accessor panel: 'capture' | 'plugins' | 'notifications' | 'settings' = 'capture';
   @state() private accessor plugins: PluginConfig[] = [];
   @state() private accessor activePlugin = '';
   @state() private accessor connected = false;
   @state() private accessor syncBlocked = false;
   @state() private accessor busy = false;
   @state() private accessor loaded = false;
-  @state() private accessor notice = '';
-  @state() private accessor noticeError = false;
-  @state() private accessor results: string[] = [];
   @state() private accessor config = initialSettings().config;
   @state() private accessor theme: Settings['theme'] = 'dark-2026';
   @state() private accessor draftLabel = '';
@@ -79,12 +80,20 @@ export class ExtensionPopup extends LitElement {
   private lastSite = '';
   private pluginGeneration = 0;
   private templates = new ScriptUIRefreshQueue<PluginBatch>();
+  private notifications = new ExtensionNotifications();
+  private shownVersions = new Set<string>();
   @state() private accessor refreshingPlugins = new Set<string>();
   private versionNotice = (event: Event) => {
     const notice = (event as CustomEvent<VersionNotice>).detail;
-    showVersionNotice(notice, () =>
-      call({ type: 'version.dismiss', notice }).then(() => undefined),
-    );
+    const key = `${versionNoticeKey(notice)}:${notice.status}:${notice.route}`;
+    if (!this.shownVersions.has(key)) {
+      this.shownVersions.add(key);
+      this.notifications.add(
+        notice.message,
+        notice.status === 'warning' ? 'warn' : 'error',
+        notice,
+      );
+    }
   };
   private selectPlugin(id: string) {
     for (const view of this.shadowRoot?.querySelectorAll<ScriptUIView>('scwc-script-ui') ?? []) {
@@ -116,6 +125,7 @@ export class ExtensionPopup extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
+    this.notifications.suppressVersion = (notice) => call({ type: 'version.dismiss', notice });
     window.addEventListener('scwc-version-notice', this.versionNotice);
     void this.initialize();
   }
@@ -131,8 +141,7 @@ export class ExtensionPopup extends LitElement {
     }
   }
   private say(message: string, error = false) {
-    this.notice = message;
-    this.noticeError = error;
+    this.notifications.add(message, error ? 'error' : 'info');
   }
   private async run(work: () => Promise<void>) {
     try {
@@ -229,10 +238,6 @@ export class ExtensionPopup extends LitElement {
       }
       this.connected = true;
       this.syncBlocked = false;
-      if (this.notice.includes('数据已保存在扩展中')) {
-        this.notice = '';
-        this.noticeError = false;
-      }
       if (edits === this.edits) {
         this.context = { ...this.context, snapshot: next };
         if (this.plugins.some((plugin) => plugin.id === next.data.plugin.activeTab)) {
@@ -488,22 +493,33 @@ export class ExtensionPopup extends LitElement {
   }
   private showResult(input: unknown) {
     const result = input as { message?: string; data?: unknown };
-    this.say(result.message === 'success' ? '采集成功' : (result.message ?? '操作成功'));
     const data = result.data as
-      | { type?: string; data?: { message?: string } }
+      | { type?: string; data?: { message?: string; type?: NotificationType } }
       | unknown[]
       | undefined;
     if (Array.isArray(data)) {
-      this.results = data.map((entry: unknown) => {
+      for (const entry of data) {
         if (typeof entry === 'string') {
-          return entry;
+          this.notifications.add(entry, 'success');
+          continue;
         }
-        const item = entry as { pluginInfo?: { name: string }; info?: string };
-        return `${item.pluginInfo?.name ?? '插件'}：${item.info ?? ''}`;
-      });
+        const item = entry as { pluginInfo?: { name: string }; info?: string } | null;
+        this.notifications.add(
+          `${item?.pluginInfo?.name ?? '插件'}：${item?.info ?? ''}`,
+          'success',
+        );
+      }
+      if (data.length) {
+        return;
+      }
     } else if (data?.data?.message) {
-      this.results = [data.data.message];
+      this.notifications.add(data.data.message, data.data.type ?? 'info');
+      return;
     }
+    this.notifications.add(
+      result.message === 'success' ? '采集成功' : (result.message ?? '操作成功'),
+      'success',
+    );
   }
   private value(plugin: PluginConfig, control: PluginItem) {
     return (
@@ -896,22 +912,6 @@ export class ExtensionPopup extends LitElement {
               >`
             : nothing}</label
         ><label
-          >通知位置<wb-menu-select
-            label="通知位置"
-            .value=${this.config.notify.placement}
-            .options=${[
-              { label: '右上', value: 'tr' },
-              { label: '左上', value: 'tl' },
-              { label: '上方居中', value: 'tc' },
-              { label: '右下', value: 'br' },
-              { label: '左下', value: 'bl' },
-              { label: '下方居中', value: 'bc' },
-            ]}
-            @wb-menu-change=${(e: CustomEvent<{ value: TConfig['notify']['placement'] }>) => {
-              this.config = { ...this.config, notify: { placement: e.detail.value } };
-            }}
-          ></wb-menu-select></label
-        ><label
           >外观<wb-menu-select
             label="外观"
             .value=${this.theme}
@@ -930,6 +930,7 @@ export class ExtensionPopup extends LitElement {
       </div>`;
   }
   render() {
+    this.notifications.historyOpen = this.panel === 'notifications';
     return html`<header>
         <div class="brand"><strong>SCWC</strong></div>
         <span class="connection" data-connected=${this.connected}
@@ -958,6 +959,13 @@ export class ExtensionPopup extends LitElement {
         >
           插件</button
         ><button
+          class=${this.panel === 'notifications' ? 'active' : ''}
+          @click=${() => {
+            this.panel = 'notifications';
+          }}
+        >
+          通知</button
+        ><button
           class=${this.panel === 'settings' ? 'active' : ''}
           @click=${() => {
             this.panel = 'settings';
@@ -969,33 +977,17 @@ export class ExtensionPopup extends LitElement {
           设置
         </button>
       </nav>
-      <wb-scroll-container class="main-scroll"
-        ><main>
-          ${!this.loaded ? html`<p class="muted">正在加载…</p>` : nothing}
-          <div ?hidden=${this.panel !== 'capture'}>${this.loaded ? this.capture() : nothing}</div>
-          <div ?hidden=${this.panel !== 'plugins'}>${this.pluginPanel()}</div>
-          <div ?hidden=${this.panel !== 'settings'}>${this.settingsPanel()}</div>
-          ${this.notice
-            ? html`<div class="notice" role="status" ?data-error=${this.noticeError}>
-                ${this.notice}<button
-                  class="icon"
-                  title="关闭提示"
-                  @click=${() => {
-                    this.notice = '';
-                  }}
-                >
-                  ×
-                </button>
-              </div>`
-            : nothing}
-          ${this.results.length
-            ? html`<details class="results" open>
-                <summary>处理结果</summary>
-                ${this.results.map((line) => html`<p>${line}</p>`)}
-              </details>`
-            : nothing}
-        </main></wb-scroll-container
-      >
+      <div class="content-area">
+        <wb-scroll-container class="main-scroll" ?hidden=${this.panel === 'notifications'}
+          ><main>
+            ${!this.loaded ? html`<p class="muted">正在加载…</p>` : nothing}
+            <div ?hidden=${this.panel !== 'capture'}>${this.loaded ? this.capture() : nothing}</div>
+            <div ?hidden=${this.panel !== 'plugins'}>${this.pluginPanel()}</div>
+            <div ?hidden=${this.panel !== 'settings'}>${this.settingsPanel()}</div>
+          </main></wb-scroll-container
+        >
+        ${this.notifications}
+      </div>
       <footer>
         <span>${this.snapshot ? '按网站保存 · 扩展独立存储' : '请打开 HTTP 或 HTTPS 网页'}</span
         >${this.panel === 'capture' && this.snapshot

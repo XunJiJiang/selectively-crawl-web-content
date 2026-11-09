@@ -4,6 +4,7 @@ import { styleMap } from 'lit/directives/style-map.js';
 import { customElement } from '../../utils/customElement.ts';
 import { clamp, nonNegative, scrollbarOptions, thumbGeometry } from './geometry.ts';
 import { SmoothWheelMotion } from './wheel-motion.ts';
+import { scheduleFrame } from '../../utils/frame.ts';
 import type {
   ScrollAxis,
   ScrollbarOptions,
@@ -75,8 +76,8 @@ export class SCWCScrollContainer extends LitElement {
   private resizeObserver?: ResizeObserver;
   private mutationObserver?: MutationObserver;
   private observed = new Set<Element>();
-  private refreshFrame?: number;
-  private wheelFrame?: number;
+  private refreshFrame?: () => void;
+  private wheelFrame?: () => void;
   private wheelIdleTimer?: ReturnType<typeof setTimeout>;
   private wheelDistance = { x: 0, y: 0 };
   private wheelMotion?: SmoothWheelMotion;
@@ -121,7 +122,7 @@ export class SCWCScrollContainer extends LitElement {
     this.mutationObserver = undefined;
     this.observed.clear();
     if (this.refreshFrame !== undefined) {
-      cancelAnimationFrame(this.refreshFrame);
+      this.refreshFrame();
       this.refreshFrame = undefined;
     }
     this.endDrag();
@@ -168,7 +169,7 @@ export class SCWCScrollContainer extends LitElement {
     if (!this.isConnected || this.refreshFrame !== undefined) {
       return;
     }
-    this.refreshFrame = requestAnimationFrame(() => {
+    this.refreshFrame = scheduleFrame(() => {
       this.refreshFrame = undefined;
       this.refresh();
     });
@@ -524,7 +525,7 @@ export class SCWCScrollContainer extends LitElement {
       this.wheelDistance.y += y;
     }
     if (this.wheelFrame === undefined) {
-      this.wheelFrame = requestAnimationFrame(this.flushWheel);
+      this.wheelFrame = scheduleFrame(this.flushWheel);
     }
     clearTimeout(this.wheelIdleTimer);
     this.wheelIdleTimer = setTimeout(() => {
@@ -562,7 +563,7 @@ export class SCWCScrollContainer extends LitElement {
       if (motion.done) {
         this.wheelMotion = undefined;
       } else {
-        this.wheelFrame = requestAnimationFrame(this.flushWheel);
+        this.wheelFrame = scheduleFrame(this.flushWheel);
       }
       return;
     }
@@ -598,7 +599,7 @@ export class SCWCScrollContainer extends LitElement {
 
   private clearWheel() {
     if (this.wheelFrame !== undefined) {
-      cancelAnimationFrame(this.wheelFrame);
+      this.wheelFrame();
       this.wheelFrame = undefined;
     }
     clearTimeout(this.wheelIdleTimer);

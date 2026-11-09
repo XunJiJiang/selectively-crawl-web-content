@@ -11,6 +11,11 @@ export interface MessageSender {
   tab?: BrowserTab;
 }
 interface BrowserAPI {
+  action?: {
+    setBadgeText(details: { text: string }): Promise<void>;
+    setBadgeBackgroundColor(details: { color: string }): Promise<void>;
+    setBadgeTextColor?(details: { color: string }): Promise<void>;
+  };
   runtime: {
     id: string;
     getURL(path: string): string;
@@ -26,6 +31,14 @@ interface BrowserAPI {
     };
   };
   storage: {
+    onChanged?: {
+      addListener(
+        listener: (
+          changes: Record<string, { oldValue?: unknown; newValue?: unknown }>,
+          areaName: string,
+        ) => void,
+      ): void;
+    };
     local: {
       get(key: string): Promise<Record<string, unknown>>;
       set(values: Record<string, unknown>): Promise<void>;

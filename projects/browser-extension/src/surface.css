@@ -136,6 +136,12 @@ nav button span,
   flex: 1;
   min-height: 0;
 }
+.content-area {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
 main {
   padding: 20px;
 }
@@ -276,38 +282,6 @@ input::placeholder {
   margin-top: 0;
   color: var(--text-tertiary);
 }
-.notice {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 8px;
-  border-left: 2px solid var(--accent-secondary);
-  background: var(--surface-2);
-  padding: 8px 10px;
-  margin-top: 16px;
-  font-size: 12px;
-  overflow-wrap: anywhere;
-}
-.notice[data-error] {
-  border-color: var(--status-warning);
-}
-.notice .icon {
-  flex-shrink: 0;
-  line-height: 1;
-}
-.results {
-  font-size: 12px;
-  margin-top: 12px;
-  overflow-wrap: anywhere;
-}
-.results summary {
-  cursor: pointer;
-  color: var(--accent-primary);
-}
-.results p {
-  white-space: pre-wrap;
-  margin-bottom: 8px;
-}
 .plugin-tabs {
   max-width: 100%;
   margin: -20px -20px 16px;
@@ -388,6 +362,7 @@ wb-menu-select {
   min-width: 0;
 }
 footer {
+  flex-shrink: 0;
   display: flex;
   justify-content: space-between;
   align-items: center;

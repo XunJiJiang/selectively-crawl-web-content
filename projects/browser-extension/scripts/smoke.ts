@@ -231,11 +231,12 @@ const fixture = createServer(async (request, response) => {
     }
   } else {
     response.setHeader('content-type', 'text/html');
-    if (url.pathname === '/strict')
+    if (url.pathname === '/strict') {
       response.setHeader(
         'content-security-policy',
         "script-src 'self'; connect-src 'none'; font-src 'none'; img-src 'none'",
       );
+    }
     response.end(
       '<!doctype html><meta charset="utf-8"><title>采集测试页</title><article id="article"><h1>网页采集测试</h1><p id="text">Hello <b>SCWC</b></p></article>',
     );
@@ -442,7 +443,7 @@ try {
   );
   await evaluate("document.querySelector('scwc-extension').submit()");
   assert.equal(
-    await evaluate("document.querySelector('scwc-extension').results[0]"),
+    await evaluate("document.querySelector('scwc-extension').notifications.records.at(-1).message"),
     '浏览器集成验证成功',
   );
   const stored = await evaluate('chrome.storage.local.get(null)');
@@ -500,7 +501,7 @@ try {
   for (let i = 0; i < 50; i++) {
     if (
       await evaluate(
-        "document.querySelector('scwc-extension').results.includes('JSON browser / 1 items / v2')",
+        "document.querySelector('scwc-extension').notifications.records.some(item => item.message === 'JSON browser / 1 items / v2')",
       )
     ) {
       break;
@@ -509,12 +510,12 @@ try {
   }
   assert.equal(
     await evaluate(
-      "document.querySelector('scwc-extension').results.includes('JSON browser / 1 items / v2')",
+      "document.querySelector('scwc-extension').notifications.records.some(item => item.message === 'JSON browser / 1 items / v2')",
     ),
     true,
     JSON.stringify(
       await evaluate(
-        "({results:document.querySelector('scwc-extension').results,error:document.querySelector('scwc-extension').shadowRoot.querySelector('scwc-script-ui')?.shadowRoot.querySelector('#error')?.textContent})",
+        "({notifications:document.querySelector('scwc-extension').notifications.records,error:document.querySelector('scwc-extension').shadowRoot.querySelector('scwc-script-ui')?.shadowRoot.querySelector('#error')?.textContent})",
       ),
     ),
   );
@@ -583,6 +584,220 @@ try {
     path.join(root, 'dist/browser-extension/previews/chromium-light.png'),
     Buffer.from(String(lightShot.data), 'base64'),
   );
+  // 用真实布局、鼠标和滚轮验证通知，避免 JSDOM 的零尺寸掩盖堆叠错误。
+  await evaluate(`(async () => {
+    document.documentElement.dataset.theme='dark-2026';
+    const center=document.querySelector('scwc-extension').notifications;
+    for (const item of center.records.filter(item => item.visible)) center.dismiss(item.id);
+    for (let i=1;i<=12;i++) {
+      const id=center.add('通知第 '+i+' 条：采集任务已完成'+(i%3===0?'。不同高度的通知卡片也应使用相同的展开区域，超出区域的真实通知需要逐渐压缩并叠放。':''), ['info','success','warn','error'][i%4]);
+      center.pause(id,'focus');
+    }
+    await center.updateComplete;
+  })()`);
+  await delay(300);
+  const notificationState = () =>
+    evaluate(`(() => {
+    const app=document.querySelector('scwc-extension'), center=app.notifications, root=center.shadowRoot;
+    const viewport=root.querySelector('.toast-scroll'), bounds=center.getBoundingClientRect();
+    const cards=[...root.querySelectorAll('.toast')], front=cards.filter(card=>card.dataset.edge==='visible');
+    const selected=front.at(-1).getBoundingClientRect();
+    return {
+      expanded:center.expanded, above:center.above, below:center.below,
+      visible:front.length, cards:cards.length,
+      bottomGap:innerHeight-cards.at(-1).getBoundingClientRect().bottom,
+      scrollTop:viewport.scrollState.scrollTop, maxScrollTop:viewport.scrollState.maxScrollTop,
+      zeroBar:viewport.vertical.size===0 && viewport.horizontal.size===0,
+      fakePile:!!root.querySelector('.pile'),
+      x:selected.x+selected.width/2, y:selected.y+selected.height/2,
+      width:bounds.width, top:bounds.top
+    };
+  })()`) as Promise<{
+      expanded: boolean;
+      above: number;
+      below: number;
+      visible: number;
+      cards: number;
+      bottomGap: number;
+      scrollTop: number;
+      maxScrollTop: number;
+      zeroBar: boolean;
+      fakePile: boolean;
+      x: number;
+      y: number;
+      width: number;
+      top: number;
+    }>;
+  let notifications = await notificationState();
+  assert.equal(notifications.visible, 1);
+  assert.equal(notifications.cards, 12);
+  assert.equal(notifications.fakePile, false);
+  assert.equal(notifications.zeroBar, true);
+  assert.ok(Math.abs(notifications.bottomGap - 8) < 1);
+  assert.equal(
+    await evaluate(
+      `document.querySelector('scwc-extension').shadowRoot.elementFromPoint(2,150)?.localName === 'scwc-extension-notifications'`,
+    ),
+    false,
+    '透明滚动驱动器不能遮挡页面',
+  );
+  await evaluate(`document.querySelector('scwc-extension').notifications.writes`);
+  await delay(100);
+  assert.equal(
+    await evaluate(`(async()=>{
+    const center=document.querySelector('scwc-extension').notifications;
+    return await chrome.action.getBadgeText({})===String(center.records.filter(item=>!item.read).length);
+  })()`),
+    true,
+    '原生角标等于持久未读数量',
+  );
+  assert.deepEqual(await evaluate('chrome.action.getBadgeBackgroundColor({})'), [26, 44, 51, 255]);
+  assert.deepEqual(await evaluate('chrome.action.getBadgeTextColor({})'), [255, 255, 255, 255]);
+  async function notificationShot(name: string) {
+    const shot = await cdp('Page.captureScreenshot', { format: 'png' }, session);
+    await fs.writeFile(
+      path.join(root, 'dist/browser-extension/previews/' + name + '.png'),
+      Buffer.from(String(shot.data), 'base64'),
+    );
+  }
+  await notificationShot('chromium-notifications-stacked');
+  await cdp(
+    'Input.dispatchMouseEvent',
+    { type: 'mouseMoved', x: notifications.x, y: notifications.y },
+    session,
+  );
+  await delay(300);
+  notifications = await notificationState();
+  assert.equal(notifications.expanded, true);
+  assert.ok(notifications.visible >= 3 && notifications.visible <= 6);
+  assert.ok(notifications.above > 0);
+  assert.equal(notifications.below, 0);
+  await notificationShot('chromium-notifications-expanded');
+  await evaluate(`(() => {
+    const center=document.querySelector('scwc-extension').notifications, root=center.shadowRoot;
+    globalThis.notificationScrollSamples=[];
+    root.querySelector('.toast-scroll').addEventListener('scroll', event=>{
+      if (!event.detail) return;
+      const error=Math.max(0,...[...root.querySelectorAll('.toast')].map(card=>{
+        const rendered=new DOMMatrixReadOnly(getComputedStyle(card).transform), target=new DOMMatrixReadOnly(card.style.transform);
+        return Math.abs(rendered.m42-target.m42);
+      }));
+      notificationScrollSamples.push(error);
+    });
+  })()`);
+  await cdp(
+    'Input.dispatchMouseEvent',
+    { type: 'mouseWheel', x: notifications.x, y: notifications.y, deltaX: 0, deltaY: -700 },
+    session,
+  );
+  await delay(450);
+  notifications = await notificationState();
+  assert.ok(notifications.below > 0);
+  assert.equal(
+    await evaluate(
+      `notificationScrollSamples.length>0 && Math.max(...notificationScrollSamples)<0.01`,
+    ),
+    true,
+    '卡片必须逐帧跟随滚动位置，不得由CSS过渡追赶',
+  );
+  assert.equal(
+    await evaluate(
+      `getComputedStyle(document.querySelector('scwc-extension').notifications.shadowRoot.querySelector('.toast')).transitionProperty`,
+    ),
+    'none',
+  );
+  await notificationShot('chromium-notifications-scrolled');
+  const oldPosition = notifications.scrollTop;
+  const lowerTransforms = await evaluate(
+    `Object.fromEntries([...document.querySelector('scwc-extension').notifications.shadowRoot.querySelectorAll('.toast[data-edge="below"]')].map(card=>[card.dataset.id,card.style.transform]))`,
+  );
+  await cdp('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 2, y: 5 }, session);
+  await delay(300);
+  notifications = await notificationState();
+  assert.equal(notifications.expanded, false);
+  assert.equal(notifications.scrollTop, oldPosition);
+  assert.deepEqual(
+    await evaluate(
+      `Object.fromEntries([...document.querySelector('scwc-extension').notifications.shadowRoot.querySelectorAll('.toast[data-edge="below"]')].map(card=>[card.dataset.id,card.style.transform]))`,
+    ),
+    lowerTransforms,
+  );
+  await evaluate(
+    `document.querySelector('scwc-extension').notifications.add('新通知自动回到底部')`,
+  );
+  await delay(300);
+  notifications = await notificationState();
+  assert.equal(notifications.scrollTop, notifications.maxScrollTop);
+  assert.equal(notifications.below, 0);
+  await evaluate(`(async () => {
+    const app=document.querySelector('scwc-extension');
+    [...app.shadowRoot.querySelectorAll('nav button')].find(button=>button.textContent.trim()==='通知').click();
+    await app.updateComplete;
+  })()`);
+  await delay(100);
+  assert.equal(
+    await evaluate(`(() => {
+    const history=document.querySelector('scwc-extension').notifications.shadowRoot.querySelector('.history');
+    return Math.abs(history.scrollState.maxScrollTop-history.scrollState.scrollTop)<2 && history.querySelector('.notification:last-child').textContent.includes('新通知自动回到底部');
+  })()`),
+    true,
+    '通知历史打开时定位最新消息',
+  );
+  await notificationShot('chromium-notifications-history');
+  const filterPosition = (await evaluate(`(() => {
+    const root=document.querySelector('scwc-extension').notifications.shadowRoot;
+    const buttons=[...root.querySelectorAll('.history-filters button')], rects=buttons.map(button=>button.getBoundingClientRect());
+    if (!buttons.every(button=>getComputedStyle(button).backgroundColor==='rgba(0, 0, 0, 0)')) throw Error('筛选按钮默认应无背景');
+    if (rects[1].left-rects[0].right<7 || rects[2].left-rects[1].right<7) throw Error('筛选按钮应相互间隔');
+    buttons[1].focus();
+    if (getComputedStyle(buttons[1]).backgroundColor==='rgba(0, 0, 0, 0)') throw Error('聚焦按钮应显示背景');
+    buttons[1].blur();
+    if (getComputedStyle(buttons[1]).backgroundColor!=='rgba(0, 0, 0, 0)') throw Error('失焦按钮应恢复透明背景');
+    return {x:rects[0].x+rects[0].width/2,y:rects[0].y+rects[0].height/2};
+  })()`)) as { x: number; y: number };
+  await cdp(
+    'Input.dispatchMouseEvent',
+    { type: 'mouseMoved', x: filterPosition.x, y: filterPosition.y },
+    session,
+  );
+  assert.equal(
+    await evaluate(`(() => {
+    const buttons=[...document.querySelector('scwc-extension').notifications.shadowRoot.querySelectorAll('.history-filters button')];
+    return getComputedStyle(buttons[0]).backgroundColor!=='rgba(0, 0, 0, 0)' && buttons.slice(1).every(button=>getComputedStyle(button).backgroundColor==='rgba(0, 0, 0, 0)');
+  })()`),
+    true,
+    '只有hover或聚焦的筛选按钮显示背景',
+  );
+  await cdp('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 2, y: 5 }, session);
+  await evaluate(`document.querySelector('scwc-extension').notifications.writes`);
+  await delay(100);
+  assert.equal(
+    await evaluate(`(async()=>{
+    const center=document.querySelector('scwc-extension').notifications;
+    return center.records.some(item=>item.read) && center.records.some(item=>!item.read) && await chrome.action.getBadgeText({})===String(center.records.filter(item=>!item.read).length);
+  })()`),
+    true,
+    '只将可视历史标为已读，并同步角标',
+  );
+  await evaluate(`(async()=>{
+    const center=document.querySelector('scwc-extension').notifications;
+    [...center.shadowRoot.querySelectorAll('.history-filters button')].find(button=>button.textContent.trim()==='已读').click();
+    await center.updateComplete;
+  })()`);
+  assert.equal(
+    await evaluate(
+      `!document.querySelector('scwc-extension').notifications.shadowRoot.querySelector('.notification[data-read="false"]')`,
+    ),
+    true,
+  );
+  await evaluate(`(async () => {
+    const app=document.querySelector('scwc-extension'), center=app.notifications;
+    center.shadowRoot.querySelector('.notification:last-child .close').click();
+    await center.writes;
+    app.panel='capture';
+    for (const item of center.records.filter(item=>item.visible)) center.dismiss(item.id);
+    await app.updateComplete;
+  })()`);
   // Execute the installed userscript bundle with a GM network bridge; the page itself has no network/font grants.
   await cdp(
     'Page.navigate',
@@ -621,7 +836,9 @@ try {
       },
       pageSession,
     );
-    if ((value.result as { value?: string })?.value) break;
+    if ((value.result as { value?: string })?.value) {
+      break;
+    }
     await delay(100);
   }
   await cdp(
@@ -677,7 +894,7 @@ try {
     );
   }
   console.log(
-    'PASS: Chromium popup, selection/reopen, parent/undo, persistence, root version header, v1/v2 JSON, backend pipeline, targeted tab refresh/loading, crawl, menus, footer bounds and themes',
+    'PASS: Chromium popup, selection/reopen, persistence, root version header, v1/v2 JSON, targeted tab refresh/loading, crawl, menus, themes, bounded real notification stacks, retained scroll on collapse, new-message follow, native unread badge, visible-history reads and filters',
   );
 } finally {
   try {

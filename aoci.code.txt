@@ -1028,13 +1028,13 @@ zoom-out.svg[ZU2T]: F:绘制圆框缩小减号 | R:- | A:SVG图形 | S:-
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/public/web/assets/===
 index-C0tSgCCc.css[ZU4T]: F:分发工作台主题、字号与图标外观 | R:code:projects/web/var.css,code:projects/web/style.css | A:CSS变量,主题选择器,codicon字形 | S:根字号14px；外层隐藏原生滚动，内部容器负责滚动
 local-config-VfJoo0HP.js[LU4T]: F:分发Lit运行时与本机启动配置加载 | R:code:projects/web/src/api/local-config.ts | A:浏览器共享ESM导出 | S:仅回环同源请求配置，拒绝重定向；三秒失败回退现有配置
-index-UeMMOUHc.js[EU5L]: F:启动生产工作台配置与布局加载链 | R:code:projects/web/src/main.ts,code:projects/server/public/web/assets/layouts-CaiERuxQ.js | A:浏览器ESM入口 | S:本机配置写入存储后才动态加载布局；预载依赖按哈希资源配套部署
-layouts-CaiERuxQ.js[AU5L]: F:分发工作台布局、声明式JSON视图及安装交互 | R:code:projects/web/src/layouts/root.ts,code:projects/web/src/components/declarative-view.ts,code:projects/web/src/workbench/store.ts | A:app-root,工作台组件注册 | S:含设置分组样式及过期读有界恢复；扩展安装防重且20秒超时；哈希依赖须配套部署
 terminal-C8BsRbMt.js[LU5M]: F:分发工作台终端、输入编辑与滚动交互 | R:code:projects/web/src/components/terminal.ts,code:projects/web/src/components/command-editor.ts | A:WorkbenchTerminal,wb-terminal,wb-command-editor | S:输入输出共用视口；捕获滚轮与指针操作先记录用户滚动，避免输出跟随重置位置
 workbench-BQ4D5jhw.js[LU5L]: F:分发工作台通用组件、命令及事件连接 | R:code:projects/web/src/workbench/commands.ts,code:projects/web/src/api/workbench.ts | A:浏览器共享ESM导出 | S:Socket使用单次票据且拒旧代事件，重连上限15秒；包含扩展安装命令；依赖哈希资源须配套部署
+index-N9Rp4pd0.js[EU5L]: F:启动生产工作台配置加载并分发共享配置控制器 | R:code:projects/web/src/main.ts,code:projects/shared/store/config.ts,code:projects/server/public/web/assets/layouts-CpVS9ALg.js | A:浏览器ESM入口,配置控制器共享导出 | S:本机配置写入存储后才导入布局；内含Token变更事件和鉴权提示；哈希依赖须配套部署
+layouts-CpVS9ALg.js[AU5L]: F:分发工作台布局、声明式视图及安装交互 | R:code:projects/web/src/layouts/root.ts,code:projects/web/src/components/declarative-view.ts,code:projects/web/src/workbench/store.ts | A:app-root,工作台组件注册 | S:包含设置分组及过期读有界恢复；扩展安装防重且20秒超时，绕过休眠等待；哈希资源须配套部署
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/public/web/===
-index.html[EU5T]: F:装载生产工作台并标记页面身份 | R:code:projects/server/public/web/assets/index-UeMMOUHc.js,code:projects/server/public/web/assets/index-C0tSgCCc.css | A:/web/HTML入口,scwc-app元标记,ICO favicon | S:预载local-config；资产基于/web/assets；初始dark-2026；元标记供脚本跳过浮窗
+index.html[EU5T]: F:装载生产工作台并标记页面身份 | R:code:projects/server/public/web/assets/index-N9Rp4pd0.js,code:projects/server/public/web/assets/index-C0tSgCCc.css | A:/web/HTML入口,scwc-app元标记,ICO favicon | S:预载local-config；资产基于/web/assets；初始dark-2026；元标记供脚本跳过浮窗
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/router/===
 index.ts[MN8M]: F:接入采集、工作台和带客户端版本的HTTP请求 | R:code:projects/server/router/extension-origin.ts,code:projects/server/router/user-script.ts,code:projects/server/router/version.ts | A:app,listen,/api/metadata/scrape | S:仅明确扩展路径豁免同主机检查，仍验HTTP(S) site与Bearer；CORS允许版本头并暴露通知头；采集路由显式版本门槛；响应关闭结束任务
@@ -1187,11 +1187,11 @@ script-ui.ts[LU7L]: F:为脚本与扩展托管有状态JSON视图、配置读取
 version-notice.ts[LU6S]: F:为两端显示可按版本抑制的升级通知 | R:code:projects/shared/client-version.ts | A:showVersionNotice,scwc-version-notice | S:警告按当前与最新版本去重并可持久关闭；错误不使用警告抑制键；存储不可用时仍保留本会话去重
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/shared/store/===
-config.ts[CC7M]: F:协调浏览器设置控件和同页配置传播 | R:code:projects/shared/utils/storage.ts,code:projects/shared/userscript-config.ts | A:ConfigController,configContext,defaultValue,parseRefreshRule,isConfig,isConfigItem | S:使用固定公共设置键接受同origin存储事件；同页修改广播控制器并发配置事件，断连注销；连接字段共用防抖，全局URL刷新规则不供编辑
+config.ts[CC7M]: F:协调浏览器配置控件、鉴权提示与同页配置传播 | R:code:projects/shared/utils/storage.ts,code:projects/shared/userscript-config.ts | A:ConfigController,configContext,defaultValue,parseRefreshRule,isConfig,isConfigItem | S:公共键接收同origin更新；API字段合并防抖500ms；Token变化独立发事件并清鉴权提示；提示刷新控件时保留待落盘输入；断连注销控制器
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/shared/types/===
 api.d.ts[FN4T]: F:声明共享响应封装 | R:- | A:ResponseData | S:data可缺省，成功与消息字段始终存在
-config.d.ts[FC6T]: F:声明脚本设置与本地控件契约 | R:code:projects/shared/store/config.ts,code:projects/shared/types/plugin.d.ts | A:TConfig,ScriptConfig,ScriptConfigItem | S:refreshRule仅保留旧数据兼容，不决定插件刷新；本地控件以私有Symbol绑定trigger
+config.d.ts[FC6T]: F:声明脚本设置、本地控件及同步提示契约 | R:code:projects/shared/store/config.ts,code:projects/shared/types/plugin.d.ts | A:TConfig,ScriptConfig,ScriptConfigItem | S:refreshRule只兼容旧值，不决定插件刷新；私有Symbol标记本地设置；syncHint为本地控件提供鉴权状态提示
 notify.d.ts[FM5T]: F:声明浮层通知状态 | R:code:projects/shared/components/notify.ts | A:INotifyOptions,TNotify | S:onclose仅区分auto/user；内部状态包含隐式测高、进出场及移除阶段
 plugin.d.ts[FE5T]: F:声明浏览器双代插件配置与采集回调数据 | R:code:projects/shared/types/config.d.ts,code:projects/shared/script-ui.ts | A:PluginItem,PluginConfig,TRequiredOptions,GetCrawlData | S:未声明版本按v1；浏览器控件不含后端trigger；v2可携编译实例与兼容范围
 utils.d.ts[FD4T]: F:描述配置函数数组 | R:code:projects/shared/utils/storage.ts | A:JSONValue,JSONValueWithFunction,ArrayProcessor,JSONValueToFunction,ResolvedJSONValue | S:数组配置以处理器函数表达，用条件类型恢复最终JSON数组
@@ -1210,6 +1210,8 @@ tryCatch.ts[CR5S]: F:归一浏览器调用错误 | R:- | A:default tryCatch,isPr
 updateLocalStorage.ts[PR7M]: F:迁移历史浏览器数据并恢复origin配置快照 | R:code:projects/shared/userscript-config.ts,code:projects/shared/userscript-config-schema.ts,code:projects/shared/utils/common.ts | A:updateLocalStorage,updateLocalStorageFormat_2026_10_30,updateLocalStorageFormat_2026_10_31_origin | S:旧键和路径副本保留；按原日期选择同origin最新副本写入公共键，不制造修改日期；损坏副本不阻断其他数据，默认epoch不覆盖真实配置
 refreshRuleMatcher.test.ts[TC5T]: F:验证URL规则的实际变化比较 | R:code:projects/shared/utils/refreshRuleMatcher.ts | A:Vitest参数化用例 | S:覆盖继承、增删、忽略、重复查询值无序及跨源强制刷新
 refreshRuleMatcher.ts[KC7T]: F:按插件规则比较路径、查询与片段变化 | R:code:projects/shared/utils/refreshRuleParser.ts | A:shouldRefreshUrl | S:跨源始终刷新；查询重复值排序后比较，空值与键缺失有别；未声明区域忽略，非法规则抛错
+frame.test.ts[TU4T]: F:验证帧调度取消及定时器回退 | R:code:projects/shared/utils/frame.ts | A:Vitest伪时钟用例 | S:缺取消API时也必须阻止已取消回调
+frame.ts[LU5T]: F:统一提供可取消的一次性浏览器帧调度 | R:code:projects/browser-extension/src/notifications.ts,code:projects/shared/components/scroll-container/scroll-container.ts | A:scheduleFrame | S:优先requestAnimationFrame，缺失回退16ms定时器；取消标志拦截宿主已排队的迟到回调，回调至多执行一次
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/shared/===
 workbench-protocol.ts[IN8S]: F:隔离页面消息与有界端口请求 | R:code:projects/web/src/workbench/frames.ts,code:projects/webutils/lib/workbench.ts | A:PROTOCOL,Envelope,InstancePort,PageSearchBatch,requireValue | S:按tabId和frameEpoch隔离且拒绝回退sequence；JSON字符长限256KiB、待答32；超时发送cancel，关闭拒绝全部待答；不再定义页面属性注入结构
@@ -1228,7 +1230,7 @@ backend.ts[LG7T]: F:公开shared后端通用工具和类型 | R:code:projects/sh
 frontend.ts[EU7T]: F:公开并注册shared浏览器组件、工具和类型 | R:code:projects/shared/backend.ts,code:projects/shared/components/index.ts,code:projects/shared/components/notify.ts | A:表单组件,notify,SCWCScrollContainer,浏览器工具与类型 | S:导入即创建或复用通知及初始化页面存储配置，需要DOM；Vite仅向HTML入口自动注入，Worker不加载
 package.json[FV6T]: F:声明shared独立工作区包及前后端子路径 | R:code:projects/shared/frontend.ts,code:projects/shared/backend.ts,code:projects/vite-plugin/package.json | A:@scwc/shared,exports,dependencies | S:私有ESM包直接导出TS；前端依赖随Vite包的传递资产收集进入发行目录
 userscript-config-schema.ts[FC7T]: F:校验网站同步快照与历史路径副本 | R:code:projects/shared/userscript-config.ts | A:snapshotSchema,pathSnapshotSchema | S:同步协议仅接受版本1规范origin；版本2路径结构只供本地迁移读取；日期限毫秒ISO且严格字段、数量和文本边界
-userscript-config.ts[FC7T]: F:定义网站配置身份、快照及默认数据 | R:code:projects/shared/types/config.d.ts | A:UserScriptSnapshot,UserScriptSiteData,websiteOrigin,defaultSiteData,copySiteData | S:版本1仅使用HTTP或HTTPS的origin，路径、query、hash和iframe身份均不区分；新默认epoch不覆盖已修改数据
+userscript-config.ts[FC7T]: F:定义网站配置快照、默认值及Token变更事件身份 | R:code:projects/shared/types/config.d.ts | A:UserScriptSnapshot,UserScriptSiteData,websiteOrigin,defaultSiteData,copySiteData,API_TOKEN_CHANGED_EVENT | S:版本1只按HTTP或HTTPS的origin区分，路径、query、hash及iframe身份均不区分；新默认epoch不覆盖已修改数据
 system-notifications.ts[CM7T]: F:共享系统通知设置与内核浏览器发送选择 | R:- | A:SystemNotificationMode,SystemNotificationSettings,initialSystemNotificationSettings,isLoopbackHostname,browserNotificationRoute,coreNotificationRoute | S:初始内核加非回环浏览器且未开启；localhost、127/8、::1及映射地址判回环，桌面模式强制仅内核
 command-history.ts[FC5T]: F:统一Web与独立终端的命令历史容量 | R:- | A:COMMAND_HISTORY_LIMIT | S:当前固定1000条，预留以后接入设置
 client-version.ts[KN7T]: F:定义客户端版本身份并比较语义版本及兼容范围 | R:code:package.json | A:CLIENT_VERSION,VERSION_HEADER,compareVersions,inVersionRange,versionNoticeKey | S:根版本由构建注入；构建元信息不参与排序，预发布数字按数值；范围含端点且星号无上限；通知键绑定当前和最新版本
@@ -1291,14 +1293,15 @@ vite.config.ts[FV5T]: F:构建全站用户脚本并注入根包请求版本 | R:
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/user-script/src/api/===
 crawl.ts[IN6T]: F:经脚本管理器向核心提交页面采集内容 | R:code:projects/user-script/src/api/request.ts | A:sendCrawlRequest | S:site随查询及JSON发送并带Bearer；按响应success归一结果，网络或JSON异常转换失败值
 plugins.ts[IE6M]: F:请求双代插件配置并发送含刷新基线的JSON事件 | R:code:projects/user-script/src/api/request.ts,code:projects/server/router/plugin.ts,code:projects/shared/script-ui.ts | A:fetchPlugins,triggerPlugin,invokeScriptUI,PluginConfigBatch | S:v1显式带版本；v2携实例与字段快照；刷新传旧实例和脏字段；仅提交要求完整采集，只读不拦；错误保留机器码，兼容原通知
-request.test.ts[TN6S]: F:验证脚本管理器请求的根版本、身份及取消清理 | R:code:projects/user-script/src/api/request.ts | A:Vitest用例 | S:页面fetch设为CSP失败；确认根版本头、禁Cookie、保留HTTP失败，取消后忽略迟到回调
-request.ts[IN7S]: F:经脚本管理器提交带根版本请求并显示升级通知 | R:code:projects/user-script/vite.config.ts,code:projects/shared/client-version.ts,code:projects/shared/components/version-notice.ts | A:requestCore,CoreRequestOptions | S:保留当前网站Origin和Referer；匿名禁缓存、拒重定向，缺GM不回退fetch；通知头解析失败不影响原响应；取消释放监听
+request.test.ts[TN6S]: F:验证脚本管理器请求身份、取消清理及熔断阻断 | R:code:projects/user-script/src/api/request.ts,code:projects/user-script/src/api/sync-circuit.ts | A:Vitest用例 | S:mock GM且页面fetch禁用；覆盖版本头、匿名请求、HTTP错误及取消后迟到回调；三次失败熔断后不再调用GM
+request.ts[IN7S]: F:经脚本管理器提交带版本请求并服从同步熔断 | R:code:projects/user-script/src/api/sync-circuit.ts,code:projects/shared/client-version.ts,code:projects/shared/components/version-notice.ts | A:requestCore,CoreRequestOptions | S:发请求前核验熔断；保留网站Origin和Referer；匿名禁缓存且拒重定向，缺GM不回退fetch；通知头异常不影响原响应；取消释放监听
+sync-circuit.ts[RN7S]: F:持久化脚本同步熔断并阻止暂停后的核心请求 | R:code:projects/user-script/src/api/request.ts,code:projects/user-script/src/site-sync.ts,code:projects/shared/store/config.ts,code:projects/shared/userscript-config.ts | A:isCoreSyncBlocked,recordCoreSyncFailure,recordCoreSyncSuccess,notifyCoreSyncBlocked,assertCoreRequestAllowed,CORE_SYNC_BLOCKED_MESSAGE | S:同origin共享持久状态；连续同步失败3次封锁所有核心请求，成功或Token变更重置；提示750ms节流；存储不可用时当前页仍生效
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/user-script/src/layouts/===
 content-claw.css[ZU3T]: F:排版工作台风格抓取列表与选择表单 | R:code:projects/user-script/src/layouts/content-claw.ts | A:.claw-header,.claw-item-list,.claw-item | S:列表高度受视口限制，滚动由共享容器承接
 content-claw.ts[AU7L]: F:选择网页元素并保存页面抓取项与提交内容 | R:code:projects/user-script/src/site-store.ts,code:projects/user-script/src/utils/selector.ts,code:projects/user-script/src/api/crawl.ts | A:scwc-layout-content-claw,scwc-element-highlight | S:排除浮窗和通知根；数据来自当前页面Store，输入即保存；空列表仍提交空数组，任一选择提取失败阻止普通采集，重复selector删除全部
-content-plugin.css[ZU3S]: F:排版浮窗插件标签与表单控件 | R:code:projects/user-script/src/layouts/content-plugin.ts | A:.plugin-window,.plugin-window-tabs,.plugin-content-scroll | S:标签横向滚动，内容高度受视口限制，使用共享滚动包装
-content-plugin.ts[AU6M]: F:渲染脚本插件标签、旧控件及保留状态的JSON视图 | R:code:projects/user-script/src/layouts/hooks/plugins.ts,code:projects/shared/components/script-ui.ts,code:projects/shared/script-ui.ts | A:scwc-layout-content-plugin | S:省略版本走v1；展开才首载；JSON视图按插件id保留并隐藏非活动项；事件及刷新基线交控制器；旧数字输入仍传字符串
+content-plugin.css[ZU3S]: F:排版浮窗插件标签、表单及同步鉴权提示 | R:code:projects/user-script/src/layouts/content-plugin.ts | A:.plugin-window,.plugin-window-tabs,.plugin-content-scroll,.sync-auth-warning | S:标签横向滚动，内容使用共享滚动包装且受视口高度限制
+content-plugin.ts[AU6M]: F:渲染脚本插件标签、双代控件及本地鉴权提示 | R:code:projects/user-script/src/layouts/hooks/plugins.ts,code:projects/shared/components/script-ui.ts,code:projects/shared/store/config.ts | A:scwc-layout-content-plugin,SCWCContentPlugin | S:省略版本走v1；展开才首载；JSON视图按插件id保留并隐藏非活动项；旧数字输入传字符串；仅本地Symbol控件展示syncHint
 content.ts[AU4T]: F:连接浮窗抓取项与插件页签 | R:code:projects/user-script/src/layouts/content-claw.ts,code:projects/user-script/src/layouts/content-plugin.ts | A:scwc-layout-content,claw-items-changed,current-plugin-tab-changed | S:子组件事件显式转发，抓取项以属性传给插件区
 footer.ts[ZU2T]: F:保留空浮窗页脚组件 | R:- | A:scwc-layout-footer | S:-
 header.css[ZU3T]: F:排版浮窗标题与拖拽操作栏 | R:code:projects/user-script/src/layouts/header.ts | A:.scwc-layout-header,button | S:栏高复用工作台标签尺寸变量
@@ -1319,8 +1322,8 @@ main.ts[EU6T]: F:初始化CSP配置与迁移并按页面归属挂载浮窗 | R:c
 migrate.ts[PC6T]: F:在布局及配置控制器初始化前迁移网站存储 | R:code:projects/shared/utils/updateLocalStorage.ts | A:config,模块初始化副作用 | S:先使用构建Host和Port默认值迁移，再回写公共设置键，避免默认补齐污染历史数据
 site-store.test.ts[TC6S]: F:验证origin共享、路径副本迁移与日期单调 | R:code:projects/user-script/src/site-store.ts,code:projects/shared/utils/updateLocalStorage.ts | A:Vitest用例 | S:覆盖不同路径、iframe和直接访问共享，其他origin拒收；历史路径副本按日期恢复且保留原键，损坏旧数据不丢弃
 site-store.ts[PD8T]: F:维护网站origin配置快照及跨页面更新 | R:code:projects/shared/utils/updateLocalStorage.ts,code:projects/shared/store/config.ts,code:projects/shared/userscript-config.ts | A:SiteStore,siteStore | S:规范快照先持久化后更新内存，日期单调；canonical和兼容键均为同origin公共键，路径导航不切换配置，存储事件仅接受当前origin快照
-site-sync.test.ts[TC6S]: F:验证网站配置轮询、重连及并发编辑保护 | R:code:projects/user-script/src/site-sync.ts | A:Vitest用例 | S:页面fetch和Socket均禁用；伪时钟覆盖2秒轮询、离线退避、上传竞态及同origin路径保留连接
-site-sync.ts[IN8S]: F:通过脚本管理器HTTP轮询双向同步网站配置 | R:code:projects/user-script/src/api/request.ts,code:projects/user-script/src/site-store.ts | A:SiteConfigConnection,coreUrl | S:成功后2秒轮询，单请求10秒超时，不用页面Socket；凭据只经HTTP；代数拒旧响应，同日期裁决不覆盖上传后编辑，失败退避至15秒
+site-sync.test.ts[TC6M]: F:验证网站配置轮询、并发保护与三次失败熔断恢复 | R:code:projects/user-script/src/site-sync.ts,code:projects/user-script/src/api/sync-circuit.ts | A:Vitest用例 | S:页面fetch及Socket禁用；伪时钟覆盖2秒轮询、退避、上传竞态；熔断后编辑普通数据不发请求，Token变化恢复
+site-sync.ts[IN8M]: F:通过脚本管理器轮询同步网站配置并治理连接熔断 | R:code:projects/user-script/src/api/request.ts,code:projects/user-script/src/api/sync-circuit.ts,code:projects/user-script/src/site-store.ts | A:SiteConfigConnection,coreUrl | S:成功后2秒轮询，单请求10秒，不用页面Socket；连续失败3次停止重试，Token变化恢复；代数拒旧响应，同日期仅上传后无编辑才接受；离线退避从500ms翻倍至15秒
 theme.ts[LU5T]: F:把工作台主题和控件外观限定到脚本浮窗宿主 | R:code:projects/web/var.css,code:projects/user-script/src/icons.ts | A:theme,controls | S:带主题属性的根选择器须转换为:host(...)以支持浅色；SVG图标先于共享菜单注册
 main.test.ts[TU5S]: F:验证工作台及同源子页跳过脚本浮窗 | R:code:projects/user-script/src/main.ts,code:projects/web/index.html | A:Vitest用例 | S:覆盖直接及嵌套祖先、DOM加载完成后识别；普通页面保留浮窗且不注入字体，跨源异常不阻断
 csp.ts[FC6T]: F:关闭脚本校验器的动态代码探测 | R:code:projects/user-script/src/main.ts | A:模块初始化副作用,z.config | S:必须在迁移及布局创建schema前设jitless，兼容严格script-src
@@ -1452,8 +1455,8 @@ geometry.test.ts[TU4T]: F:验证滚动几何边界 | R:code:projects/shared/comp
 geometry.ts[LU5T]: F:计算滚动条配置与滑块几何 | R:code:projects/shared/components/scroll-container/types.ts | A:defaultScrollbar,scrollbarOptions,thumbGeometry,clamp | S:默认4px；非法数值回退或归零，透明度限0至1；滑块最小长度受轨道限制，位置钳制到有效范围
 index.ts[EU5T]: F:公开滚动组件与类型 | R:code:projects/shared/components/scroll-container/scroll-container.ts,code:projects/shared/components/scroll-container/types.ts | A:SCWCScrollContainer,ScrollState,ScrollMetrics,ScrollbarOptions,ScrollContent,SmoothWheelOptions | S:导入只注册滚动组件，不改共享组件总入口
 scroll-container.css[ZU4S]: F:绘制滚动视口与独立平滑滑块 | R:code:projects/shared/components/scroll-container/scroll-container.ts | A:.viewport,.content,.track,.thumb,.extent | S:跳跃态滑块过渡150ms，拖拽禁过渡；减弱动态置零
-scroll-container.test.ts[TU6L]: F:验证双轴滚动与内容滑块分离 | R:code:projects/shared/components/scroll-container/scroll-container.ts,code:projects/shared/components/scroll-container/geometry.ts | A:Vitest用例 | S:几何和伪帧覆盖限幅、边界、外部metrics及嵌套；拖拽内容量化而滑块连续，松手回到实际映射；DOM断言不证明动画帧
-scroll-container.ts[LU7L]: F:提供双轴自定义滚动与独立滑块显示 | R:code:projects/shared/components/scroll-container/geometry.ts,code:projects/shared/components/scroll-container/types.ts,code:projects/shared/components/scroll-container/wheel-motion.ts | A:SCWCScrollContainer,scrollTo,refresh,scrollState,wheelDistanceRatio,maxWheelDistance | S:外部metrics撤销内部更新；滚轮先倍率再限幅，余数150ms清除；跳跃内容按步长，滑块独立跟指针；抓取以实测位置为锚，松手归位；缩放放行，边界交祖先
+scroll-container.test.ts[TU6L]: F:验证双轴滚动、滑块分离及帧调度回退 | R:code:projects/shared/components/scroll-container/scroll-container.ts,code:projects/shared/utils/frame.ts | A:Vitest用例 | S:伪帧覆盖限幅、嵌套及外部metrics；拖拽内容量化而滑块连续；无帧API时平滑滚动由定时器推进，断连取消；DOM夹具不证明像素动画
+scroll-container.ts[LU7L]: F:提供双轴自定义滚动及独立滑块显示 | R:code:projects/shared/components/scroll-container/geometry.ts,code:projects/shared/components/scroll-container/wheel-motion.ts,code:projects/shared/utils/frame.ts | A:SCWCScrollContainer,scrollTo,refresh,scrollState,wheelDistanceRatio,maxWheelDistance | S:外部metrics撤销内部更新；滚轮先倍率再限幅，余数150ms清除；跳跃内容量化、滑块连续；测量及滚轮共用可取消帧调度，缺API回退定时器；边界交祖先
 types.ts[FU5T]: F:声明滚动容器契约 | R:code:projects/shared/components/scroll-container/scroll-container.ts | A:ScrollMetrics,ScrollState,ScrollbarOptions,ScrollContent,SmoothWheelOptions,WheelDirection | S:尺寸位置使用逻辑像素，曲线时间使用毫秒；外部metrics存在时content回调不提供内部更新函数
 wheel-motion.test.ts[TU6S]: F:验证自适应滚轮曲线 | R:code:projects/shared/components/scroll-container/wheel-motion.ts | A:Vitest用例 | S:确定时钟验证三段速度及60/120/240Hz连续输入；零加速须保持静止轴有限、位置连续和反向距离正确
 wheel-motion.ts[KU6S]: F:计算自适应双轴滚轮轨迹 | R:code:projects/shared/components/scroll-container/types.ts | A:SmoothWheelMotion,wheelTiming | S:解析积分避免帧累积误差；事件间隔估计时长，比例过大仍保留匀速段；非零加速同向续速且防过冲，零加速直接进入峰速
@@ -1537,7 +1540,7 @@ icon.json[FU4T]: F:配置macOS图标的背景、选框与箭头三层材质 | R:
 scwc.svg[ZU3T]: F:绘制SCWC选框与采集箭头标识 | R:code:projects/server/workbench/notification-icon.ts | A:64×64 SVG | S:-
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/browser-extension/===
-PRIVACY.md[SS5T]: F:说明扩展本地存储、采集传输与数据删除边界 | R:code:projects/browser-extension/src/background.ts,code:projects/browser-extension/src/storage.ts | A:隐私说明 | S:网站配置含令牌并发往用户核心；卸载只删除浏览器副本
+PRIVACY.md[SS5T]: F:说明扩展本地存储、采集传输、通知已读与删除边界 | R:code:projects/browser-extension/src/background.ts,code:projects/browser-extension/src/notifications.ts | A:隐私说明 | S:网站配置含令牌并发用户核心；历史可视行已读，图标显示未读；自动隐藏保留，主动关闭删除；卸载只清浏览器副本
 PUBLISHING.md[SV5T]: F:说明商店发布与随核心附包的分发条件 | R:code:projects/browser-extension/scripts/build.ts,code:projects/server/utils/browser-extension.ts | A:Chrome商店、Firefox及Safari发布说明 | S:安装唤起只交付向导；Firefox须签名长期安装，Safari仅提供转换源包
 index.html[EU4T]: F:装载原生扩展弹窗 | R:code:projects/browser-extension/src/popup.ts | A:scwc-extension,模块入口 | S:-
 package.json[FV5T]: F:声明扩展安装版本及构建验证命令 | R:code:projects/browser-extension/scripts/build.ts,code:projects/browser-extension/vite.config.ts | A:version,scripts,type | S:此版本用于三类扩展清单及ZIP名，请求兼容版本另取根包
@@ -1547,23 +1550,31 @@ vite.config.ts[FV5T]: F:构建扩展弹窗并注入统一客户端版本 | R:cod
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/browser-extension/scripts/===
 build.ts[OV7S]: F:构建三类扩展目录、后台脚本与ZIP | R:code:projects/browser-extension/vite.config.ts,code:projects/browser-extension/src/background.ts,code:package.json | A:buildBrowserExtensions | S:后台与内容脚本注入根包版本；清单仍取扩展包；Chromium用MV3 Worker，Firefox和Safari用事件后台；产物无签名
 installer-smoke.ts[TU6M]: F:验证工作台安装命令与浏览器安装向导 | R:code:projects/server/utils/extension-install-guide.ts,code:projects/web/src/layouts/root.ts | A:Node冒烟脚本 | S:替换系统安装器并隔离数据库及Chrome配置；验证暂停时请求与复制反馈，不安装真实扩展
-smoke.ts[TE6L]: F:验证Chromium扩展与脚本的JSON交互、布局及CSP兼容 | R:code:projects/browser-extension/src/popup.ts,code:projects/server/user-script/ui.ts,code:projects/user-script/src/main.ts | A:Node与CDP冒烟入口 | S:使用隔离扩展及GM桥；核验v1/v2、保存管道和定向刷新；两端验证320px分组与保存可达性，脚本禁网络字体，截图存dist
+smoke.ts[TE6L]: F:验证Chromium采集、JSON视图、通知交互及原生角标 | R:code:projects/browser-extension/src/popup.ts,code:projects/browser-extension/src/notifications.ts,code:projects/browser-extension/src/notification-badge.ts | A:Node与CDP冒烟入口 | S:隔离扩展与GM桥；实测滚动逐帧同步、筛选按钮间距与背景、堆叠及可视已读；双端产物须与根版本同步；截图存dist
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/browser-extension/src/===
-background.test.ts[TS6T]: F:验证扩展后台消息与凭据访问边界 | R:code:projects/browser-extension/src/background.ts | A:Vitest用例 | S:拒绝内容脚本代理核心请求；选择草稿须来自当前文档及自身扩展
-background.ts[AE8M]: F:编排扩展采集、网站同步及双代插件请求 | R:code:projects/browser-extension/src/storage.ts,code:projects/browser-extension/src/core.ts,code:projects/shared/script-ui.ts | A:Request,Init,PluginBatch,运行时消息入口 | S:仅自身弹窗可访问核心与凭据；v2写事件先采集，只读请求不采集；转交刷新基线及机器错误码；同站同步串行并保留浮窗字段
-browser.ts[LE5T]: F:统一扩展API及后台响应和错误传输 | R:code:projects/browser-extension/src/background.ts,code:projects/shared/client-version.ts | A:browser,call,Reply | S:优先browser再chrome；失败保留errorCode供有界恢复；版本通知仅在弹窗派发
+background.test.ts[TS6S]: F:验证扩展后台来源边界及同步熔断恢复 | R:code:projects/browser-extension/src/background.ts | A:Vitest用例 | S:拒绝内容脚本代理核心请求；草稿须来自当前文档；mock核心验证三次同步失败封锁其他请求，Token变化后恢复
+background.ts[AE8M]: F:编排扩展采集、网站同步、插件请求及后台通知角标 | R:code:projects/browser-extension/src/storage.ts,code:projects/browser-extension/src/core.ts,code:projects/shared/script-ui.ts,code:projects/browser-extension/src/notification-badge.ts | A:Request,Init,PluginBatch,运行时消息入口 | S:仅自身弹窗可访问核心与凭据；v2只读不采集，写事件先采集；连续同步失败3次后拒所有核心请求，成功或Token变更重置；熔断存扩展本地；同站同步串行
+browser.ts[LE5T]: F:统一扩展API、原生角标和后台响应错误传输 | R:code:projects/browser-extension/src/background.ts,code:projects/shared/client-version.ts | A:browser,call,Reply | S:优先browser再chrome；角标文字色及存储监听为可选能力；后台失败保留错误码；版本通知只在弹窗派发
 content.test.ts[TU5T]: F:验证页面元素选择、父级回退及采集格式 | R:code:projects/browser-extension/src/content.ts | A:Vitest DOM用例 | S:确认和Esc清高亮；选择器失效单独报告，文字前缀沿用脚本格式
 content.ts[IU7S]: F:在当前网页选择、高亮并提取抓取元素 | R:code:projects/user-script/src/utils/claw.ts,code:projects/user-script/src/utils/selector.ts | A:scwc.page消息与picker.selection | S:按文档幂等注入，只接受自身扩展消息；URL变化拒收；不挂浮窗，确认、Esc或pagehide清理高亮
 core.ts[IN7T]: F:向核心发送鉴权请求并传递刷新基线与版本警告 | R:code:projects/browser-extension/src/model.ts,code:projects/shared/client-version.ts | A:requestCore,pendingVersionNotice,dismissVersionNotice | S:先验主机权限；25秒超时且禁Cookie和重定向；警告按版本抑制；保留机器错误码，刷新携旧实例和脏字段
 model.ts[FC7T]: F:定义扩展快照、存储键与脚本协议转换 | R:code:projects/shared/userscript-config.ts,code:projects/shared/userscript-config-schema.ts | A:Snapshot,Settings,fromWire,toWire,coreAddress,permissionOrigin | S:按origin共享；本地丢弃坐标与最小化，wire补默认窗口；主机授权不含端口，地址拒绝凭据
 popup.css[ZU3T]: F:限定原生弹窗画布与基础排版 | R:code:projects/browser-extension/src/popup.ts | A:html,body,scwc-extension | S:固定480×580且隐藏页面原生滚动
-popup.ts[AU7L]: F:提供扩展采集、保留状态的插件视图与连接设置 | R:code:projects/browser-extension/src/background.ts,code:projects/shared/components/script-ui.ts,code:projects/shared/script-ui.ts | A:ExtensionPopup,scwc-extension | S:插件JSON视图按id保留，切换恢复焦点与滚动；模板刷新串行合并并拒迟到响应，携脏字段旧基线；写事件先等落盘且不重放；保留v1和4秒同步
+popup.ts[AU7L]: F:提供扩展采集、插件视图、通知历史与连接设置 | R:code:projects/browser-extension/src/background.ts,code:projects/browser-extension/src/notifications.ts,code:projects/shared/components/script-ui.ts | A:ExtensionPopup,scwc-extension | S:JSON视图按id保留交互；刷新串行合并并拒旧响应，携脏字段基线；写事件先等落盘且不重放；4秒同步，熔断时提示修改Token；通知统一交中心，扩展不配置通知位置
 storage.test.ts[TD6T]: F:验证扩展网站存储及脚本快照互操作 | R:code:projects/browser-extension/src/storage.ts,code:projects/browser-extension/src/model.ts | A:Vitest用例 | S:覆盖并发字段保存、跨站隔离、同日期核心裁决与上传中编辑保护；不落盘浮窗坐标
 storage.ts[PD7T]: F:串行保存扩展设置并裁决网站同步快照 | R:code:projects/browser-extension/src/model.ts | A:ExtensionStore,load,patch,accept,wire | S:按origin保存且日期单调；写成功才返回；同日期远端仅覆盖未被上传后编辑的副本，拒跨站响应
-surface.css[ZU4M]: F:排版扩展导航、表单与插件刷新标签 | R:code:projects/browser-extension/src/popup.ts,code:projects/web/var.css | A:宿主布局,plugin-tab,plugin-refresh,hidden | S:隐藏面板保留DOM；两级标签等高；减弱动态禁旋转
-popup.test.ts[TU5T]: F:验证逐插件刷新时焦点、内容及加载态保留 | R:code:projects/browser-extension/src/popup.ts | A:Vitest DOM用例 | S:用待决后台Promise核验loading周期；未刷新的插件保持原对象
+surface.css[ZU4M]: F:排版扩展导航、表单、插件标签及通知承载区 | R:code:projects/browser-extension/src/popup.ts,code:projects/web/var.css | A:宿主布局,content-area,plugin-tab,plugin-refresh,hidden | S:内容区建立通知定位边界，底栏不收缩；隐藏面板保留DOM；两级标签等高，减弱动态禁旋转
+popup.test.ts[TU5S]: F:验证扩展插件刷新保留与统一通知入口 | R:code:projects/browser-extension/src/popup.ts,code:projects/browser-extension/src/notifications.ts | A:Vitest DOM用例 | S:待决后台Promise核验刷新loading及未刷新对象保留；结果进入统一通知，通知标签位于插件和设置之间
+notifications.css[ZU4T]: F:排版真实通知叠层及独立历史筛选按钮 | R:code:projects/browser-extension/src/notifications.ts,code:projects/web/var.css | A:浮层,真实卡片,历史筛选样式 | S:卡片禁CSS过渡以同步滚动；筛选仅悬停或聚焦显背景
+notifications.test.ts[TM5M]: F:验证通知历史、可视已读及逐帧展开动画 | R:code:projects/browser-extension/src/notifications.ts,code:projects/browser-extension/src/notification-stack.ts | A:Vitest伪时钟与DOM用例 | S:覆盖剩余时长暂停、持久化竞态及筛选；动画中途反向不跳变，滚动立即写入；无帧API回退定时器，断连取消；DOM夹具不证明像素布局
+notifications.ts[AM6L]: F:管理通知堆叠、逐帧展开及可筛选已读历史 | R:code:projects/browser-extension/src/notification-stack.ts,code:projects/browser-extension/src/notification-model.ts,code:projects/shared/utils/frame.ts | A:ExtensionNotifications,scwc-extension-notifications,suppressVersion | S:展开仅插值区域比例，滚动直用当前坐标；减弱动态跳过动画，断连取消帧；5秒悬停暂停；自动隐藏保留、主动关闭删除；仅历史可视行已读
+notification-badge.test.ts[TM5T]: F:验证原生通知角标恢复、配色、清零及读取竞态 | R:code:projects/browser-extension/src/notification-badge.ts,code:projects/browser-extension/src/notification-model.ts | A:Vitest用例 | S:mock action与storage；旧记录缺已读位也计数；初始读不得覆盖新事件；不证明原生图标绘制
+notification-badge.ts[IM6T]: F:在后台通过浏览器action API同步持久未读数量与配色 | R:code:projects/browser-extension/src/browser.ts,code:projects/browser-extension/src/notification-model.ts | A:installNotificationBadge | S:从本地历史恢复并订阅变化；角标写入串行，启动读不得覆盖新状态；零未读清文字；文字色API可选
+notification-model.ts[FM6T]: F:定义扩展通知历史身份并规范化持久记录 | R:code:projects/browser-extension/src/notifications.ts,code:projects/browser-extension/src/notification-badge.ts | A:ExtensionNotification,NotificationType,notificationStorageKey,readNotifications | S:旧记录缺read按未读恢复；恢复记录不重放横幅并按时间升序；拒绝非法时间，避免日期渲染失败
+notification-stack.test.ts[TU5T]: F:验证通知有界压缩、收起坐标与小窗口动画插值 | R:code:projects/browser-extension/src/notification-stack.ts | A:Vitest几何用例 | S:万条用例验证位置及缩放有界；收起保持下方卡片与滚动范围；短弹窗按实际可用高度插值，避免动画提前终止
+notification-stack.ts[KU6T]: F:计算通知双向有界堆叠、层级及展开比例插值 | R:code:projects/browser-extension/src/notifications.ts | A:stackWindow,StackedCard,stackContentHeight,layoutNotificationStack | S:逻辑视口恒288px；展开比例只改上界并先限实际可用高度；距离映射d/(d+80)，位移小于18px、缩放至少0.86；下方预留只依赖下界
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/public/lib/===
-scwcutils.iife.mw0n8123.js[LE5T]: F:分发页面会话、配置订阅和可暂停请求SDK | R:code:projects/webutils/lib/index.ts,code:projects/webutils/lib/workbench.ts | A:scwcutils,ready,fetch,resource,websocket | S:HTTP先等ready，Socket须先await ready；配置只读；pagehide释放请求和监听；可中断请求沿生命周期恢复
+scwcutils.iife.mw91yx1a.js[LE5T]: F:分发页面会话、配置订阅及可暂停请求SDK | R:code:projects/webUtils/lib/index.ts,code:projects/webUtils/lib/workbench.ts | A:scwcutils,ready,fetch,resource,websocket | S:HTTP等待ready，Socket须先await ready；配置只读；握手核验来源与nonce；pagehide释放请求，只有interruptible请求允许恢复重放
 

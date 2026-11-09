@@ -61,3 +61,42 @@ it('refreshes only the clicked plugin tab, retains the focused tab and shows loa
   expect(state.activePlugin).toBe('first');
   expect(popup.shadowRoot?.querySelector('.spinning')).toBeNull();
 });
+it('routes results to the shared floating center and places notification history between plugins and settings', async () => {
+  mock.call.mockResolvedValue({ settings: initialSettings(), syncBlocked: false });
+  const popup = new ExtensionPopup();
+  document.body.append(popup);
+  await popup.updateComplete;
+  await Promise.resolve();
+  const state = popup as unknown as { showResult(input: unknown): void };
+  state.showResult({
+    data: { type: 'notification', data: { type: 'warn', message: '请检查采集内容' } },
+  });
+  state.showResult({
+    data: ['采集结果一', { pluginInfo: { name: '示例插件' }, info: '采集结果二' }],
+  });
+  await popup.updateComplete;
+  const center = popup.shadowRoot?.querySelector('scwc-extension-notifications') as HTMLElement & {
+    updateComplete: Promise<boolean>;
+  };
+  await center.updateComplete;
+  expect(center.shadowRoot?.querySelectorAll('.toast')).toHaveLength(3);
+  expect(center.shadowRoot?.querySelector('[data-type="warn"]')?.textContent).toContain(
+    '请检查采集内容',
+  );
+  expect(popup.shadowRoot?.querySelector('main .notice, main .results')).toBeNull();
+  const tabs = [...(popup.shadowRoot?.querySelectorAll<HTMLButtonElement>('nav button') ?? [])];
+  expect(tabs.map((button) => button.textContent?.trim().replace(/\s+/g, ' '))).toEqual([
+    '采集 0',
+    '插件',
+    '通知',
+    '设置',
+  ]);
+  tabs[2].click();
+  await popup.updateComplete;
+  await center.updateComplete;
+  expect(center.shadowRoot?.querySelectorAll('.notification')).toHaveLength(3);
+  expect(center.shadowRoot?.textContent).toContain('示例插件：采集结果二');
+  tabs[3].click();
+  await popup.updateComplete;
+  expect(popup.shadowRoot?.textContent).not.toContain('通知位置');
+});

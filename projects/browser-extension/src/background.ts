@@ -6,6 +6,9 @@ import type { ScriptUIEvent } from '../../shared/script-ui.ts';
 import { draftKey, type Draft, type Settings, type SiteData, type Snapshot } from './model.ts';
 import { websiteOrigin } from '../../shared/userscript-config.ts';
 import type { PluginConfig } from '../../shared/types/plugin.d.ts';
+import { installNotificationBadge } from './notification-badge.ts';
+
+installNotificationBadge();
 
 export interface Init {
   tab?: BrowserTab;

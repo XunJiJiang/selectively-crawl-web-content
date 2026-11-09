@@ -856,6 +856,25 @@ describe('SCWCScrollContainer', () => {
     expect(el.scrollState.scrollTop).toBe(0);
   });
 
+  it('runs smooth wheel frames with the timer fallback and cancels them on disconnect', async () => {
+    vi.stubGlobal('requestAnimationFrame', undefined);
+    vi.stubGlobal('cancelAnimationFrame', undefined);
+    const { el } = await fixture();
+    el.scrollBehavior = 'smooth';
+    await settle(el);
+    wheel(el, { deltaY: 80 });
+    vi.advanceTimersByTime(16);
+    expect(el.scrollState.scrollTop).toBeGreaterThan(0);
+    expect(el.scrollState.scrollTop).toBeLessThan(80);
+    vi.advanceTimersByTime(500);
+    expect(el.scrollState.scrollTop).toBe(80);
+    wheel(el, { deltaY: 80 });
+    el.remove();
+    vi.advanceTimersByTime(1000);
+    expect(el.scrollState.scrollTop).toBe(80);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it('disconnects observers, timers and drag handlers and restores them after reconnecting', async () => {
     const { el, thumb, viewport } = await fixture();
     const handle = thumb('horizontal');
