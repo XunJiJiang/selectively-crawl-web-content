@@ -1,10 +1,10 @@
 {
   "name": "@scwc/browser-extension",
-  "version": "1.1.1",
+  "version": "3.2.1",
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "node scripts/build.ts",
+    "build": "node ../scripts/sync-versions.ts && node scripts/build.ts",
     "check": "tsc -p tsconfig.json",
     "test": "vitest run --config vite.config.ts",
     "test:browser": "node scripts/smoke.ts",

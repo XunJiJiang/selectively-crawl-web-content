@@ -1,9 +1,10 @@
 {
   "name": "template-plugin",
+  "version": "3.2.1",
   "type": "module",
   "main": "index.ts",
   "scripts": {
-    "build:web": "vite build --config vite.config.ts",
+    "build:web": "node ../../../scripts/sync-versions.ts && vite build --config vite.config.ts",
     "check": "tsc -p tsconfig.json && tsc -p web/tsconfig.json",
     "test:integration": "node --test tests/integration.test.mjs"
   },

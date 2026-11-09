@@ -1,6 +1,8 @@
 # 脚本、扩展版本和插件配置
 
-油猴脚本和浏览器扩展在构建时读取**根目录** `package.json.version`，通过 `X-SCWC-Version` 请求头发送给核心。各工作区自己的包版本只用于原有安装包元数据。Web 与核心一起发布，不发送此请求头。没有版本头的既有 Web/旧客户端请求保持原入口行为；新增客户端均发送版本头。
+根目录 `package.json.version` 是产品版本的唯一来源。所有 `package.json` 构建命令先执行 `projects/scripts/sync-versions.ts`，递归同步 `projects` 下工作区项目（含浏览器扩展）的包版本。`projects/server/plugins` 与 `projects/terminal/plugins` 的业务插件保留独立版本；三个内置特例 `projects/server/plugins/template`、`projects/terminal/plugins/template`、`projects/terminal/plugins/scwc` 随根版本同步，没有 version 时自动补齐。依赖、构建产物、隐藏目录及目录链接不参与同步。也可在根目录执行 `bun run sync:versions` 单独同步，版本一致时不重写文件。
+
+油猴脚本和浏览器扩展在构建时读取**根目录** `package.json.version`，通过 `X-SCWC-Version` 请求头发送给核心。脚本安装元数据、扩展清单和 ZIP 名仍读取各自包版本，构建前同步保证它们与根版本一致。Web 与核心一起发布，不发送此请求头。没有版本头的既有 Web/旧客户端请求保持原入口行为；新增客户端均发送版本头。
 
 每条 HTTP 路由通过 `routeVersion('3.2.0')` 固定其最低客户端版本，路由辅助函数的每次调用也显式记录版本。路由发生协议变更时更新该字面量，同时更新 `projects/server/router/version.ts` 的 `LATEST_ROUTE_VERSION`。比较采用语义化版本：等于或高于最新版本正常返回；客户端低于最新版本但达到路由要求时保留业务数据并返回 `version.status = "warning"`；低于路由要求时返回 HTTP 426，业务处理器不执行。无效版本返回 HTTP 400。版本信息同时放在 URL 编码的 `X-SCWC-Version-Notice` 响应头中。
 

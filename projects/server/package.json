@@ -1,6 +1,6 @@
 {
   "name": "selectively-crawl-web-content-server",
-  "version": "3.2.0",
+  "version": "3.2.1",
   "description": "A web extension for selectively crawling web content.",
   "bugs": {
     "url": "https://github.com/XunJiJinag/selectively-crawl-web-content/issues"
@@ -15,15 +15,15 @@
   "scripts": {
     "dev:server": "node scripts/setup.ts --mode=dev --web-port=3201",
     "prod:server": "node scripts/setup.ts --mode=prod",
-    "build": "bun run build:bundled-node && bun run build:external-node",
-    "build:bundled-node": "node scripts/build-bundled-node.ts --terminal-plugins=true",
-    "build:bundled-node:windows": "node scripts/build-bundled-node.ts --platform=win32 --terminal-plugins=true",
-    "build:bundled-node:linux": "node scripts/build-bundled-node.ts --platform=linux --terminal-plugins=true",
-    "build:bundled-node:macos": "node scripts/build-bundled-node.ts --platform=darwin --terminal-plugins=true",
-    "build:external-node": "node scripts/build-external-node.ts --terminal-plugins=true",
-    "build:external-node:windows": "node scripts/build-external-node.ts --platform=win32 --terminal-plugins=true",
-    "build:external-node:linux": "node scripts/build-external-node.ts --platform=linux --terminal-plugins=true",
-    "build:external-node:macos": "node scripts/build-external-node.ts --platform=darwin --terminal-plugins=true",
+    "build": "node ../scripts/sync-versions.ts && bun run build:bundled-node && bun run build:external-node",
+    "build:bundled-node": "node ../scripts/sync-versions.ts && node scripts/build-bundled-node.ts --terminal-plugins=true",
+    "build:bundled-node:windows": "node ../scripts/sync-versions.ts && node scripts/build-bundled-node.ts --platform=win32 --terminal-plugins=true",
+    "build:bundled-node:linux": "node ../scripts/sync-versions.ts && node scripts/build-bundled-node.ts --platform=linux --terminal-plugins=true",
+    "build:bundled-node:macos": "node ../scripts/sync-versions.ts && node scripts/build-bundled-node.ts --platform=darwin --terminal-plugins=true",
+    "build:external-node": "node ../scripts/sync-versions.ts && node scripts/build-external-node.ts --terminal-plugins=true",
+    "build:external-node:windows": "node ../scripts/sync-versions.ts && node scripts/build-external-node.ts --platform=win32 --terminal-plugins=true",
+    "build:external-node:linux": "node ../scripts/sync-versions.ts && node scripts/build-external-node.ts --platform=linux --terminal-plugins=true",
+    "build:external-node:macos": "node ../scripts/sync-versions.ts && node scripts/build-external-node.ts --platform=darwin --terminal-plugins=true",
     "test": "vitest",
     "lint": "oxlint",
     "fmt": "oxfmt"

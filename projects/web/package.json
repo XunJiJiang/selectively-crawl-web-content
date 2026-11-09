@@ -1,6 +1,6 @@
 {
   "name": "selectively-crawl-web-content-web",
-  "version": "3.1.29",
+  "version": "3.2.1",
   "description": "A web extension for selectively crawling web content.",
   "bugs": {
     "url": "https://github.com/XunJiJinag/selectively-crawl-web-content/issues"
@@ -13,7 +13,7 @@
   "type": "module",
   "scripts": {
     "dev": "node scripts/dev.ts",
-    "build": "vite build",
+    "build": "node ../scripts/sync-versions.ts && vite build",
     "test": "vitest",
     "lint": "oxlint",
     "fmt": "oxfmt"

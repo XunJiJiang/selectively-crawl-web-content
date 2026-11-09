@@ -329,6 +329,38 @@ describe('plugin frontend contract', () => {
     expect(() => parseWebBuildScript(undefined, '/plugin')).toThrow('scripts.build:web');
   });
 
+  it('accepts only the fixed repository version prefix without executing shell commands', () => {
+    const prefix = 'node ../../../scripts/sync-versions.ts && ';
+    expect(parseWebBuildScript(prefix + 'vite build --config "my config.ts"', '/plugin')).toEqual({
+      configFile: path.resolve('/plugin', 'my config.ts'),
+      mode: 'production',
+    });
+    for (const script of [
+      'node arbitrary.js && vite build',
+      prefix + 'node arbitrary.js',
+      prefix + 'vite build && node arbitrary.js',
+      'node ../../../scripts/sync-versions.ts; vite build',
+    ]) {
+      expect(() => parseWebBuildScript(script, '/plugin')).toThrow();
+    }
+  });
+
+  it('builds a copied plugin with the version prefix and no repository script', async () => {
+    const f = await fixture();
+    await fs.writeFile(
+      path.join(f.directory, 'package.json'),
+      JSON.stringify({
+        type: 'module',
+        scripts: {
+          'build:web':
+            'node ../../../scripts/sync-versions.ts && vite build --config "vite config.ts"',
+        },
+      }),
+    );
+    await buildPluginWeb(f.directory, logger, { expectedEntry: f.entry });
+    await verifyBrowserOutput(f.entry);
+  }, 30_000);
+
   it('builds through a directory alias while checking the real entry path', async () => {
     const f = await fixture();
     const aliases = await fs.mkdtemp(path.join(os.tmpdir(), 'scwc-web-alias-'));

@@ -37,7 +37,7 @@ Vite 8 的 Oxc 不会转换标准装饰器，仅设置 build.target / oxc.target
 
 ## 配置边界
 
-- build:web 作为声明解析，绝不交给 shell 执行。只支持直接的 vite build，可指定一个 root、--config/-c、--mode/-m、--outDir、--target、--sourcemap/inline/hidden、--emptyOutDir；其他参数写入 Vite 配置。任意 node/bun/npm 命令链不支持；已有完整产物的插件不受此限制。
+- build:web 作为声明解析，绝不交给 shell 执行。支持直接的 vite build，以及仓库统一前缀 `node ../../../scripts/sync-versions.ts && vite build ...`；该前缀由源码仓库的 package 命令执行，核心解析时只移除前缀、不执行它，复制到发行目录的插件仍可构建。可指定一个 root、--config/-c、--mode/-m、--outDir、--target、--sourcemap/inline/hidden、--emptyOutDir；其他参数写入 Vite 配置。其他 node/bun/npm 命令链不支持；已有完整产物的插件不受此限制。
 - 配置采用 Node 原生加载，TS 配置只使用可擦除语法；运行时 enum、参数属性和装饰器配置需预先转为 JS。插件配置及 Vite 插件与后端一样是受信任代码。
 - outDir 必须是插件内独立的产物目录，不能等于插件根或源码根。ui.entry 应指向该目录里的 HTML。base 由核心固定为当前目录名对应的 /web/page/plugin/<目录名>/。
 - 构建在独立进程与临时产物目录进行。成功后替换正式目录；普通构建失败保留旧页面。同一插件的并发构建合并，所有构建串行排队，避免同时占用大量机器资源。

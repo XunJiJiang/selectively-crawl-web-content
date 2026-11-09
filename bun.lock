@@ -84,15 +84,15 @@
     },
     "projects/browser-extension": {
       "name": "@scwc/browser-extension",
-      "version": "1.0.0",
+      "version": "3.2.1",
     },
     "projects/server": {
       "name": "selectively-crawl-web-content-server",
-      "version": "3.1.29",
+      "version": "3.2.1",
     },
     "projects/shared": {
       "name": "@scwc/shared",
-      "version": "1.0.0",
+      "version": "3.2.1",
       "dependencies": {
         "@lit/context": "^1.1.6",
         "es-toolkit": "^1.49.0",
@@ -102,15 +102,15 @@
     },
     "projects/terminal": {
       "name": "scwc-terminal",
-      "version": "1.5.0",
+      "version": "3.2.1",
     },
     "projects/user-script": {
       "name": "selectively-crawl-web-content-server-user-script",
-      "version": "3.1.0",
+      "version": "3.2.1",
     },
     "projects/vite-plugin": {
       "name": "@scwc/vite-plugin",
-      "version": "1.0.0",
+      "version": "3.2.1",
       "dependencies": {
         "@scwc/shared": "workspace:*",
       },
@@ -121,11 +121,11 @@
     },
     "projects/web": {
       "name": "selectively-crawl-web-content-web",
-      "version": "3.1.29",
+      "version": "3.2.1",
     },
     "projects/webutils": {
       "name": "selectively-crawl-web-content-web-utils",
-      "version": "3.1.5",
+      "version": "3.2.1",
     },
   },
   "packages": {

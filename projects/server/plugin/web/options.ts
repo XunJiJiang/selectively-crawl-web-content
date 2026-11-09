@@ -16,6 +16,15 @@ export function parseWebBuildScript(script: unknown, directory: string): WebBuil
     throw new Error('未提供构建后的页面；package.json 需要 scripts.build:web（vite build ...）');
   }
   const tokens = splitCommand(script);
+  // Repository package commands run this preparation step. The core only parses Vite options,
+  // including for copied plugins in distributions where the repository script is unavailable.
+  if (
+    tokens[0] === 'node' &&
+    tokens[1] === '../../../scripts/sync-versions.ts' &&
+    tokens[2] === '&&'
+  ) {
+    tokens.splice(0, 3);
+  }
   if (tokens[0] !== 'vite' || tokens[1] !== 'build') {
     throw new Error('build:web 只支持 vite build，不执行其他命令或 shell 脚本');
   }
