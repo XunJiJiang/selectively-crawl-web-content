@@ -8,6 +8,11 @@ import type {
   AuxiliaryHandle,
 } from '../../../shared/declarative-ui.ts';
 import { ids, mainContent, auxiliaryContent, statusDefinition } from './ui-content.ts';
+import {
+  inputValidationHandlers,
+  invalidInputExamples,
+  rejectedInputContent,
+} from './input-validation-ui.ts';
 
 /** Callbacks and state stay in this process; every identity comes from the core. */
 export class DeclarativeDemo {
@@ -59,6 +64,9 @@ export class DeclarativeDemo {
         name: string,
         definition: Parameters<PluginUI['handlers']['register']>[1],
       ) => this.handlers.push(await draft.handlers.register(name, definition));
+      for (const [name, definition] of Object.entries(inputValidationHandlers)) {
+        await register(name, definition);
+      }
       await register('demo.normalize', {
         readOnly: true,
         async run(value) {
@@ -262,7 +270,18 @@ export class DeclarativeDemo {
     else if (action === 'aux.content') await this.aux?.setContent(auxiliaryContent('json'));
     else if (action === 'hide' || action === 'show')
       await this.aux?.setCurrentPageVisible(action === 'show');
-    else if (action === 'reject.cycle' || action === 'reject.cross') {
+    else if (invalidInputExamples.some((example) => example.action === action)) {
+      const example = invalidInputExamples.find((example) => example.action === action);
+      if (!example) throw new Error('未知验证示例');
+      try {
+        await this.main?.setContent(rejectedInputContent(example));
+        throw new Error('核心未拒绝非法模板');
+      } catch (error) {
+        if (!(error instanceof Error) || !example.error.test(error.message)) throw error;
+        this.last = { rejected: true, action, message: error.message };
+        this.notify();
+      }
+    } else if (action === 'reject.cycle' || action === 'reject.cross') {
       try {
         await this.main?.setContent({
           format: 'json',

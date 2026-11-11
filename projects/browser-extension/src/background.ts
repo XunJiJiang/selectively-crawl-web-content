@@ -346,6 +346,7 @@ browser.runtime.onMessage.addListener((input, sender, respond) => {
         ok: false,
         error: error instanceof Error ? error.message : String(error),
         errorCode: error instanceof Error && 'code' in error ? error.code : undefined,
+        field: error instanceof Error && 'field' in error ? error.field : undefined,
       }),
   );
   return true;

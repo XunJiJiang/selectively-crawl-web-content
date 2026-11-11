@@ -80,7 +80,7 @@ it('binds typed settings to SQLite without handlers, normalizes values and prese
               type: 'group',
               label: 'Settings',
               children: [
-                { type: 'setting', name: 'noteField', label: 'Title', config: 'title' },
+                { type: 'setting', name: 'noteField', label: 'Title', config: 'title', minLength: 3 },
                 {
                   type: 'setting',
                   name: 'limit',
@@ -154,4 +154,11 @@ it('binds typed settings to SQLite without handlers, normalizes values and prese
     error: { code: 'UI_CONFIG_CONFLICT' },
   });
   expect(config.get('p', 'title')).toBe('other writer');
+  await read({ noteField: 'next', enabled: true, limit: '3' });
+  expect(await save('noteField', ' x ')).toMatchObject({
+    status: 'failed', effects: [], error: { field: 'noteField' },
+  });
+  const invalidRead = (await read()).updates[0];
+  expect(invalidRead).toMatchObject({ field: 'noteField', error: expect.stringContaining('至少输入') });
+  expect(invalidRead).not.toHaveProperty('value');
 });

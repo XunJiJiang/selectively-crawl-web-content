@@ -96,6 +96,9 @@ export function declarativeRouter() {
   route('post', '/instances/:id/data', '3.2.0', (req) =>
     declarativeUI.data(String(req.params.id), windowId(req), req.body),
   );
+  route('post', '/instances/:id/validate', '3.2.0', (req) =>
+    declarativeUI.validateValues(String(req.params.id), windowId(req), req.body),
+  );
   route('post', '/instances/:id/subscriptions', '3.2.0', (req) =>
     declarativeUI.data(String(req.params.id), windowId(req), req.body),
   );
@@ -138,7 +141,7 @@ export function declarativeRouter() {
     }
     res
       .status(error.code === 'UI_RESOURCE_DENIED' ? 403 : 400)
-      .json({ success: false, code: error.code, message: error.message });
+      .json({ success: false, code: error.code, message: error.message, data: error.field ? { field: error.field } : undefined });
   });
   return router;
 }

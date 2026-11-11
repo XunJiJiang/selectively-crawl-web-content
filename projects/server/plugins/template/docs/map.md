@@ -12,9 +12,11 @@
 
 - `index.ts` 保留抓取、命令、脚本控件及原有业务 API；引用 v2 scripts 并导出 configuration。onLoad 保存配置订阅并注册声明式演示，onUnload 释放 UI、配置订阅、探针和反馈对象。
 - `script-ui.ts` 提供脚本/扩展共用的 v2 JSON 控件与后端 handlers，保留七个原有操作；Toggle 自动触发，其他字段显式按钮触发。字段快照从 this.values 读取，数字输入由事件管道转换，演示无需完整抓取。
+- `input-validation-ui.ts` 提供主辅侧栏、状态栏 JSON 提示层、脚本和扩展共用的输入验证页及处理器：text/number/password/textarea 的长度、数值和正则限制，异步保留名、跨字段确认、readonly/disabled/placeholder、自动绑定备注和独立错误返回示例。验证回调只读，提交只发固定通知，不回显密码。非法模板、验证调用及控件名候选仅在显式拒绝演示中使用。
 - `configuration.ts` 定义两个配置分组、七种控件、字符串默认值、异步 normalize/validate；提供限定 validation.note/memo 的显式业务 CRUD API。写入要求调用方提供已读 baseRevision，不自动补最新版本；onChange 与 subscribe 记录注明不同来源。
 - `ui-content.ts` 提供 JSON 主侧栏、JSON/HTML 辅助页、三种格式状态 tooltip、完整菜单，以及可执行的核心处理器示例表。使用核心编译器允许的组件与样式，资源只指向挂载路径。HTML 的主题变量回退使用前置常量声明，规避当前编译器对 var() fallback Raw 节点的拒绝。
 - `declarative-ui.ts` 是一个后端演示状态及句柄控制器。事务原子注册/注销三类贡献、静态挂载和处理器；run 用普通函数取得 this，watch 无定时轮询。参数/事件/上下文可观察；定向 setContent 只用核心绑定 instanceId。非法隐藏、跨域链和循环模板在隔离候选中拒绝，不把非法定义注册为线上初始内容。
+- 新输入验证处理器同样在声明式注册事务内注册并在释放时撤销；脚本直接复用同一回调表。`reject.template-call`、`reject.validator-call`、`reject.control-name`、`reject.control-space` 保留旧注册内容并暴露核心拒绝原因。
 - `assets/mark.svg` 与 `assets/nested/mark.svg` 分别演示单文件、目录根层和嵌套资源，经核心 cap 网关提供，不包含脚本或外部引用。
 - `web/ui-demo.ts` 注册当前文档的事件处理器与只读 getter/watch；提供配置快照/三种订阅、后端业务写入口、UI 释放恢复、导航适配、搜索和 checkpoint 操作。页面状态不跨标签取数；脏配置草稿进入既有 lifecycle 序列化和关闭保护。
 - `validation.ts` 提供延时只读 API、固定 SVG、真实 Socket 通道和内存事件环；延时上限 180 秒，package.runtime 请求截止为 240 秒。原请求被浏览器中止后，插件后端仍可能执行到结束；run/attempt 用于识别重发，不作取消证明。
@@ -25,3 +27,5 @@
 - `tests/integration.test.mjs` 通过真实 Node 子进程、核心 HTTP/SQLite/Socket 与 SDK/Lit 产物验证边界；唯一环境 hook 隔离真实 .env，临时数据库仅落 tests/.tmp-* 并清理。JSDOM 的资源 load 事件只验证 DOM 释放，像素/真实图片和工作台完整节能调度不在其证明范围。
 
 验证命令与逐项判定见 `../README.md` 和 `coverage.md`。HTTP 测试需要回环监听权限；临时资源仅在 template/tests 下创建并清理。测试覆盖真实 UI HTTP/IPC、配置表单、来源处理器、监听释放和跨插件拒绝；JSDOM 仍不能证明像素、完整空闲计时或用户激活权限。AOCI 维护交接另存仓库 docs/AOCI2，不把本文当作正式索引。
+
+输入验证回归在 `tests/integration.test.mjs` 的「输入限制样例」中：真实加载 template 宿主和四类入口，配合核心固定渲染器检查只读、禁用、占位、正则提示；逐项验证错误值不运行提交、错误返回直接拒绝、合法值通知、自动绑定的失败不落库，以及非法模板更新不替换原注册。

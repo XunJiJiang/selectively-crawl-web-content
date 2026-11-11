@@ -2,7 +2,11 @@ import { randomUUID } from 'node:crypto';
 import { validateUIValue } from '../../shared/ui-validation.ts';
 import type { ScriptConfigStorage, ScriptConfigBaseline } from './ui-config.ts';
 import { compileUI } from '../workbench/ui-compiler.ts';
-import { evaluateArgument, evaluateTemplate } from '../../shared/ui-expressions.ts';
+import {
+  evaluateArgument,
+  evaluateTemplate,
+  validateUIField,
+} from '../../shared/ui-expressions.ts';
 import {
   uiAssert,
   uiValue,
@@ -101,6 +105,7 @@ export class ScriptUIRuntime {
     instance?: Instance,
     saved?: Record<string, FieldValue>,
   ) {
+    this.validate(config, call.name, call.readOnly === true, call.watch);
     if (/^core:(?:site\.)?config\.bound\.(read|write)$/.test(call.name)) {
       uiAssert(instance && this.storage, 'UI_INVALID_CONTENT', '配置实例未就绪');
       const scope = call.name.startsWith('core:site.') ? 'site' : 'plugin';
@@ -139,8 +144,16 @@ export class ScriptUIRuntime {
       const value = boolean
         ? result.value === true || result.value === 'true'
         : String(result.value ?? '');
+      const candidate = { ...context, values: { ...context.values, [field]: value } };
+      await validateUIField(field, {
+        fields: candidate.values,
+        fieldDefinitions: instance.model.compiled.fields,
+        invoke: (call, args) => this.invoke(config, candidate, call, args, instance),
+      });
       context.values[field] = value;
-      if (saved) saved[field] = value;
+      if (saved) {
+        saved[field] = value;
+      }
       return result.value ?? null;
     }
     const handler = config.handlers?.[call.name];
@@ -156,13 +169,39 @@ export class ScriptUIRuntime {
   private async updates(instance: Instance, context: ScriptContext) {
     const updates: ScriptUIModel['updates'] = [];
     for (const binding of instance.model.compiled.expressions) {
-      updates.push({
-        id: binding.id,
-        value: await evaluateTemplate(binding.parts, {
+      try {
+        const scope = {
           fields: context.values,
-          invoke: (call, args) => this.invoke(instance.config, context, call, args, instance),
-        }),
-      });
+          fieldDefinitions: instance.model.compiled.fields,
+          invoke: (call: CallNode, args: UIValue[]) =>
+            this.invoke(instance.config, context, call, args, instance),
+        };
+        const value = await evaluateTemplate(binding.parts, scope);
+        const field = instance.model.compiled.fields.find(
+          (field) => field.nodeId === binding.nodeId,
+        );
+        if (field && ['value', 'checked'].includes(binding.attribute ?? '')) {
+          uiAssert(typeof value === 'string' || typeof value === 'boolean' ||
+            (Array.isArray(value) && value.every((item) => typeof item === 'string')),
+            'UI_INVALID_VALUE_TYPE', '控件值类型无效');
+          const candidate = { ...context, values: { ...context.values, [field.name]: value } };
+          await validateUIField(field.name, {
+            ...scope,
+            fields: candidate.values,
+            invoke: (call, args) => this.invoke(instance.config, candidate, call, args, instance),
+          });
+        }
+        updates.push({ id: binding.id, value });
+      } catch (error) {
+        updates.push({
+          id: binding.id,
+          error: error instanceof Error ? error.message : '读取失败',
+          field:
+            error instanceof Error && 'field' in error
+              ? String(error.field ?? '') || undefined
+              : undefined,
+        });
+      }
     }
     return updates;
   }
@@ -275,8 +314,9 @@ export class ScriptUIRuntime {
           current.scope === baseline.scope &&
           previous.model.compiled.fields.find((f) => f.name === field)?.kind ===
             compiled.fields.find((f) => f.name === field)?.kind
-        )
+        ) {
           instance.bound.set(field, { ...baseline });
+        }
       }
     }
     this.instances.set(model.instanceId, instance);
@@ -340,8 +380,11 @@ export class ScriptUIRuntime {
         ]);
         const ctx = { ...context, signal, values: fields };
         if (readOnly) {
-          for (const field of instance.bound.keys())
-            if (!Object.hasOwn(request.fields, field)) delete ctx.values[field];
+          ctx.values = Object.fromEntries(
+            Object.entries(ctx.values).filter(
+              ([field]) => !instance.bound.has(field) || Object.hasOwn(request.fields, field),
+            ),
+          );
           return { updates: await this.updates(instance, ctx) };
         }
         uiAssert(binding, 'UI_INVALID_EVENT', '未知事件绑定');
@@ -373,9 +416,17 @@ export class ScriptUIRuntime {
         for (const branch of binding.program.branches) {
           let prev: UIValue | undefined;
           for (const step of branch) {
-            prev = await evaluateArgument(step, { fields, event, prev, invoke });
+            prev = await evaluateArgument(step, {
+              fields,
+              event,
+              prev,
+              invoke,
+              fieldDefinitions: instance.model.compiled.fields,
+            });
           }
-          result = prev;
+          if (!branch[0]?.validationStep) {
+            result = prev;
+          }
         }
         return {
           ...(result === undefined ? {} : { result }),
@@ -387,7 +438,9 @@ export class ScriptUIRuntime {
         instance.pending--;
       });
     instance.tail = work;
-    if (!readOnly) instance.replies.set(request.eventId, { fingerprint, result: work });
+    if (!readOnly) {
+      instance.replies.set(request.eventId, { fingerprint, result: work });
+    }
     return work;
   }
 }

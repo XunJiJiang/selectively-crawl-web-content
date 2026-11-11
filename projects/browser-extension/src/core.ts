@@ -64,6 +64,7 @@ export async function requestCore<T>(
   ) {
     throw Object.assign(new Error(result.message ?? `核心请求失败 (${response.status})`), {
       code: result.errorCode,
+      field: result.field,
     });
   }
   return result as T;

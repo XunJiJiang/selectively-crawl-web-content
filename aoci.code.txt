@@ -68,10 +68,10 @@ loader.test.ts[TE6M]: F:验证默认进程加载 | R:code:projects/server/plugin
 options.test.ts[TE4T]: F:验证运行选项 | R:code:projects/server/plugin/process/options.ts | A:Vitest用例 | S:-
 options.ts[FE6T]: F:校验进程选项 | R:code:projects/server/types/plugin-process.d.ts | A:resolveProcessOptions | S:缺省或部分配置都使用process及契约2；超时只接受100至600000整数，不回退进程内模式
 process.test.ts[TE7L]: F:验证真实插件进程、HTTP资源及两代脚本控件契约 | R:code:projects/server/plugin/process/client.ts,code:projects/server/router/plugin.ts | A:Vitest集成用例 | S:v2用真实Node和HTTP证明自定义控件、管道与采集上下文；低根版本在路由前拒绝；保留v1隔离、Range及失联用例
-protocol.ts[FN8T]: F:定义隔离插件消息和含脚本版本的能力清单 | R:code:projects/server/plugin/process/rpc.ts,code:projects/shared/script-ui.ts | A:Manifest,Initialize,Message,PluginProcessError,PROTOCOL_VERSION | S:IPC仍为2，单消息16MiB、待答64；scripts.version与完整采集要求可传，处理器函数不传；远程错误截8000字符
+protocol.ts[FN8T]: F:定义隔离插件消息、清单及带字段身份的远程错误 | R:code:projects/server/plugin/process/rpc.ts,code:projects/shared/script-ui.ts | A:Manifest,Message,PluginProcessError,remoteError,PROTOCOL_VERSION | S:IPC仍为2，单消息16MiB、待答64；函数不跨进程；错误截8000字符，field只保留合法控件名
 resource.ts[IN6T]: F:发送插件资源响应 | R:code:projects/server/types/plugin-process.d.ts | A:requestData,sendResource | S:文件必须绝对路径并由Express发送，保留Range与背压；连接销毁后忽略传输错误
 rpc.test.ts[TN6S]: F:验证有界插件RPC | R:code:projects/server/plugin/process/rpc.ts | A:Vitest用例 | S:伪时钟验证输入暂停剩余超时；慢发送验证输出有序和溢出标记
-rpc.ts[IN8M]: F:传递插件RPC消息 | R:code:projects/server/plugin/process/protocol.ts | A:RpcPeer | S:发送前v8序列化限制消息；超时只拒绝调用方，业务仍可能运行；事件队列有独立上限及日志截断标记
+rpc.ts[IN8M]: F:传递有界插件RPC并恢复字段错误身份 | R:code:projects/server/plugin/process/protocol.ts | A:RpcPeer | S:v8序列化限制消息大小；远程错误保留code/status/field；超时仅拒调用方，业务可能仍运行；日志积压用截断标记
 ui-host.test.ts[TU6S]: F:验证进程内UI注册和原子发布 | R:code:projects/server/plugin/process/ui-host.ts | A:Vitest用例 | S:验证无模板隐藏被拒且旧定义保留、onLoad不提前发布、事务只发布一次和拒绝回滚；定向内容仅传实例身份及描述
 ui-host.ts[LE8M]: F:托管插件进程内声明式UI回调 | R:code:projects/shared/declarative-ui.ts,code:projects/server/plugin/process/host.ts | A:HostUI | S:回调和内容提供器留进程，仅发布描述；变更串行，发布失败恢复旧注册；onLoad暂存、激活后发布；事务禁止嵌套；隐藏页面信息必须有模板；迟到监听在取消后立即释放
 
@@ -1028,17 +1028,17 @@ zoom-out.svg[ZU2T]: F:绘制圆框缩小减号 | R:- | A:SVG图形 | S:-
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/public/web/assets/===
 index-C0tSgCCc.css[ZU4T]: F:分发工作台主题、字号与图标外观 | R:code:projects/web/var.css,code:projects/web/style.css | A:CSS变量,主题选择器,codicon字形 | S:根字号14px；外层隐藏原生滚动，内部容器负责滚动
 local-config-VfJoo0HP.js[LU4T]: F:分发Lit运行时与本机启动配置加载 | R:code:projects/web/src/api/local-config.ts | A:浏览器共享ESM导出 | S:仅回环同源请求配置，拒绝重定向；三秒失败回退现有配置
-terminal-C8BsRbMt.js[LU5M]: F:分发工作台终端、输入编辑与滚动交互 | R:code:projects/web/src/components/terminal.ts,code:projects/web/src/components/command-editor.ts | A:WorkbenchTerminal,wb-terminal,wb-command-editor | S:输入输出共用视口；捕获滚轮与指针操作先记录用户滚动，避免输出跟随重置位置
-workbench-BQ4D5jhw.js[LU5L]: F:分发工作台通用组件、命令及事件连接 | R:code:projects/web/src/workbench/commands.ts,code:projects/web/src/api/workbench.ts | A:浏览器共享ESM导出 | S:Socket使用单次票据且拒旧代事件，重连上限15秒；包含扩展安装命令；依赖哈希资源须配套部署
-index-N9Rp4pd0.js[EU5L]: F:启动生产工作台配置加载并分发共享配置控制器 | R:code:projects/web/src/main.ts,code:projects/shared/store/config.ts,code:projects/server/public/web/assets/layouts-CpVS9ALg.js | A:浏览器ESM入口,配置控制器共享导出 | S:本机配置写入存储后才导入布局；内含Token变更事件和鉴权提示；哈希依赖须配套部署
-layouts-CpVS9ALg.js[AU5L]: F:分发工作台布局、声明式视图及安装交互 | R:code:projects/web/src/layouts/root.ts,code:projects/web/src/components/declarative-view.ts,code:projects/web/src/workbench/store.ts | A:app-root,工作台组件注册 | S:包含设置分组及过期读有界恢复；扩展安装防重且20秒超时，绕过休眠等待；哈希资源须配套部署
+index-Dl0ftbs2.js[EU5L]: F:启动生产工作台配置加载并导出配置控制器 | R:code:projects/web/src/main.ts,code:projects/server/public/web/assets/layouts-BdBJM8IX.js | A:浏览器ESM入口,ConfigController | S:本机配置写存储后才导入布局；哈希依赖须配套部署
+layouts-BdBJM8IX.js[AU5L]: F:分发工作台布局、声明式视图与安装交互 | R:code:projects/web/src/layouts/root.ts,code:projects/web/src/components/declarative-view.ts | A:app-root,工作台组件注册 | S:当前产物包含输入约束，但尚无控件下方错误包装；生产更新须重建并带齐哈希依赖
+terminal-BKuEP4xj.js[LU5M]: F:分发工作台终端、输入编辑和滚动交互 | R:code:projects/web/src/components/terminal.ts,code:projects/web/src/components/command-editor.ts | A:WorkbenchTerminal,wb-terminal,wb-command-editor | S:输入输出共用视口；捕获滚轮与指针先记录用户滚动，防输出跟随重置
+workbench-Cp5-txDH.js[LU5L]: F:分发工作台组件、命令与事件连接 | R:code:projects/web/src/workbench/commands.ts,code:projects/web/src/api/workbench.ts | A:浏览器共享ESM导出 | S:Socket用单次票据且拒旧代事件，重连上限15秒；哈希资源配套部署
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/public/web/===
-index.html[EU5T]: F:装载生产工作台并标记页面身份 | R:code:projects/server/public/web/assets/index-N9Rp4pd0.js,code:projects/server/public/web/assets/index-C0tSgCCc.css | A:/web/HTML入口,scwc-app元标记,ICO favicon | S:预载local-config；资产基于/web/assets；初始dark-2026；元标记供脚本跳过浮窗
+index.html[EU5T]: F:装载生产工作台并标记页面身份 | R:code:projects/server/public/web/assets/index-Dl0ftbs2.js,code:projects/server/public/web/assets/index-C0tSgCCc.css | A:/web/HTML入口,scwc-app元标记,ICO favicon | S:预载local-config；资产基于/web/assets；初始dark-2026；元标记供脚本跳过浮窗
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/router/===
 index.ts[MN8M]: F:接入采集、工作台和带客户端版本的HTTP请求 | R:code:projects/server/router/extension-origin.ts,code:projects/server/router/user-script.ts,code:projects/server/router/version.ts | A:app,listen,/api/metadata/scrape | S:仅明确扩展路径豁免同主机检查，仍验HTTP(S) site与Bearer；CORS允许版本头并暴露通知头；采集路由显式版本门槛；响应关闭结束任务
-plugin.ts[EE8L]: F:按网站提供兼容插件模板、刷新基线及双协议事件入口 | R:code:projects/server/user-script/refresh.ts,code:projects/server/user-script/ui.ts,code:projects/shared/script-ui.ts,code:projects/server/router/version.ts | A:/api/plugin/config,/toggle,/event | S:省略版本仍为v1；v2接收旧实例与脏字段以保留基线，只读标志交运行器核验；previousSite须同源，pluginId限定刷新；事件验适用站点并保留机器错误码
+plugin.ts[EE8L]: F:按网站提供插件模板、刷新基线及双协议事件入口 | R:code:projects/server/user-script/ui.ts,code:projects/server/user-script/refresh.ts | A:/api/plugin/config,/toggle,/event | S:省略版本为v1；v2继承脏字段基线，只读由运行器核验；previousSite须同源；事件验站点，错误保留code及field
 user-script.test.ts[TC6M]: F:验证脚本及扩展配置鉴权与插件刷新HTTP契约 | R:code:projects/server/router/user-script.ts,code:projects/server/router/plugin.ts | A:Vitest集成用例 | S:真实HTTP和Socket覆盖扩展精确来源、Bearer及票据；同origin共享并保留浮窗字段，POST控件加载不放松鉴权
 user-script.ts[IN8S]: F:同步网站快照并推送同origin配置变更 | R:code:projects/server/user-script/config.ts,code:projects/server/router/extension-origin.ts,code:projects/server/router/version.ts | A:/config/sync,attachUserScriptConfigSockets | S:普通上传保留核心绑定配置；扩展另保留浮窗坐标与最小化；票据30秒单次且绑定精确origin；拒页面grant，限制心跳与积压
 extension-origin.ts[MS7T]: F:限定可访问采集、同步与插件事件接口的扩展来源 | R:code:projects/server/router/index.ts | A:isExtensionOrigin,extensionApiPaths | S:只接受三类扩展协议的纯origin，拒端口、凭据和路径；放行集合含v2事件但不放松Bearer
@@ -1070,7 +1070,7 @@ backend.test.ts[TE7L]: F:验证工作台HTTP、插件进程及安装唤起边界
 dev-proxy.ts[EN6T]: F:重定向开发页面入口 | R:code:projects/server/common/setupParam.ts,code:projects/server/router/web/index.ts | A:redirectDevelopmentPage | S:按WEB_ORIGIN跳转并保留路径与查询，/web规范为/web/；不探测Vite可用性，避免IPv4地址假阴性
 index.ts[EU8L]: F:提供带逐路由版本门槛的工作台及原生安装接口 | R:code:projects/server/workbench/runtime.ts,code:projects/server/utils/browser-extension.ts,code:projects/server/router/version.ts | A:createWorkbenchRouter,resolvePluginUrl,/bootstrap,/browser-extension/install | S:路由辅助函数调用各自传版本字面量；安装和聚焦拒普通grant；写入验owner、租约与revision；本地聚焦仅采信回环对端和来源；旧定义接口410
 websocket.ts[IN8M]: F:分派工作台、插件及脚本配置Socket升级 | R:code:projects/server/workbench/events.ts,code:projects/server/workbench/page-sessions.ts,code:projects/server/router/user-script.ts | A:attachUpgradeDispatcher | S:脚本配置由专用票据处理；工作台票据单次且五秒内resume；反馈匹配文档epoch，回放缺口重同步，积压超2MiB关闭
-declarative-ui.ts[EU8S]: F:提供带版本声明的UI实例、事件与资源路由 | R:code:projects/server/workbench/declarative-ui.ts,code:projects/server/workbench/workspace.ts,code:projects/server/router/version.ts | A:declarativeRouter,uiAsset | S:普通页面grant拒访问；实例创建验窗口、租约及来源标签，写事件再验租约；释放核验归属；资源凭cap且隐藏内部错误
+declarative-ui.ts[EU8S]: F:提供UI实例、只读值验证、事件及资源路由 | R:code:projects/server/workbench/declarative-ui.ts,code:projects/server/workbench/workspace.ts | A:declarativeRouter,uiAsset,/instances/:id/validate | S:普通页面grant拒访问；创建及事件验租约，读取验证验归属；字段错误放data.field；资源凭cap且隐藏内部错误
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/scripts/===
 build-bundled-node.ts[OV7S]: F:构建携带浏览器扩展的内置Node发行包 | R:code:projects/server/scripts/build-runtime.ts,code:projects/browser-extension/scripts/build.ts | A:buildBundledNodeDistribution | S:先构建扩展，再用Node25.5以上生成SEA；仅原生平台，macOS临时签名；扩展目录位于持久部署侧
@@ -1154,10 +1154,10 @@ feedback-schema.ts[FM4T]: F:校验反馈进度取值 | R:- | A:progressSchema | 
 feedback.test.ts[TM6S]: F:验证反馈控制对象、通知选项持久化与归属隔离 | R:code:projects/shared/workbench-feedback.ts,code:projects/server/workbench/feedback.ts,code:projects/server/workbench/notifications.ts,code:projects/server/workbench/operations.ts | A:Vitest用例 | S:内存SQLite验证回调不序列化、读与可见分离；systemNotification缺省关闭且去重发布保留显式选项；任务终态不可重启
 feedback.ts[AM7T]: F:按认证归属分派任务与通知控制 | R:code:projects/server/workbench/runtime.ts,code:projects/server/workbench/notifications.ts,code:projects/server/workbench/operations.ts,code:projects/shared/workbench-feedback.ts | A:feedbackRequest,createBackendFeedback | S:归属由REST或IPC认证方注入；插件只能操作自身内置任务且不能rescan；手动状态更新仅用于自定义任务
 catalog.test.ts[TE5T]: F:验证插件名称解析优先级 | R:code:projects/server/workbench/catalog.ts | A:Vitest参数化用例 | S:空白标题跳过；包UI标题、导出name、包名、目录依次回退，旧导出title不参与；临时目录限定在仓库node_modules/.tmp
-declarative-ui.test.ts[TU7S]: F:验证声明式执行、归属和页面授权边界 | R:code:projects/server/workbench/declarative-ui.ts,code:projects/server/workbench/page-sessions.ts | A:Vitest用例 | S:验证事件过滤、位置参数和幂等冲突；失败分支丢弃效果，已完成分支保留；前端确认仅消费一次；无来源页不借其他标签；页面grant仅可读自身配置
-declarative-ui.ts[AU9L]: F:治理声明式实例、分组配置页和双向配置绑定 | R:code:projects/server/workbench/ui-compiler.ts,code:projects/shared/ui-expressions.ts,code:projects/shared/ui-validation.ts,code:projects/server/workbench/plugin-config.ts | A:DeclarativeUIService,declarativeUI | S:实例绑定owner与渲染版本，事件正文摘要去重；待排32、预算10秒；配置保留值与定义基线并事务CAS；按group引用布局且统一保存重置；资源验cap及实路径，释放撤销监听
-ui-compiler.test.ts[TU7S]: F:验证受限UI编译、设置绑定和内容过滤 | R:code:projects/server/workbench/ui-compiler.ts | A:Vitest用例 | S:设置行校验可访问标签和数字约束，拒混用自动绑定与自定义事件；另覆盖清洗前事件提取、触发循环、嵌套Tabs表单归属及跨域和外链拒绝
-ui-compiler.ts[KS9L]: F:把HTML和JSON设置布局编译为安全节点与事件程序 | R:code:projects/shared/ui-expressions.ts,code:projects/shared/declarative-ui.ts | A:compileUI,compileCSS,validateAttribute | S:先提事件再清洗；setting默认绑定插件配置，site使用独立核心处理器和字段身份；config禁混children/events，group仅含setting；默认值保持字符串；CSS过滤危险函数，资源走cap网关
+declarative-ui.test.ts[TU7L]: F:验证声明式执行、模板输出校验及页面授权边界 | R:code:projects/server/workbench/declarative-ui.ts | A:Vitest用例 | S:验证失败阻止消费、写值及前端交付；无关草稿不随模板发送；前端验证确认后续接；失败分支丢效果
+declarative-ui.ts[AU9L]: F:治理声明式实例、执行时验证与前端值交付 | R:code:projects/shared/ui-expressions.ts,code:projects/server/workbench/ui-compiler.ts,code:projects/server/workbench/plugin-config.ts | A:DeclarativeUIService,declarativeUI,validateValues | S:归属及revision门禁、幂等队列32和10秒预算；引用与回填前再验，失败带field；前端验证专用阶段只发所需字段并确认续接；规范化后校验不回滚已存配置；配置CAS，资源cap及实路径
+ui-compiler.test.ts[TU7M]: F:验证UI编译、合法字段保留与验证依赖顺序 | R:code:projects/server/workbench/ui-compiler.ts | A:Vitest用例 | S:合法target名不因清洗丢规则；跨字段验证拓扑排序并拒循环；四类文本约束、只读及显式调用覆盖
+ui-compiler.ts[KS9L]: F:编译受限UI、输入约束与有序验证依赖 | R:code:projects/shared/ui-expressions.ts,code:projects/shared/declarative-ui.ts,code:projects/shared/ui-validation.ts | A:compileUI,compileCSS,validateAttribute | S:清洗前提元数据，JSON合法name清洗后恢复；验证拓扑排序并扩展采集、拒依赖环；规则错误带目标字段；无事件补change/blur；config禁混children/events，默认plugin绑定，site独立
 ui-renderer.test.ts[TU6S]: F:验证固定渲染器的状态保持与安全更新 | R:code:projects/web/src/components/ui-renderer.js,code:projects/web/src/components/ui-frame.js | A:Vitest用例 | S:JSDOM配合真实MessageChannel验证插值仅文本、旧版本拒收、脏输入焦点与选区保持，以及嵌套Tabs点击键盘和更新保留
 mac-notification-helper.ts[IU8S]: F:准备并注册带分层及兼容图标的macOS通知辅助应用 | R:code:projects/server/workbench/native-notification-host.ts,code:projects/server/common/paths.ts,code:projects/server/common/environment.ts,code:projects/server/scripts/build-mac-notification-icon.ts | A:prepareMacNotificationHelper | S:托管于SCWC_DATA_DIR/scwc，相对路径基于ENV_DIR；PNG与Assets.car均入摘要；资产名SCWC配合ICNS；拒绝符号链接及非托管应用；签名验证后替换并注册，回滚失败保留备份
 native-notification-host.ts[IU8S]: F:适配跨平台内核原生通知及可替换桌面宿主 | R:code:projects/server/workbench/mac-notification-helper.ts,code:projects/server/workbench/notification-icon.ts,code:projects/server/common/paths.ts | A:CoreNotificationHost,CoreNotificationHandle,nativeNotificationHost | S:依赖保持包相对路径；macOS使用已注册助手，Windows使用SnoreToast；创建前复核取消，句柄可关闭且错误保留原cause
@@ -1165,7 +1165,7 @@ notification-icon.ts[IU6T]: F:定位原生通知PNG资源 | R:code:projects/serv
 system-notifications.ts[AM8M]: F:在内核失焦时发送跨浏览器去重的原生系统提醒 | R:code:projects/server/workbench/native-notification-host.ts,code:projects/server/workbench/notifications.ts,code:projects/server/workbench/events.ts,code:projects/shared/system-notifications.ts | A:CoreSystemNotifications,setHost,status,presence,closeService | S:只处理实时发布与显式启用，按id/count去重且缓存千条；本地聚焦20秒有效，桌面宿主可强制内核并接管焦点；已读、关闭或销毁取消迟到发送
 mac-notification-helper.test.ts[TU5T]: F:验证macOS通知图标安装与摘要更新 | R:code:projects/server/workbench/mac-notification-helper.ts,code:projects/server/workbench/notification-icon.ts | A:Vitest文件夹具 | S:签名及注册命令被mock；验证分层资源、ICNS兼容和摘要变化，不证明系统横幅
 notification-icon.test.ts[TV5T]: F:验证通知PNG在源码与隔离发行环境中的定位 | R:code:projects/server/workbench/notification-icon.ts,code:projects/server/common/paths.ts | A:Vitest子进程用例 | S:从无关cwd消费独立runtime；断言PNG256×256且字节一致
-json-config.test.ts[TU6S]: F:验证无控制器设置绑定的持久化、规范化与并发保护 | R:code:projects/server/workbench/declarative-ui.ts,code:projects/server/workbench/plugin-config.ts | A:Vitest用例 | S:使用真实内存SQLite及编译事件，校验字符串持久化、布尔回值、整数拒绝、远端干净更新和同键草稿冲突；自定义处理器不得被调用
+json-config.test.ts[TU6S]: F:验证设置绑定持久化、规范化输出和并发保护 | R:code:projects/server/workbench/declarative-ui.ts,code:projects/server/workbench/plugin-config.ts | A:Vitest用例 | S:真实SQLite覆盖双基线冲突；规范化值违规则无回填效果，后续读取仅返回字段错误
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/shared/components/===
 button.css[ZU3T]: F:定义共享按钮外观 | R:code:projects/shared/components/button.ts | A:.scwc-btn样式 | S:host不接收指针，内部button重新开启交互
@@ -1182,8 +1182,8 @@ select.ts[LU5T]: F:封装并导出共享下拉选择 | R:code:projects/shared/co
 toggle.ts[LU5T]: F:封装并导出布尔切换控件 | R:code:projects/shared/components/checkbox.ts | A:SCWCToggle,scwc-toggle,SCWCToggleEventMap | S:内部复用checkbox并转发布尔change，组件仍由外部回写checked
 trigger.ts[LU5T]: F:封装并导出动作触发控件 | R:code:projects/shared/components/button.ts | A:SCWCTrigger,scwc-trigger,SCWCTriggerEventMap | S:将内部button点击转换为冒泡trigger事件
 notify.test.ts[TU5T]: F:验证通知外观重构后六向定位与回调保留 | R:code:projects/shared/components/notify.ts | A:Vitest用例 | S:伪帧与时钟覆盖点击、悬停暂停、自动及静默手动关闭，不证明实际排版
-script-ui.test.ts[TU5S]: F:验证JSON字段保存、刷新状态和过期读取恢复边界 | R:code:projects/shared/components/script-ui.ts | A:Vitest DOM用例 | S:真实渲染器验证草稿焦点选区及迟到结果；过期读仅恢复一次、失败停止轮询，提交不重放；DOM不证明像素布局
-script-ui.ts[LU7L]: F:为脚本与扩展托管有状态JSON视图、配置读取和事件交互 | R:code:projects/web/src/components/ui-renderer.js,code:projects/web/src/components/json-components.ts,code:projects/shared/script-ui.ts,code:projects/server/public/resources/styles/json-ui.css | A:ScriptUIView,scwc-script-ui | S:复用渲染器保留草稿焦点选区；绑定字段不写本地草稿；活动绑定每4秒取值，过期读仅恢复一次，提交不重放；实例与编辑代数拒迟到结果
+script-ui.test.ts[TU5M]: F:验证脚本视图字段错误、草稿及过期读取恢复 | R:code:projects/shared/components/script-ui.ts,code:projects/server/user-script/ui.ts | A:Vitest DOM用例 | S:真实编译器与运行器验证控件下方提示；迟到成功不清新错误；过期读仅恢复一次，提交不重放
+script-ui.ts[LU7L]: F:托管脚本与扩展JSON视图、字段错误及配置交互 | R:code:projects/web/src/components/ui-renderer.js,code:projects/shared/script-ui.ts | A:ScriptUIView,scwc-script-ui | S:字段错误交渲染器内联显示并按编辑序号拒迟到结果；自动绑定不存普通草稿；活动4秒读，过期仅恢复一次且不重放提交
 version-notice.ts[LU6S]: F:为两端显示可按版本抑制的升级通知 | R:code:projects/shared/client-version.ts | A:showVersionNotice,scwc-version-notice | S:警告按当前与最新版本去重并可持久关闭；错误不使用警告抑制键；存储不可用时仍保留本会话去重
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/shared/store/===
@@ -1223,9 +1223,9 @@ vite.config.ts[FQ4T]: F:配置共享组件测试项目 | R:code:projects/shared/
 workbench-feedback.ts[LM8M]: F:构造跨传输任务与通知控制对象 | R:- | A:createFeedbackClient,NotificationLogger,NotificationController,TaskManager,TaskController,FeedbackProgress | S:systemNotification可创建或更新，仅表达接收应用失焦时升级；函数留创建进程或文档，传输只含动作ID；更新串行且失败不阻塞后续；null为不定进度，false隐藏；内置任务只查询或取消
 config-dispatch.test.ts[TM6T]: F:验证配置通知暂停排队及恢复 | R:code:projects/shared/config-dispatch.ts | A:Vitest用例 | S:覆盖revision去重、积压溢出快照重同步、交付期间并发变更、失败保留和文档销毁后停止交付
 config-dispatch.ts[CM7T]: F:按页面文档排队和确认配置通知 | R:code:projects/server/types/plugin-config.d.ts | A:ConfigDispatchQueue | S:初始先快照，按revision去重；boot变化或超过256项/262144字符转重同步；仅活动时串行交付，失败保留未确认项；新文档须新建队列
-declarative-ui.ts[FU8M]: F:定义声明式UI、配置作用域及编译传输契约 | R:code:projects/shared/ui-expressions.ts | A:PluginUI,HandlerDefinition,UIContent,UISettingNode,UISettingGroupNode,CompiledUI | S:配置作用域默认plugin，site面向脚本网站快照；跨传输限无循环JSON，拒原型键及非有限数；内容256KiB、值64KiB；回调留所属进程，格式身份必须保留
-ui-expressions.test.ts[TU6T]: F:验证声明式调用与模板表达式语义 | R:code:projects/shared/ui-expressions.ts | A:Vitest用例 | S:裸名称默认事件、空括号零参；引用分隔符不拆分；单表达式保留JSON类型；禁止跨域传值和渲染读取event/prev，无返回值与null区分
-ui-expressions.ts[KU8M]: F:解析并求值受限处理器调用和模板 | R:code:projects/shared/declarative-ui.ts | A:parseProgram,parseExpression,parseTemplate,evaluateArgument,evaluateTemplate,walkArgument | S:不执行JS；裸名称传事件、空括号零参；管道和嵌套实参必须同域；首步禁prev，渲染禁event/prev；单插值保类型，混排对象须显式序列化；限制4KiB、8分支、16步及嵌套8层
+declarative-ui.ts[FU8M]: F:定义声明式UI、字段验证与带归属错误契约 | R:code:projects/shared/ui-expressions.ts,code:projects/shared/ui-validation.ts | A:PluginUI,UIContent,UIInputConstraints,UIValidationResult,CompiledUI,UIError | S:name仅ASCII字母数字下划线中划线且拒原型键，处理器允许点；验证目标标记编译器拥有；UIError.field可选；内容版本1；仅无循环有限JSON，内容256KiB、值64KiB
+ui-expressions.test.ts[TU6S]: F:验证调用语法、字段引用重验及验证返回契约 | R:code:projects/shared/ui-expressions.ts,code:projects/shared/ui-validation.ts | A:Vitest用例 | S:依赖失败阻止消费且归属依赖字段；每次读重新验证；仅事件顶层裸调用，$this取候选；错误返回结构拒绝
+ui-expressions.ts[KU8L]: F:解析受限调用并在字段消费前验证和归属错误 | R:code:projects/shared/declarative-ui.ts,code:projects/shared/ui-validation.ts | A:parseProgram,parseTemplate,parseValidator,evaluateArgument,validateUIField,validateUIFields | S:仅事件顶层可裸调用；$for/value.read/字段watch重验；验证器可读自身候选但拒依赖环，$this绑定候选且严验返回；frontend/backend回执仅跳对应验证阶段；不执行JS
 backend.ts[LG7T]: F:公开shared后端通用工具和类型 | R:code:projects/shared/declarative-ui.ts,code:projects/shared/ui-expressions.ts,code:projects/shared/workbench-feedback.ts | A:cache,debounce,FetchError,tryCatch,completionInput,UI与反馈契约 | S:SDK注册时同步导入本入口，运行时依赖必须兼容无DOM及Node原生可擦除TS
 frontend.ts[EU7T]: F:公开并注册shared浏览器组件、工具和类型 | R:code:projects/shared/backend.ts,code:projects/shared/components/index.ts,code:projects/shared/components/notify.ts | A:表单组件,notify,SCWCScrollContainer,浏览器工具与类型 | S:导入即创建或复用通知及初始化页面存储配置，需要DOM；Vite仅向HTML入口自动注入，Worker不加载
 package.json[FV6T]: F:声明shared工作区包及前后端子路径 | R:code:projects/shared/frontend.ts,code:projects/shared/backend.ts,code:projects/scripts/sync-versions.ts | A:@scwc/shared,version,exports,dependencies | S:版本随根包；私有ESM直接导出TS；前端依赖随Vite包传递资产进入发行目录
@@ -1235,8 +1235,8 @@ system-notifications.ts[CM7T]: F:共享系统通知设置与内核浏览器发�
 command-history.ts[FC5T]: F:统一Web与独立终端的命令历史容量 | R:- | A:COMMAND_HISTORY_LIMIT | S:当前固定1000条，预留以后接入设置
 client-version.ts[KN7T]: F:定义客户端版本身份并比较语义版本及兼容范围 | R:code:package.json | A:CLIENT_VERSION,VERSION_HEADER,compareVersions,inVersionRange,versionNoticeKey | S:根版本由构建注入；构建元信息不参与排序，预发布数字按数值；范围含端点且星号无上限；通知键绑定当前和最新版本
 script-ui.test.ts[TC5T]: F:验证脚本协议兼容、字段保存与模板刷新合并 | R:code:projects/shared/script-ui.ts | A:Vitest用例 | S:v1继续兼容；多选编码保留旧字段；刷新串行并合并通知；普通字段保存保留站点绑定命名空间
-script-ui.ts[FU7S]: F:定义脚本JSON协议、模板刷新队列及网站字段转换 | R:code:projects/shared/declarative-ui.ts,code:projects/shared/client-version.ts | A:v1/v2契约,ScriptUIRefreshQueue,scriptConfigProblem,readScriptValues,saveScriptValues | S:v2显式声明且内层JSON仍为1；队列每键串行并采用最新读取函数；自动绑定不读普通草稿；v2:config:键保留，多选编码字符串；$read只读取值
-ui-validation.ts[KC6T]: F:共享声明式值类型、长度、选项和数值范围校验 | R:code:projects/shared/declarative-ui.ts | A:validateUIValue | S:校验返回原值而不强制转换；数值字符串须符合十进制或指数语法，拒非有限数，integer另验整数
+script-ui.ts[FU7S]: F:定义脚本JSON协议、字段错误更新与刷新队列 | R:code:projects/shared/declarative-ui.ts,code:projects/shared/client-version.ts | A:ScriptUIModel,ScriptUIResult,ScriptUIRefreshQueue,readScriptValues,saveScriptValues | S:外层v2内层1；更新可仅含error/field；每键串行合并；绑定不读普通草稿，保留v2:config:键；$read只读
+ui-validation.ts[KC6S]: F:校验声明式输入约束、字段值及验证器返回结构 | R:code:projects/shared/declarative-ui.ts | A:validateUIRules,validateUIValue,assertUIValidationResult | S:不转换原值；长度按UTF16，数值含边界且拒非有限数；正则用u整值匹配，先验原始语法；验证结果仅容success布尔及可选message字符串
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/terminal/===
 clipboard.ts[IU4T]: F:写入系统剪贴板 | R:code:projects/terminal/controller.ts | A:copyText | S:按平台依次尝试原生工具，全部失败后向终端发送OSC52
@@ -1292,7 +1292,7 @@ vite.config.ts[FV5T]: F:构建全站用户脚本并注入根包请求版本 | R:
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/user-script/src/api/===
 crawl.ts[IN6T]: F:经脚本管理器向核心提交页面采集内容 | R:code:projects/user-script/src/api/request.ts | A:sendCrawlRequest | S:site随查询及JSON发送并带Bearer；按响应success归一结果，网络或JSON异常转换失败值
-plugins.ts[IE6M]: F:请求双代插件配置并发送含刷新基线的JSON事件 | R:code:projects/user-script/src/api/request.ts,code:projects/server/router/plugin.ts,code:projects/shared/script-ui.ts | A:fetchPlugins,triggerPlugin,invokeScriptUI,PluginConfigBatch | S:v1显式带版本；v2携实例与字段快照；刷新传旧实例和脏字段；仅提交要求完整采集，只读不拦；错误保留机器码，兼容原通知
+plugins.ts[IE6M]: F:请求双代脚本配置并传递JSON事件与字段错误 | R:code:projects/user-script/src/api/request.ts,code:projects/shared/script-ui.ts | A:fetchPlugins,triggerPlugin,invokeScriptUI,PluginConfigBatch | S:v1显式版本；v2携实例快照及刷新脏基线；仅提交要求完整采集；错误保留code和field，成功兼容通知
 request.test.ts[TN6S]: F:验证脚本管理器请求身份、取消清理及熔断阻断 | R:code:projects/user-script/src/api/request.ts,code:projects/user-script/src/api/sync-circuit.ts | A:Vitest用例 | S:mock GM且页面fetch禁用；覆盖版本头、匿名请求、HTTP错误及取消后迟到回调；三次失败熔断后不再调用GM
 request.ts[IN7S]: F:经脚本管理器提交带版本请求并服从同步熔断 | R:code:projects/user-script/src/api/sync-circuit.ts,code:projects/shared/client-version.ts,code:projects/shared/components/version-notice.ts | A:requestCore,CoreRequestOptions | S:发请求前核验熔断；保留网站Origin和Referer；匿名禁缓存且拒重定向，缺GM不回退fetch；通知头异常不影响原响应；取消释放监听
 sync-circuit.ts[RN7S]: F:持久化脚本同步熔断并阻止暂停后的核心请求 | R:code:projects/user-script/src/api/request.ts,code:projects/user-script/src/site-sync.ts,code:projects/shared/store/config.ts,code:projects/shared/userscript-config.ts | A:isCoreSyncBlocked,recordCoreSyncFailure,recordCoreSyncSuccess,notifyCoreSyncBlocked,assertCoreRequestAllowed,CORE_SYNC_BLOCKED_MESSAGE | S:同origin共享持久状态；连续同步失败3次封锁所有核心请求，成功或Token变更重置；提示750ms节流；存储不可用时当前页仍生效
@@ -1372,15 +1372,15 @@ page-inspector.ts[AU7T]: F:承载核心JSON页面信息视图 | R:code:projects/
 terminal.ts[AU8L]: F:管理Web终端视图 | R:code:projects/web/src/components/command-editor.ts,code:projects/web/src/workbench/store.ts,code:projects/web/src/components/scroll-container.ts | A:wb-terminal,activate,closeCurrent,cancel,alter | S:草稿串行CAS、命令幂等；执行去续行而待答保原文；执行中隐藏普通输入，未知命令保草稿并本地提示；选区优先复制，无选区Ctrl+C取消，强停须确认；整行按seq锚定；捕获滚轮和pointerdown先于容器消费事件记录用户滚动，避免follow拉回
 scroll-container.ts[LU6M]: F:适配工作台滚动、整行视口及脚本复用 | R:code:projects/shared/components/scroll-container/index.ts | A:wb-scroll-container,WorkbenchScrollContainer,lineScroll,wholeLines,thin,dragOnly | S:普通事件限80px，整行模式限实测一行；最大200ms且零加速；弹层max-height传到视口，原生textarea先滚自身；dragOnly还需禁滚轮
 declarative-menu.ts[LU6S]: F:把编译菜单投影为工作台菜单项 | R:code:projects/shared/declarative-ui.ts,code:projects/web/src/components/context-menu/menu-types.ts | A:DeclarativeMenu | S:仅消费核心编译节点；勾选采集字段及编辑序号；模板同步标签和禁用态；按钮图标占位不进入菜单文本
-declarative-view.test.ts[TU7L]: F:验证声明式渲染、模板刷新竞态及启动恢复 | R:code:projects/web/src/components/declarative-view.ts,code:projects/web/src/components/json-components.ts | A:Vitest用例 | S:延迟响应验证刷新串行、末版本取值及草稿焦点保留；过期读恢复一次且不重放提交，持续失败停重试；另验组件代理、JSON白名单及HTML沙箱
-declarative-view.ts[AU8L]: F:承载声明式视图、串行模板刷新、取值监听与执行效果 | R:code:projects/web/src/components/ui-renderer.js,code:projects/web/src/components/json-components.ts,code:projects/web/src/components/json-renderer-policy.ts,code:projects/server/public/resources/styles/json-ui.css,code:projects/web/src/api/workbench.ts | A:wb-declarative-view,DeclarativeView | S:JSON白名单后在ShadowDOM适配，HTML用nonce/source握手沙箱；实例绑定租约和代数，前端限来源页；同实例刷新串行合并，队列完成才初始化取值；UI_STALE_RENDER仅对读恢复一次，成功清错且不重放提交；草稿焦点跨刷新保留
-json-renderer-policy.ts[LS8T]: F:校验直接JSON渲染的节点、可访问说明及控件属性边界 | R:code:projects/shared/declarative-ui.ts | A:validateJSONModel,validateJSONAttribute | S:仅允许无自定义样式的JSON模型，校验唯一节点、深度及绑定目标；图片限同源/web/ui/assets且无凭据或hash；ShadowDOM不能替代内容白名单
+declarative-view.test.ts[TU7L]: F:验证Web字段内联错误、前端消费及回填校验 | R:code:projects/web/src/components/declarative-view.ts | A:Vitest DOM用例 | S:错误保留已有说明、独立清除且脏刷新保留；无效快照阻止前端消费者；目标回填需后端校验；提交不重放
+declarative-view.ts[AU8L]: F:托管声明式视图、前端验证与字段错误反馈 | R:code:projects/web/src/components/ui-renderer.js,code:projects/shared/ui-expressions.ts,code:projects/web/src/api/workbench.ts | A:DeclarativeView,wb-declarative-view | S:JSON白名单入ShadowDOM，HTML走nonce/source沙箱；前端限来源页，消费及目标回填重验；后端验证经只读端点；错误保留field及编辑序号；刷新串行，过期读恢复一次且提交不重放
+json-renderer-policy.ts[LS8S]: F:校验JSON渲染节点、控件名称及输入规则边界 | R:code:projects/shared/declarative-ui.ts,code:projects/shared/ui-validation.ts | A:validateJSONModel,validateJSONAttribute | S:仅允许无自定义样式的JSON模型；字段目标与静态规则再验，允许readonly和长度正则属性；图片限同源/web/ui/assets且无凭据或hash；ShadowDOM不能替代白名单
 plugin-status.test.ts[TU5T]: F:验证状态项提示层与右键菜单切换 | R:code:projects/web/src/components/plugin-status.ts | A:Vitest用例 | S:右键先关闭固定tooltip，再按真实指针坐标开工作台菜单；关闭事件销毁菜单
 plugin-status.ts[AU6M]: F:呈现插件状态项、提示层与上下文菜单 | R:code:projects/web/src/components/declarative-view.ts | A:wb-plugin-status,PluginStatus | S:固定提示层跨状态项互斥，悬停300ms打开、离开200ms关闭；右键先关提示层再以指针坐标开菜单；owner变化、外点与Esc释放显示
 ui-content.css[ZU5S]: F:约束声明式表面的滚动、紧凑内边距及核心配置操作布局 | R:code:projects/web/src/components/json-components.ts,code:projects/server/public/resources/styles/json-ui.css | A:.ui-root,.ui-scroll,.ui-select,页面信息data-ui-key规则 | S:内容根允许溢出至外层滚动视口，不能裁切单根分组；嵌套Tabs只分剩余高度，保存行留正常流；原生选择目标隐藏，control part为8px圆角
 ui-frame.js[IU8T]: F:在HTML沙箱建立固定渲染器消息桥 | R:code:projects/web/src/components/ui-renderer.js,code:projects/web/src/components/declarative-view.ts | A:scwc-ui-ready,MessagePort握手 | S:仅接受parent且匹配nonce、协议和版本的首次端口；建立后移除欢迎监听；opaque origin不能替代source与nonce核验
 ui-renderer.d.ts[FU6T]: F:声明固定渲染器消息及宿主组件适配合同 | R:code:projects/web/src/components/ui-renderer.js | A:UIRendererMessage,UIRendererComponents,createUIRenderer | S:Document与ShadowRoot共用接口；组件钩子可选，HTML沙箱不需要注册工作台组件；消息用renderRevision拒旧
-ui-renderer.js[LU8M]: F:渲染编译节点并采集字段与表面交互 | R:code:projects/web/src/components/declarative-view.ts,code:projects/web/src/components/ui-frame.js,code:projects/web/src/components/ui-renderer.d.ts | A:createUIRenderer | S:插值只写文本；旧版本更新拒收，脏字段受编辑序号保护；可选组件钩子保持焦点和滚动；select先创建选项再设初值，键盘切Tabs显示目标
+ui-renderer.js[LU8M]: F:渲染控件、内联验证错误并采集交互快照 | R:code:projects/web/src/components/declarative-view.ts,code:projects/web/src/components/ui-frame.js | A:createUIRenderer | S:独立沙箱不可导模块；字段错误在控件下并追加aria-describedby；表单禁原生气泡；本地检查不替后端；错误按编辑序号过滤，脏草稿错误随同规则刷新保留；禁用只读不派事件
 json-components.ts[LU7S]: F:增强JSON滚动边界、下拉代理、图标和交互状态恢复 | R:code:projects/web/src/components/scroll-container.ts,code:projects/web/src/components/context-menu/wb-menu-select.ts,code:projects/web/src/components/ui-renderer.d.ts | A:createJSONComponents | S:脚本可关闭面板滚动，仅保留标签栏边界；跨ShadowRoot找外层视口；单选保留原生绑定目标，多选保留原生控件；按节点恢复滚动，隐藏面板不测高
 icon-base.ts[LU5T]: F:提供无注册副作用的完整图标基类与名称映射 | R:code:projects/web/src/components/icon.ts,code:projects/user-script/src/icons.ts | A:WbIconBase,iconGlyph,name,size | S:语义名映射codicon，其他名称透传；ShadowDOM移除font-face由外层加载；脚本和工作台同名注册共享契约
 icon.test.ts[TU4T]: F:验证工作台先于脚本时保留图标注册 | R:code:projects/web/src/components/icon.ts,code:projects/user-script/src/icons.ts | A:Vitest用例 | S:后导入脚本不得覆盖已注册构造器
@@ -1476,14 +1476,15 @@ package.json[FE5T]: F:声明模板入口、构建与验证脚本 | R:code:projec
 tsconfig.json[FQ4T]: F:检查模板后端和构建配置类型 | R:code:projects/server/plugins/plugin-env.d.ts,code:projects/server/plugin/sdk/modules.d.ts | A:files,include,exclude,compilerOptions | S:只纳入根TS，排除web和tests；严格无输出并引用核心便携声明
 validation.ts[TE5S]: F:提供延时请求、资源、Socket和后端反馈探针 | R:code:projects/server/plugins/template/feedback-demo.ts,code:projects/server/types/plugin-process.d.ts | A:loadValidation,unloadValidation,validationApis,validationResources,validationSockets | S:浏览器中止不取消后端延时；SVG不嵌用户输入，Socket连接清理定时器
 vite.config.ts[FV5T]: F:构建模板Lit页面 | R:code:projects/server/plugins/template/web/index.html,code:projects/vite-plugin/index.js | A:defineConfig,root,base,plugins,build | S:base取实际目录名，输出web/dist；构建缓存限定在插件内
-declarative-ui.ts[AE6M]: F:编排模板处理器、默认JSON侧栏与资源生命周期 | R:code:projects/server/plugins/template/ui-content.ts,code:projects/shared/declarative-ui.ts | A:DeclarativeDemo,registerDeclarativeDemo,unloadDeclarativeDemo,declarativeApis | S:每区域一项，定向更新仅用核心身份；先撤视图引用再释放处理器资源；非法候选回滚；tab定向属性失效在当前宿主仍为全量
+declarative-ui.ts[AE6M]: F:编排模板处理器、输入验证示例及UI资源生命周期 | R:code:projects/server/plugins/template/ui-content.ts,code:projects/server/plugins/template/input-validation-ui.ts,code:projects/shared/declarative-ui.ts | A:DeclarativeDemo,registerDeclarativeDemo,unloadDeclarativeDemo,declarativeApis | S:验证回调随注册事务管理；非法括号和控件名仅显式测试候选且拒绝保留旧内容；先撤视图再释放处理器；定向更新用核心身份，属性失效仍全量
 configuration.ts[AC6S]: F:定义模板多组字符串配置及受限业务读写示例 | R:code:projects/server/types/plugin-config.d.ts,code:projects/server/plugins/template/index.ts | A:configuration,loadConfiguration,unloadConfiguration,configurationApis | S:groups引用同一items；confirm为布尔字符串checkbox；API写须已读baseRevision且仅改note/memo；note异步规范化校验，卸载释放订阅
-ui-content.ts[FU5L]: F:定义双侧栏分组配置、参数表单与HTML和状态菜单样例 | R:code:projects/shared/declarative-ui.ts,code:projects/server/plugins/template/declarative-ui.ts,code:projects/server/plugins/template/settings-ui.ts | A:ids,mainContent,auxiliaryContent,statusDefinition,coreExamples,negativePrograms | S:两侧栏复用自动与控制器布局并共用validation键；参数表单保留原字段身份及capture处理器；text静态，JSON与HTML可异步；CSS变量前置常量回退；事件内改模板可得陈旧回执
-script-ui.ts[FE5M]: F:声明脚本与扩展的三页配置样例及自定义事件处理器 | R:code:projects/server/plugins/template/settings-ui.ts,code:projects/shared/script-ui.ts,code:projects/server/user-script/ui.ts | A:scripts | S:显式v2；全局与本站页自动绑定，自定义页保留原字段和七个处理器；Toggle触发change，其余按钮触发；数字草稿仍存字符串，事件管道才转数字
-settings-ui.ts[FU5M]: F:提供全局、本站与显式控制器的分组配置样例 | R:code:projects/server/plugins/template/configuration.ts,code:projects/server/plugins/template/declarative-ui.ts,code:projects/shared/declarative-ui.ts | A:globalSettings,controllerSettings,siteSettings | S:全局共用validation键；显式分支省略config，以bound读写保留基线且调用demo处理器，仅供工作台；site仅脚本扩展按origin保存；数字默认值为字符串
+ui-content.ts[FU5L]: F:定义双侧栏配置、输入验证页及多格式状态提示菜单 | R:code:projects/server/plugins/template/declarative-ui.ts,code:projects/server/plugins/template/settings-ui.ts,code:projects/server/plugins/template/input-validation-ui.ts | A:ids,mainContent,auxiliaryContent,statusDefinition,coreExamples,negativePrograms | S:输入示例在主辅JSON与状态JSON共用；非法声明仅显式按钮触发；全局绑定共用原键；tooltip默认静态text，JSON与HTML可异步；CSS变量用前置回退
+script-ui.ts[FE5M]: F:声明脚本与扩展四页配置、输入验证及自定义事件样例 | R:code:projects/server/plugins/template/settings-ui.ts,code:projects/server/plugins/template/input-validation-ui.ts,code:projects/shared/script-ui.ts | A:scripts | S:外层v2内层1；保留原七处理器，新增页复用只读验证回调；脚本消费通知返回值；全局本站自动绑定，普通字段按站保存，数字只在事件管道转换
+settings-ui.ts[FU5M]: F:提供全局、本站与显式控制器的分组配置样例 | R:code:projects/server/plugins/template/configuration.ts,code:projects/server/plugins/template/declarative-ui.ts,code:projects/shared/declarative-ui.ts | A:globalSettings,controllerSettings,siteSettings | S:控件名用中划线而配置键保留点号；显式绑定保留基线，仅供工作台；site仅脚本扩展按origin保存；数字默认值为字符串
+input-validation-ui.ts[FU5M]: F:提供多入口共用的输入约束、验证回调与非法声明样例 | R:code:projects/shared/declarative-ui.ts,code:projects/server/plugins/template/ui-content.ts,code:projects/server/plugins/template/script-ui.ts | A:inputValidationHandlers,inputValidationContent,invalidInputExamples,rejectedInputContent | S:Web成功用核心通知效果，脚本用返回通知；错误结构控件独立；只读验证不回显密码，字段仍是网站草稿；备注绑定既有全局键；非法候选不作初始内容
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/plugins/template/tests/===
-integration.test.mjs[TE6L]: F:验证模板双侧栏配置、页面SDK与双端脚本的真实边界 | R:code:projects/server/plugins/template/index.ts,code:projects/server/plugins/template/script-ui.ts,code:projects/server/plugins/template/settings-ui.ts,code:projects/server/plugins/template/tests/isolate-environment.mjs | A:node:test,JSDOM,MessageChannel | S:隔离真实Node/HTTP/SQLite；验证主辅分组自动与显式控制器共享值、规范化、类型及草稿CAS；保留5组8项与脚本七处理器、站点隔离；DOM不证明像素或系统横幅
+integration.test.mjs[TE6L]: F:验证模板SDK、配置与多入口输入验证全链 | R:code:projects/server/plugins/template/index.ts,code:projects/server/plugins/template/input-validation-ui.ts | A:node:test,JSDOM,MessageChannel | S:真实Node/HTTP/SQLite验证无效值拒写及IPC字段错误；DOM验控件下方提示，不证明像素布局
 isolate-environment.mjs[TQ5T]: F:隔离集成测试环境文件加载 | R:code:projects/server/common/environment.ts,code:projects/server/plugins/template/tests/integration.test.mjs | A:registerHooks,load | S:只替换environment模块，父子进程均注入，阻止真实.env覆盖临时数据路径
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/plugins/template/web/===
@@ -1500,7 +1501,7 @@ mark.svg[ZU2T]: F:绘制模板校验标识供单文件及根层资源挂载 | R:
 mark.svg[ZU2T]: F:绘制嵌套资源目录的模板校验标识 | R:code:projects/server/plugins/template/declarative-ui.ts | A:SVG图形 | S:-
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/public/resources/styles/===
-json-ui.css[ZU5M]: F:提供JSON与HTML的设置行、连续分组及基础控件外观 | R:code:projects/web/src/components/declarative-view.ts,code:projects/server/router/web/page/index.ts | A:.ui-root,.ui-setting,.ui-setting-group,原生控件,Tabs | S:规则限于ui-root，不注册组件；设置控件右齐且空间不足换行，checkbox左置；组内行取消间距和独立圆角，外框及控件为8px
+json-ui.css[ZU5M]: F:提供声明式控件、设置分组及字段错误外观 | R:code:projects/web/src/components/ui-renderer.js | A:.ui-root,.ui-field,.ui-field-error,.ui-setting,.ui-setting-group,Tabs | S:规则限ui-root；错误纵向置于控件下；设置右齐可换行，checkbox左置；颜色输入保持48px
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/webUtils/===
 lib.d.ts[FE5T]: F:声明页面工具全局对象 | R:code:projects/webUtils/lib/index.ts | A:Window.scwcutils | S:以外部模块declare global确保插件类型项目一致接收扩展
@@ -1521,9 +1522,9 @@ config.test.ts[TC6S]: F:验证网站配置日期裁决及扩展写入合并 | R:
 config.ts[PD8S]: F:持久化按origin隔离的网站快照并合并受保护配置 | R:code:projects/server/workbench/storage.ts,code:projects/shared/userscript-config-schema.ts | A:UserScriptConfigDatabase,getUserScriptConfig,closeUserScriptConfig | S:独立SQLite，同日期核心优先，单快照512KiB；事务内保留扩展浮窗字段；普通同步可保留v2:config:键，绑定事件直接写入；关闭保存健康备份
 refresh.test.ts[TC5T]: F:验证插件独立站点刷新策略 | R:code:projects/server/user-script/refresh.ts | A:Vitest用例 | S:覆盖首个站点规则、默认规则、新适用插件及未匹配正通配项
 refresh.ts[KC7T]: F:按共用元数据决定双代插件的URL刷新时机 | R:code:projects/shared/utils/refreshRuleMatcher.ts,code:projects/server/router/utils/index.ts | A:pluginRefreshRule,shouldRefreshPlugin | S:首个匹配站点覆盖默认，缺省双斜杠；规则限4096字符且可解析；首次或新适用插件必加载
-ui.test.ts[TU6T]: F:验证脚本JSON展开、后端管道及事件绑定隔离 | R:code:projects/server/user-script/ui.ts | A:Vitest用例 | S:覆盖默认字段模板、捕获采集上下文、重复事件幂等及正文冲突；拒异站实例、未知绑定、前端处理器和递归组件
-ui.ts[AU8M]: F:编译脚本JSON并执行事件、只读取值和核心配置绑定 | R:code:projects/server/workbench/ui-compiler.ts,code:projects/shared/ui-expressions.ts,code:projects/shared/ui-validation.ts,code:projects/server/user-script/ui-config.ts | A:ScriptUIRuntime.render,ScriptUIRuntime.event | S:回调留宿主，仅核心绑定允许watch；实例按完整URL隔离，最多128且15分钟过期；$read不执行事件；脏字段继承旧配置基线；事件幂等串行，待排32且步骤限10秒
-ui-config.test.ts[TC6S]: F:验证脚本自动绑定的全局与站点持久化和并发保护 | R:code:projects/server/user-script/ui-config.ts,code:projects/server/user-script/ui.ts,code:projects/server/workbench/plugin-config.ts | A:Vitest用例 | S:真实内存SQLite覆盖后端规范化、数字字符串、origin隔离、快照保留绑定值和草稿基线跨刷新冲突
+ui.test.ts[TU6M]: F:验证脚本事件、输入验证与模板值阻断 | R:code:projects/server/user-script/ui.ts | A:Vitest用例 | S:异步错误及错误返回结构阻止动作；模板引用和目标值失败仅返回field/error；保留幂等及异站拒绝
+ui.ts[AU8L]: F:执行脚本JSON、字段校验与配置绑定并过滤无效输出 | R:code:projects/shared/ui-expressions.ts,code:projects/server/user-script/ui-config.ts | A:ScriptUIRuntime.render,ScriptUIRuntime.event | S:模板失败更新只含error/field；规范化后回值再校验但不回滚已存配置；验证器只读；实例按完整URL隔离，128项且15分钟过期；事件串行幂等，队列32、预算10秒
+ui-config.test.ts[TC6S]: F:验证脚本配置绑定、规范化输出及并发保护 | R:code:projects/server/user-script/ui.ts,code:projects/server/user-script/ui-config.ts | A:Vitest用例 | S:真实内存SQLite验证origin隔离和草稿CAS；规范化回值不合控件规则时拒绝回传
 ui-config.ts[PC8T]: F:适配脚本全局与站点配置读取和基线校验写入 | R:code:projects/server/workbench/plugin-config.ts,code:projects/server/user-script/config.ts,code:projects/shared/userscript-config.ts | A:scriptConfigStorage,ScriptConfigStorage,ScriptConfigBaseline | S:全局复用后端校验及双revisionCAS；站点按origin保存v2:config:键，布尔存布尔、数字存字符串；同键漂移拒写；站点CAS到事务写入间无await
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/user-script/src/test/===
@@ -1550,15 +1551,15 @@ vite.config.ts[FV5T]: F:构建扩展弹窗并注入统一客户端版本 | R:cod
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/browser-extension/scripts/===
 build.ts[OV7S]: F:构建三类扩展目录、后台脚本与ZIP | R:code:projects/browser-extension/vite.config.ts,code:projects/browser-extension/src/background.ts,code:package.json | A:buildBrowserExtensions | S:后台与内容脚本注入根包版本；清单仍取扩展包；Chromium用MV3 Worker，Firefox和Safari用事件后台；产物无签名
 installer-smoke.ts[TU6M]: F:验证工作台安装命令与浏览器安装向导 | R:code:projects/server/utils/extension-install-guide.ts,code:projects/web/src/layouts/root.ts | A:Node冒烟脚本 | S:替换系统安装器并隔离数据库及Chrome配置；验证暂停时请求与复制反馈，不安装真实扩展
-smoke.ts[TE6L]: F:验证Chromium采集、JSON视图、通知交互及原生角标 | R:code:projects/browser-extension/src/popup.ts,code:projects/browser-extension/src/notifications.ts,code:projects/browser-extension/src/notification-badge.ts | A:Node与CDP冒烟入口 | S:隔离扩展与GM桥；实测滚动逐帧同步、筛选按钮间距与背景、堆叠及可视已读；双端产物须与根版本同步；截图存dist
+smoke.ts[TE6L]: F:验证Chromium采集、JSON视图、通知交互及原生角标 | R:code:projects/browser-extension/src/popup.ts,code:projects/browser-extension/src/notifications.ts,code:projects/browser-extension/src/notification-badge.ts | A:Node与CDP冒烟入口 | S:隔离扩展与GM桥；JSON夹具含动态字段且名称禁点；实测滚动堆叠及可视已读；双端产物须与根版本同步，截图存dist
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/browser-extension/src/===
 background.test.ts[TS6S]: F:验证扩展后台来源边界及同步熔断恢复 | R:code:projects/browser-extension/src/background.ts | A:Vitest用例 | S:拒绝内容脚本代理核心请求；草稿须来自当前文档；mock核心验证三次同步失败封锁其他请求，Token变化后恢复
-background.ts[AE8M]: F:编排扩展采集、网站同步、插件请求及后台通知角标 | R:code:projects/browser-extension/src/storage.ts,code:projects/browser-extension/src/core.ts,code:projects/shared/script-ui.ts,code:projects/browser-extension/src/notification-badge.ts | A:Request,Init,PluginBatch,运行时消息入口 | S:仅自身弹窗可访问核心与凭据；v2只读不采集，写事件先采集；连续同步失败3次后拒所有核心请求，成功或Token变更重置；熔断存扩展本地；同站同步串行
-browser.ts[LE5T]: F:统一扩展API、原生角标和后台响应错误传输 | R:code:projects/browser-extension/src/background.ts,code:projects/shared/client-version.ts | A:browser,call,Reply | S:优先browser再chrome；角标文字色及存储监听为可选能力；后台失败保留错误码；版本通知只在弹窗派发
+background.ts[AE8M]: F:编排扩展采集、网站同步、插件请求和错误回传 | R:code:projects/browser-extension/src/core.ts,code:projects/browser-extension/src/storage.ts | A:Request,Init,PluginBatch,运行时消息入口 | S:仅自身弹窗可访问核心；v2只读不采集；失败回传code及field；同步连续失败三次封锁核心请求，Token变化恢复；同站同步串行
+browser.ts[LE5T]: F:统一扩展API与后台响应错误传输 | R:code:projects/browser-extension/src/background.ts | A:browser,call,Reply | S:优先browser再chrome；重建错误保留code和field；版本通知仅在弹窗派发
 content.test.ts[TU5T]: F:验证页面元素选择、父级回退及采集格式 | R:code:projects/browser-extension/src/content.ts | A:Vitest DOM用例 | S:确认和Esc清高亮；选择器失效单独报告，文字前缀沿用脚本格式
 content.ts[IU7S]: F:在当前网页选择、高亮并提取抓取元素 | R:code:projects/user-script/src/utils/claw.ts,code:projects/user-script/src/utils/selector.ts | A:scwc.page消息与picker.selection | S:按文档幂等注入，只接受自身扩展消息；URL变化拒收；不挂浮窗，确认、Esc或pagehide清理高亮
-core.ts[IN7T]: F:向核心发送鉴权请求并传递刷新基线与版本警告 | R:code:projects/browser-extension/src/model.ts,code:projects/shared/client-version.ts | A:requestCore,pendingVersionNotice,dismissVersionNotice | S:先验主机权限；25秒超时且禁Cookie和重定向；警告按版本抑制；保留机器错误码，刷新携旧实例和脏字段
+core.ts[IN7T]: F:向核心发送鉴权请求并传递刷新基线和字段错误 | R:code:projects/browser-extension/src/model.ts,code:projects/shared/client-version.ts | A:requestCore,pendingVersionNotice,dismissVersionNotice | S:先验主机权限；25秒超时，禁Cookie及重定向；保留errorCode和field；警告按版本抑制
 model.ts[FC7T]: F:定义扩展快照、存储键与脚本协议转换 | R:code:projects/shared/userscript-config.ts,code:projects/shared/userscript-config-schema.ts | A:Snapshot,Settings,fromWire,toWire,coreAddress,permissionOrigin | S:按origin共享；本地丢弃坐标与最小化，wire补默认窗口；主机授权不含端口，地址拒绝凭据
 popup.css[ZU3T]: F:限定原生弹窗画布与基础排版 | R:code:projects/browser-extension/src/popup.ts | A:html,body,scwc-extension | S:固定480×580且隐藏页面原生滚动
 popup.ts[AU7L]: F:提供扩展采集、插件视图、通知历史与连接设置 | R:code:projects/browser-extension/src/background.ts,code:projects/browser-extension/src/notifications.ts,code:projects/shared/components/script-ui.ts | A:ExtensionPopup,scwc-extension | S:JSON视图按id保留交互；刷新串行合并并拒旧响应，携脏字段基线；写事件先等落盘且不重放；4秒同步，熔断时提示修改Token；通知统一交中心，扩展不配置通知位置
@@ -1575,10 +1576,10 @@ notification-model.ts[FM6T]: F:定义扩展通知历史身份并规范化持久�
 notification-stack.test.ts[TU5T]: F:验证通知有界压缩、收起坐标与小窗口动画插值 | R:code:projects/browser-extension/src/notification-stack.ts | A:Vitest几何用例 | S:万条用例验证位置及缩放有界；收起保持下方卡片与滚动范围；短弹窗按实际可用高度插值，避免动画提前终止
 notification-stack.ts[KU6T]: F:计算通知双向有界堆叠、层级及展开比例插值 | R:code:projects/browser-extension/src/notifications.ts | A:stackWindow,StackedCard,stackContentHeight,layoutNotificationStack | S:逻辑视口恒288px；展开比例只改上界并先限实际可用高度；距离映射d/(d+80)，位移小于18px、缩放至少0.86；下方预留只依赖下界
 
-===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/public/lib/===
-scwcutils.iife.mw91yx1a.js[LE5T]: F:分发页面会话、配置订阅及可暂停请求SDK | R:code:projects/webUtils/lib/index.ts,code:projects/webUtils/lib/workbench.ts | A:scwcutils,ready,fetch,resource,websocket | S:HTTP等待ready，Socket须先await ready；配置只读；握手核验来源与nonce；pagehide释放请求，只有interruptible请求允许恢复重放
-
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/scripts/===
 sync-versions.test.ts[TV5S]: F:验证版本同步范围、幂等及错误前置拒绝 | R:code:projects/scripts/sync-versions.ts | A:node:test用例 | S:夹具位于仓库node_modules/.tmp；覆盖三内置插件例外、业务插件及依赖跳过、目录链接不跟随和无写入失败
 sync-versions.ts[OV6T]: F:在构建前同步源码项目及内置插件的根包版本 | R:code:package.json | A:syncVersions,Node命令入口 | S:以脚本位置定位仓库；业务插件仅双template和终端scwc同步；跳过依赖、产物、隐藏目录及链接；先读全体再写差异，缺version时补齐
+
+===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/public/lib/===
+scwcutils.iife.mwc35rzz.js[LE5T]: F:分发页面会话、配置订阅及可暂停请求SDK | R:code:projects/webUtils/lib/workbench.ts | A:scwcutils,ready,fetch,resource,websocket | S:HTTP等待ready，Socket须先await ready；配置只读；握手验来源与nonce；仅interruptible请求恢复重放
 

@@ -4,6 +4,26 @@
 
 测试编号：T1 真实 API/资源/反馈 IPC；T2 独立浏览器 SDK+Lit；T3 宿主状态/Fetch/DOM 资源；T4 真实 Socket；T5 声明式 HTTP/IPC/核心处理器/资源/回滚/释放；T6 配置 CRUD/双 CAS/页面拒写；T7 两页配置队列与页面处理器；T8 跨插件隔离；T9 核心配置表单与取消；T10 脚本配置 v2 的 JSON 编译、默认值、字段快照、数字管道及七个通知处理器。均位于 `tests/integration.test.mjs`。Node 原生加载后端；JSDOM 与 MessageChannel 仅证明 DOM/桥接语义，不证明像素和完整工作台调度。
 
+## 输入限制与验证示例
+
+新增共用「输入限制 / 验证」页（`input-validation-ui.ts`），分别挂在主侧栏、辅助 JSON 页、状态栏 JSON tooltip，以及脚本/扩展 v2 配置第四个标签。完整操作见 [README](../README.md#输入限制与验证仍为-v2)。原七个脚本通知处理器和全局/本站配置示例继续保留。
+
+| 能力 | 示例与自动验证 |
+| --- | --- |
+| minLength/maxLength、min/max、pattern/patternMessage | 四类输入提供有效初值；HTTP 绕过本地约束提交越界或格式错误值仍被拒绝 |
+| 异步自定义验证器 | `validation.available($this)` 拒绝 admin/root，返回 success/message 对象 |
+| 跨字段验证 | `validation.same($this, $for:validation_password)` 校验两次示例密码一致 |
+| 返回结构强校验 | 独立 `validation.invalidResult()` 故意返回 true，直接报 UI_INVALID_VALIDATOR_RESULT，不执行后续提交 |
+| 属性透传 | 每类控件均提供 placeholder、disabled 和模板 readonly；真实核心渲染器在 JSDOM 中验证属性及错误提示 |
+| 自动配置绑定 | `validation.memo` 的 textarea 在写入前执行声明式规则和自定义验证器，失败保持数据库旧值 |
+| 调用括号 | 裸事件调用收到 event，空括号零参数；显式拒绝模板/validator 的裸调用候选并保留旧注册 |
+| name 限制 | 正常字段含字母、数字、下划线、中划线；显式拒绝点号/空格候选 |
+| 控件下方错误 | 核心渲染器将正则提示放在对应输入框下，底部错误区为空；真实 IPC/HTTP 保留非法返回值的 field 身份 |
+
+测试位于 `tests/integration.test.mjs` 的「输入限制样例：主辅侧栏、状态提示与脚本扩展经真实 HTTP/IPC 验证」。它使用真实 Node 插件宿主、HTTP、配置数据库和固定渲染器，不证明真实浏览器像素布局。普通字段沿用网站草稿存储，示例不得输入真实密码；提交只返回固定提示。
+
+本次验证：模板后端与页面 TypeScript 检查通过；完整集成测试共 13 项通过。Web 成功反馈显式走 `core:notification.show`，脚本/扩展消费返回的 notification 对象。
+
 ## 后端 SDK
 
 | 接口 | 入口 / 实现 | 证据与边界 |

@@ -3,6 +3,7 @@ import {
   UIError,
   uiAssert,
   uiName,
+  uiControlName,
   safeKey,
   uiValue,
   type ArgumentNode,
@@ -10,7 +11,9 @@ import {
   type TemplatePart,
   type UIProgram,
   type UIValue,
+  type UIField,
 } from './declarative-ui.ts';
+import { assertUIValidationResult, validateUIValue } from './ui-validation.ts';
 
 class Parser {
   text: string;
@@ -120,6 +123,8 @@ class Parser {
       }
     } else if (bare) {
       args.push({ type: 'event' });
+    } else {
+      this.fail('控制器调用必须显式带括号 ()');
     }
     uiAssert(++this.count <= 64, 'UI_QUOTA_EXCEEDED', '调用步骤过多');
     return {
@@ -143,8 +148,13 @@ class Parser {
     if (this.take('$prev')) {
       return { type: 'prev' };
     }
+    if (this.take('$this')) {
+      return { type: 'this' };
+    }
     if (this.take('$for:')) {
-      return { type: 'field', name: this.name() };
+      const name = this.name();
+      uiControlName(name);
+      return { type: 'field', name };
     }
     if (this.take('[')) {
       const items: ArgumentNode[] = [];
@@ -226,6 +236,7 @@ export function parseProgram(text: string): UIProgram {
       const call = parser.call();
       uiAssert(chain.length < 16, 'UI_QUOTA_EXCEEDED', '调用链过长');
       walkArgument(call, (node) => {
+        uiAssert(node.type !== 'this', 'UI_INVALID_EXPRESSION', '$this 仅用于控件验证器');
         if (node.type === 'prev' && !chain.length) {
           throw new UIError('UI_PREV_UNAVAILABLE', '第一步不能引用 $prev');
         }
@@ -259,9 +270,9 @@ export function parseExpression(text: string): ArgumentNode {
   let domain: string | undefined;
   walkArgument(expression, (node) => {
     uiAssert(
-      node.type !== 'event' && node.type !== 'prev',
+      node.type !== 'event' && node.type !== 'prev' && node.type !== 'this',
       'UI_INVALID_EXPRESSION',
-      '渲染模板不能读取 $event 或 $prev',
+      '渲染模板不能读取 $event、$prev 或 $this',
     );
     if (node.type === 'call') {
       domain ??= node.domain;
@@ -269,6 +280,25 @@ export function parseExpression(text: string): ArgumentNode {
     }
   });
   return expression;
+}
+export function parseValidator(text: string, field: string): CallNode {
+  const parser = new Parser(text);
+  const call = parser.call(0, false);
+  parser.end();
+  walkArgument(call, (node) => {
+    uiAssert(
+      node.type !== 'event' && node.type !== 'prev',
+      'UI_INVALID_EXPRESSION',
+      '验证器不能读取 $event 或 $prev',
+    );
+    if (node.type === 'call') {
+      uiAssert(!node.watch, 'UI_INVALID_EXPRESSION', '验证器不能使用 watch');
+      uiAssert(node.domain === call.domain, 'UI_CROSS_DOMAIN_PIPE', '验证器不能跨域传值');
+      node.readOnly = true;
+    }
+  });
+  call.validationField = field;
+  return call;
 }
 export function parseTemplate(text: string): TemplatePart[] {
   const parts: TemplatePart[] = [];
@@ -322,8 +352,58 @@ export function parseTemplate(text: string): TemplatePart[] {
 export interface EvaluationScope {
   event?: UIValue;
   prev?: UIValue;
+  thisValue?: UIValue;
   fields: Record<string, UIValue>;
+  fieldDefinitions?: UIField[];
+  validating?: string[];
+  frontendValidated?: ReadonlySet<string>;
+  backendValidated?: ReadonlySet<string>;
+  /** Only the dedicated frontend validator may receive an unvalidated candidate. */
+  deferFrontendValidation?: boolean;
   invoke(call: CallNode, args: UIValue[]): Promise<UIValue | undefined>;
+}
+export function fieldValidationError(error: unknown, name: string): UIError {
+  return new UIError(
+    error instanceof UIError ? error.code : 'UI_VALIDATION_FAILED',
+    error instanceof Error ? error.message : '输入验证失败',
+    error instanceof UIError && error.field ? error.field : name,
+  );
+}
+export async function validateUIField(name: string, scope: EvaluationScope): Promise<void> {
+  const field = scope.fieldDefinitions?.find((field) => field.name === name);
+  if (!field?.validation) {
+    return;
+  }
+  const path = scope.validating ?? [];
+  // A validator must be able to inspect its own candidate, but dependency cycles fail closed.
+  if (path[path.length - 1] === name) {
+    return;
+  }
+  try {
+    uiAssert(!path.includes(name), 'UI_VALIDATION_CYCLE', '验证器字段依赖存在循环');
+    uiAssert(hasOwn(scope.fields, name), 'UI_UNKNOWN_VALUE', `未采集字段 ${name}`);
+    validateUIValue(scope.fields[name], field.validation.rules);
+    const validator = field.validation.validator;
+    if (validator) {
+      if (
+        validator.domain === 'frontend' &&
+        (scope.deferFrontendValidation || scope.frontendValidated?.has(name))
+      ) {
+        return;
+      }
+      if (validator.domain === 'backend' && scope.backendValidated?.has(name)) {
+        return;
+      }
+      await evaluateArgument(validator, { ...scope, validating: [...path, name] });
+    }
+  } catch (error) {
+    throw fieldValidationError(error, name);
+  }
+}
+export async function validateUIFields(names: Iterable<string>, scope: EvaluationScope) {
+  for (const name of new Set(names)) {
+    await validateUIField(name, scope);
+  }
 }
 export async function evaluateArgument(
   node: ArgumentNode,
@@ -340,31 +420,70 @@ export async function evaluateArgument(
     uiAssert(scope.prev !== undefined, 'UI_NO_RETURN_VALUE', '上一处理器没有返回值');
     return scope.prev;
   }
+  if (node.type === 'this') {
+    uiAssert(scope.thisValue !== undefined, 'UI_INVALID_EXPRESSION', '当前验证控件不可用');
+    return scope.thisValue;
+  }
   if (node.type === 'field') {
     uiAssert(hasOwn(scope.fields, node.name), 'UI_UNKNOWN_VALUE', `未采集字段 ${node.name}`);
+    await validateUIField(node.name, scope);
     return scope.fields[node.name];
   }
-  const nodes =
-    node.type === 'object'
-      ? node.entries.map(([, v]) => v)
-      : node.type === 'array'
-        ? node.items
-        : node.args;
-  const args: UIValue[] = [];
-  for (const argument of nodes) {
-    const result = await evaluateArgument(argument, scope);
-    uiAssert(result !== undefined, 'UI_NO_RETURN_VALUE', '实参处理器没有返回值');
-    args.push(result);
+  const validationTarget =
+    node.type === 'call'
+      ? (node.validationField ??
+        node.validationTarget ??
+        (node.name === 'core:validate' && node.args[0]?.type === 'field'
+          ? node.args[0].name
+          : undefined))
+      : undefined;
+  if (
+    validationTarget !== undefined &&
+    node.type === 'call' &&
+    (node.validationField !== undefined || node.validationTarget !== undefined)
+  ) {
+    scope = { ...scope, validating: [...(scope.validating ?? []), validationTarget] };
   }
-  if (node.type === 'array') {
-    return args;
+  if (node.type === 'call' && node.validationField !== undefined) {
+    uiAssert(hasOwn(scope.fields, node.validationField), 'UI_UNKNOWN_VALUE', '未采集验证控件');
+    scope = { ...scope, thisValue: scope.fields[node.validationField] };
   }
-  if (node.type === 'object') {
-    return Object.fromEntries(node.entries.map(([key], i) => [key, args[i]]));
+  try {
+    const nodes =
+      node.type === 'object'
+        ? node.entries.map(([, v]) => v)
+        : node.type === 'array'
+          ? node.items
+          : node.args;
+    const args: UIValue[] = [];
+    for (const argument of nodes) {
+      const result = await evaluateArgument(argument, scope);
+      uiAssert(result !== undefined, 'UI_NO_RETURN_VALUE', '实参处理器没有返回值');
+      args.push(result);
+    }
+    if (node.type === 'array') {
+      return args;
+    }
+    if (node.type === 'object') {
+      return Object.fromEntries(node.entries.map(([key], i) => [key, args[i]]));
+    }
+    uiValue(args);
+    if (node.name === 'core:value.read' && typeof args[0] === 'string') {
+      await validateUIField(args[0], scope);
+    } else if (node.watch && scope.fieldDefinitions?.some((field) => field.name === node.name)) {
+      await validateUIField(node.name, scope);
+    }
+    const result = await scope.invoke(node, args);
+    if (node.validationField !== undefined) {
+      assertUIValidationResult(result);
+    }
+    return result === undefined ? undefined : uiValue(result);
+  } catch (error) {
+    if (validationTarget !== undefined) {
+      throw fieldValidationError(error, validationTarget);
+    }
+    throw error;
   }
-  uiValue(args);
-  const result = await scope.invoke(node, args);
-  return result === undefined ? undefined : uiValue(result);
 }
 export async function evaluateTemplate(
   parts: TemplatePart[],

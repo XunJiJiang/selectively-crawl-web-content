@@ -20,7 +20,7 @@ import {
   type NormalizedUIEvent,
   type ClientEffect,
 } from '../../../shared/declarative-ui.ts';
-import { evaluateArgument, evaluateTemplate } from '../../../shared/ui-expressions.ts';
+import { evaluateArgument, evaluateTemplate, validateUIFields } from '../../../shared/ui-expressions.ts';
 import type { WorkbenchStore } from '../workbench/store.ts';
 import type { FramePool } from '../workbench/frames.ts';
 import { ApiError } from '../api/workbench.ts';
@@ -525,13 +525,13 @@ export class DeclarativeView extends LitElement {
       name: call.name.slice(3),
       args,
       context: {
-        invocation: event ? 'event' : 'render',
+        invocation: event && !call.readOnly ? 'event' : 'render',
         instanceId: instance.id,
         windowId: this.store.api.clientWindowId,
         workspaceId: this.store.workspace?.workspaceId,
         source: { kind: this.surface, viewId: this.viewId },
         sourceTabId: instance.sourceTabId,
-        fields: capturedFields??Object.fromEntries(Object.entries(this.fields).map(([k, v]) => [k, v.value])),
+        fields: capturedFields ?? {},
         event,
       },
     });
@@ -564,7 +564,7 @@ export class DeclarativeView extends LitElement {
       instance = this.instance;
     try {
       const result = await this.store.api.request<{
-        updates: { id: string; value?: UIValue; frontend?: boolean; error?: string }[];
+        updates: { id: string; value?: UIValue; frontend?: boolean; error?: string; field?: string; fields?: Record<string, UIValue> }[];
       }>(`/ui/instances/${instance.id}/data`, {
         renderRevision: instance.renderRevision,
         fields: this.fields,
@@ -577,10 +577,26 @@ export class DeclarativeView extends LitElement {
           }
           try {
             uiAssert(Date.now() < deadline, 'UI_EXECUTION_TIMEOUT', '页面模板数据获取超时');
-            update.value = await evaluateTemplate(binding.parts, {
-              fields: Object.fromEntries(Object.entries(this.fields).map(([k, v]) => [k, v.value])),
-              invoke: (call, args) => this.invoke(call, args, binding.id, undefined, instance),
+            const fields = update.fields ?? {};
+            await validateUIFields(Object.keys(fields), {
+              fields, fieldDefinitions: instance.compiled.fields,
+              backendValidated: new Set(Object.keys(fields)),
+              invoke: (validator, values) => this.invoke(validator, values, binding.id, undefined, instance, fields),
             });
+            update.value = await evaluateTemplate(binding.parts, {
+              fields,
+              fieldDefinitions: instance.compiled.fields,
+              backendValidated: new Set(Object.keys(fields)),
+              invoke: (call, args) => this.invoke(call, args, binding.id, undefined, instance, fields),
+            });
+            const targetField = instance.compiled.fields.find((field) => field.nodeId === binding.nodeId);
+            if (targetField?.validation && ['value', 'checked'].includes(binding.attribute ?? '')) {
+              const candidate = { ...(update.fields ?? {}), [targetField.name]: update.value };
+              await this.store.api.request(`/ui/instances/${instance.id}/validate`, { renderRevision: instance.renderRevision, fields: candidate });
+              await validateUIFields([targetField.name], { fields: candidate, fieldDefinitions: instance.compiled.fields,
+                backendValidated: new Set(Object.keys(candidate)),
+                invoke: (call, args) => this.invoke(call, args, binding.id, undefined, instance, candidate) });
+            }
             if (['src', 'href'].includes(binding.attribute ?? '')) {
               uiAssert(typeof update.value === 'string', 'UI_INVALID_VALUE_TYPE', '资源需要字符串');
               const url = new URL(update.value, 'https://scwc.invalid/');
@@ -595,7 +611,7 @@ export class DeclarativeView extends LitElement {
               update.value = instance.assetRoot + url.pathname + '?cap=' + instance.assetCapability;
             }
             if (
-              ['checked', 'disabled', 'selected', 'multiple', 'hidden', 'data-ui-visible'].includes(
+              ['checked', 'disabled', 'readonly', 'selected', 'multiple', 'hidden', 'data-ui-visible'].includes(
                 binding.attribute ?? '',
               )
             ) {
@@ -607,6 +623,9 @@ export class DeclarativeView extends LitElement {
             }
           } catch (error) {
             update.error = this.store.message(error);
+            update.field = error instanceof ApiError && error.data && typeof error.data === 'object' && 'field' in error.data
+              ? String(error.data.field) : error instanceof Error && 'field' in error ? String(error.field ?? '') || undefined : undefined;
+            if (update.field) {delete update.value;}
           }
         }
       }
@@ -673,7 +692,8 @@ export class DeclarativeView extends LitElement {
     try {
       let response = await this.store.api.request<{
         continuation?: string;
-        error?: string | { message: string };
+        error?: string | { message: string; field?: string };
+        field?: string;
         status: string;
         result?: UIValue;
         effects: ClientEffect[];
@@ -698,6 +718,8 @@ export class DeclarativeView extends LitElement {
                 event: response.event as unknown as UIValue,
                 prev,
                 fields: response.fields,
+                fieldDefinitions: instance.compiled.fields,
+                backendValidated: new Set(Object.keys(response.fields)),
                 invoke: (c, args) => this.invoke(c, args, '', response.event, instance,response.fields),
               });
               if (prev === UI_UNAVAILABLE) {
@@ -710,8 +732,10 @@ export class DeclarativeView extends LitElement {
             continuation: response.continuation,
             succeeded: true,
           });
-        } catch {
+        } catch (error) {
           response=await this.store.api.request(`/ui/instances/${instance.id}/events/continue`,{...this.store.session(),continuation:response.continuation,succeeded:false});
+          response.error = this.store.message(error);
+          response.field = error instanceof Error && 'field' in error ? String(error.field ?? '') || undefined : undefined;
           break;
         }
       }
@@ -721,6 +745,8 @@ export class DeclarativeView extends LitElement {
       this.send('result', {
         ...response,
         error: typeof response.error === 'object' ? response.error.message : response.error,
+        field: typeof response.error === 'object' ? response.error.field : response.field,
+        validatedFields: response.status === 'succeeded' ? Object.keys(data.fields) : [],
         editSequences,
         saved: response.effects.some((effect) => effect.type === 'config.saved'),
       });
@@ -731,7 +757,8 @@ export class DeclarativeView extends LitElement {
       void this.updateValues();
     } catch (error) {
       if (this.instance === instance) {
-        this.send('result', { error: this.store.message(error) });
+        this.send('result', { error: this.store.message(error), editSequences,
+          field: error instanceof ApiError && error.data && typeof error.data === 'object' && 'field' in error.data ? error.data.field : undefined });
       }
     }
   }

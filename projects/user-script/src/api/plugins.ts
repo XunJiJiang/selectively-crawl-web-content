@@ -134,10 +134,11 @@ export async function invokeScriptUI(
     code: number;
     message: string;
     errorCode?: string;
+    field?: string;
     data: ScriptUIResult;
   };
   if (!response.ok || result.code !== 200) {
-    throw Object.assign(new Error(result.message), { code: result.errorCode });
+    throw Object.assign(new Error(result.message), { code: result.errorCode, field: result.field });
   }
   const notification = result.data.result as
     | { type?: string; data?: { type: 'info' | 'success' | 'warn' | 'error'; message: string } }

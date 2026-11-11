@@ -28,6 +28,7 @@ export function createUIRenderer(root, emit, components) {
   const activeTabs = new Map();
   const nodes = new Map(),
     fields = new Map(),
+    fieldErrors = new Map(),
     edits = new Map(),
     dirty = new Set(),
     appliedEffects = new Set();
@@ -50,6 +51,36 @@ export function createUIRenderer(root, emit, components) {
     components?.update();
     send('fields', snapshot());
     measure();
+  };
+  const showFieldError = (name, message) => {
+    const entry = fieldErrors.get(name);
+    if (!entry) return false;
+    entry.message.textContent = message ?? '';
+    entry.message.hidden = !message;
+    entry.node.setAttribute('aria-invalid', String(Boolean(message)));
+    entry.node.setCustomValidity?.(message ?? '');
+    return true;
+  };
+  // This renderer also runs as a standalone sandbox script. The backend repeats these checks
+  // against the compiler-owned rules before any controller or configuration write executes.
+  const validateField = (field) => {
+    const rules = field.validation?.rules;
+    if (!rules) return '';
+    const current = value(field);
+    let message = '';
+    if (rules.minLength !== undefined && current.length < rules.minLength)
+      message = `至少输入 ${rules.minLength} 个字符`;
+    else if (rules.maxLength !== undefined && current.length > rules.maxLength)
+      message = `最多输入 ${rules.maxLength} 个字符`;
+    else if (rules.pattern !== undefined && !new RegExp(`^(?:${rules.pattern})$(?![\\s\\S])`, 'u').test(current))
+      message = rules.patternMessage || '输入格式不匹配';
+    else if (rules.min !== undefined || rules.max !== undefined) {
+      const number = /^-?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?$/i.test(current) ? Number(current) : NaN;
+      if (!Number.isFinite(number) || (rules.min !== undefined && number < rules.min) ||
+          (rules.max !== undefined && number > rules.max)) message = '数值不符合声明式规则';
+    }
+    showFieldError(field.name, message);
+    return message;
   };
   const activateTab = (groupId, tabId, focus = false) => {
     const groupRoot = [...root.querySelectorAll('[data-ui-tabs]')].find(
@@ -89,6 +120,10 @@ export function createUIRenderer(root, emit, components) {
       node.hidden = value !== true;
       return;
     }
+    if (attribute === 'readonly') {
+      node.readOnly = value === true;
+      return;
+    }
     if (['checked', 'disabled', 'selected', 'multiple', 'hidden'].includes(attribute)) {
       node[attribute] = value === true;
       return;
@@ -113,6 +148,8 @@ export function createUIRenderer(root, emit, components) {
       if (id && selected) activeTabs.set(id, selected.getAttribute('data-ui-tab-trigger'));
     }
     const previous = model ? snapshot() : {};
+    const previousErrors = new Map([...fieldErrors].map(([name, entry]) =>
+      [name, { message: entry.message.textContent, validation: fields.get(name)?.validation }]));
     const active = root.activeElement;
     const focus = active?.getAttribute('name') ?? active?.getAttribute('data-ui-key');
     const selection = { start: active?.selectionStart, end: active?.selectionEnd };
@@ -123,6 +160,7 @@ export function createUIRenderer(root, emit, components) {
     renderRevision = data.renderRevision;
     nodes.clear();
     fields.clear();
+    fieldErrors.clear();
     const create = (spec) => {
       const node = spec.tag
         ? document.createElement(spec.tag)
@@ -130,8 +168,11 @@ export function createUIRenderer(root, emit, components) {
       nodes.set(spec.id, node);
       if (spec.tag) {
         node.setAttribute('data-scwc-node', spec.id);
+        // The renderer owns validation feedback; native form popups would prevent our submit event.
+        if (spec.tag === 'form') node.noValidate = true;
         for (const [key, value] of Object.entries(spec.attrs ?? {})) {
           if (key === 'data-ui-visible') node.hidden = value === 'false';
+          else if (key === 'readonly') node.readOnly = true;
           else if (['checked', 'disabled', 'multiple', 'selected'].includes(key)) node[key] = true;
           else if (key === 'value' && 'value' in node) node.value = value;
           else node.setAttribute(key, value);
@@ -147,6 +188,23 @@ export function createUIRenderer(root, emit, components) {
     const fragment = document.createDocumentFragment();
     for (const node of model.nodes) fragment.append(create(node));
     content.replaceChildren(fragment);
+    for (const field of model.fields) {
+      const node = nodes.get(field.nodeId);
+      if (!node || field.kind !== 'string') continue;
+      const wrapper = document.createElement('div');
+      wrapper.className = 'ui-field';
+      const message = document.createElement('div');
+      message.className = 'ui-field-error';
+      message.dataset.uiErrorFor = field.name;
+      message.id = `ui-error-${field.nodeId}`;
+      message.setAttribute('role', 'alert');
+      message.hidden = true;
+      const describedBy = node.getAttribute('aria-describedby');
+      node.setAttribute('aria-describedby', [describedBy, message.id].filter(Boolean).join(' '));
+      node.before(wrapper);
+      wrapper.append(node, message);
+      fieldErrors.set(field.name, { node, message });
+    }
     components?.mount(content);
     content.parentElement.dataset.surface = data.surface;
     const dynamicStyle = root.querySelector('#dynamic-style');
@@ -166,9 +224,16 @@ export function createUIRenderer(root, emit, components) {
       fields.set(field.name, field);
       if (dirty.has(field.name) && previous[field.name])
         assign(node, field.kind === 'boolean' ? 'checked' : 'value', previous[field.name].value);
+      const previousError = previousErrors.get(field.name);
+      if (dirty.has(field.name) && previousError &&
+          JSON.stringify(previousError.validation) === JSON.stringify(field.validation))
+        showFieldError(field.name, previousError.message);
       const changed = () => {
+        if (node.disabled || node.readOnly) return;
         dirty.add(field.name);
         edits.set(field.name, (edits.get(field.name) ?? 0) + 1);
+        if (field.validation) validateField(field);
+        else showFieldError(field.name, '');
         notifyFields();
       };
       node.addEventListener('input', changed);
@@ -183,7 +248,13 @@ export function createUIRenderer(root, emit, components) {
       const node = nodes.get(binding.nodeId);
       node.addEventListener(binding.event, (event) => {
         event.preventDefault();
-        if (event.isComposing) return;
+        if (event.isComposing || node.disabled || node.readOnly) return;
+        const invalid = model.fields.filter((field) => binding.capture.includes(field.name))
+          .map(validateField).find(Boolean);
+        if (invalid) {
+          measure();
+          return;
+        }
         send('event', {
           bindingId: binding.id,
           fields: snapshot(binding.capture),
@@ -233,15 +304,23 @@ export function createUIRenderer(root, emit, components) {
           continue;
         const node = nodes.get(binding.nodeId);
         if (update.error) {
-          error.textContent = update.error;
+          if (!update.field || !showFieldError(update.field, update.error)) error.textContent = update.error;
           continue;
         }
         assign(node, binding.attribute, update.value);
+        if (field && ['value', 'checked'].includes(binding.attribute)) showFieldError(field.name, '');
       }
       notifyFields();
     }
     if (data.method === 'result') {
-      error.textContent = payload.error ?? (payload.status === 'unavailable' ? payload.result : '');
+      const errorSequences = payload.errorEditSequences ?? payload.editSequences;
+      const current = !errorSequences || Object.entries(errorSequences)
+        .every(([name, sequence]) => (edits.get(name) ?? 0) === sequence);
+      if (current) {
+        for (const name of payload.validatedFields ?? []) showFieldError(name, '');
+        if (payload.error && payload.field && showFieldError(payload.field, payload.error)) error.textContent = '';
+        else error.textContent = payload.error ?? (payload.status === 'unavailable' ? payload.result : '');
+      }
       for (const effect of payload.effects ?? []) {
         if (appliedEffects.has(effect.id)) continue;
         appliedEffects.add(effect.id);

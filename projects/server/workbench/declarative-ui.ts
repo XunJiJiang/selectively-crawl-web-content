@@ -11,11 +11,14 @@ import {
   evaluateArgument,
   evaluateTemplate,
   walkArgument,
+  validateUIFields,
+  validateUIField,
 } from '../../shared/ui-expressions.ts';
 import {
   UIError,
   UI_UNAVAILABLE,
   UI_LIMITS,
+  UI_CONTROL_NAME,
   uiAssert,
   uiValue,
   uiName,
@@ -27,6 +30,7 @@ import {
   type CompiledUI,
   type HandlerContext,
   type CallNode,
+  type ArgumentNode,
   type ClientEffect,
   type NormalizedUIEvent,
   type UINode,
@@ -67,6 +71,7 @@ interface Instance {
   pausedExpressions?: Set<string>;
   override?: import('../../shared/declarative-ui.ts').UIContent;
   fields: Record<string, UIValue>;
+  frontendValidated?: Set<string>;
   configFields?: Map<string, string>;
   baseline?: ConfigSnapshot;
   boundConfigs?: Map<string, { key: string; value: string | undefined; schemaRevision: number }>;
@@ -150,6 +155,7 @@ class UIExecutionFailure extends UIError {
     super(
       error instanceof UIError ? error.code : 'UI_EXECUTION_FAILED',
       error instanceof UIError ? error.message : '处理器执行失败',
+      error instanceof UIError ? error.field : undefined,
     );
     this.branch = branch;
     this.step = step;
@@ -899,11 +905,14 @@ export class DeclarativeUIService {
                 ],
               };
             }
+            const itemId = String(item.id);
+            const controlName = UI_CONTROL_NAME.test(itemId) && !['__proto__', 'prototype', 'constructor'].includes(itemId)
+              ? itemId : 'menu-' + createHash('sha256').update(itemId).digest('hex').slice(0, 20);
             return item.kind === 'checkbox'
               ? {
                   type: 'checkbox',
                   key: item.id,
-                  name: item.id,
+                  name: controlName,
                   checked: item.checked,
                   disabled: item.disabled ?? false,
                   label: item.label,
@@ -912,7 +921,7 @@ export class DeclarativeUIService {
               : {
                   type: 'button',
                   key: item.id,
-                  name: item.id,
+                  name: controlName,
                   text:
                     (item.kind === 'checkbox' && item.checked === true ? '✓ ' : '') + item.label,
                   disabled: item.disabled ?? false,
@@ -1060,7 +1069,7 @@ export class DeclarativeUIService {
     const configFields = new Set<string>();
     const configSections = config.definitions.flatMap((definition, definitionIndex): UINode[] => {
       const rows = definition.items.map((item, itemIndex): UINode => {
-        const name = 'config.f' + createHash('sha256').update(item.key).digest('hex').slice(0, 16);
+        const name = 'config-f' + createHash('sha256').update(item.key).digest('hex').slice(0, 16);
         const disabled =
           item.control === 'readonly' ||
           item.validationPolicy === 'page-required' ||
@@ -1327,6 +1336,25 @@ export class DeclarativeUIService {
     }
     return result;
   }
+  private referencedFields(instance: Instance, nodes: ArgumentNode[], names = new Set<string>()) {
+    const collect = (root: ArgumentNode) => walkArgument(root, (node) => {
+      if (node.type === 'field') {names.add(node.name);}
+      if (node.type === 'call') {
+        if (node.name === 'core:value.read' && node.args[0]?.type === 'literal' && typeof node.args[0].value === 'string') {
+          names.add(node.args[0].value);
+        }
+        for (const name of this.registrations.get(instance.pluginId)?.snapshot.handlers.find((handler) => handler.name === node.name)?.reads ?? []) {
+          names.add(name);
+        }
+      }
+    });
+    nodes.forEach(collect);
+    for (const name of names) {
+      const validator = instance.compiled.fields.find((field) => field.name === name)?.validation?.validator;
+      if (validator) {collect(validator);}
+    }
+    return names;
+  }
   async data(
     id: string,
     windowId: string,
@@ -1373,14 +1401,24 @@ export class DeclarativeUIService {
           });
         }
       }
-      if (frontend) {
-        updates.push({ id: binding.id, frontend: true });
-        continue;
-      }
       try {
         uiAssert(Date.now() < instance.readDeadline, 'UI_EXECUTION_TIMEOUT', '模板数据获取超时');
+        if (frontend) {
+          const dependencies: ArgumentNode[] = binding.parts.filter((part): part is ArgumentNode => typeof part !== 'string');
+          const target = instance.compiled.fields.find((field) => field.nodeId === binding.nodeId);
+          if (target?.validation?.validator && ['value', 'checked'].includes(binding.attribute ?? '')) {
+            dependencies.push(target.validation.validator);
+          }
+          // Include validator dependencies, never the entire unverified browser draft.
+          const names = this.referencedFields(instance, dependencies);
+          await validateUIFields(names, { fields: instance.fields, fieldDefinitions: instance.compiled.fields,
+            deferFrontendValidation: true, invoke: (call, args) => this.call(instance, call, args, [], true) });
+          updates.push({ id: binding.id, frontend: true, fields: Object.fromEntries([...names].map((name) => [name, instance.fields[name]])) });
+          continue;
+        }
         const value = await evaluateTemplate(binding.parts, {
           fields: instance.fields,
+          fieldDefinitions: instance.compiled.fields,
           invoke: (call, args) => {
             if (call.watch) {
               usedWatches.add(JSON.stringify([binding.id, call.name, args]));
@@ -1388,6 +1426,12 @@ export class DeclarativeUIService {
             return this.call(instance, call, args, [], true, binding.id);
           },
         });
+        const field = instance.compiled.fields.find((field) => field.nodeId === binding.nodeId);
+        if (field && ['value', 'checked'].includes(binding.attribute ?? '')) {
+          const candidate = { ...instance, fields: { ...instance.fields, [field.name]: value } };
+          await validateUIField(field.name, { fields: candidate.fields, fieldDefinitions: instance.compiled.fields,
+            invoke: (call, args) => this.call(candidate, call, args, [], true, binding.id) });
+        }
         let resolved = validateAttribute(binding.attribute, value);
         if (['src', 'href'].includes(binding.attribute ?? '') && resolved !== null) {
           const reg = this.registrations.get(instance.pluginId);
@@ -1400,7 +1444,7 @@ export class DeclarativeUIService {
         }
         updates.push({ id: binding.id, value: resolved });
       } catch (e) {
-        updates.push({ id: binding.id, error: e instanceof UIError ? e.message : '数据读取失败' });
+        updates.push({ id: binding.id, error: e instanceof UIError ? e.message : '数据读取失败', field: e instanceof UIError ? e.field : undefined });
       }
     }
     ownerInstance.baseline ??= instance.baseline;
@@ -1432,6 +1476,16 @@ export class DeclarativeUIService {
         .map((binding) => ({ id: binding.id, expressionBindingId: binding.id })),
     };
   }
+  async validateValues(id: string, owner: string, body: { renderRevision: number; fields: unknown }) {
+    const instance = this.get(id, owner);
+    uiAssert((this.registrations.get(instance.pluginId)?.revision ?? 0) === instance.registryRevision,
+      'UI_STALE_HANDLERS', '处理器注册版本已变化');
+    uiAssert(body.renderRevision === instance.revision, 'UI_STALE_RENDER', '模板已变化');
+    const candidate = { ...instance, fields: this.capture(instance, body.fields), readDeadline: Date.now() + 10000 };
+    await validateUIFields(Object.keys(candidate.fields), { fields: candidate.fields, fieldDefinitions: candidate.compiled.fields,
+      deferFrontendValidation: true, invoke: (call, args) => this.call(candidate, call, args, [], true) });
+    return { validated: true };
+  }
   unsubscribe(id: string, owner: string, expressionId: string) {
     const instance = this.get(id, owner);
     uiAssert(
@@ -1459,6 +1513,7 @@ export class DeclarativeUIService {
     event?: NormalizedUIEvent,
     depth = 0,
   ): Promise<UIValue | undefined> {
+    readOnly ||= call.readOnly === true;
     uiAssert(depth < 8, 'UI_TRIGGER_CYCLE', '嵌套触发过深');
     this.validateCall(
       this.registrations.get(instance.pluginId),
@@ -1616,7 +1671,11 @@ export class DeclarativeUIService {
         'UI_INVALID_VALUE_TYPE',
         '写入的字段值类型不匹配',
       );
+      const candidate = { ...instance, fields: { ...instance.fields, [key]: args[1] } };
+      await validateUIField(key, { fields: candidate.fields, fieldDefinitions: instance.compiled.fields,
+        invoke: (call, values) => this.call(candidate, call, values, [], true) });
       instance.fields[key] = args[1];
+      instance.frontendValidated?.delete(key);
       effects.push({
         id: randomUUID(),
         type: 'value.write',
@@ -1712,10 +1771,14 @@ export class DeclarativeUIService {
       instance.boundConfigs?.set(field, { key, value, schemaRevision: result.schemaRevision });
       const boolean =
         instance.compiled.fields.find((item) => item.name === field)?.kind === 'boolean';
+      const output = boolean ? value === 'true' : value;
+      const candidate = { ...instance, fields: { ...instance.fields, [field]: output } };
+      await validateUIField(field, { fields: candidate.fields, fieldDefinitions: instance.compiled.fields,
+        invoke: (call, values) => this.call(candidate, call, values, [], true) });
       effects.push({
         id: randomUUID(),
         type: 'value.write',
-        args: [field, boolean ? value === 'true' : value],
+        args: [field, output],
         instanceId: instance.id,
         renderRevision: instance.revision,
       });
@@ -1919,6 +1982,7 @@ export class DeclarativeUIService {
     const registryRevision = this.registrations.get(instance.pluginId)?.revision ?? 0;
     let result: UIValue | undefined;
     let steps = 0;
+    let completedBranches = 0;
     const initial = plain(instance.fields);
     for (const [branchIndex, chain] of branches.entries()) {
       instance.fields = plain(initial);
@@ -1939,6 +2003,8 @@ export class DeclarativeUIService {
             event: plain(event) as unknown as UIValue,
             prev,
             fields: instance.fields,
+            fieldDefinitions: instance.compiled.fields,
+            frontendValidated: instance.frontendValidated,
             invoke: (call, args) =>
               this.callBefore(instance, call, args, branchEffects, event, depth),
           });
@@ -1954,11 +2020,14 @@ export class DeclarativeUIService {
           if (error instanceof UIError && error.code === 'UI_FLOW_STOP') {
             break;
           }
-          throw new UIExecutionFailure(error, branchIndex, stepIndex, branchIndex);
+          throw new UIExecutionFailure(error, branchIndex, stepIndex, completedBranches);
         }
       }
       effects.push(...branchEffects);
-      result = prev;
+      if (!chain[0]?.validationStep) {
+        result = prev;
+        completedBranches++;
+      }
     }
     return result;
   }
@@ -1981,19 +2050,27 @@ export class DeclarativeUIService {
             this.closeContinuation(token, result);
             return result;
           }
+          const validator = chain[0].validationField;
+          const names = new Set<string>(validator ? [validator] : Object.keys(job.initial));
+          if (validator) {this.referencedFields(job.instance, chain, names);}
+          await validateUIFields(names, { fields: job.initial, fieldDefinitions: job.instance.compiled.fields,
+            frontendValidated: job.instance.frontendValidated, deferFrontendValidation: Boolean(validator),
+            invoke: (call, args) => this.callBefore(job.instance, { ...call, readOnly: true }, args, [], job.event, 0) });
+          const fields = Object.fromEntries([...names].map((name) => [name, job.initial[name]]));
           const phase=randomUUID();this.frontendAcks.set(phase,{job:token,instanceId:job.instance.id,windowId:job.instance.windowId,created:Date.now()});
           return {
             status: 'frontend',
             continuation: phase,
             branches: [chain],
-            event: job.event,
-            fields: job.initial,
+            event: validator ? { type: job.event.type } : job.event,
+            fields,
             effects,
             sourceTabId: job.instance.sourceTabId,
             sourceFrameEpoch: job.instance.sourceFrameEpoch,
           };
         }
-        job.result = await this.run(job.instance, [chain], job.event, effects);job.completed++;
+        const result = await this.run(job.instance, [chain], job.event, effects);
+        if (!chain[0]?.validationStep) { job.result = result; job.completed++; }
       }
       job.effects.push(...effects);
       const result = {
@@ -2009,6 +2086,7 @@ export class DeclarativeUIService {
         status: job.completed ? 'partial' : 'failed',
         effects:job.effects,
         error: error instanceof UIError ? error.message : '处理器执行失败',
+        field: error instanceof UIError ? error.field : undefined,
       };
       this.closeContinuation(token, result);
       return result;
@@ -2047,6 +2125,8 @@ export class DeclarativeUIService {
       this.closeContinuation(ack.job, result);
       ack.promise = Promise.resolve(result);
     } else {
+      const field = job.branches[job.next - 1]?.[0]?.validationField;
+      if (field) {(instance.frontendValidated ??= new Set()).add(field);}
       ack.promise = this.advance(ack.job);
     }
     return ack.promise;
@@ -2104,6 +2184,7 @@ export class DeclarativeUIService {
         '实例已释放',
       );
       instance.executionDeadline = Date.now() + 10000;
+      instance.frontendValidated = new Set();
       instance.fields = this.capture(instance, body.fields, [...new Set(binding.capture)]);
       const values = Object.fromEntries(binding.capture.map((key) => [key, instance.fields[key]]));
       const event: NormalizedUIEvent = {
@@ -2169,7 +2250,7 @@ export class DeclarativeUIService {
         const result = await this.run(instance, binding.program.branches, event, effects);
         return {
           status: 'succeeded',
-          completedBranches: binding.program.branches.length,
+          completedBranches: binding.program.branches.filter((chain) => !chain[0]?.validationStep).length,
           ...(result === undefined ? {} : { result }),
           effects,
         };
@@ -2186,6 +2267,7 @@ export class DeclarativeUIService {
             branch: error.branch,
             step: error.step,
             message: error.message,
+            field: error.field,
           },
         };
       }

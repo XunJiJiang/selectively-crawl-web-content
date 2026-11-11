@@ -250,7 +250,7 @@ interface InspectorHandle extends Disposable {
 | icon | key、icon、label | click |
 | image | key、src、alt | click |
 | button | key、name、for、text、icon、disabled | click、contextmenu |
-| input | key、name、value、inputType、placeholder | input、change、focus、blur |
+| input / textarea | key、name、value、placeholder、disabled、readonly、minLength、maxLength、min、max、pattern、patternMessage、validator；input 另支持 inputType | input、change、focus、blur |
 | select | key、name、value、options | change |
 | checkbox / toggle | key、name、checked、label | change |
 | form | key、name、children | submit |
@@ -259,6 +259,8 @@ interface InspectorHandle extends Disposable {
 | divider | key | — |
 
 `events` 统一是事件名到 `EventProgram` 字符串的映射。`key` 用于稳定 DOM 更新；`name` 用于逻辑值/触发寻址，两者不混用。布局使用主题令牌和受限数值，不开放覆盖工作台外层布局的属性。
+
+控件 `name` 只接受 1–64 位 ASCII 字母、数字、下划线、中划线，禁止点号、空白及其他特殊字符；原型保留键仍拒绝。JSON 输入限制、严格验证器返回值和自动绑定透传规则见 [输入限制与验证器](client-plugin-ui.md#输入限制与验证器仍为-v2)。验证器显式调用只读处理器，返回 `{ success: boolean, message?: string }`；`$this` 为当前验证控件值，`$for:<name>` 为对应命名控件值。该扩展保持脚本 v2、JSON 内容 version 1。
 
 ```ts
 interface StatusBarDefinition {
@@ -297,7 +299,7 @@ type MenuItem =
 
 ### 5.1 名称、命名空间与执行位置
 
-基础名称符合 `^[A-Za-z0-9_.-]{1,64}$`，区分大小写；点仅为名称字符，不表示任意对象属性访问。注册表使用 Map，不做 Unicode 归一化或模糊匹配。插件注册基础名称，命名空间由核心解析，插件不能注册冒号名称冒充核心。
+处理器基础名称符合 `^[A-Za-z0-9_.-]{1,64}$`，区分大小写；点仅为处理器名称字符，不表示任意对象属性访问，控件 name 使用上述不含点号的独立规则。注册表使用 Map，不做 Unicode 归一化或模糊匹配。插件注册基础名称，命名空间由核心解析，插件不能注册冒号名称冒充核心。
 
 | 表达式名称 | 来源/含义 | 执行或订阅位置 |
 | --- | --- | --- |
@@ -397,7 +399,7 @@ JSON 先解析为合法 JSON，再在 Schema 明确允许的数据值字段中�
 
 JSON 字符串恰好为一个 `${expression}` 时保留其返回类型，再按目标字段 Schema 校验，例如 progress.value 可以得到 number/null；与文本混排时按明确的标量文本规则转换，对象/数组须显式 `core:json.stringify(...)`。HTML 文本始终通过 textContent 写入，属性按目标类型校验并安全设置；不将返回值解释为 HTML、CSS、事件或第二轮模板。HTML 布尔属性按布尔值绑定，不能把字符串 `"false"` 当作真。
 
-模板中只能使用单个受限 argument 表达式，也接受裸 `watch:xxx` 作为 `watch:xxx()` 的简写；不支持任意脚本或通过插值拼接事件程序，链式组合用于事件程序。`$event` 仅在事件调用上下文存在，`$prev` 仅在链的后续步骤存在，不能在初始渲染时读取；`$for:name` 可在当前实例命名值已初始化后用于模板，持续更新应使用对应 watch。声明式模板中的字面 `${` 用 `\${` 转义；若模板写在 JS/TS 反引号字符串中，还需按宿主字符串规则转义，避免提前被 JS 求值。
+模板中只能使用单个受限 argument 表达式，所有控制器和 watch 调用必须显式带括号；`${watch:xxx}` 与 `${xxx}` 均报错，应写为 `${watch:xxx()}` 与 `${xxx()}`。仅控件事件顶层调用步骤可以省略括号，事件中的嵌套调用及控件验证器也必须显式带括号。不支持任意脚本或通过插值拼接事件程序，链式组合用于事件程序。`$event` 仅在事件调用上下文存在，`$prev` 仅在链的后续步骤存在，不能在初始渲染时读取；`$this` 仅供验证器使用；`$for:name` 可在当前实例命名值已初始化后用于模板，持续更新应使用对应 watch。声明式模板中的字面 `${` 用 `\${` 转义；若模板写在 JS/TS 反引号字符串中，还需按宿主字符串规则转义，避免提前被 JS 求值。
 
 异步结果绑定实例、渲染版本、参数快照和求值代数；参数变化后丢弃旧结果。加载、无值、失败分别表示，不将失败静默变成空串。返回 null 为合法无值，显示为空文本；监听失败显示明确诊断并允许显式重试，不重复执行有副作用调用。
 

@@ -1,4 +1,10 @@
-import { uiAssert, UI_LIMITS, type CompiledUI } from '../../../shared/declarative-ui.ts';
+import {
+  uiAssert,
+  uiControlName,
+  UI_LIMITS,
+  type CompiledUI,
+} from '../../../shared/declarative-ui.ts';
+import { validateUIRules } from '../../../shared/ui-validation.ts';
 
 const tags = new Set([
   'div',
@@ -22,6 +28,7 @@ const attributes = new Set([
   'value',
   'checked',
   'disabled',
+  'readonly',
   'multiple',
   'selected',
   'placeholder',
@@ -29,6 +36,8 @@ const attributes = new Set([
   'min',
   'step',
   'maxlength',
+  'minlength',
+  'pattern',
   'alt',
   'src',
   'class',
@@ -51,6 +60,9 @@ const attributes = new Set([
 
 export function validateJSONAttribute(attribute: string, value: unknown) {
   uiAssert(attributes.has(attribute), 'UI_INVALID_CONTENT', 'JSON 属性不允许');
+  if (attribute === 'name') {
+    uiControlName(value);
+  }
   if (attribute === 'src' && value) {
     const url = new URL(String(value), location.origin);
     uiAssert(
@@ -92,6 +104,13 @@ export function validateJSONModel(model: CompiledUI) {
     }
   };
   visit(model.nodes, 0);
+  for (const field of model.fields) {
+    uiControlName(field.name);
+    uiAssert(ids.has(field.nodeId), 'UI_INVALID_CONTENT', 'JSON 字段目标无效');
+    if (field.validation) {
+      validateUIRules(field.validation.rules);
+    }
+  }
   for (const binding of model.expressions) {
     uiAssert(ids.has(binding.nodeId), 'UI_INVALID_CONTENT', 'JSON 绑定目标无效');
     if (binding.attribute) {

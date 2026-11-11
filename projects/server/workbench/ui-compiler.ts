@@ -6,14 +6,23 @@ import {
   UI_LIMITS,
   uiAssert,
   uiName,
+  uiControlName,
   safeKey,
   type UIContent,
   type UINode,
   type SafeNode,
   type CompiledUI,
   type UIValue,
+  type UIField,
+  type CallNode,
 } from '../../shared/declarative-ui.ts';
-import { parseProgram, parseTemplate, walkArgument } from '../../shared/ui-expressions.ts';
+import {
+  parseProgram,
+  parseTemplate,
+  parseValidator,
+  walkArgument,
+} from '../../shared/ui-expressions.ts';
+import { validateUIRules } from '../../shared/ui-validation.ts';
 
 const tags = [
   'section',
@@ -69,6 +78,7 @@ const attributes = [
   'value',
   'checked',
   'disabled',
+  'readonly',
   'multiple',
   'selected',
   'placeholder',
@@ -76,6 +86,8 @@ const attributes = [
   'max',
   'step',
   'maxlength',
+  'minlength',
+  'pattern',
   'title',
   'alt',
   'src',
@@ -224,6 +236,8 @@ const escape = (value: unknown) =>
     (char) =>
       ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char] ?? char,
   );
+const inputRuleKeys = ['min', 'max', 'minLength', 'maxLength', 'pattern', 'patternMessage'];
+const inputProperties = [...inputRuleKeys, 'validator', 'readonly', 'placeholder', 'disabled'];
 function jsonHTML(node: UINode, depth = 0, path = '0'): string {
   uiAssert(
     depth <= UI_LIMITS.depth && node && typeof node === 'object',
@@ -236,8 +250,8 @@ function jsonHTML(node: UINode, depth = 0, path = '0'): string {
     icon: ['icon', 'label'],
     image: ['src', 'alt'],
     button: ['text', 'icon', 'disabled', 'submit'],
-    input: ['value', 'inputType', 'placeholder', 'disabled', 'min', 'max', 'step', 'maxLength'],
-    textarea: ['value', 'placeholder', 'disabled'],
+    input: ['value', 'inputType', 'step', ...inputProperties],
+    textarea: ['value', ...inputProperties],
     select: ['value', 'options', 'disabled'],
     checkbox: ['checked', 'label', 'disabled'],
     toggle: ['checked', 'label', 'disabled'],
@@ -256,10 +270,7 @@ function jsonHTML(node: UINode, depth = 0, path = '0'): string {
       'control',
       'defaultValue',
       'options',
-      'min',
-      'max',
-      'maxLength',
-      'disabled',
+      ...inputProperties,
     ],
     group: ['label', 'description', 'footer', 'children'],
   };
@@ -280,7 +291,7 @@ function jsonHTML(node: UINode, depth = 0, path = '0'): string {
       uiAssert(typeof node[key] === 'string', 'UI_INVALID_VALUE_TYPE', `${key} 需要字符串`);
     }
   }
-  for (const key of ['visible', 'disabled', 'checked', 'submit']) {
+  for (const key of ['visible', 'disabled', 'readonly', 'checked', 'submit']) {
     if (node[key] !== undefined) {
       uiAssert(
         typeof node[key] === 'boolean' ||
@@ -290,6 +301,26 @@ function jsonHTML(node: UINode, depth = 0, path = '0'): string {
       );
     }
   }
+  if (node.name !== undefined) {
+    uiControlName(node.name);
+  }
+  const inputRules = Object.fromEntries(
+    inputRuleKeys.filter((key) => node[key] !== undefined).map((key) => [key, node[key]]),
+  ) as Record<string, UIValue>;
+  validateUIRules(inputRules);
+  if (node.validator !== undefined) {
+    uiAssert(
+      typeof node.validator === 'string' && node.validator.trim().length > 0,
+      'UI_INVALID_CONTENT',
+      'validator 必须为控制器调用表达式',
+    );
+  }
+  const constrained = Object.keys(inputRules).length > 0 || node.validator !== undefined;
+  const inputName =
+    node.name ??
+    (constrained && ['input', 'textarea'].includes(node.type)
+      ? `input-${createHash('sha256').update(path).digest('hex').slice(0, 20)}`
+      : undefined);
   if (node.type === 'input' && node.value !== undefined) {
     uiAssert(typeof node.value === 'string', 'UI_INVALID_VALUE_TYPE', '输入值必须是字符串');
   }
@@ -334,7 +365,7 @@ function jsonHTML(node: UINode, depth = 0, path = '0'): string {
     value === undefined ? '' : ` ${key}="${escape(value)}"`;
   const base =
     attr('data-ui-visible', node.visible) +
-    attr('name', node.type === 'setting' && node.config !== undefined ? undefined : node.name) +
+    attr('name', node.type === 'setting' && node.config !== undefined ? undefined : inputName) +
     attr('for', Array.isArray(node.for) ? node.for.join(' ') : node.for) +
     attr('data-ui-key', node.key) +
     Object.entries(node.events ?? {})
@@ -349,6 +380,18 @@ function jsonHTML(node: UINode, depth = 0, path = '0'): string {
           : attr('on' + event, program);
       })
       .join('');
+  const inputAttributes = () =>
+    attr('placeholder', node.placeholder) +
+    attr('disabled', node.disabled) +
+    attr('readonly', node.readonly) +
+    attr('min', node.min) +
+    attr('max', node.max) +
+    attr('minlength', node.minLength) +
+    attr('maxlength', node.maxLength) +
+    attr('pattern', node.pattern) +
+    (constrained
+      ? attr('data-ui-validation', JSON.stringify({ rules: inputRules, validator: node.validator }))
+      : '');
   const text = escape(node.text ?? node.label);
   const children = () => {
     uiAssert(Array.isArray(node.children), 'UI_INVALID_CONTENT', 'children 必须是数组');
@@ -404,6 +447,7 @@ function jsonHTML(node: UINode, depth = 0, path = '0'): string {
         uiAssert(
           [
             'text',
+            'password',
             'textarea',
             'number',
             'switch',
@@ -439,12 +483,12 @@ function jsonHTML(node: UINode, depth = 0, path = '0'): string {
         }
         const name =
           node.name ??
-          'setting.' +
+          'setting-' +
             createHash('sha256')
               .update((node.configScope === 'site' ? 'site:' : '') + node.config)
               .digest('hex')
               .slice(0, 20);
-        uiName(name);
+        uiControlName(name);
         const key = JSON.stringify(node.config),
           field = JSON.stringify(name);
         const fallback = JSON.stringify(
@@ -452,7 +496,7 @@ function jsonHTML(node: UINode, depth = 0, path = '0'): string {
         );
         const read = `watch:core:${configHandler}.read(${key},${field},${fallback})`;
         const rules: Record<string, unknown> = { codec: valueType };
-        for (const key of ['min', 'max', 'maxLength']) {
+        for (const key of inputRuleKeys) {
           if (node[key] !== undefined) {
             rules[key] = node[key];
           }
@@ -483,12 +527,23 @@ function jsonHTML(node: UINode, depth = 0, path = '0'): string {
                 ? { ...shared, type: 'select', value: `\${${read}}`, options: node.options ?? [] }
                 : {
                     ...shared,
+                    ...Object.fromEntries(
+                      inputProperties
+                        .filter((key) => node[key] !== undefined)
+                        .map((key) => [key, node[key]]),
+                    ),
                     type: kind === 'textarea' ? 'textarea' : 'input',
                     ...(kind === 'textarea'
                       ? {}
                       : {
                           inputType:
-                            kind === 'number' ? 'number' : kind === 'color' ? 'color' : 'text',
+                            kind === 'number'
+                              ? 'number'
+                              : kind === 'color'
+                                ? 'color'
+                                : kind === 'password'
+                                  ? 'password'
+                                  : 'text',
                           min: node.min,
                           max: node.max,
                           step: valueType === 'number' ? 'any' : undefined,
@@ -527,9 +582,9 @@ function jsonHTML(node: UINode, depth = 0, path = '0'): string {
     case 'button':
       return `<button${base} type="${node.submit === true ? 'submit' : 'button'}"${attr('disabled', node.disabled)}>${node.icon ? `<span class="ui-button-icon">${jsonHTML({ type: 'icon', icon: node.icon }, depth + 1, `${path}-icon`)}</span>` : ''}<span>${text}</span></button>`;
     case 'input':
-      return `<input${base}${attr('type', node.inputType ?? 'text')}${attr('value', node.value ?? '')}${attr('placeholder', node.placeholder)}${attr('disabled', node.disabled)}${attr('min', node.min)}${attr('max', node.max)}${attr('step', node.step)}${attr('maxlength', node.maxLength)}>`;
+      return `<input${base}${attr('type', node.inputType ?? 'text')}${attr('value', node.value ?? '')}${inputAttributes()}${attr('step', node.step)}>`;
     case 'textarea':
-      return `<textarea${base}${attr('value', node.value ?? '')}${attr('placeholder', node.placeholder)}${attr('disabled', node.disabled)}></textarea>`;
+      return `<textarea${base}${attr('value', node.value ?? '')}${inputAttributes()}></textarea>`;
     case 'checkbox':
     case 'toggle':
       return `<label class="ui-${node.type}"><input${base} type="checkbox"${node.type === 'toggle' ? ' role="switch"' : ''}${attr('checked', node.checked)}${attr('disabled', node.disabled)}><span>${text}</span></label>`;
@@ -637,8 +692,24 @@ export function compileUI(content: UIContent, options: CompileOptions): Compiled
       styles: [],
     };
     const eventTable = new Map<Element, Record<string, string>>();
+    const declaredNames = new Map<Element, string>();
+    const validationTable = new Map<
+      Element,
+      { rules: Record<string, UIValue>; validator?: string }
+    >();
     const associations = new Map<Element, string>();
     for (const element of inert.querySelectorAll('*')) {
+      const declaredName = element.getAttribute('name');
+      if (content.format === 'json' && declaredName !== null) {
+        uiControlName(declaredName);
+        declaredNames.set(element, declaredName);
+      }
+      // Compiler metadata is extracted before sanitization and is never a DOM attribute on the wire.
+      const validation = element.getAttribute('data-ui-validation');
+      if (content.format === 'json' && validation !== null) {
+        validationTable.set(element, JSON.parse(validation));
+      }
+      element.removeAttribute('data-ui-validation');
       associations.set(
         element,
         element.getAttribute('data-ui-for') ?? element.getAttribute('for') ?? '',
@@ -725,6 +796,12 @@ export function compileUI(content: UIContent, options: CompileOptions): Compiled
       }
       const element = node as Element,
         tag = element.tagName.toLowerCase();
+      // JSON names are logical field IDs in isolated renderers, not global DOM property lookups.
+      // DOMPurify can remove names such as "target"; retain the validated identity and its rules.
+      const declaredName = declaredNames.get(element);
+      if (declaredName !== undefined) {
+        element.setAttribute('name', declaredName);
+      }
       const attrs: Record<string, string> = {};
       for (const attr of [...element.attributes]) {
         if (['name', 'for', 'data-ui-for', 'id', 'data-ui-key'].includes(attr.name)) {
@@ -762,8 +839,8 @@ export function compileUI(content: UIContent, options: CompileOptions): Compiled
           }
           continue;
         }
-        const value = expr(id, attr.name, attr.value);
-        if (['checked', 'disabled', 'multiple', 'selected'].includes(attr.name)) {
+        const value = attr.name === 'pattern' ? attr.value : expr(id, attr.name, attr.value);
+        if (['checked', 'disabled', 'readonly', 'multiple', 'selected'].includes(attr.name)) {
           if (attr.value === '' || attr.value === 'true') {
             attrs[attr.name] = '';
           } else {
@@ -777,8 +854,8 @@ export function compileUI(content: UIContent, options: CompileOptions): Compiled
           attrs[attr.name] = value;
         }
       }
-      if (attrs.name) {
-        uiName(attrs.name);
+      if (attrs.name !== undefined) {
+        uiControlName(attrs.name);
         if (tag === 'form') {
           form = attrs.name;
         }
@@ -789,7 +866,21 @@ export function compileUI(content: UIContent, options: CompileOptions): Compiled
               : Object.hasOwn(attrs, 'multiple')
                 ? 'multiple'
                 : 'string';
-          result.fields.push({ name: attrs.name, nodeId: id, kind, form });
+          const validation = validationTable.get(element);
+          const field: UIField = { name: attrs.name, nodeId: id, kind, form };
+          if (validation) {
+            field.validation = { rules: validation.rules };
+            if (validation.validator !== undefined) {
+              const validator = parseValidator(validation.validator, attrs.name);
+              walkArgument(validator, (node) => {
+                if (node.type === 'call') {
+                  options.validateCall(node.name, true, false);
+                }
+              });
+              field.validation.validator = validator;
+            }
+          }
+          result.fields.push(field);
         }
       }
       if (tag === 'input') {
@@ -822,7 +913,7 @@ export function compileUI(content: UIContent, options: CompileOptions): Compiled
         const association =
           tag === 'label' ? [] : (associations.get(element) ?? '').split(/\s+/).filter(Boolean);
         association.forEach((name) => {
-          uiName(name);
+          uiControlName(name);
           capture.add(name);
         });
         if (result.fields.some((field) => field.nodeId === id)) {
@@ -959,6 +1050,101 @@ export function compileUI(content: UIContent, options: CompileOptions): Compiled
     for (const binding of result.events) {
       expand(binding, []);
     }
+    // Validation runs before every consumer of a constrained value, including nested triggers.
+    // Controls without a user event still validate on change/blur.
+    for (const field of result.fields.filter((field) => field.validation)) {
+      for (const event of ['change', 'blur']) {
+        if (
+          !result.events.some(
+            (binding) => binding.nodeId === field.nodeId && binding.event === event,
+          )
+        ) {
+          result.events.push({
+            id: 'e' + result.events.length,
+            nodeId: field.nodeId,
+            event,
+            program: { branches: [] },
+            for: [],
+            capture: [field.name],
+          });
+        }
+      }
+    }
+    for (const binding of result.events) {
+      const checks: CallNode[][] = [];
+      const ordered: UIField[] = [];
+      const visited = new Set<string>();
+      const collect = (name: string, path: string[] = []) => {
+        uiAssert(!path.includes(name), 'UI_VALIDATION_CYCLE', '验证器字段依赖存在循环');
+        if (visited.has(name)) {
+          return;
+        }
+        const field = result.fields.find((field) => field.name === name);
+        uiAssert(field, 'UI_UNKNOWN_VALUE', `未声明的验证字段 ${name}`);
+        if (field.validation?.validator) {
+          walkArgument(field.validation.validator, (node) => {
+            const dependencies =
+              node.type === 'field'
+                ? [node.name]
+                : node.type === 'call'
+                  ? (node.name === 'core:value.read' && node.args[0]?.type === 'literal' && typeof node.args[0].value === 'string'
+                    ? [node.args[0].value] : (options.reads?.(node.name) ?? []))
+                  : [];
+            for (const dependency of dependencies) {
+              if (dependency !== name) {
+                collect(dependency, [...path, name]);
+              }
+            }
+          });
+        }
+        visited.add(name);
+        ordered.push(field);
+      };
+      binding.capture.forEach((name) => collect(name));
+      binding.capture = [...visited];
+      for (const field of ordered) {
+        const validation = field.validation;
+        if (!validation) {
+          continue;
+        }
+        if (Object.keys(validation.rules).length) {
+          const call = parseProgram(
+            `core:validate($for:${field.name},${JSON.stringify(validation.rules)})`,
+          ).branches[0][0];
+          call.validationStep = true;
+          call.validationTarget = field.name;
+          call.readOnly = true;
+          checks.push([call]);
+        }
+        if (validation.validator) {
+          const call = structuredClone(validation.validator);
+          call.validationStep = true;
+          walkArgument(call, (node) => {
+            const dependencies =
+              node.type === 'field'
+                ? [node.name]
+                : node.type === 'call'
+                  ? (options.reads?.(node.name) ?? [])
+                  : [];
+            for (const name of dependencies) {
+              uiAssert(
+                result.fields.some((field) => field.name === name),
+                'UI_UNKNOWN_VALUE',
+                `未声明的验证字段 ${name}`,
+              );
+              binding.capture.push(name);
+            }
+          });
+          checks.push([call]);
+        }
+      }
+      binding.program.branches.unshift(...checks);
+      binding.capture = [...new Set(binding.capture)];
+    }
+    // Check the final expanded program budget after adding compiler-owned validation calls.
+    for (const binding of result.events) {
+      expand(binding, []);
+    }
     uiAssert(
       result.events.length + result.expressions.length <= UI_LIMITS.bindings,
       'UI_QUOTA_EXCEEDED',
@@ -974,9 +1160,15 @@ export function validateAttribute(
   value: UIValue,
 ): string | boolean | number | null {
   if (
-    ['checked', 'disabled', 'selected', 'multiple', 'hidden', 'data-ui-visible'].includes(
-      name ?? '',
-    )
+    [
+      'checked',
+      'disabled',
+      'readonly',
+      'selected',
+      'multiple',
+      'hidden',
+      'data-ui-visible',
+    ].includes(name ?? '')
   ) {
     uiAssert(typeof value === 'boolean', 'UI_INVALID_VALUE_TYPE', '属性需要布尔值');
     return value;

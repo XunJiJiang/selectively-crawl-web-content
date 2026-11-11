@@ -54,6 +54,7 @@ export interface RemoteError {
   message: string;
   code?: string;
   status?: number;
+  field?: string;
 }
 
 export type Message =
@@ -64,11 +65,13 @@ export type Message =
 export class PluginProcessError extends Error {
   readonly status: number;
   readonly code: string;
-  constructor(message: string, status = 503, code = 'PLUGIN_UNAVAILABLE') {
+  readonly field?: string;
+  constructor(message: string, status = 503, code = 'PLUGIN_UNAVAILABLE', field?: string) {
     super(message);
     this.name = 'PluginProcessError';
     this.status = status;
     this.code = code;
+    this.field = field;
   }
 }
 
@@ -78,6 +81,12 @@ export function remoteError(error: unknown): RemoteError {
       message: error.message.slice(0, 8000),
       code: 'code' in error && typeof error.code === 'string' ? error.code : undefined,
       status: 'status' in error && typeof error.status === 'number' ? error.status : undefined,
+      field:
+        'field' in error &&
+        typeof error.field === 'string' &&
+        /^[A-Za-z0-9_-]{1,64}$/.test(error.field)
+          ? error.field
+          : undefined,
     };
   }
   return { message: String(error).slice(0, 8000) };

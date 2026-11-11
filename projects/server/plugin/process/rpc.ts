@@ -225,6 +225,7 @@ export class RpcPeer {
             value.error.message,
             value.error.status ?? 500,
             value.error.code ?? 'PLUGIN_ERROR',
+            value.error.field,
           ),
         );
       } else {

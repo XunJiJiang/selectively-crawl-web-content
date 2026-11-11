@@ -1,5 +1,6 @@
 import type { UIContent, UINode, StatusBarDefinition } from '../../../shared/declarative-ui.ts';
 import { controllerSettings, globalSettings } from './settings-ui.ts';
+import { inputValidationContent, invalidInputExamples } from './input-validation-ui.ts';
 
 export const ids = { main: 'template-overview', aux: 'template-details', status: 'template-state' };
 const text = (value: string): UINode => ({ type: 'text', text: value });
@@ -208,6 +209,17 @@ export function mainContent(note = '静态 JSON 来源'): UIContent {
           children: controllerSettings(),
         },
         {
+          id: 'input-validation',
+          label: '输入限制 / 验证',
+          children: [
+            ...inputValidationContent(),
+            ...invalidInputExamples.map(({ action, label }) =>
+              button(label, `demo.manage('${action}')`),
+            ),
+            text('拒绝结果：${core:json.stringify(watch:demo.snapshot())}'),
+          ],
+        },
+        {
           id: 'core',
           label: '核心处理器',
           children: [
@@ -291,6 +303,11 @@ export function auxiliaryContent(format: 'html' | 'json'): UIContent {
             tabs: [
               { id: 'automatic', label: '自动绑定配置', children: globalSettings() },
               { id: 'controllers', label: '控制器配置', children: controllerSettings() },
+              {
+                id: 'input-validation',
+                label: '输入限制 / 验证',
+                children: inputValidationContent(),
+              },
             ],
           },
           button('此实例定向更新', "demo.manage('target')"),
@@ -338,6 +355,7 @@ export function statusDefinition(
           text('JSON 提示 · ${watch:demo.counter()}'),
           button('固定', 'core:tooltip.pin()'),
           button('关闭提示层', 'core:tooltip.close()'),
+          ...inputValidationContent(),
         ],
       },
     },

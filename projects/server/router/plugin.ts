@@ -426,6 +426,7 @@ router.post('/event', routeVersion('3.2.0'), async (req, res) => {
       .json({
         code: 400,
         errorCode: error instanceof Error && 'code' in error ? error.code : undefined,
+        field: error instanceof Error && 'field' in error ? error.field : undefined,
         message: error instanceof Error ? error.message : '插件事件失败',
       });
   }

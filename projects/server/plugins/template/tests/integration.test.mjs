@@ -905,7 +905,7 @@ test('核心页面信息模板：保存/重置/保留草稿/丢弃与冲突，�
     nodes.filter((node) => node.attrs?.class === 'ui-setting ui-setting-checkbox').length,
     1,
   );
-  const field = (key) => 'config.f' + createHash('sha256').update(key).digest('hex').slice(0, 16);
+  const field = (key) => 'config-f' + createHash('sha256').update(key).digest('hex').slice(0, 16);
   const current = await api('/plugins/template/config');
   const booleanKeys = new Set(
     current.definitions.flatMap((definition) =>
@@ -1013,7 +1013,7 @@ test('脚本配置 v2：真实 HTTP/IPC 编译、默认值、字段快照与七�
   assert.equal(model.compiled.format, 'json');
   assert.deepEqual(
     model.compiled.fields
-      .filter(({ name }) => !model.boundFields.includes(name))
+      .filter(({ name }) => !model.boundFields.includes(name) && !name.startsWith('validation_'))
       .map(({ name, kind }) => [name, kind]),
     [
       ['testToggle', 'boolean'],
@@ -1113,7 +1113,7 @@ test('配置新样例：分组全局绑定、后端校验、本站隔离及刷�
     const query = new URLSearchParams({ site, pluginId: 'template' });
     if (previous) {
       query.set('instanceId', previous.instanceId);
-      query.set('dirtyFields', JSON.stringify(['plugin.note']));
+      query.set('dirtyFields', JSON.stringify(['plugin-note']));
     }
     const response = await fetch(`${origin}/api/plugin/config?${query}`, {
       headers: headersFor(site),
@@ -1161,29 +1161,32 @@ test('配置新样例：分组全局绑定、后端校验、本站隔离及刷�
   const nodes = allNodes(model.compiled.nodes);
   assert.deepEqual(
     nodes.filter((node) => node.attrs?.role === 'tab').map((node) => node.children[0].text),
-    ['插件全局配置', '本站配置', '自定义控制器'],
+    ['插件全局配置', '本站配置', '自定义控制器', '输入限制 / 验证'],
   );
-  assert.equal(nodes.filter((node) => node.attrs?.class === 'ui-setting-group').length, 4);
+  const originalTabs = nodes.filter((node) =>
+    ['global', 'site', 'custom'].includes(node.attrs?.['data-ui-tab-panel']),
+  );
+  assert.equal(allNodes(originalTabs).filter((node) => node.attrs?.class === 'ui-setting-group').length, 4);
   assert.equal(
     nodes.filter((node) => node.attrs?.class?.includes('ui-setting-checkbox')).length,
     2,
   );
   assert.equal(
-    model.compiled.fields.some((field) => field.name === 'plugin.contract'),
+    model.compiled.fields.some((field) => field.name === 'plugin-contract'),
     false,
   );
-  assert.equal(valueOf(model, 'site.prefix'), '采集');
-  assert.equal(valueOf(model, 'site.scale'), '1');
-  assert.equal(valueOf(model, 'site.enabled'), true);
+  assert.equal(valueOf(model, 'site-prefix'), '采集');
+  assert.equal(valueOf(model, 'site-scale'), '1');
+  assert.equal(valueOf(model, 'site-enabled'), true);
 
   const globalValues = {
-    'plugin.note': ['  来自脚本的全局配置  ', '来自脚本的全局配置', 'validation.note'],
-    'plugin.memo': ['共享多行\n说明', '共享多行\n说明', 'validation.memo'],
-    'plugin.limit': ['6', '6', 'validation.limit'],
-    'plugin.enabled': [false, 'false', 'validation.enabled'],
-    'plugin.confirm': [true, 'true', 'validation.confirm'],
-    'plugin.mode': ['comfortable', 'comfortable', 'validation.mode'],
-    'plugin.color': ['#102030', '#102030', 'validation.color'],
+    'plugin-note': ['  来自脚本的全局配置  ', '来自脚本的全局配置', 'validation.note'],
+    'plugin-memo': ['共享多行\n说明', '共享多行\n说明', 'validation.memo'],
+    'plugin-limit': ['6', '6', 'validation.limit'],
+    'plugin-enabled': [false, 'false', 'validation.enabled'],
+    'plugin-confirm': [true, 'true', 'validation.confirm'],
+    'plugin-mode': ['comfortable', 'comfortable', 'validation.mode'],
+    'plugin-color': ['#102030', '#102030', 'validation.color'],
   };
   for (const [name, [input, persisted, key]] of Object.entries(globalValues)) {
     await send(model, name, input, site);
@@ -1191,32 +1194,32 @@ test('配置新样例：分组全局绑定、后端校验、本站隔离及刷�
     assert.equal(snapshot.effectiveValues[key], persisted);
     assert.equal(typeof snapshot.effectiveValues[key], 'string');
   }
-  await send(model, 'plugin.note', 'reject', site, 400);
-  await send(model, 'plugin.limit', '2.5', site, 400);
-  await send(model, 'plugin.mode', 'invalid', site, 400);
+  await send(model, 'plugin-note', 'reject', site, 400);
+  await send(model, 'plugin-limit', '2.5', site, 400);
+  await send(model, 'plugin-mode', 'invalid', site, 400);
 
   const siteValues = {
-    'site.enabled': false,
-    'site.prefix': '本站',
-    'site.scale': '1.75',
-    'site.limit': '5',
-    'site.format': 'text',
+    'site-enabled': false,
+    'site-prefix': '本站',
+    'site-scale': '1.75',
+    'site-limit': '5',
+    'site-format': 'text',
   };
   for (const [name, value] of Object.entries(siteValues)) {
     const reply = await send(model, name, value, site);
     assert.equal(reply.data.saved[name], value);
   }
-  await send(model, 'site.scale', '5', site, 400);
-  await send(model, 'site.limit', '1.5', site, 400);
-  await send(model, 'site.prefix', 'x'.repeat(25), site, 400);
+  await send(model, 'site-scale', '5', site, 400);
+  await send(model, 'site-limit', '1.5', site, 400);
+  await send(model, 'site-prefix', 'x'.repeat(25), site, 400);
   const sameOrigin = await load(`${origin}/another/path`);
   for (const [name, value] of Object.entries(siteValues))
     assert.equal(valueOf(sameOrigin, name), value);
   const otherOrigin = await load('https://other-template.example/article');
-  assert.equal(valueOf(otherOrigin, 'site.prefix'), '采集');
-  assert.equal(valueOf(otherOrigin, 'site.scale'), '1');
-  assert.equal(valueOf(otherOrigin, 'site.enabled'), true);
-  assert.equal(valueOf(otherOrigin, 'plugin.note'), '来自脚本的全局配置');
+  assert.equal(valueOf(otherOrigin, 'site-prefix'), '采集');
+  assert.equal(valueOf(otherOrigin, 'site-scale'), '1');
+  assert.equal(valueOf(otherOrigin, 'site-enabled'), true);
+  assert.equal(valueOf(otherOrigin, 'plugin-note'), '来自脚本的全局配置');
   const { getUserScriptConfig } = await core('user-script/config.ts');
   const saved = getUserScriptConfig().get(site).data.controls;
   assert.equal(saved.find((item) => item.channel === 'v2:config:enabled').value, false);
@@ -1229,7 +1232,7 @@ test('配置新样例：分组全局绑定、后端校验、本站隔离及刷�
     schemaRevision: snapshot.schemaRevision,
   });
   const refreshed = await load(site, model);
-  const conflict = await send(refreshed, 'plugin.note', '旧草稿', site, 400);
+  const conflict = await send(refreshed, 'plugin-note', '旧草稿', site, 400);
   assert.equal(conflict.errorCode, 'UI_CONFIG_CONFLICT');
   assert.equal(
     (await api('/plugins/template/config')).effectiveValues['validation.note'],
@@ -1316,7 +1319,7 @@ test('主辅侧栏配置：分组自动绑定与显式控制器共享持久值�
       assert.ok(
         allNodes([group]).some((node) => node.attrs?.class === 'ui-setting ui-setting-checkbox'),
       );
-      const note = view.compiled.fields.find((field) => field.name === 'controller.note');
+      const note = view.compiled.fields.find((field) => field.name === 'controller-note');
       assert.ok(
         view.compiled.events.some(
           (binding) =>
@@ -1328,18 +1331,18 @@ test('主辅侧栏配置：分组自动绑定与显式控制器共享持久值�
       );
       await read(view);
     }
-    assert.equal((await send(main, 'plugin.note', '  自动绑定保存  ')).status, 'succeeded');
+    assert.equal((await send(main, 'plugin-note', '  自动绑定保存  ')).status, 'succeeded');
     let data = await read(aux);
-    assert.equal(valueOf(aux, data, 'controller.note'), '自动绑定保存');
-    assert.equal(valueOf(aux, data, 'plugin.note'), '自动绑定保存');
+    assert.equal(valueOf(aux, data, 'controller-note'), '自动绑定保存');
+    assert.equal(valueOf(aux, data, 'plugin-note'), '自动绑定保存');
 
-    const normalized = await send(aux, 'controller.note', '  控制器   合并   空白  ');
+    const normalized = await send(aux, 'controller-note', '  控制器   合并   空白  ');
     assert.equal(normalized.status, 'succeeded', JSON.stringify(normalized));
     assert.ok(
       normalized.effects.some(
         (effect) =>
           effect.type === 'value.write' &&
-          effect.args[0] === 'controller.note' &&
+          effect.args[0] === 'controller-note' &&
           effect.args[1] === '控制器 合并 空白',
       ),
     );
@@ -1348,26 +1351,26 @@ test('主辅侧栏配置：分组自动绑定与显式控制器共享持久值�
       '控制器 合并 空白',
     );
     data = await read(main);
-    assert.equal(valueOf(main, data, 'plugin.note'), '控制器 合并 空白');
-    assert.equal(valueOf(main, data, 'controller.note'), '控制器 合并 空白');
+    assert.equal(valueOf(main, data, 'plugin-note'), '控制器 合并 空白');
+    assert.equal(valueOf(main, data, 'controller-note'), '控制器 合并 空白');
 
-    assert.equal((await send(aux, 'controller.limit', '2.5')).status, 'failed');
-    assert.equal((await send(aux, 'controller.limit', '8')).status, 'succeeded');
-    assert.equal((await send(aux, 'controller.confirm', true)).status, 'succeeded');
+    assert.equal((await send(aux, 'controller-limit', '2.5')).status, 'failed');
+    assert.equal((await send(aux, 'controller-limit', '8')).status, 'succeeded');
+    assert.equal((await send(aux, 'controller-confirm', true)).status, 'succeeded');
     const snapshot = await api('/plugins/template/config');
     assert.equal(snapshot.effectiveValues['validation.limit'], '8');
     assert.equal(snapshot.effectiveValues['validation.confirm'], 'true');
     data = await read(main);
-    assert.equal(valueOf(main, data, 'plugin.confirm'), true);
-    assert.equal(valueOf(main, data, 'controller.limit'), '8');
-    assert.equal((await send(aux, 'controller.note', 'reject')).status, 'failed');
+    assert.equal(valueOf(main, data, 'plugin-confirm'), true);
+    assert.equal(valueOf(main, data, 'controller-limit'), '8');
+    assert.equal((await send(aux, 'controller-note', 'reject')).status, 'failed');
     assert.equal(
       (await api('/plugins/template/config')).effectiveValues['validation.note'],
       '控制器 合并 空白',
     );
 
-    assert.equal((await send(aux, 'controller.note', '其他侧栏已更新')).status, 'succeeded');
-    const conflict = await send(main, 'controller.note', '旧草稿');
+    assert.equal((await send(aux, 'controller-note', '其他侧栏已更新')).status, 'succeeded');
+    const conflict = await send(main, 'controller-note', '旧草稿');
     assert.equal(conflict.status, 'failed');
     assert.equal(conflict.error.code, 'UI_CONFIG_CONFLICT');
     assert.equal(
@@ -1377,5 +1380,145 @@ test('主辅侧栏配置：分组自动绑定与显式控制器共享持久值�
   } finally {
     await api(`/ui/instances/${main.id}/release`, {});
     await api(`/ui/instances/${aux.id}/release`, {});
+  }
+});
+
+test('输入限制样例：主辅侧栏、状态提示与脚本扩展经真实 HTTP/IPC 验证', async () => {
+  await pluginApi('/validation/ui', { action: 'restore' });
+  // Default tooltip is plain text; one explicit switch opens the JSON validation examples.
+  await pluginApi('/validation/ui', { action: 'tooltip' });
+  const lease = await api('/workspaces/template-input-validation/lease', { action: 'acquire' });
+  const values = {
+    'validation_text-1': 'demo_user', validation_number: '3', validation_password: 'Demo1234',
+    validation_memo: '这是一段示例说明', validation_confirm: 'Demo1234',
+    validation_bad_result: '演示错误返回值', validation_bound_memo: '新的全局备注',
+  };
+  const rendererSource = await fs.readFile(new URL('../../../../web/src/components/ui-renderer.js', import.meta.url), 'utf8');
+  function checkRendered(model, updates) {
+    const dom = new JSDOM('<div><div id="content"></div><div id="error"></div></div>', { runScripts: 'outside-only' });
+    try {
+      dom.window.eval(rendererSource.replace('export function createUIRenderer', 'window.createUIRenderer = function createUIRenderer'));
+      const renderer = dom.window.createUIRenderer(dom.window.document, () => undefined);
+      renderer.receive({ data: { method: 'init', payload: { compiled: model.compiled, renderRevision: 1, surface: 'mainSidebar' } } });
+      renderer.receive({ data: { method: 'updates', renderRevision: 1, payload: updates.filter((update) => !update.frontend && !update.error) } });
+      const document = dom.window.document;
+      for (const kind of ['text', 'number', 'password', 'textarea']) {
+        const readonly = document.querySelector(`[name=validation_readonly_${kind}]`);
+        assert.equal(readonly.readOnly, true, kind);
+        const disabled = document.querySelector(`[name=validation_disabled_${kind}]`);
+        assert.equal(disabled.disabled, true, kind);
+        assert.equal(disabled.placeholder, '已禁用', kind);
+      }
+      const text = document.querySelector('[name="validation_text-1"]');
+      assert.equal(text.minLength, 3);
+      assert.equal(text.maxLength, 16);
+      text.value = 'bad value';
+      text.dispatchEvent(new dom.window.Event('input'));
+      assert.match(document.querySelector('[data-ui-error-for="validation_text-1"]').textContent, /名称只能包含/);
+      assert.equal(document.querySelector('#error').textContent, '');
+      assert.equal(document.querySelector('[name=validation_number]').max, '10');
+      assert.equal(document.querySelector('[name=validation_password]').type, 'password');
+      assert.equal(document.querySelector('[name=validation_memo]').maxLength, 80);
+      renderer.dispose();
+    } finally { dom.window.close(); }
+  }
+  const cases = [
+    [{ 'validation_text-1': 'ab' }, /至少输入/],
+    [{ 'validation_text-1': 'a'.repeat(17) }, /最多输入/],
+    [{ 'validation_text-1': 'bad value' }, /名称只能包含/],
+    [{ 'validation_text-1': 'admin' }, /名称已保留/],
+    [{ validation_number: '11' }, /数值/],
+    [{ validation_number: '0' }, /数值/],
+    [{ validation_number: '1.234' }, /最多两位小数/],
+    [{ validation_password: 'abcdefgh' }, /字母和数字/],
+    [{ validation_memo: '<bad>' }, /说明不能包含/],
+    [{ validation_memo: '短' }, /至少输入/],
+    [{ validation_memo: 'a'.repeat(81) }, /最多输入/],
+    [{ validation_confirm: 'Other123' }, /两次示例密码不一致/],
+  ];
+  for (const surface of ['mainSidebar', 'auxiliarySidebar', 'tooltip']) {
+    const view = await api('/ui/instances', {
+      pluginId: 'template', surface,
+      viewId: { mainSidebar: 'template-overview', auxiliarySidebar: 'template-details', tooltip: 'template-state' }[surface],
+      workspaceId: lease.workspaceId, lease: lease.token,
+    });
+    try {
+      assert.ok(view.compiled.fields.every((field) => /^[A-Za-z0-9_-]+$/.test(field.name)));
+      const data = await api(`/ui/instances/${view.id}/data`, { renderRevision: view.renderRevision, fields: {} });
+      assert.equal(data.updates.filter((update) => update.error).length, 0);
+      checkRendered(view, data.updates);
+      const execute = (binding, override = {}) => api(`/ui/instances/${view.id}/events`, {
+        lease: lease.token, eventId: crypto.randomUUID(), renderRevision: view.renderRevision, bindingId: binding.id,
+        fields: Object.fromEntries(binding.capture.map((name) => [name, { value: { ...values, ...override }[name], editSequence: 1 }])),
+      });
+      const submit = namedButton(view, '验证并提交示例');
+      for (const [override, message] of cases) {
+        const result = await execute(submit, override);
+        assert.equal(result.status, 'failed', JSON.stringify(result));
+        assert.match(result.error.message, message);
+        assert.equal(result.result, undefined, 'invalid input must not run the submit callback');
+      }
+      const success = await execute(submit);
+      assert.equal(success.status, 'succeeded');
+      assert.ok(success.effects.some((effect) => effect.type === 'notification.show' && effect.args[0] === '输入验证通过，示例提交已执行'));
+      assert.doesNotMatch(JSON.stringify(success), /Demo1234/, 'do not echo passwords');
+      const bad = await execute(namedButton(view, '触发错误返回值'));
+      assert.equal(bad.error.code, 'UI_INVALID_VALIDATOR_RESULT');
+      for (const count of [1, 0]) {
+        const label = count ? '事件裸调用（1 个参数）' : '显式空括号（0 个参数）';
+        const result = await execute(namedButton(view, label));
+        assert.ok(result.effects.some((effect) => effect.type === 'notification.show' && effect.args[0] === `事件控制器收到 ${count} 个参数`));
+      }
+      const field = view.compiled.fields.find((field) => field.name === 'validation_bound_memo');
+      const change = view.compiled.events.find((event) => event.nodeId === field.nodeId && event.event === 'change');
+      const baseline = (await api('/plugins/template/config')).effectiveValues['validation.memo'];
+      assert.equal((await execute(change, { validation_bound_memo: 'reject this' })).status, 'failed');
+      assert.equal((await api('/plugins/template/config')).effectiveValues['validation.memo'], baseline);
+      assert.equal((await execute(change)).status, 'succeeded');
+      assert.equal((await api('/plugins/template/config')).effectiveValues['validation.memo'], '新的全局备注');
+    } finally { await api(`/ui/instances/${view.id}/release`, {}); }
+  }
+
+  const site = `${origin}/input-validation`, query = new URLSearchParams({ site, pluginId: 'template' });
+  const headers = { origin, authorization: `Bearer ${token}`, 'content-type': 'application/json', 'X-SCWC-Version': '3.2.0' };
+  const configResponse = await fetch(`${origin}/api/plugin/config?${query}`, { headers });
+  const plugin = (await configResponse.json()).data.find((item) => item.id === 'template');
+  assert.equal(plugin.version, 'v2');
+  assert.equal(plugin.configError, undefined);
+  const model = plugin.ui;
+  checkRendered(model, model.updates);
+  const send = async (binding, override = {}, expectedStatus = 200) => {
+    const response = await fetch(`${origin}/api/plugin/event?${query}`, { method: 'POST', headers, body: JSON.stringify({
+      version: 'v2', id: 'template', instanceId: model.instanceId, eventId: crypto.randomUUID(), bindingId: binding.id,
+      fields: Object.fromEntries(binding.capture.map((name) => [name, { value: { ...values, ...override }[name], editSequence: 1 }])), data: [],
+    }) });
+    const body = await response.json();
+    assert.equal(response.status, expectedStatus, JSON.stringify(body));
+    return body;
+  };
+  const submit = namedButton(model, '验证并提交示例');
+  for (const [override, message] of cases) assert.match(JSON.stringify(await send(submit, override, 400)), message);
+  assert.equal((await send(submit)).data.result.data.message, '输入验证通过，示例提交已执行');
+  const invalidResult = await send(namedButton(model, '触发错误返回值'), {}, 400);
+  assert.equal(invalidResult.errorCode, 'UI_INVALID_VALIDATOR_RESULT');
+  assert.equal(invalidResult.field, 'validation_bad_result', 'field identity survives real IPC and HTTP');
+  for (const count of [1, 0]) {
+    const label = count ? '事件裸调用（1 个参数）' : '显式空括号（0 个参数）';
+    assert.equal((await send(namedButton(model, label))).data.result.data.message, `事件控制器收到 ${count} 个参数`);
+  }
+  const bound = model.compiled.fields.find((field) => field.name === 'validation_bound_memo');
+  const boundChange = model.compiled.events.find((event) => event.nodeId === bound.nodeId && event.event === 'change');
+  await send(boundChange, { validation_bound_memo: 'reject this' }, 400);
+  assert.equal((await api('/plugins/template/config')).effectiveValues['validation.memo'], '新的全局备注');
+  await send(boundChange, { validation_bound_memo: '脚本扩展的验证备注' });
+  assert.equal((await api('/plugins/template/config')).effectiveValues['validation.memo'], '脚本扩展的验证备注');
+
+  // Candidate updates must be rejected without replacing the currently registered examples.
+  const before = await api('/ui/registry');
+  for (const action of ['reject.template-call', 'reject.validator-call', 'reject.control-name', 'reject.control-space']) {
+    const result = await pluginApi('/validation/ui', { action });
+    assert.equal(result.last.rejected, true, action);
+    assert.equal(result.last.action, action);
+    assert.deepEqual((await api('/ui/registry')).items, before.items);
   }
 });

@@ -8,6 +8,7 @@ import { requireValue } from '../../../shared/workbench-protocol.ts';
 import type { WbMenuSelect } from './context-menu/wb-menu-select.ts';
 import { WorkbenchScrollContainer } from './scroll-container.ts';
 import { ApiError } from '../api/workbench.ts';
+import type { FramePool } from '../workbench/frames.ts';
 
 beforeEach(() => {
   vi.spyOn(WorkbenchScrollContainer.prototype, 'scrollTo').mockImplementation(function (
@@ -88,6 +89,219 @@ async function renderedFixture(content: UIContent, surface: UISurface = 'mainSid
 }
 
 describe('DeclarativeView rendering', () => {
+  it('places independent accessible validation messages directly below each control', async () => {
+    const { view } = await renderedFixture({
+      format: 'json',
+      version: 1,
+      root: {
+        type: 'group',
+        children: [
+          {
+            type: 'setting',
+            label: 'First',
+            description: 'Existing help',
+            children: [{ type: 'input', name: 'first', minLength: 2 }],
+          },
+          {
+            type: 'setting',
+            label: 'Second',
+            children: [{ type: 'textarea', name: 'second', minLength: 3 }],
+          },
+        ],
+      },
+    });
+    const root = requireValue(view.shadowRoot);
+    const first = requireValue(root.querySelector<HTMLInputElement>('[name=first]'));
+    const second = requireValue(root.querySelector<HTMLTextAreaElement>('[name=second]'));
+    for (const field of [first, second]) {
+      field.value = 'x';
+      field.dispatchEvent(new Event('input'));
+      const message = requireValue(field.nextElementSibling);
+      expect(message.getAttribute('role')).toBe('alert');
+      expect(message.textContent).toContain('至少输入');
+      expect(field.getAttribute('aria-describedby')).toContain(message.id);
+      expect(field.getAttribute('aria-invalid')).toBe('true');
+    }
+    first.value = 'valid';
+    first.dispatchEvent(new Event('input'));
+    expect(first.nextElementSibling?.textContent).toBe('');
+    expect(second.nextElementSibling?.textContent).toContain('至少输入');
+    expect(root.querySelector('#error')?.textContent).toBe('');
+    expect(first.getAttribute('aria-describedby')?.split(' ')).toHaveLength(2);
+    await view.refresh();
+    expect(root.querySelector('[data-ui-error-for=second]')?.textContent).toContain('至少输入');
+  });
+  it('checks frontend template results before assigning them to constrained controls', async () => {
+    const { view, instance, request, compiled } = await renderedFixture({
+      format: 'json', version: 1,
+      root: { type: 'input', name: 'q', minLength: 3, value: '${ui:read()}' },
+    });
+    Object.assign(instance, { sourceTabId: 'page', sourceFrameEpoch: 'epoch' });
+    const invokeUI = vi.fn(async () => ({ hasValue: true, value: 'x' }));
+    view.pool = Object.assign(new EventTarget(), { invokeUI }) as unknown as FramePool;
+    request.mockImplementation(async (path) => {
+      if (path.endsWith('/content')) {return instance;}
+      if (path.endsWith('/data')) {return { updates: [{ id: compiled.expressions[0].id, frontend: true, fields: {} }] };}
+      if (path.endsWith('/validate')) {throw new ApiError('UI_INVALID_VALUE_TYPE', '至少输入 3 个字符', 400, { field: 'q' });}
+      return {};
+    });
+    await view.refresh();
+    await vi.waitFor(() => expect(view.shadowRoot?.querySelector('[data-ui-error-for=q]')?.textContent).toContain('至少输入'));
+    expect(view.shadowRoot?.querySelector<HTMLInputElement>('[name=q]')?.value).not.toBe('x');
+    expect(request).toHaveBeenCalledWith('/ui/instances/direct-instance/validate', {
+      renderRevision: 1, fields: { q: 'x' },
+    });
+  });
+  it('does not expose invalid fields to a readonly frontend template consumer', async () => {
+    const { view, instance, request, compiled } = await renderedFixture({
+      format: 'json', version: 1,
+      root: { type: 'stack', children: [
+        { type: 'input', name: 'q', value: 'draft', validator: 'ui:check($this)' },
+        { type: 'text', text: '${ui:consume()}' },
+      ] },
+    });
+    Object.assign(instance, { sourceTabId: 'page', sourceFrameEpoch: 'epoch' });
+    const invokeUI = vi.fn(async () => ({ hasValue: true, value: { success: false, message: '拒绝草稿' } }));
+    view.pool = Object.assign(new EventTarget(), { invokeUI }) as unknown as FramePool;
+    request.mockImplementation(async (path) => {
+      if (path.endsWith('/content')) {return instance;}
+      if (path.endsWith('/data')) {return { updates: [{ id: compiled.expressions[0].id, frontend: true, fields: { q: 'draft' } }] };}
+      return {};
+    });
+    await view.refresh();
+    await vi.waitFor(() => expect(view.shadowRoot?.querySelector('[data-ui-error-for=q]')?.textContent).toContain('拒绝草稿'));
+    expect(invokeUI).toHaveBeenCalled();
+    expect(invokeUI.mock.calls.every((call) => ((call as unknown[])[2] as { name: string }).name === 'check')).toBe(true);
+  });
+  it('evaluates frontend validators as read-only calls and preserves their error messages', async () => {
+    const { view, instance, request } = await renderedFixture({
+      format: 'json',
+      version: 1,
+      root: {
+        type: 'input',
+        name: 'q',
+        value: 'draft',
+        validator: 'ui:check($this)',
+      },
+    });
+    Object.assign(instance, { sourceTabId: 'page', sourceFrameEpoch: 'epoch' });
+    const invokeUI = vi.fn(async () => ({
+      hasValue: true,
+      value: { success: false, message: '页面验证失败' },
+    }));
+    view.pool = Object.assign(new EventTarget(), { invokeUI }) as unknown as FramePool;
+    request.mockImplementation(async (path) => {
+      if (path.endsWith('/events/continue')) {
+        return { status: 'failed', effects: [], error: 'generic failure' };
+      }
+      if (path.endsWith('/events')) {
+        return {
+          status: 'frontend',
+          continuation: 'phase',
+          effects: [],
+          branches: instance.compiled.events[0].program.branches,
+          event: { type: 'change' },
+          fields: { q: 'draft' },
+        };
+      }
+      return { updates: [] };
+    });
+    const input = requireValue(view.shadowRoot?.querySelector('input'));
+    input.dispatchEvent(new Event('change'));
+    await vi.waitFor(() =>
+      expect(view.shadowRoot?.querySelector('[data-ui-error-for=q]')?.textContent).toContain(
+        '页面验证失败',
+      ),
+    );
+    expect(invokeUI).toHaveBeenCalledWith(
+      'page',
+      'epoch',
+      expect.objectContaining({
+        name: 'check',
+        args: ['draft'],
+        context: expect.objectContaining({ invocation: 'render' }),
+      }),
+    );
+    expect(request).toHaveBeenCalledWith(
+      '/ui/instances/direct-instance/events/continue',
+      expect.objectContaining({ succeeded: false }),
+    );
+  });
+  it.each(['mainSidebar', 'auxiliarySidebar', 'tooltip'] as const)(
+    'enforces JSON input/textarea constraints and preserves placeholder, disabled and readonly on %s',
+    async (surface) => {
+      const { view, request } = await renderedFixture(
+        {
+          format: 'json',
+          version: 1,
+          root: {
+            type: 'stack',
+            children: [
+              ...['text', 'number', 'password', 'textarea'].map((kind) => ({
+                type: kind === 'textarea' ? 'textarea' : 'input',
+                ...(kind === 'textarea' ? {} : { inputType: kind }),
+                name: kind,
+                value: '12',
+                minLength: 2,
+                maxLength: 3,
+                min: 10,
+                max: 20,
+                pattern: '[0-9]+',
+                patternMessage: '请输入数字',
+                placeholder: '10–20',
+              })),
+              { type: 'input', name: 'fixed', readonly: true, value: 'fixed', placeholder: '只读' },
+              { type: 'textarea', name: 'fixedMemo', readonly: true, value: 'fixed' },
+              { type: 'input', name: 'blocked', disabled: true },
+              { type: 'textarea', name: 'blockedMemo', disabled: true },
+              {
+                type: 'button',
+                name: 'save',
+                for: ['text', 'number', 'password', 'textarea'],
+                text: 'Save',
+                events: { click: 'save' },
+              },
+            ],
+          },
+        },
+        surface,
+      );
+      const root = requireValue(view.shadowRoot);
+      await vi.waitFor(() => expect(root.querySelectorAll('input,textarea')).toHaveLength(8));
+      for (const name of ['text', 'number', 'password', 'textarea']) {
+        const field = requireValue(
+          root.querySelector<HTMLInputElement | HTMLTextAreaElement>(`[name=${name}]`),
+        );
+        expect(field.placeholder).toBe('10–20');
+        expect(field.minLength).toBe(2);
+        expect(field.maxLength).toBe(3);
+        field.value = '21';
+        field.dispatchEvent(new Event('input'));
+        expect(field.parentElement?.querySelector('.ui-field-error')?.textContent).toContain(
+          '数值',
+        );
+        field.dispatchEvent(new Event('change'));
+        expect(request.mock.calls.filter(([path]) => path.endsWith('/events'))).toHaveLength(0);
+        field.value = '12';
+        field.dispatchEvent(new Event('input'));
+      }
+      expect(root.querySelector<HTMLInputElement>('[name=fixed]')?.readOnly).toBe(true);
+      expect(root.querySelector<HTMLTextAreaElement>('[name=fixedMemo]')?.readOnly).toBe(true);
+      expect(root.querySelector<HTMLInputElement>('[name=blocked]')?.disabled).toBe(true);
+      expect(root.querySelector<HTMLTextAreaElement>('[name=blockedMemo]')?.disabled).toBe(true);
+      const text = requireValue(root.querySelector<HTMLInputElement>('[name=text]'));
+      text.value = 'ab';
+      text.dispatchEvent(new Event('input'));
+      expect(root.querySelector('[data-ui-error-for=text]')?.textContent).toBe('请输入数字');
+      text.value = '12';
+      text.dispatchEvent(new Event('input'));
+      requireValue(root.querySelector<HTMLButtonElement>('[name=save]')).click();
+      await vi.waitFor(() =>
+        expect(request.mock.calls.some(([path]) => path.endsWith('/events'))).toBe(true),
+      );
+      expect(root.querySelector('#error')?.textContent).toBe('');
+    },
+  );
   it('uses the workbench context menu and invokes its backend binding when selected', async () => {
     const { view, request } = await renderedFixture(
       {

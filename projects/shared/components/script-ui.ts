@@ -102,7 +102,9 @@ export class ScriptUIView extends LitElement {
   }
   restoreInteraction() {
     const saved = this.interaction;
-    if (!saved) return;
+    if (!saved) {
+      return;
+    }
     this.components.restoreScroll?.(saved.scroll);
     const node = [...this.uiRoot.querySelectorAll<HTMLInputElement>('[name]')].find(
       (node) => node.name === saved.name,
@@ -136,7 +138,9 @@ export class ScriptUIView extends LitElement {
     if (!this.model) {
       return;
     }
-    if (changed.has('active') && this.active) this.restoreInteraction();
+    if (changed.has('active') && this.active) {
+      this.restoreInteraction();
+    }
     const nextValues = JSON.stringify(this.values);
     if (this.renderedModel === this.model && this.renderer) {
       if (nextValues !== this.previousValues) {
@@ -239,7 +243,9 @@ export class ScriptUIView extends LitElement {
       );
       this.error('');
       this.stopped = false;
-      if (!this.reading) this.recovering = false;
+      if (!this.reading) {
+        this.recovering = false;
+      }
       this.scheduleRead();
     } catch (error) {
       this.error(error);
@@ -267,7 +273,9 @@ export class ScriptUIView extends LitElement {
   }
   /** Read-only recovery is bounded; submitted event programs are never replayed. */
   async readValues(): Promise<void> {
-    if (this.reading) return this.reading;
+    if (this.reading) {
+      return this.reading;
+    }
     const revision = this.revision;
     const dataGeneration = this.dataGeneration;
     const identity = this.identity;
@@ -285,13 +293,21 @@ export class ScriptUIView extends LitElement {
           revision !== this.revision ||
           dataGeneration !== this.dataGeneration ||
           !this.isConnected
-        )
+        ) {
           return;
+        }
         this.updates(result.updates);
         this.error('');
         this.recovering = false;
       } catch (error) {
-        if (revision !== this.revision || dataGeneration !== this.dataGeneration || !this.isConnected) return;
+        let failure = error;
+        if (
+          revision !== this.revision ||
+          dataGeneration !== this.dataGeneration ||
+          !this.isConnected
+        ) {
+          return;
+        }
         const stale =
           error instanceof Error &&
           'code' in error &&
@@ -304,26 +320,29 @@ export class ScriptUIView extends LitElement {
               !this.isConnected ||
               this.identity !== identity ||
               (revision !== this.revision && this.model !== model)
-            )
+            ) {
               return;
+            }
             this.model = model;
             await this.updateComplete;
             this.reading = undefined;
             await this.readValues();
             return;
           } catch (refreshError) {
-            error = refreshError;
+            failure = refreshError;
           }
         }
         this.stopped = true;
-        this.error(error);
+        this.error(failure);
       }
     })();
     this.reading = work;
     try {
       await work;
     } finally {
-      if (this.reading === work) this.reading = undefined;
+      if (this.reading === work) {
+        this.reading = undefined;
+      }
       this.scheduleRead();
     }
   }
@@ -338,7 +357,7 @@ export class ScriptUIView extends LitElement {
   private updates(updates: ScriptUIResult['updates']) {
     for (const update of updates) {
       const binding = this.model.compiled.expressions.find((b) => b.id === update.id);
-      if (binding?.attribute) {
+      if (binding?.attribute && !update.error) {
         validateJSONAttribute(binding.attribute, update.value);
       }
     }
@@ -384,15 +403,19 @@ export class ScriptUIView extends LitElement {
         .then((result) => {
           if (this.instance === instance && this.revision === revision && this.isConnected) {
             this.dataGeneration++;
-            for (const name of Object.keys(result.saved ?? {}))
-              if (this.fields[name]?.editSequence === sequences[name])
+            for (const name of Object.keys(result.saved ?? {})) {
+              if (this.fields[name]?.editSequence === sequences[name]) {
                 this.dirtyValues.delete(name);
+              }
+            }
             this.renderer?.receive({
               data: {
                 method: 'result',
                 renderRevision: revision,
                 payload: {
                   saved: true,
+                  errorEditSequences: sequences,
+                  validatedFields: Object.keys(payload.fields),
                   editSequences: Object.fromEntries(
                     Object.keys(result.saved ?? {}).map((name) => [name, sequences[name]]),
                   ),
@@ -404,13 +427,42 @@ export class ScriptUIView extends LitElement {
                 },
               },
             });
-            this.updates(result.updates);
-            this.error('');
+            this.updates(
+              result.updates.filter(
+                (update) =>
+                  !update.field ||
+                  this.fields[update.field]?.editSequence === sequences[update.field],
+              ),
+            );
+            if (
+              Object.entries(sequences).every(
+                ([name, sequence]) => this.fields[name]?.editSequence === sequence,
+              )
+            ) {
+              this.error('');
+            }
           }
         })
         .catch((error: unknown) => {
-          if (this.instance === instance && this.revision === revision && this.isConnected) {
-            this.error(error);
+          if (
+            this.instance === instance &&
+            this.revision === revision &&
+            this.isConnected &&
+            Object.entries(sequences).every(
+              ([name, sequence]) => this.fields[name]?.editSequence === sequence,
+            )
+          ) {
+            this.renderer?.receive({
+              data: {
+                method: 'result',
+                renderRevision: revision,
+                payload: {
+                  error: error instanceof Error ? error.message : String(error),
+                  field: error instanceof Error && 'field' in error ? error.field : undefined,
+                  editSequences: sequences,
+                },
+              },
+            });
           }
         });
     }

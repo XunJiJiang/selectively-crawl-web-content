@@ -71,13 +71,17 @@ async function onLoad(logger, { workbench }) {
 }
 ```
 
-- `search` 默认传入过滤后的 `$event`；`search()` 为零实参。关联值位于事件的 `value/values` 中，`$for:query` 可显式取得字段值。
+- 只有控件事件顶层步骤中的 `search` 可以省略括号，默认传入过滤后的 `$event`；`search()` 为零实参。模板、嵌套参数和验证器中的调用均必须显式带括号。关联值位于事件的 `value/values` 中，`$for:query` 可显式取得字段值。
 - `a(...)|b($prev)` 串行传递返回值，最外层逗号分隔独立分支。没有返回值时不能引用 `$prev`；`null` 是合法值。
 - HTML 和 JSON 数据字段支持 `${core:get('xxx')}`。模板调用须声明 `readOnly: true`。在 JS 反引号字符串中写声明式插值时使用 `\${...}`，避免被 JS 提前插值。
 - `${watch:query()}` 监听命名字段。`${watch:core:config.read('key')}` 监听权威配置；`${watch:core:get('config.key')}` 可使用统一获取器。
 - 后端处理器提供 `watch(args, emit)` 时，返回注销函数；处理器函数及订阅回调始终留在所属进程。
 
 普通插件前端通过 `scwcutils.ui.handlers.register(name, definition)` 注册页面处理器，以 `ui:name(...)` 或 `watch:ui:name(...)` 引用。前后端处理器不能在同一管道或嵌套参数中传值。
+
+JSON `input`（text、number、password）和 `textarea` 支持 `minLength`、`maxLength`、`min`、`max`、`pattern`、`patternMessage`、`validator`、`placeholder`、`disabled` 和 `readonly`。验证器必须是显式调用的只读控制器，返回 `{ success: boolean, message?: string }`，返回结构错误直接报错；`$this` 读取当前验证控件的值，`$for:query` 读取对应命名控件的值。事件执行前先验证关联字段，失败停止后续动作。完整参数、示例与脚本/扩展的共用行为见 [输入限制与验证器](client-plugin-ui.md#输入限制与验证器仍为-v2)。
+
+控件 `name` 只接受 1–64 位 ASCII 字母、数字、下划线和中划线，禁止点、空格及其他特殊字符，并拒绝原型保留键；处理器名和配置键继续保留点号支持。修改旧控件名时同步更新 `$for`、字段 watch 和绑定字段参数。本次功能保持脚本协议 `v2` 及内容格式 `version: 1`。
 
 插件卡片“配置”入口没有来源插件页面，前端调用统一显示 `<无数据，需要打开插件页面>`；不会借用其他同插件标签。核心“当前页面”由核心 JSON 模板提供，不依赖这些前端处理器。
 

@@ -1,4 +1,5 @@
 import { globalSettings, siteSettings } from './settings-ui.ts';
+import { inputValidationContent, inputValidationHandlers } from './input-validation-ui.ts';
 
 // 外层 v2 是脚本/扩展协议，内层 version: 1 是 JSON 内容格式。
 export const scripts: SCWC.TScriptConfigV2 = {
@@ -125,11 +126,17 @@ export const scripts: SCWC.TScriptConfigV2 = {
             },
           ],
         },
+        {
+          id: 'input-validation',
+          label: '输入限制 / 验证',
+          children: inputValidationContent('scripts'),
+        },
       ],
     },
   },
   // 使用普通方法取得当前 ScriptContext；函数留在插件进程，不发送到浏览器。
   handlers: {
+    ...inputValidationHandlers,
     example: {
       async run() {
         return { type: 'notification', data: { type: 'info', message: '你点击了示例按钮' } };

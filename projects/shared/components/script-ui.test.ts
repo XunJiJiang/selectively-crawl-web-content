@@ -1,10 +1,117 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { ScriptUIView } from './script-ui.ts';
-import type { ScriptUIModel } from '../script-ui.ts';
+import { requireValue } from '../workbench-protocol.ts';
+import type {
+  ScriptUIModel,
+  ScriptContext,
+  ScriptUIEvent,
+  ScriptConfigV2,
+  ScriptUIResult,
+} from '../script-ui.ts';
 
 afterEach(() => {
   document.body.replaceChildren();
   vi.useRealTimers();
+});
+it('runs v2 script/extension validation through the real compiler, renderer and runtime', async () => {
+  const { ScriptUIRuntime } = await vi.importActual<{
+    ScriptUIRuntime: new () => {
+      render(config: ScriptConfigV2, context: ScriptContext): Promise<ScriptUIModel>;
+      event(request: ScriptUIEvent, context: ScriptContext): Promise<ScriptUIResult>;
+    };
+  }>('../../server/user-script/ui.ts');
+  const context: ScriptContext = {
+    version: 'v2',
+    site: {
+      url: 'https://example.com/a',
+      rootUrl: 'https://example.com',
+      origin: 'https://example.com',
+      pathname: '/a',
+      host: 'example.com',
+      hostname: 'example.com',
+    },
+    values: {},
+    data: [],
+    logger: {} as SCWC.TLogger,
+  };
+  const runtime = new ScriptUIRuntime();
+  const check = vi.fn(async () => ({ success: false, message: '验证控制器提示' }));
+  const view = new ScriptUIView();
+  view.model = await runtime.render(
+    {
+      version: 'v2',
+      title: 'Validated',
+      handlers: { check: { readOnly: true, run: check } },
+      content: {
+        format: 'json',
+        version: 1,
+        root: {
+          type: 'stack',
+          children: [
+            {
+              type: 'textarea',
+              name: 'q',
+              value: 'abc',
+              minLength: 2,
+              maxLength: 5,
+              pattern: '[a-z]+',
+              patternMessage: '只允许小写字母',
+              validator: 'check($this)',
+              placeholder: '输入说明',
+            },
+            {
+              type: 'input',
+              inputType: 'password',
+              name: 'password',
+              readonly: true,
+              placeholder: '密码',
+            },
+            { type: 'textarea', name: 'disabled', disabled: true },
+          ],
+        },
+      },
+    },
+    context,
+  );
+  const invoke = vi.fn((request: ScriptUIEvent) => runtime.event(request, context));
+  view.invoke = invoke;
+  document.body.append(view);
+  await view.updateComplete;
+  const root = requireValue(view.shadowRoot),
+    field = requireValue(root.querySelector<HTMLTextAreaElement>('[name=q]'));
+  expect(field.placeholder).toBe('输入说明');
+  expect(field.maxLength).toBe(5);
+  expect(root.querySelector<HTMLInputElement>('[name=password]')?.readOnly).toBe(true);
+  expect(root.querySelector<HTMLTextAreaElement>('[name=disabled]')?.disabled).toBe(true);
+  field.value = 'ABC';
+  field.dispatchEvent(new Event('input'));
+  field.dispatchEvent(new Event('change'));
+  expect(root.querySelector('[data-ui-error-for=q]')?.textContent).toBe('只允许小写字母');
+  expect(invoke).not.toHaveBeenCalled();
+  field.value = 'abc';
+  field.dispatchEvent(new Event('input'));
+  field.dispatchEvent(new Event('change'));
+  await vi.waitFor(() =>
+    expect(root.querySelector('[data-ui-error-for=q]')?.textContent).toBe('验证控制器提示'),
+  );
+  expect(check).toHaveBeenCalledWith('abc');
+  check.mockResolvedValue({ success: true, message: '' });
+  field.dispatchEvent(new Event('change'));
+  await vi.waitFor(() => expect(root.querySelector('[data-ui-error-for=q]')?.textContent).toBe(''));
+  let finish!: (value: { success: boolean; message: string }) => void;
+  check.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  field.dispatchEvent(new Event('change'));
+  await vi.waitFor(() => expect(finish).toBeTypeOf('function'));
+  field.value = 'x';
+  field.dispatchEvent(new Event('input'));
+  finish({ success: true, message: '' });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  expect(root.querySelector('[data-ui-error-for=q]')?.textContent).toContain('至少输入');
 });
 it('restores saved fields, persists edits and sends v2 events using the current field snapshot', async () => {
   const view = new ScriptUIView();
@@ -113,17 +220,17 @@ it('keeps a focused draft and selection during template replacement and ignores 
   );
   document.body.append(view);
   await view.updateComplete;
-  const input = view.shadowRoot!.querySelector('input')!;
+  const input = requireValue(view.shadowRoot?.querySelector('input'));
   input.focus();
   input.value = 'unsaved draft';
   input.setSelectionRange(2, 7);
   input.dispatchEvent(new Event('input', { bubbles: true }));
-  view.shadowRoot!.querySelector('button')!.click();
+  requireValue(view.shadowRoot?.querySelector('button')).click();
   view.model = { ...model('next'), updates: [{ id: 'value', value: 'remote' }] };
   await view.updateComplete;
-  const next = view.shadowRoot!.querySelector('input')!;
+  const next = requireValue(view.shadowRoot?.querySelector('input'));
   expect(next.value).toBe('unsaved draft');
-  expect(view.shadowRoot!.activeElement).toBe(next);
+  expect(view.shadowRoot?.activeElement).toBe(next);
   expect([next.selectionStart, next.selectionEnd]).toEqual([2, 7]);
   finish({ updates: [{ id: 'value', value: 'late' }] });
   await Promise.resolve();
@@ -144,9 +251,9 @@ it('recovers stale reads once, clears recovered errors and never replays a faile
   await view.readValues();
   expect(refresh).toHaveBeenCalledTimes(1);
   expect(invoke).toHaveBeenCalledTimes(2);
-  expect(view.shadowRoot!.querySelector('#error')!.textContent).toBe('');
+  expect(view.shadowRoot?.querySelector('#error')?.textContent).toBe('');
   invoke.mockRejectedValue(stale);
-  view.shadowRoot!.querySelector('button')!.click();
+  requireValue(view.shadowRoot?.querySelector('button')).click();
   await Promise.resolve();
   await Promise.resolve();
   expect(refresh).toHaveBeenCalledTimes(1);

@@ -13,7 +13,7 @@ export function globalSettings(): UINode[] {
       children: [
         {
           type: 'setting',
-          name: 'plugin.note',
+          name: 'plugin-note',
           label: '验证说明',
           description: '保存时去除首尾空格；包含 reject 会被后端拒绝。',
           config: 'validation.note',
@@ -23,7 +23,7 @@ export function globalSettings(): UINode[] {
         },
         {
           type: 'setting',
-          name: 'plugin.memo',
+          name: 'plugin-memo',
           label: '备注',
           description: '多行文本，上限 500 字。',
           config: 'validation.memo',
@@ -32,7 +32,7 @@ export function globalSettings(): UINode[] {
         },
         {
           type: 'setting',
-          name: 'plugin.limit',
+          name: 'plugin-limit',
           label: '数量上限',
           description: '只能保存 1–10 之间的整数。',
           config: 'validation.limit',
@@ -50,14 +50,14 @@ export function globalSettings(): UINode[] {
       children: [
         {
           type: 'setting',
-          name: 'plugin.enabled',
+          name: 'plugin-enabled',
           label: '启用验证',
           config: 'validation.enabled',
           valueType: 'boolean',
         },
         {
           type: 'setting',
-          name: 'plugin.confirm',
+          name: 'plugin-confirm',
           label: '勾选验证项',
           description: '示例：checkbox 搭配标题和下方说明。',
           config: 'validation.confirm',
@@ -66,7 +66,7 @@ export function globalSettings(): UINode[] {
         },
         {
           type: 'setting',
-          name: 'plugin.mode',
+          name: 'plugin-mode',
           label: '布局密度',
           config: 'validation.mode',
           options: [
@@ -76,7 +76,7 @@ export function globalSettings(): UINode[] {
         },
         {
           type: 'setting',
-          name: 'plugin.color',
+          name: 'plugin-color',
           label: '主题色',
           config: 'validation.color',
           control: 'color',
@@ -85,7 +85,7 @@ export function globalSettings(): UINode[] {
     },
     {
       type: 'setting',
-      name: 'plugin.contract',
+      name: 'plugin-contract',
       label: '页面接口版本',
       description: '未放入 group 的独立设置行；只读值由后端定义提供。',
       config: 'validation.contract',
@@ -111,12 +111,12 @@ export function controllerSettings(): UINode[] {
           children: [
             {
               type: 'input',
-              name: 'controller.note',
+              name: 'controller-note',
               maxLength: 120,
-              value: "${watch:core:config.bound.read('validation.note','controller.note','')}",
+              value: "${watch:core:config.bound.read('validation.note','controller-note','')}",
               events: {
                 change:
-                  "core:string.trim($for:controller.note)|demo.normalize($prev)|core:validate($prev,{codec:'string',maxLength:120})|core:config.bound.write('validation.note','controller.note',$prev)|demo.record($prev)",
+                  "core:string.trim($for:controller-note)|demo.normalize($prev)|core:validate($prev,{codec:'string',maxLength:120})|core:config.bound.write('validation.note','controller-note',$prev)|demo.record($prev)",
               },
             },
           ],
@@ -128,14 +128,14 @@ export function controllerSettings(): UINode[] {
           children: [
             {
               type: 'input',
-              name: 'controller.limit',
+              name: 'controller-limit',
               inputType: 'number',
               min: 1,
               max: 10,
-              value: "${watch:core:config.bound.read('validation.limit','controller.limit','3')}",
+              value: "${watch:core:config.bound.read('validation.limit','controller-limit','3')}",
               events: {
                 change:
-                  "core:validate($for:controller.limit,{codec:'integer',min:1,max:10})|core:string.toString($prev)|core:config.bound.write('validation.limit','controller.limit',$prev)|demo.record($prev)",
+                  "core:validate($for:controller-limit,{codec:'integer',min:1,max:10})|core:string.toString($prev)|core:config.bound.write('validation.limit','controller-limit',$prev)|demo.record($prev)",
               },
             },
           ],
@@ -147,12 +147,12 @@ export function controllerSettings(): UINode[] {
           children: [
             {
               type: 'checkbox',
-              name: 'controller.confirm',
+              name: 'controller-confirm',
               checked:
-                "${core:boolean.parse(watch:core:config.bound.read('validation.confirm','controller.confirm','false'))}",
+                "${core:boolean.parse(watch:core:config.bound.read('validation.confirm','controller-confirm','false'))}",
               events: {
                 change:
-                  "core:validate($for:controller.confirm,{codec:'boolean'})|core:string.toString($prev)|core:config.bound.write('validation.confirm','controller.confirm',$prev)|demo.record($prev)",
+                  "core:validate($for:controller-confirm,{codec:'boolean'})|core:string.toString($prev)|core:config.bound.write('validation.confirm','controller-confirm',$prev)|demo.record($prev)",
               },
             },
           ],
@@ -175,7 +175,7 @@ export function siteSettings(): UINode[] {
       children: [
         {
           type: 'setting',
-          name: 'site.enabled',
+          name: 'site-enabled',
           label: '本站启用',
           config: 'enabled',
           configScope: 'site',
@@ -184,7 +184,7 @@ export function siteSettings(): UINode[] {
         },
         {
           type: 'setting',
-          name: 'site.prefix',
+          name: 'site-prefix',
           label: '本站前缀',
           description: '最多 24 字，与其他网站的前缀相互独立。',
           config: 'prefix',
@@ -194,7 +194,7 @@ export function siteSettings(): UINode[] {
         },
         {
           type: 'setting',
-          name: 'site.scale',
+          name: 'site-scale',
           label: '本站倍率',
           description: 'number 示例：允许 0.25–4 之间的小数。',
           config: 'scale',
@@ -206,7 +206,7 @@ export function siteSettings(): UINode[] {
         },
         {
           type: 'setting',
-          name: 'site.limit',
+          name: 'site-limit',
           label: '本站数量',
           config: 'limit',
           configScope: 'site',
@@ -217,7 +217,7 @@ export function siteSettings(): UINode[] {
         },
         {
           type: 'setting',
-          name: 'site.format',
+          name: 'site-format',
           label: '本站格式',
           config: 'format',
           configScope: 'site',

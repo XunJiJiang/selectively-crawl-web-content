@@ -10,6 +10,7 @@ export type UISurface =
   | 'currentPage';
 export const UI_UNAVAILABLE = '<无数据，需要打开插件页面>';
 export const UI_NAME = /^[A-Za-z0-9_.-]{1,64}$/;
+export const UI_CONTROL_NAME = /^[A-Za-z0-9_-]{1,64}(?![\s\S])/;
 export const UI_LIMITS = {
   bytes: 262144,
   valueBytes: 65536,
@@ -22,9 +23,11 @@ export const UI_LIMITS = {
 };
 export class UIError extends Error {
   readonly code: string;
-  constructor(code: string, message: string) {
+  readonly field?: string;
+  constructor(code: string, message: string, field?: string) {
     super(message);
     this.code = code;
+    this.field = field;
   }
 }
 export function uiAssert(condition: unknown, code: string, message: string): asserts condition {
@@ -38,6 +41,14 @@ export function uiName(value: unknown): asserts value is string {
     'UI_INVALID_HANDLER_NAME',
     '名称必须为 1–64 位字母、数字、点、下划线或横线',
   );
+}
+export function uiControlName(value: unknown): asserts value is string {
+  uiAssert(
+    typeof value === 'string' && UI_CONTROL_NAME.test(value),
+    'UI_INVALID_CONTROL_NAME',
+    '控件 name 必须为 1–64 位字母、数字、下划线或中划线',
+  );
+  safeKey(value);
 }
 export function safeKey(key: string) {
   uiAssert(
@@ -149,6 +160,7 @@ export interface UINode {
 export type UISettingValueType = 'string' | 'boolean' | 'number' | 'integer';
 export type UISettingControl =
   | 'text'
+  | 'password'
   | 'textarea'
   | 'number'
   | 'switch'
@@ -156,8 +168,32 @@ export type UISettingControl =
   | 'select'
   | 'color'
   | 'readonly';
+export interface UIInputConstraints {
+  minLength?: number;
+  maxLength?: number;
+  min?: number;
+  max?: number;
+  /** JavaScript RegExp source, matched against the complete value. */
+  pattern?: string;
+  patternMessage?: string;
+  /** Explicit read-only controller call, e.g. validate($this, $for:other). */
+  validator?: string;
+  placeholder?: string;
+  disabled?: boolean | string;
+  readonly?: boolean | string;
+}
+export interface UIInputNode extends UINode, UIInputConstraints {
+  type: 'input' | 'textarea';
+  inputType?: 'text' | 'number' | 'password' | 'color' | 'email' | 'url' | 'search';
+  value?: string;
+  step?: number | 'any';
+}
+export type UIValidationResult = {
+  success: boolean;
+  message?: string;
+};
 /** Omit children/events when binding directly to the current plugin's configuration. */
-export interface UISettingNode extends UINode {
+export interface UISettingNode extends UINode, UIInputConstraints {
   type: 'setting';
   label: string;
   description?: string;
@@ -168,10 +204,6 @@ export interface UISettingNode extends UINode {
   control?: UISettingControl;
   defaultValue?: string;
   options?: (string | { value: string; label: string })[];
-  min?: number;
-  max?: number;
-  maxLength?: number;
-  disabled?: boolean | string;
 }
 export interface UISettingGroupNode extends UINode {
   type: 'group';
@@ -279,6 +311,7 @@ export type ArgumentNode =
   | { type: 'literal'; value: UIValue }
   | { type: 'event' }
   | { type: 'prev' }
+  | { type: 'this' }
   | { type: 'field'; name: string }
   | { type: 'array'; items: ArgumentNode[] }
   | { type: 'object'; entries: [string, ArgumentNode][] }
@@ -289,6 +322,11 @@ export interface CallNode {
   args: ArgumentNode[];
   watch: boolean;
   domain: 'backend' | 'frontend';
+  /** Compiler-owned validation context; never inferred from an event's associated value. */
+  validationField?: string;
+  validationStep?: boolean;
+  validationTarget?: string;
+  readOnly?: boolean;
 }
 export interface UIProgram {
   branches: CallNode[][];
@@ -307,6 +345,7 @@ export interface UIField {
   nodeId: string;
   kind: 'string' | 'boolean' | 'multiple';
   form?: string;
+  validation?: { rules: Record<string, UIValue>; validator?: CallNode };
 }
 export interface UIEventBinding {
   id: string;

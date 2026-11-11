@@ -43,7 +43,7 @@ export interface ScriptUIModel {
   /** Automatic bindings are authoritative in core storage, never copied into local drafts. */
   boundFields?: string[];
   compiled: CompiledUI;
-  updates: { id: string; value: UIValue }[];
+  updates: { id: string; value?: UIValue; error?: string; field?: string }[];
 }
 export interface ScriptUIEvent {
   version: 'v2';
@@ -88,7 +88,9 @@ export class ScriptUIRefreshQueue<T> {
         } while (task.queued);
         return result;
       } finally {
-        if (this.tasks.get(key) === task) this.tasks.delete(key);
+        if (this.tasks.get(key) === task) {
+          this.tasks.delete(key);
+        }
       }
     });
     this.tasks.set(key, task);
@@ -120,7 +122,9 @@ export function readScriptValues(
 ): Record<string, FieldValue> {
   const values: Record<string, FieldValue> = {};
   for (const field of model.compiled.fields) {
-    if (model.boundFields?.includes(field.name)) continue;
+    if (model.boundFields?.includes(field.name)) {
+      continue;
+    }
     const saved = controls.find(
       (item) => item.pluginId === pluginId && item.channel === `v2:${field.name}`,
     );

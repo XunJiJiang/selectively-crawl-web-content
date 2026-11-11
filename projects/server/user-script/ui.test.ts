@@ -1,6 +1,7 @@
 import { expect, it, vi } from 'vitest';
 import { ScriptUIRuntime } from './ui.ts';
 import type { ScriptConfigV2, ScriptContext, ScriptUIEvent } from '../../shared/script-ui.ts';
+import { requireValue } from '../../shared/workbench-protocol.ts';
 
 const context: ScriptContext = {
   version: 'v2',
@@ -117,4 +118,102 @@ it('rejects frontend handlers, side effects in templates and recursively expandi
       context,
     ),
   ).rejects.toThrow('展开超过限制');
+});
+
+it('validates script/extension inputs before actions and reports malformed async controllers', async () => {
+  const save = vi.fn(() => 'saved');
+  const validate = vi.fn(async (value, other) => ({
+    success: value === other,
+    message: '输入不一致',
+  }));
+  const config: ScriptConfigV2 = {
+    version: 'v2',
+    title: 'Validation',
+    handlers: { save: { run: save }, check: { readOnly: true, run: validate } },
+    content: {
+      format: 'json',
+      version: 1,
+      root: {
+        type: 'stack',
+        children: [
+          { type: 'input', inputType: 'password', name: 'password', value: 'abc' },
+          {
+            type: 'textarea',
+            name: 'confirm',
+            minLength: 2,
+            maxLength: 8,
+            pattern: '[a-z]+',
+            patternMessage: '只允许小写字母',
+            validator: 'check($this,$for:password)',
+          },
+          { type: 'button', for: 'confirm', events: { click: 'save' } },
+        ],
+      },
+    },
+  };
+  const runtime = new ScriptUIRuntime(),
+    model = await runtime.render(config, context);
+  const send = (value: string, event = 'click') =>
+    runtime.event(
+      {
+        version: 'v2',
+        instanceId: model.instanceId,
+        eventId: crypto.randomUUID(),
+        bindingId: requireValue(model.compiled.events.find((binding) => binding.event === event))
+          .id,
+        fields: {
+          confirm: { value, editSequence: 1 },
+          password: { value: 'abc', editSequence: 0 },
+        },
+      },
+      context,
+    );
+  await expect(send('A!')).rejects.toThrow('只允许小写字母');
+  expect(validate).not.toHaveBeenCalled();
+  await expect(send('ab')).rejects.toThrow('输入不一致');
+  expect(validate).toHaveBeenLastCalledWith('ab', 'abc');
+  expect(save).not.toHaveBeenCalled();
+  await expect(send('abc', 'blur')).resolves.toMatchObject({ saved: {} });
+  expect(save).not.toHaveBeenCalled();
+  await expect(send('abc')).resolves.toMatchObject({ result: 'saved' });
+  expect(save).toHaveBeenCalledTimes(1);
+  validate.mockResolvedValueOnce(true as never);
+  await expect(send('abc')).rejects.toMatchObject({ code: 'UI_INVALID_VALIDATOR_RESULT' });
+  expect(save).toHaveBeenCalledTimes(1);
+});
+
+it('does not publish invalid referenced or returned field values in template updates', async () => {
+  const runtime = new ScriptUIRuntime();
+  const consume = vi.fn(() => 'must not run');
+  const model = await runtime.render(
+    {
+      version: 'v2',
+      title: 'Read barrier',
+      handlers: {
+        check: { readOnly: true, run: () => ({ success: false, message: '控件校验失败' }) },
+        consume: { readOnly: true, run: consume },
+      },
+      content: {
+        format: 'json',
+        version: 1,
+        root: {
+          type: 'stack',
+          children: [
+            { type: 'input', name: 'q', value: 'invalid', validator: 'check($this)' },
+            { type: 'text', text: '${consume($for:q)}' },
+            { type: 'text', text: '${core:value.read("q")}' },
+            { type: 'input', name: 'target', minLength: 4, value: '${"x"}' },
+          ],
+        },
+      },
+    },
+    context,
+  );
+  expect(consume).not.toHaveBeenCalled();
+  expect(model.updates).toEqual([
+    expect.objectContaining({ field: 'q', error: '控件校验失败' }),
+    expect.objectContaining({ field: 'q', error: '控件校验失败' }),
+    expect.objectContaining({ field: 'target', error: expect.stringContaining('至少输入') }),
+  ]);
+  expect(model.updates.every((update) => !Object.hasOwn(update, 'value'))).toBe(true);
 });
