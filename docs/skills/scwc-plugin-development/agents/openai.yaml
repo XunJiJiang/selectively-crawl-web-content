@@ -1,4 +1,4 @@
 interface:
-  display_name: 'SCWC 插件开发'
-  short_description: '规范开发 SCWC 插件后端、控制器与独立 Web 页面'
-  default_prompt: '使用 $scwc-plugin-development 开发或修改一个符合当前仓库运行契约的 SCWC 插件。'
+  display_name: 'SCWC 核心插件开发'
+  short_description: '开发 SCWC 核心插件、v2 JSON 配置、工作台 UI 与独立页面'
+  default_prompt: '使用 $scwc-plugin-development，依据当前源码开发或维护 SCWC 核心插件及其脚本/扩展配置、工作台 UI 或 Web 页面。'

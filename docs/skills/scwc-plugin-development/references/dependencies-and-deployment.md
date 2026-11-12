@@ -1,13 +1,13 @@
 # 插件共享模块、前端构建与部署
 
-本参考用于需要确认共享 API、类型、Worker、Vite 页面构建或独立部署时。根目录依赖不是插件 API 清单；以 SDK 运行时、类型声明及发行资产清单为准。
+源码基准与版本见 [SKILL.md](../SKILL.md)。本参考用于共享 API、类型、Worker、Vite 页面构建或独立部署。根目录依赖不是插件 API 清单；以 SDK 运行时、类型声明及发行资产清单为准，不按旧 README 推断。
 
 主要源码入口：
 
 - Node SDK：`projects/server/plugin/sdk/dependencies.ts`、`runtime.ts`、`register.ts`、`modules.d.ts`
 - 后端插件类型：`projects/server/plugins/plugin-env.d.ts`、`projects/server/types/plugin-process.d.ts`
 - shared 包：`projects/shared/backend.ts`、`frontend.ts`、`package.json`
-- 浏览器 SDK：`projects/webutils/lib/index.ts`、`workbench.ts`、`lib.d.ts`
+- 浏览器 SDK：`projects/webutils/lib/index.ts`、`lib/workbench.ts`、`projects/webutils/lib.d.ts`
 - Vite 集成：`projects/vite-plugin/index.js`、`dependencies.js`、`index.d.ts`
 - 页面构建和发行依赖：`projects/server/plugin/web/`、`projects/server/scripts/shared-package-assets.ts`
 
@@ -83,19 +83,23 @@ export default defineConfig({
 
 每个插件页面自带 `web/tsconfig.json`；不要依赖仓库根或当前工作目录偶然找到的配置。模板将插件全局声明、SDK 虚拟模块声明和 `webutils/lib.d.ts` 纳入页面检查。后端与 Vite 配置遵循 Node 原生可擦除 TS 限制；浏览器页面源码由 Vite 转换。
 
-推荐的 Vite 配置保留插件自己的 `root`、`outDir` 等设置，并将 `base` 指向实际插件目录名：`/web/page/plugin/<目录名>/`。这决定打包后的 JS/CSS/静态资源 URL，不能用 `package.json.name` 代替目录名。Lit 实验装饰器模式显式打开 `experimentalDecorators` 并采用 accessor 响应属性；标准模式按自己的 tsconfig 语义转换。只把 `build.target` 设高不能替代装饰器转换验证。
+推荐的 Vite 配置保留插件自己的 `root`、`outDir` 等设置，并将 `base` 指向实际插件目录名：`/web/page/plugin/${encodeURIComponent(path.basename(directory))}/`。这决定打包后的 JS/CSS/静态资源 URL，不能用 `package.json.name` 代替目录名。Lit 的装饰器与字段写法应匹配当前页面 tsconfig 和转换器，不能假定必须使用某一种模式；只把 `build.target` 设高不能替代转换验证。
 
 两种交付方式：
 
 1. `ui.entry` 指向完整 HTML，并随插件交付全部引用的 JS、CSS、WASM、字体和图片。
 2. 交付页面源码和 Vite 配置，并声明 `"build:web": "vite build --config vite.config.ts"`。核心只在 HTML 缺失时自动构建；已有产物需要 `plugin build-web <插件目录名>` 或对应构建 CLI 主动重建。
 
-核心把 build:web 作为受限 Vite 构建声明解析，不执行任意 shell 命令链。构建在临时目录进行，普通失败保留旧页面；构建不重载插件后端，成功后刷新页面。详细支持参数以 `projects/server/plugin/web/README.md` 和当前构建器源码为准。
+仓库内构建命令先执行版本同步；当前 template 的声明为 `node ../../../scripts/sync-versions.ts && vite build --config vite.config.ts`。核心解析器只识别并剥离这个精确前缀，不执行它，因此复制到外部目录、没有仓库脚本的插件仍可由核心构建。外部独立插件可直接声明 `vite build ...`；不要在外部目录直接执行遗留的仓库同步前缀。
+
+核心把 build:web 作为受限 Vite 声明解析，不执行 shell。支持配置、root、mode、outDir、target、sourcemap 和 emptyOutDir 等白名单选项，其余写入 Vite 配置，不添加任意安装/复制命令链。精确语法看 `projects/server/plugin/web/options.ts`。构建在临时目录进行，普通失败保留旧页面；构建不重载后端，成功后刷新页面。
+
+根 `projects/scripts/sync-versions.ts` 同步工作区版本；普通核心/终端业务插件独立维护版本，仅 `server/plugins/template`、`terminal/plugins/template` 和 `terminal/plugins/scwc` 是跟随根版本的例外。不要因升级核心批量改业务插件版本，也不要将 skill 版本当作这些插件的发行版本。
 
 ## 独立部署与验证
 
 插件路径应通过 `import.meta.url`、`fileURLToPath()` 和 `pathToFileURL()` 等稳定方式解析。不要假定 cwd、仓库根或 `projects/server/plugins` 是运行根。业务持久数据不要写入 SEA 临时 SDK 目录。
 
-页面构建可通过核心命令、`bun run build:plugin-web --directory <插件目录>` 或发行程序的 `--build-plugin-web <插件目录>` 执行。SEA 与外置 Node 发行的工具链收集情况查看 `projects/server/scripts/shared-package-assets.ts` 与部署文档；不要依据本机 `node_modules` 推断压缩包一定包含某项依赖。
+页面构建可通过核心命令、仓库根 `bun run build:plugin-web --directory <插件目录>` 或发行程序的 `--build-plugin-web <插件目录>` 执行。SEA 与外置 Node 发行的工具链收集情况查看 `projects/server/scripts/shared-package-assets.ts` 和 `build-runtime.ts`；不要依据本机 `node_modules` 推断压缩包一定包含某项依赖。运行时兼容看实际启动探针 `external-node-runtime.ts`，不要只根据根 engines 或旧 README 判断。
 
 验证应覆盖本次影响的真实边界：插件 Node 原生动态加载和 hooks、实际 Worker、外部插件目录、页面 Vite 构建与资源路径、API/Range/WebSocket、配置 revision 或页面授权。Vitest alias 和 TypeScript 检查不能代替原生 Node 加载或真实浏览器运行。测试数据放在插件专属临时目录，避免依赖 Redis 或真实用户数据。
