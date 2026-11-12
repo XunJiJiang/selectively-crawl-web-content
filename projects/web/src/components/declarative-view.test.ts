@@ -9,6 +9,7 @@ import type { WbMenuSelect } from './context-menu/wb-menu-select.ts';
 import { WorkbenchScrollContainer } from './scroll-container.ts';
 import { ApiError } from '../api/workbench.ts';
 import type { FramePool } from '../workbench/frames.ts';
+import type { SCWCTooltip } from '../../../shared/components/tooltip.ts';
 
 beforeEach(() => {
   vi.spyOn(WorkbenchScrollContainer.prototype, 'scrollTo').mockImplementation(function (
@@ -128,7 +129,16 @@ describe('DeclarativeView rendering', () => {
     expect(second.nextElementSibling?.textContent).toContain('至少输入');
     expect(root.querySelector('#error')?.textContent).toBe('');
     expect(first.getAttribute('aria-describedby')?.split(' ')).toHaveLength(2);
+    const warning = requireValue(second.nextElementSibling);
+    expect(warning.querySelector('svg[aria-hidden=true]')).not.toBeNull();
+    warning.dispatchEvent(new MouseEvent('mouseenter'));
+    const tooltip = requireValue(warning.nextElementSibling) as SCWCTooltip;
+    await tooltip.updateComplete;
+    expect(tooltip.localName).toBe('scwc-tooltip');
+    expect(tooltip.text).toBe(warning.textContent);
+    expect(tooltip.hidden).toBe(false);
     await view.refresh();
+    expect(tooltip.isConnected).toBe(false);
     expect(root.querySelector('[data-ui-error-for=second]')?.textContent).toContain('至少输入');
   });
   it('checks frontend template results before assigning them to constrained controls', async () => {
@@ -200,14 +210,17 @@ describe('DeclarativeView rendering', () => {
           continuation: 'phase',
           effects: [],
           branches: instance.compiled.events[0].program.branches,
-          event: { type: 'change' },
+          event: { type: 'blur' },
           fields: { q: 'draft' },
         };
       }
       return { updates: [] };
     });
     const input = requireValue(view.shadowRoot?.querySelector('input'));
+    input.dispatchEvent(new Event('input'));
     input.dispatchEvent(new Event('change'));
+    expect(invokeUI).not.toHaveBeenCalled();
+    input.dispatchEvent(new Event('blur'));
     await vi.waitFor(() =>
       expect(view.shadowRoot?.querySelector('[data-ui-error-for=q]')?.textContent).toContain(
         '页面验证失败',

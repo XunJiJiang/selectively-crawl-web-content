@@ -63,6 +63,7 @@
   resize: vertical;
 }
 .ui-root .ui-field {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -74,11 +75,49 @@
 .ui-root .ui-setting-control > .ui-field:has(> input[type='color']),
 .ui-root .ui-field:has(> input[type='color']) { width: 48px; }
 .ui-root .ui-field-error {
+  position: absolute;
+  inset: 50% calc(100% + 2px) auto auto;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0;
+  width: 14px;
+  height: 18px;
+  min-width: 0;
+  max-width: 100%;
   color: var(--status-error, #ef4444);
   font-size: var(--text-xs, 0.928571rem);
-  line-height: 1.4;
-  margin-top: 4px;
-  overflow-wrap: anywhere;
+  line-height: 18px;
+  cursor: help;
+}
+.ui-root .ui-field-error[data-ui-error-placement='below'] {
+  inset: calc(100% + 4px) 0 auto;
+  transform: none;
+  width: auto;
+  gap: 4px;
+}
+/* Standalone controls have no label column in which to place the warning icon. */
+.ui-root :not(.ui-setting-control) > .ui-field {
+  margin-inline-start: 16px;
+  max-width: calc(100% - 16px);
+}
+.ui-root .ui-field-error-icon {
+  flex: 0 0 14px;
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+}
+.ui-root .ui-field-error-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-root .ui-field-error:not([data-ui-error-placement='below']) .ui-field-error-text {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  clip-path: inset(50%);
 }
 .ui-root :is(input, textarea, select)[aria-invalid='true'] {
   border-color: var(--status-error, #ef4444);

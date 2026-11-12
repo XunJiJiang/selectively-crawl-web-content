@@ -55,7 +55,7 @@ export function createUIRenderer(root, emit, components) {
   const showFieldError = (name, message) => {
     const entry = fieldErrors.get(name);
     if (!entry) return false;
-    entry.message.textContent = message ?? '';
+    entry.text.textContent = message ?? '';
     entry.message.hidden = !message;
     entry.node.setAttribute('aria-invalid', String(Boolean(message)));
     entry.node.setCustomValidity?.(message ?? '');
@@ -198,12 +198,23 @@ export function createUIRenderer(root, emit, components) {
       message.dataset.uiErrorFor = field.name;
       message.id = `ui-error-${field.nodeId}`;
       message.setAttribute('role', 'alert');
+      message.tabIndex = 0;
       message.hidden = true;
+      const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      icon.setAttribute('class', 'ui-field-error-icon');
+      icon.setAttribute('viewBox', '0 0 16 16');
+      icon.setAttribute('aria-hidden', 'true');
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', 'M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1Zm0 1a6 6 0 1 1 0 12A6 6 0 0 1 8 2ZM7.5 4h1v5h-1Zm0 6h1v2h-1Z');
+      icon.append(path);
+      const text = document.createElement('span');
+      text.className = 'ui-field-error-text';
+      message.append(icon, text);
       const describedBy = node.getAttribute('aria-describedby');
       node.setAttribute('aria-describedby', [describedBy, message.id].filter(Boolean).join(' '));
       node.before(wrapper);
       wrapper.append(node, message);
-      fieldErrors.set(field.name, { node, message });
+      fieldErrors.set(field.name, { node, message, text });
     }
     components?.mount(content);
     content.parentElement.dataset.surface = data.surface;
@@ -249,8 +260,7 @@ export function createUIRenderer(root, emit, components) {
       node.addEventListener(binding.event, (event) => {
         event.preventDefault();
         if (event.isComposing || node.disabled || node.readOnly) return;
-        const invalid = model.fields.filter((field) => binding.capture.includes(field.name))
-          .map(validateField).find(Boolean);
+        const invalid = binding.capture.some((name) => validateField(fields.get(name)));
         if (invalid) {
           measure();
           return;

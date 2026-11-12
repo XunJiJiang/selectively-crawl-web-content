@@ -7,11 +7,16 @@ import assert from 'node:assert/strict';
 import { defaultSiteData } from '../../shared/userscript-config.ts';
 import { ScriptUIRuntime } from '../../server/user-script/ui.ts';
 import type { ScriptConfigV2, ScriptContext } from '../../shared/script-ui.ts';
+import {
+  inputValidationContent,
+  inputValidationHandlers,
+} from '../../server/plugins/template/input-validation-ui.ts';
 
 const root = path.resolve(import.meta.dirname, '../../..');
 const rootVersion = JSON.parse(await fs.readFile(path.join(root, 'package.json'), 'utf8')).version;
 const scriptUI = new ScriptUIRuntime();
 const configRequests = new Map<string, number>();
+let passwordChecks = 0;
 const jsonConfig: ScriptConfigV2 = {
   version: 'v2',
   title: 'JSON 插件',
@@ -23,6 +28,13 @@ const jsonConfig: ScriptConfigV2 = {
       tabs: [
         { id: 'edit', label: '编辑', children: [{ type: 'custom', component: 'editor' }] },
         { id: 'about', label: '说明', children: [{ type: 'text', text: '后端生成的 JSON 配置' }] },
+        {
+          id: 'validation',
+          label: '输入验证',
+          children: inputValidationContent('scripts').filter(
+            (node) => node.key === 'input-validation-limits',
+          ),
+        },
         {
           id: 'layout',
           label: '设置布局',
@@ -112,6 +124,14 @@ const jsonConfig: ScriptConfigV2 = {
     }),
   },
   handlers: {
+    ...inputValidationHandlers,
+    'validation.same': {
+      readOnly: true,
+      run(value, password) {
+        passwordChecks++;
+        return inputValidationHandlers['validation.same'].run(value, password);
+      },
+    },
     submit: {
       run(value) {
         return {
@@ -215,15 +235,22 @@ const fixture = createServer(async (request, response) => {
     } else if (url.pathname.endsWith('/event')) {
       assert.equal(input.version, 'v2');
       const { id: _, data, ...event } = input;
-      response.end(
-        JSON.stringify({
-          code: 200,
-          data: await scriptUI.event(
-            event,
-            scriptContext(url.searchParams.get('site') ?? '', data),
-          ),
-        }),
-      );
+      try {
+        const result = await scriptUI.event(
+          event,
+          scriptContext(url.searchParams.get('site') ?? '', data),
+        );
+        response.end(JSON.stringify({ code: 200, data: result }));
+      } catch (error) {
+        response.statusCode = 400;
+        response.end(
+          JSON.stringify({
+            code: 400,
+            message: error instanceof Error ? error.message : String(error),
+            field: error instanceof Error && 'field' in error ? error.field : undefined,
+          }),
+        );
+      }
     } else {
       response.end(
         JSON.stringify({ success: true, message: '采集成功', data: ['浏览器集成验证成功'] }),
@@ -299,7 +326,7 @@ async function cdp(
     clearTimeout(timer);
   }
 }
-try {
+async function runSmoke() {
   let active = '';
   for (let i = 0; i < 100; i++) {
     try {
@@ -531,6 +558,69 @@ try {
   await delay(400);
   assert.equal(configRequests.get('json'), jsonRequests);
   assert.equal(await evaluate("document.querySelector('scwc-extension').activePlugin"), 'json');
+  const validationRoot =
+    "document.querySelector('scwc-extension').shadowRoot.querySelector('scwc-script-ui').shadowRoot";
+  await evaluate(`${validationRoot}.querySelector('[data-ui-tab-trigger="validation"]').click()`);
+  const checksBeforeTyping = passwordChecks;
+  const mismatch = String(
+    await evaluate(`(() => {
+    const root = ${validationRoot};
+    const password = root.querySelector('[name=validation_password]').value;
+    const confirm = root.querySelector('[name=validation_confirm]');
+    confirm.scrollIntoView({ block: 'center' }); confirm.focus(); confirm.select();
+    return password.slice(0, -1) + (password.endsWith('x') ? 'y' : 'x');
+  })()`),
+  );
+  await cdp('Input.insertText', { text: mismatch }, session);
+  await evaluate(
+    `${validationRoot}.querySelector('[name=validation_confirm]').dispatchEvent(new Event('change'))`,
+  );
+  await delay(100);
+  assert.equal(
+    passwordChecks,
+    checksBeforeTyping,
+    'typing/change must not call the password controller',
+  );
+  const blurTarget = (await evaluate(`(() => {
+    const button = document.querySelector('scwc-extension').shadowRoot.querySelector('nav button:nth-child(2)');
+    const rect = button.getBoundingClientRect(); return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+  })()`)) as { x: number; y: number };
+  await cdp(
+    'Input.dispatchMouseEvent',
+    { type: 'mousePressed', ...blurTarget, button: 'left', clickCount: 1 },
+    session,
+  );
+  await cdp(
+    'Input.dispatchMouseEvent',
+    { type: 'mouseReleased', ...blurTarget, button: 'left', clickCount: 1 },
+    session,
+  );
+  for (let attempt = 0; attempt < 50; attempt++) {
+    if (
+      await evaluate(
+        `${validationRoot}.querySelector('[data-ui-error-for=validation_confirm]').textContent === '两次示例密码不一致'`,
+      )
+    )
+      break;
+    await delay(100);
+  }
+  assert.equal(
+    passwordChecks,
+    checksBeforeTyping + 1,
+    'one blur must perform one password comparison',
+  );
+  assert.equal(
+    await evaluate(
+      `${validationRoot}.querySelector('[data-ui-error-for=validation_confirm]').textContent`,
+    ),
+    '两次示例密码不一致',
+  );
+  if (process.argv.includes('--password-validation')) {
+    console.log(
+      'PASS: native Chromium typing/change skips controller validation; click blur compares once and shows the password mismatch',
+    );
+    return;
+  }
   await evaluate(`(async () => {
     const app=document.querySelector('scwc-extension'); const view=app.shadowRoot.querySelector('scwc-script-ui');
     view.shadowRoot.querySelector('[data-ui-tab-trigger="layout"]').click();
@@ -896,6 +986,9 @@ try {
   console.log(
     'PASS: Chromium popup, selection/reopen, persistence, root version header, v1/v2 JSON, targeted tab refresh/loading, crawl, menus, themes, bounded real notification stacks, retained scroll on collapse, new-message follow, native unread badge, visible-history reads and filters',
   );
+}
+try {
+  await runSmoke();
 } finally {
   try {
     await cdp('Browser.close');

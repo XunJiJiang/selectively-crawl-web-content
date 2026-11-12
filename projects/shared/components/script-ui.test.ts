@@ -1,6 +1,7 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { ScriptUIView } from './script-ui.ts';
 import { requireValue } from '../workbench-protocol.ts';
+import type { HandlerDefinition, UINode } from '../declarative-ui.ts';
 import type {
   ScriptUIModel,
   ScriptContext,
@@ -12,6 +13,123 @@ import type {
 afterEach(() => {
   document.body.replaceChildren();
   vi.useRealTimers();
+});
+it('checks local password rules while editing and runs the controller only on blur', async () => {
+  const { ScriptUIRuntime } = await vi.importActual<{
+    ScriptUIRuntime: new () => {
+      render(config: ScriptConfigV2, context: ScriptContext): Promise<ScriptUIModel>;
+      event(request: ScriptUIEvent, context: ScriptContext): Promise<ScriptUIResult>;
+    };
+  }>('../../server/user-script/ui.ts');
+  const { inputValidationContent, inputValidationHandlers } = await vi.importActual<{
+    inputValidationContent(target: 'scripts'): UINode[];
+    inputValidationHandlers: Record<string, HandlerDefinition>;
+  }>('../../server/plugins/template/input-validation-ui.ts');
+  const context: ScriptContext = {
+    version: 'v2',
+    site: {
+      url: 'https://example.com/a',
+      rootUrl: 'https://example.com',
+      origin: 'https://example.com',
+      pathname: '/a',
+      host: 'example.com',
+      hostname: 'example.com',
+    },
+    values: {},
+    data: [],
+    logger: {} as SCWC.TLogger,
+  };
+  const runtime = new ScriptUIRuntime();
+  const same = vi.fn(inputValidationHandlers['validation.same'].run);
+  const submit = vi.fn(inputValidationHandlers['validation.submit'].run);
+  const view = new ScriptUIView();
+  view.model = await runtime.render(
+    {
+      version: 'v2',
+      title: 'Template validation',
+      handlers: {
+        ...inputValidationHandlers,
+        'validation.same': { readOnly: true, run: same },
+        'validation.submit': { run: submit },
+      },
+      content: {
+        format: 'json',
+        version: 1,
+        root: {
+          type: 'stack',
+          children: [
+            requireValue(
+              inputValidationContent('scripts').find(
+                (node) => node.key === 'input-validation-limits',
+              ),
+            ),
+            {
+              type: 'button',
+              name: 'submit',
+              for: 'validation_confirm',
+              events: { click: 'validation.submit()' },
+            },
+          ],
+        },
+      },
+    },
+    context,
+  );
+  const invoke = vi.fn((request: ScriptUIEvent) => runtime.event(request, context));
+  view.invoke = invoke;
+  document.body.append(view);
+  await view.updateComplete;
+  const root = requireValue(view.shadowRoot);
+  const password = requireValue(root.querySelector<HTMLInputElement>('[name=validation_password]'));
+  const confirm = requireValue(root.querySelector<HTMLInputElement>('[name=validation_confirm]'));
+  const feedback = requireValue(
+    root.querySelector<HTMLElement>('[data-ui-error-for=validation_confirm]'),
+  );
+  const edit = (value: string) => {
+    confirm.focus();
+    confirm.value = value;
+    confirm.dispatchEvent(new Event('input'));
+    confirm.dispatchEvent(new Event('change'));
+  };
+  for (const [value, message] of [
+    ['x', '至少输入 8 个字符'],
+    ['a'.repeat(25), '最多输入 24 个字符'],
+    ['abcdefgh', '示例密码必须包含字母和数字，且只能使用字母、数字、下划线和中划线'],
+    ['Abcd123!', '示例密码必须包含字母和数字，且只能使用字母、数字、下划线和中划线'],
+  ]) {
+    edit(value);
+    expect(feedback.textContent).toBe(message);
+    expect(feedback.hidden).toBe(false);
+    expect(confirm.getAttribute('aria-invalid')).toBe('true');
+    expect(invoke).not.toHaveBeenCalled();
+    expect(same).not.toHaveBeenCalled();
+    confirm.blur();
+    expect(invoke).not.toHaveBeenCalled();
+  }
+  edit(password.value.slice(0, -1) + (password.value.endsWith('x') ? 'y' : 'x'));
+  expect(invoke).not.toHaveBeenCalled();
+  expect(same).not.toHaveBeenCalled();
+  confirm.blur();
+  await vi.waitFor(() => expect(feedback.textContent).toBe('两次示例密码不一致'));
+  expect(feedback.hidden).toBe(false);
+  expect(confirm.getAttribute('aria-invalid')).toBe('true');
+  expect(root.querySelector('#error')?.textContent).toBe('');
+  expect(invoke).toHaveBeenCalledTimes(1);
+  expect(same).toHaveBeenCalledTimes(1);
+  edit(password.value);
+  expect(same).toHaveBeenCalledTimes(1);
+  confirm.blur();
+  await vi.waitFor(() => expect(same).toHaveBeenCalledTimes(2));
+  await vi.waitFor(() => expect(feedback.hidden).toBe(true));
+  expect(confirm.getAttribute('aria-invalid')).toBe('false');
+  expect(submit).not.toHaveBeenCalled();
+  edit(password.value.slice(0, -1) + (password.value.endsWith('x') ? 'y' : 'x'));
+  requireValue(root.querySelector<HTMLButtonElement>('[name=submit]')).click();
+  await vi.waitFor(() => expect(feedback.textContent).toBe('两次示例密码不一致'));
+  expect(submit).not.toHaveBeenCalled();
+  edit(password.value);
+  requireValue(root.querySelector<HTMLButtonElement>('[name=submit]')).click();
+  await vi.waitFor(() => expect(submit).toHaveBeenCalledTimes(1));
 });
 it('runs v2 script/extension validation through the real compiler, renderer and runtime', async () => {
   const { ScriptUIRuntime } = await vi.importActual<{
@@ -91,12 +209,14 @@ it('runs v2 script/extension validation through the real compiler, renderer and 
   field.value = 'abc';
   field.dispatchEvent(new Event('input'));
   field.dispatchEvent(new Event('change'));
+  expect(check).not.toHaveBeenCalled();
+  field.dispatchEvent(new Event('blur'));
   await vi.waitFor(() =>
     expect(root.querySelector('[data-ui-error-for=q]')?.textContent).toBe('验证控制器提示'),
   );
   expect(check).toHaveBeenCalledWith('abc');
   check.mockResolvedValue({ success: true, message: '' });
-  field.dispatchEvent(new Event('change'));
+  field.dispatchEvent(new Event('blur'));
   await vi.waitFor(() => expect(root.querySelector('[data-ui-error-for=q]')?.textContent).toBe(''));
   let finish!: (value: { success: boolean; message: string }) => void;
   check.mockImplementationOnce(
@@ -105,7 +225,7 @@ it('runs v2 script/extension validation through the real compiler, renderer and 
         finish = resolve;
       }),
   );
-  field.dispatchEvent(new Event('change'));
+  field.dispatchEvent(new Event('blur'));
   await vi.waitFor(() => expect(finish).toBeTypeOf('function'));
   field.value = 'x';
   field.dispatchEvent(new Event('input'));

@@ -1,6 +1,7 @@
 import './scroll-container.ts';
 import './context-menu/wb-menu-select.ts';
 import './icon.ts';
+import { attachTooltip } from '../../../shared/components/tooltip.ts';
 import type { WorkbenchScrollContainer } from './scroll-container.ts';
 import type { WbMenuSelect } from './context-menu/wb-menu-select.ts';
 import type { UIRendererComponents } from './ui-renderer.js';
@@ -12,7 +13,28 @@ export function createJSONComponents(
   let content: HTMLElement;
   const containers = new Map<HTMLElement, WorkbenchScrollContainer>();
   const selects = new Map<HTMLSelectElement, WbMenuSelect>();
+  const feedback = new Map<HTMLElement, { message: HTMLElement; copy: HTMLElement | null }>();
   const cleanups: (() => void)[] = [];
+  const updateFeedback = () => {
+    for (const [field, { message, copy }] of feedback) {
+      const controlBounds = field.getBoundingClientRect();
+      const copyBounds = copy?.getBoundingClientRect();
+      const lineHeight = Number.parseFloat(getComputedStyle(message).height) || 18;
+      // Both columns must share a row. Only use space supplied by the label/description;
+      // validation must never create extra vertical room or change the control's centre.
+      const below =
+        controlBounds.height > 0 &&
+        copyBounds &&
+        copyBounds.width > 0 &&
+        copyBounds.right <= controlBounds.left &&
+        controlBounds.top - copyBounds.top >= lineHeight + 4 &&
+        copyBounds.bottom - controlBounds.bottom >= lineHeight + 4;
+      const placement = below ? 'below' : 'icon';
+      if (message.dataset.uiErrorPlacement !== placement) {
+        message.dataset.uiErrorPlacement = placement;
+      }
+    }
+  };
   const scrolls = () => {
     let ancestor: Element | null = content;
     let outer: WorkbenchScrollContainer | null = null;
@@ -46,13 +68,36 @@ export function createJSONComponents(
         (labelId ? content.querySelector(`[id="${CSS.escape(labelId)}"]`)?.textContent : '') ||
         '请选择';
     }
+    updateFeedback();
   };
   return {
     mount(element) {
       cleanups.splice(0).forEach((dispose) => dispose());
       containers.clear();
       selects.clear();
+      feedback.clear();
       content = element;
+      for (const message of content.querySelectorAll<HTMLElement>('.ui-field-error')) {
+        const field = message.parentElement;
+        if (field) {
+          feedback.set(field, {
+            message,
+            copy: field.closest('.ui-setting')?.querySelector('.ui-setting-copy') ?? null,
+          });
+        }
+        cleanups.push(attachTooltip(message, () => message.textContent ?? ''));
+      }
+      if (typeof ResizeObserver === 'function') {
+        const observer = new ResizeObserver(updateFeedback);
+        observer.observe(content);
+        for (const [field, { copy }] of feedback) {
+          observer.observe(field);
+          if (copy) {
+            observer.observe(copy);
+          }
+        }
+        cleanups.push(() => observer.disconnect());
+      }
       for (const node of content.querySelectorAll<HTMLElement>(
         options.scrollPanels === false ? '.ui-tab-list' : '.ui-tab-panel,.ui-tab-list',
       )) {
@@ -75,7 +120,9 @@ export function createJSONComponents(
         }
       }
       for (const node of content.querySelectorAll('select')) {
-        if (node.multiple) continue;
+        if (node.multiple) {
+          continue;
+        }
         const select = document.createElement('wb-menu-select');
         select.className = 'ui-select';
         for (const name of ['name', 'data-ui-key', 'aria-label']) {
@@ -196,6 +243,7 @@ export function createJSONComponents(
       cleanups.splice(0).forEach((dispose) => dispose());
       containers.clear();
       selects.clear();
+      feedback.clear();
     },
   };
 }

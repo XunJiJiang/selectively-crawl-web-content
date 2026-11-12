@@ -1434,6 +1434,10 @@ test('输入限制样例：主辅侧栏、状态提示与脚本扩展经真实 H
     [{ validation_memo: '<bad>' }, /说明不能包含/],
     [{ validation_memo: '短' }, /至少输入/],
     [{ validation_memo: 'a'.repeat(81) }, /最多输入/],
+    [{ validation_confirm: 'x' }, /至少输入 8 个字符/],
+    [{ validation_confirm: 'a'.repeat(25) }, /最多输入 24 个字符/],
+    [{ validation_confirm: 'abcdefgh' }, /字母和数字/],
+    [{ validation_confirm: 'Abcd123' + '!' }, /字母和数字/],
     [{ validation_confirm: 'Other123' }, /两次示例密码不一致/],
   ];
   for (const surface of ['mainSidebar', 'auxiliarySidebar', 'tooltip']) {
@@ -1470,11 +1474,11 @@ test('输入限制样例：主辅侧栏、状态提示与脚本扩展经真实 H
         assert.ok(result.effects.some((effect) => effect.type === 'notification.show' && effect.args[0] === `事件控制器收到 ${count} 个参数`));
       }
       const field = view.compiled.fields.find((field) => field.name === 'validation_bound_memo');
-      const change = view.compiled.events.find((event) => event.nodeId === field.nodeId && event.event === 'change');
+      const blur = view.compiled.events.find((event) => event.nodeId === field.nodeId && event.event === 'blur');
       const baseline = (await api('/plugins/template/config')).effectiveValues['validation.memo'];
-      assert.equal((await execute(change, { validation_bound_memo: 'reject this' })).status, 'failed');
+      assert.equal((await execute(blur, { validation_bound_memo: 'reject this' })).status, 'failed');
       assert.equal((await api('/plugins/template/config')).effectiveValues['validation.memo'], baseline);
-      assert.equal((await execute(change)).status, 'succeeded');
+      assert.equal((await execute(blur)).status, 'succeeded');
       assert.equal((await api('/plugins/template/config')).effectiveValues['validation.memo'], '新的全局备注');
     } finally { await api(`/ui/instances/${view.id}/release`, {}); }
   }
@@ -1498,6 +1502,14 @@ test('输入限制样例：主辅侧栏、状态提示与脚本扩展经真实 H
   };
   const submit = namedButton(model, '验证并提交示例');
   for (const [override, message] of cases) assert.match(JSON.stringify(await send(submit, override, 400)), message);
+  const confirm = model.compiled.fields.find((field) => field.name === 'validation_confirm');
+  const confirmBlur = model.compiled.events.find((event) => event.nodeId === confirm.nodeId && event.event === 'blur');
+  for (const [override, message] of cases.filter(([override]) => Object.hasOwn(override, 'validation_confirm'))) {
+    const failure = await send(confirmBlur, override, 400);
+    assert.equal(failure.field, 'validation_confirm');
+    assert.match(failure.message, message);
+  }
+  assert.equal((await send(confirmBlur)).data.result, undefined, 'blur only validates; it must not submit');
   assert.equal((await send(submit)).data.result.data.message, '输入验证通过，示例提交已执行');
   const invalidResult = await send(namedButton(model, '触发错误返回值'), {}, 400);
   assert.equal(invalidResult.errorCode, 'UI_INVALID_VALIDATOR_RESULT');
@@ -1507,10 +1519,10 @@ test('输入限制样例：主辅侧栏、状态提示与脚本扩展经真实 H
     assert.equal((await send(namedButton(model, label))).data.result.data.message, `事件控制器收到 ${count} 个参数`);
   }
   const bound = model.compiled.fields.find((field) => field.name === 'validation_bound_memo');
-  const boundChange = model.compiled.events.find((event) => event.nodeId === bound.nodeId && event.event === 'change');
-  await send(boundChange, { validation_bound_memo: 'reject this' }, 400);
+  const boundBlur = model.compiled.events.find((event) => event.nodeId === bound.nodeId && event.event === 'blur');
+  await send(boundBlur, { validation_bound_memo: 'reject this' }, 400);
   assert.equal((await api('/plugins/template/config')).effectiveValues['validation.memo'], '新的全局备注');
-  await send(boundChange, { validation_bound_memo: '脚本扩展的验证备注' });
+  await send(boundBlur, { validation_bound_memo: '脚本扩展的验证备注' });
   assert.equal((await api('/plugins/template/config')).effectiveValues['validation.memo'], '脚本扩展的验证备注');
 
   // Candidate updates must be rejected without replacing the currently registered examples.

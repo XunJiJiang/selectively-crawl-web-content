@@ -512,7 +512,12 @@ function jsonHTML(node: UINode, depth = 0, path = '0'): string {
           name,
           key: node.key ? `${node.key}-control` : undefined,
           disabled: node.disabled,
-          events: { change: write },
+          events: {
+            [node.validator !== undefined &&
+            ['text', 'number', 'password', 'textarea'].includes(String(kind))
+              ? 'blur'
+              : 'change']: write,
+          },
         };
         control =
           kind === 'readonly'
@@ -1051,23 +1056,21 @@ export function compileUI(content: UIContent, options: CompileOptions): Compiled
       expand(binding, []);
     }
     // Validation runs before every consumer of a constrained value, including nested triggers.
-    // Controls without a user event still validate on change/blur.
+    // Editing uses local rules; implicit controller validation waits for blur.
     for (const field of result.fields.filter((field) => field.validation)) {
-      for (const event of ['change', 'blur']) {
-        if (
-          !result.events.some(
-            (binding) => binding.nodeId === field.nodeId && binding.event === event,
-          )
-        ) {
-          result.events.push({
-            id: 'e' + result.events.length,
-            nodeId: field.nodeId,
-            event,
-            program: { branches: [] },
-            for: [],
-            capture: [field.name],
-          });
-        }
+      if (
+        !result.events.some(
+          (binding) => binding.nodeId === field.nodeId && binding.event === 'blur',
+        )
+      ) {
+        result.events.push({
+          id: 'e' + result.events.length,
+          nodeId: field.nodeId,
+          event: 'blur',
+          program: { branches: [] },
+          for: [],
+          capture: [field.name],
+        });
       }
     }
     for (const binding of result.events) {
@@ -1087,8 +1090,11 @@ export function compileUI(content: UIContent, options: CompileOptions): Compiled
               node.type === 'field'
                 ? [node.name]
                 : node.type === 'call'
-                  ? (node.name === 'core:value.read' && node.args[0]?.type === 'literal' && typeof node.args[0].value === 'string'
-                    ? [node.args[0].value] : (options.reads?.(node.name) ?? []))
+                  ? node.name === 'core:value.read' &&
+                    node.args[0]?.type === 'literal' &&
+                    typeof node.args[0].value === 'string'
+                    ? [node.args[0].value]
+                    : (options.reads?.(node.name) ?? [])
                   : [];
             for (const dependency of dependencies) {
               if (dependency !== name) {

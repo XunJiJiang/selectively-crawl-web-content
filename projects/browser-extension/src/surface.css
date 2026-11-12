@@ -367,16 +367,18 @@ footer {
   justify-content: space-between;
   align-items: center;
   gap: 8px;
-  min-height: 60px;
-  padding: 12px 20px;
+  min-height: 44px;
+  padding: 6px 20px;
   border-top: 1px solid var(--border-default);
   background: var(--surface-0);
   font-size: 11px;
   color: var(--text-tertiary);
 }
 footer button {
-  font-size: 13px;
-}
-footer button span {
-  padding-left: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 3px 9px;
+  font-size: 12px;
 }

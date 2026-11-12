@@ -11,7 +11,7 @@ export const inputValidationHandlers = {
   'validation.guide': {
     readOnly: true,
     run() {
-      return '输入长度、数值与格式先检查，再调用自定义验证器。全部通过才执行提交。';
+      return '输入时检查长度、数值与格式；失焦或提交时再调用自定义验证器。首个失败即停止，全部通过才执行提交。';
     },
   },
   'validation.available': {
@@ -79,6 +79,13 @@ const setting = (label: string, description: string, control: UINode): UINode =>
   children: [control],
 });
 
+const passwordRules = {
+  minLength: 8,
+  maxLength: 24,
+  pattern: '(?=.*[A-Za-z])(?=.*[0-9])[A-Za-z0-9_-]+',
+  patternMessage: '示例密码必须包含字母和数字，且只能使用字母、数字、下划线和中划线',
+};
+
 /** The same v2 examples render in both sidebars, the status tooltip, userscripts and extensions. */
 export function inputValidationContent(target: 'workbench' | 'scripts' = 'workbench'): UINode[] {
   // Scripts consume notification return values; workbench surfaces use explicit core effects.
@@ -134,10 +141,7 @@ export function inputValidationContent(target: 'workbench' | 'scripts' = 'workbe
           name: 'validation_password',
           value: 'Demo1234',
           placeholder: 'Demo1234',
-          minLength: 8,
-          maxLength: 24,
-          pattern: '(?=.*[A-Za-z])(?=.*[0-9])[A-Za-z0-9_-]+',
-          patternMessage: '示例密码必须包含字母和数字，且只能使用字母、数字、下划线和中划线',
+          ...passwordRules,
         }),
         setting('说明（textarea）', '4–80 字符，可换行；不能包含尖括号。', {
           type: 'textarea',
@@ -151,15 +155,14 @@ export function inputValidationContent(target: 'workbench' | 'scripts' = 'workbe
         }),
         setting(
           '再次输入示例密码',
-          '$this 读取当前控件值，$for:validation_password 读取上面的密码值。',
+          '先检查长度和格式，再通过 $this 与 $for:validation_password 比较两次密码。',
           {
             type: 'input',
             inputType: 'password',
             name: 'validation_confirm',
             value: 'Demo1234',
             placeholder: '再次输入 Demo1234',
-            minLength: 8,
-            maxLength: 24,
+            ...passwordRules,
             validator: 'validation.same($this, $for:validation_password)',
           },
         ),
@@ -176,6 +179,64 @@ export function inputValidationContent(target: 'workbench' | 'scripts' = 'workbe
         'validation_memo',
         'validation_confirm',
       ],
+      events: { click: notify('validation.submit()') },
+    },
+    {
+      type: 'group',
+      key: 'input-validation-compact',
+      label: '无描述的控件组',
+      children: [
+        {
+          type: 'setting',
+          label: '名称',
+          children: [
+            {
+              type: 'input',
+              name: 'validation_compact_name',
+              value: 'demo',
+              placeholder: '至少 3 个字符',
+              minLength: 3,
+              pattern: '[A-Za-z0-9_-]+',
+              patternMessage: '名称只能包含字母、数字、下划线和中划线，请修改后重新提交',
+              validator: 'validation.available($this)',
+            },
+          ],
+        },
+        {
+          type: 'setting',
+          label: '数量',
+          children: [
+            {
+              type: 'input',
+              inputType: 'number',
+              name: 'validation_compact_number',
+              value: '3',
+              placeholder: '1–10',
+              min: 1,
+              max: 10,
+            },
+          ],
+        },
+        {
+          type: 'setting',
+          label: '示例密码',
+          children: [
+            {
+              type: 'input',
+              inputType: 'password',
+              name: 'validation_compact_password',
+              value: 'Demo1234',
+              placeholder: '至少 8 个字符',
+              minLength: 8,
+            },
+          ],
+        },
+      ],
+    },
+    {
+      type: 'button',
+      text: '验证无描述控件',
+      for: ['validation_compact_name', 'validation_compact_number', 'validation_compact_password'],
       events: { click: notify('validation.submit()') },
     },
     {
@@ -214,7 +275,7 @@ export function inputValidationContent(target: 'workbench' | 'scripts' = 'workbe
           name: 'validation_bound_memo',
           label: '全局备注',
           description:
-            '与全局配置页共用 validation.memo；4–500 字符，禁止尖括号与 reject，修改后自动保存。',
+            '与全局配置页共用 validation.memo；4–500 字符，禁止尖括号与 reject，失焦验证通过后自动保存。',
           config: 'validation.memo',
           control: 'textarea',
           minLength: 4,
@@ -233,7 +294,7 @@ export function inputValidationContent(target: 'workbench' | 'scripts' = 'workbe
       children: [
         setting(
           '非法验证结果',
-          '本例故意返回 true。修改、失焦或点击下方按钮，应提示必须返回 success/message 对象。',
+          '本例故意返回 true。失焦或点击下方按钮，应提示必须返回 success/message 对象。',
           {
             type: 'input',
             name: 'validation_bad_result',

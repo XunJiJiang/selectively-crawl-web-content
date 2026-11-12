@@ -992,7 +992,7 @@ export class ExtensionPopup extends LitElement {
         <span>${this.snapshot ? '按网站保存 · 扩展独立存储' : '请打开 HTTP 或 HTTPS 网页'}</span
         >${this.panel === 'capture' && this.snapshot
           ? html`<button class="primary" ?disabled=${this.busy} @click=${() => this.submit()}>
-              ${this.busy ? '正在采集…' : '采集并发送'} <span>↗</span>
+              ${this.busy ? '正在采集…' : '采集并发送'} <wb-icon name="send" size="sm"></wb-icon>
             </button>`
           : html`<span class="muted">v${CLIENT_VERSION}</span>`}
       </footer>

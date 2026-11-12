@@ -57,7 +57,7 @@ describe('safe UI compilation', () => {
       name: 'target',
       validation: { rules: { minLength: 4 } },
     });
-    expect(result.events).toHaveLength(2);
+    expect(result.events.map((event) => event.event)).toEqual(['blur']);
   });
   it.each(['text', 'number', 'password', 'textarea'])(
     'compiles constraints, readonly and validator dependencies for %s',
@@ -114,7 +114,7 @@ describe('safe UI compilation', () => {
           'check',
         ]);
       }
-      expect(compiled.events.map((event) => event.event)).toEqual(['click', 'change', 'blur']);
+      expect(compiled.events.map((event) => event.event)).toEqual(['click', 'blur']);
     },
   );
   it.each(['has.dot', 'has space', '斜线', 'x/y', 'x:y', '', 'x\n', '__proto__'])(
@@ -152,7 +152,7 @@ describe('safe UI compilation', () => {
       options,
     );
     expect(generated.fields).toHaveLength(1);
-    expect(generated.events).toHaveLength(2);
+    expect(generated.events.map((event) => event.event)).toEqual(['blur']);
     const bound = compileUI(
       {
         format: 'json',
@@ -175,6 +175,10 @@ describe('safe UI compilation', () => {
     );
     expect(bound.fields[0].name).toMatch(/^[A-Za-z0-9_-]+$/);
     expect(bound.fields[0].validation?.rules).toMatchObject({ minLength: 2, pattern: '[a-z]+' });
+    expect(bound.events.map((event) => event.event)).toEqual(['blur']);
+    expect(bound.events[0].program.branches.flat().map((call) => call.name)).toContain(
+      'core:config.bound.write',
+    );
   });
   it('compiles setting groups with accessible captions and rejects ambiguous automatic bindings', () => {
     const root = {
