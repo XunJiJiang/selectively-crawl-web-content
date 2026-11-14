@@ -33,6 +33,7 @@ afterEach(() => {
   active.splice(0).forEach((tree) => tree.dispose());
   document.body.replaceChildren();
   vi.restoreAllMocks();
+  vi.useRealTimers();
 });
 function fixture(
   extra: Partial<UITreeNode> = {},
@@ -152,26 +153,86 @@ it('moves focus to readonly rows while preserving selection, then releases focus
   expect(tree.state.focusedId).toBe('next');
 });
 it('anchors delegated tooltips to the hovered row and updates on row changes', async () => {
-  const { tree, host } = fixture();
+  vi.useFakeTimers();
+  const { tree, host } = fixture({
+    nodes: [
+      {
+        id: 'p',
+        label: 'Parent',
+        tooltip: 'Parent tip',
+        children: [{ id: 'a', label: 'Alpha', tooltip: 'Alpha tip' }],
+      },
+    ],
+  });
+  await vi.advanceTimersByTimeAsync(50);
   const parent = uiRequired(host.querySelector<HTMLElement>('[data-tree-id=p]'));
   const child = uiRequired(host.querySelector<HTMLElement>('[data-tree-id=a]'));
   const bounds = { width: 200, height: 22, left: 80, right: 280, top: 100, bottom: 122 } as DOMRect;
   parent.getBoundingClientRect = () => bounds;
   child.getBoundingClientRect = () => ({ ...bounds, top: 122, bottom: 144 });
   const tooltip = uiRequired(host.querySelector<SCWCTooltip>('.tree-list + scwc-tooltip'));
+  tooltip.getBoundingClientRect = () => ({ ...bounds, width: 100 });
   parent.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+  await vi.advanceTimersByTimeAsync(999);
+  expect(tooltip.hidden).toBe(true);
+  // Moving between descendants of the same row does not restart the delay.
+  parent
+    .querySelector('.tree-label')
+    ?.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+  await vi.advanceTimersByTimeAsync(1);
   await tooltip.updateComplete;
   expect(tooltip.hidden).toBe(false);
-  expect(tooltip.text).toBe('Parent');
-  expect(tooltip.style.top).toBe('128px');
+  expect(tooltip.text).toBe('Parent tip');
+  expect(tooltip.dataset.placement).toBe('right');
+  expect(tooltip.style.left).toBe('286px');
+  expect(tooltip.style.top).toBe('100px');
+  expect(tooltip.style.getPropertyValue('--tooltip-anchor-height')).toBe('22px');
+  expect(tooltip.matchAnchorHeight).toBe(true);
   child.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, relatedTarget: parent }));
   await tooltip.updateComplete;
-  expect(tooltip.text).toBe('Alpha');
-  expect(tooltip.style.top).toBe('150px');
+  expect(tooltip.hidden).toBe(false);
+  expect(tooltip.text).toBe('Alpha tip');
+  expect(tooltip.style.top).toBe('122px');
   // Repainting virtual rows invalidates their anchors and closes the old tooltip.
   tree.restoreState(tree.captureState());
   await Promise.resolve();
   expect(tooltip.hidden).toBe(true);
+});
+it('does not infer tooltips from labels or descriptions and cancels a hover that ends early', async () => {
+  vi.useFakeTimers();
+  const { host } = fixture({
+    nodes: [
+      { id: 'p', label: 'Parent', description: 'Description' },
+      { id: 'empty', label: 'Empty', tooltip: '' },
+      { id: 'tip', label: 'Tip', tooltip: 'Explicit tip' },
+    ],
+  });
+  await vi.advanceTimersByTimeAsync(50);
+  const tooltip = uiRequired(host.querySelector<SCWCTooltip>('.tree-list + scwc-tooltip'));
+  for (const id of ['p', 'empty']) {
+    uiRequired(host.querySelector(`[data-tree-id=${id}]`)).dispatchEvent(
+      new MouseEvent('mouseover', { bubbles: true }),
+    );
+    await vi.advanceTimersByTimeAsync(1500);
+    expect(tooltip.hidden).toBe(true);
+  }
+  const row = uiRequired(host.querySelector('[data-tree-id=tip]'));
+  row.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+  await vi.advanceTimersByTimeAsync(500);
+  row.dispatchEvent(new MouseEvent('mouseout', { bubbles: true }));
+  await vi.advanceTimersByTimeAsync(1000);
+  expect(tooltip.hidden).toBe(true);
+});
+it('isolates each tree item group from its toolbar and from other trees', () => {
+  const first = fixture(),
+    second = fixture();
+  const toolbar = [...first.host.querySelectorAll<SCWCTooltip>('.tree-toolbar scwc-tooltip')];
+  expect(toolbar).toHaveLength(4);
+  expect(new Set(toolbar.map((tooltip) => tooltip.group)).size).toBe(1);
+  const rows = uiRequired(first.host.querySelector<SCWCTooltip>('.tree-list + scwc-tooltip'));
+  const otherRows = uiRequired(second.host.querySelector<SCWCTooltip>('.tree-list + scwc-tooltip'));
+  expect(rows.group).not.toBe(toolbar[0].group);
+  expect(rows.group).not.toBe(otherRows.group);
 });
 it('shows remote hit paths independently and restores the previous expansion and focus', async () => {
   const { tree, host } = fixture(

@@ -132,6 +132,7 @@ describe('DeclarativeView rendering', () => {
     const warning = requireValue(second.nextElementSibling);
     expect(warning.querySelector('svg[aria-hidden=true]')).not.toBeNull();
     warning.dispatchEvent(new MouseEvent('mouseenter'));
+    await new Promise((resolve) => setTimeout(resolve, 1050));
     const tooltip = requireValue(warning.nextElementSibling) as SCWCTooltip;
     await tooltip.updateComplete;
     expect(tooltip.localName).toBe('scwc-tooltip');
@@ -143,45 +144,78 @@ describe('DeclarativeView rendering', () => {
   });
   it('checks frontend template results before assigning them to constrained controls', async () => {
     const { view, instance, request, compiled } = await renderedFixture({
-      format: 'json', version: 1,
+      format: 'json',
+      version: 1,
       root: { type: 'input', name: 'q', minLength: 3, value: '${ui:read()}' },
     });
     Object.assign(instance, { sourceTabId: 'page', sourceFrameEpoch: 'epoch' });
     const invokeUI = vi.fn(async () => ({ hasValue: true, value: 'x' }));
     view.pool = Object.assign(new EventTarget(), { invokeUI }) as unknown as FramePool;
     request.mockImplementation(async (path) => {
-      if (path.endsWith('/content')) {return instance;}
-      if (path.endsWith('/data')) {return { updates: [{ id: compiled.expressions[0].id, frontend: true, fields: {} }] };}
-      if (path.endsWith('/validate')) {throw new ApiError('UI_INVALID_VALUE_TYPE', '至少输入 3 个字符', 400, { field: 'q' });}
+      if (path.endsWith('/content')) {
+        return instance;
+      }
+      if (path.endsWith('/data')) {
+        return { updates: [{ id: compiled.expressions[0].id, frontend: true, fields: {} }] };
+      }
+      if (path.endsWith('/validate')) {
+        throw new ApiError('UI_INVALID_VALUE_TYPE', '至少输入 3 个字符', 400, { field: 'q' });
+      }
       return {};
     });
     await view.refresh();
-    await vi.waitFor(() => expect(view.shadowRoot?.querySelector('[data-ui-error-for=q]')?.textContent).toContain('至少输入'));
+    await vi.waitFor(() =>
+      expect(view.shadowRoot?.querySelector('[data-ui-error-for=q]')?.textContent).toContain(
+        '至少输入',
+      ),
+    );
     expect(view.shadowRoot?.querySelector<HTMLInputElement>('[name=q]')?.value).not.toBe('x');
     expect(request).toHaveBeenCalledWith('/ui/instances/direct-instance/validate', {
-      renderRevision: 1, fields: { q: 'x' },
+      renderRevision: 1,
+      fields: { q: 'x' },
     });
   });
   it('does not expose invalid fields to a readonly frontend template consumer', async () => {
     const { view, instance, request, compiled } = await renderedFixture({
-      format: 'json', version: 1,
-      root: { type: 'stack', children: [
-        { type: 'input', name: 'q', value: 'draft', validator: 'ui:check($this)' },
-        { type: 'text', text: '${ui:consume()}' },
-      ] },
+      format: 'json',
+      version: 1,
+      root: {
+        type: 'stack',
+        children: [
+          { type: 'input', name: 'q', value: 'draft', validator: 'ui:check($this)' },
+          { type: 'text', text: '${ui:consume()}' },
+        ],
+      },
     });
     Object.assign(instance, { sourceTabId: 'page', sourceFrameEpoch: 'epoch' });
-    const invokeUI = vi.fn(async () => ({ hasValue: true, value: { success: false, message: '拒绝草稿' } }));
+    const invokeUI = vi.fn(async () => ({
+      hasValue: true,
+      value: { success: false, message: '拒绝草稿' },
+    }));
     view.pool = Object.assign(new EventTarget(), { invokeUI }) as unknown as FramePool;
     request.mockImplementation(async (path) => {
-      if (path.endsWith('/content')) {return instance;}
-      if (path.endsWith('/data')) {return { updates: [{ id: compiled.expressions[0].id, frontend: true, fields: { q: 'draft' } }] };}
+      if (path.endsWith('/content')) {
+        return instance;
+      }
+      if (path.endsWith('/data')) {
+        return {
+          updates: [{ id: compiled.expressions[0].id, frontend: true, fields: { q: 'draft' } }],
+        };
+      }
       return {};
     });
     await view.refresh();
-    await vi.waitFor(() => expect(view.shadowRoot?.querySelector('[data-ui-error-for=q]')?.textContent).toContain('拒绝草稿'));
+    await vi.waitFor(() =>
+      expect(view.shadowRoot?.querySelector('[data-ui-error-for=q]')?.textContent).toContain(
+        '拒绝草稿',
+      ),
+    );
     expect(invokeUI).toHaveBeenCalled();
-    expect(invokeUI.mock.calls.every((call) => ((call as unknown[])[2] as { name: string }).name === 'check')).toBe(true);
+    expect(
+      invokeUI.mock.calls.every(
+        (call) => ((call as unknown[])[2] as { name: string }).name === 'check',
+      ),
+    ).toBe(true);
   });
   it('evaluates frontend validators as read-only calls and preserves their error messages', async () => {
     const { view, instance, request } = await renderedFixture({
@@ -240,6 +274,61 @@ describe('DeclarativeView rendering', () => {
       expect.objectContaining({ succeeded: false }),
     );
   });
+  it('keeps tree row and toolbar tooltips working after JSON sidebar tabs are wrapped', async () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(
+      new DOMRect(0, 0, 400, 220),
+    );
+    const { view } = await renderedFixture({
+      format: 'json',
+      version: 1,
+      root: {
+        type: 'tabs',
+        tabs: [
+          {
+            id: 'tree',
+            label: '树',
+            children: [
+              {
+                type: 'tree',
+                name: 'files',
+                label: '文件',
+                nodes: [{ id: 'main', label: 'main.ts', tooltip: 'src/main.ts' }],
+              },
+            ],
+          },
+        ],
+      },
+    });
+    const root = requireValue(view.shadowRoot);
+    await vi.waitFor(() => expect(root.querySelector('[data-tree-id=main]')).not.toBeNull());
+    expect(root.querySelector('.ui-tab-panel')?.parentElement?.localName).toBe(
+      'wb-scroll-container',
+    );
+    vi.useFakeTimers();
+    try {
+      await vi.advanceTimersByTimeAsync(100);
+      const row = requireValue(root.querySelector('[data-tree-id=main]'));
+      const tooltip = requireValue(root.querySelector<SCWCTooltip>('.tree-list + scwc-tooltip'));
+      row.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+      await vi.advanceTimersByTimeAsync(999);
+      expect(tooltip.hidden).toBe(true);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(tooltip.hidden).toBe(false);
+      expect(tooltip.text).toBe('src/main.ts');
+      tooltip.close();
+
+      const button = requireValue(root.querySelector('.tree-toolbar button'));
+      const toolbarTooltip = button.nextElementSibling as SCWCTooltip;
+      button.dispatchEvent(new MouseEvent('mouseenter'));
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(toolbarTooltip.hidden).toBe(false);
+      expect(toolbarTooltip.text).toContain('查找');
+    } finally {
+      view.remove();
+      vi.useRealTimers();
+    }
+  });
+
   it.each(['mainSidebar', 'auxiliarySidebar', 'tooltip'] as const)(
     'enforces JSON input/textarea constraints and preserves placeholder, disabled and readonly on %s',
     async (surface) => {

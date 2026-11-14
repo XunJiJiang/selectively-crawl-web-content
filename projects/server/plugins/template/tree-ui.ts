@@ -315,19 +315,26 @@ export function treeDemoContent(): UINode[] {
     {
       id: 'static-src',
       label: 'src',
+      tooltip: '源代码目录',
       icon: { kind: 'builtin', name: 'folder' },
       children: [
         {
           id: 'static-main',
           label: 'main.ts',
           description: '双击或 Enter 激活',
+          tooltip: 'src/main.ts · 双击或 Enter 激活',
           events: { activate: 'tree.record()' },
         },
         { id: 'static-config', label: 'config.json' },
       ],
     },
-    { id: 'static-docs', label: 'docs', children: [{ id: 'static-readme', label: 'README.md' }] },
-    { id: 'static-locked', label: '禁用节点', disabled: true },
+    {
+      id: 'static-docs',
+      label: 'docs',
+      tooltip: '文档目录',
+      children: [{ id: 'static-readme', label: 'README.md', tooltip: 'docs/README.md' }],
+    },
+    { id: 'static-locked', label: '禁用节点', tooltip: '此节点不可选择或激活', disabled: true },
   ];
   return [
     {

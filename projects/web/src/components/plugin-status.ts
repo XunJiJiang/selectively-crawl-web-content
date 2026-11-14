@@ -1,24 +1,20 @@
 import './declarative-view.ts';
 import { LitElement, html, css, nothing, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { SCWCTooltip } from '../../../shared/components/tooltip.ts';
 import type { UIContribution } from '../../../shared/declarative-ui.ts';
 import type { WorkbenchStore } from '../workbench/store.ts';
 import type { FramePool } from '../workbench/frames.ts';
-let pinnedStatus: string | null = null;
+
 @customElement('wb-plugin-status')
 export class PluginStatus extends LitElement {
   @property({ attribute: false }) accessor store!: WorkbenchStore;
   @property({ attribute: false }) accessor pool: FramePool | undefined;
   @property({ attribute: false }) accessor contribution!: UIContribution;
   @property({ attribute: false }) accessor sourceTabId: string | null = null;
-  @state() private accessor opened = false;
-  @state() private accessor pinned = false;
   @state() private accessor menuOpened = false;
   @state() private accessor popupHeight = 100;
   private menuPosition = { x: 0, y: 0 };
-  private closeTimer?: ReturnType<typeof setTimeout>;
-  private hoverTimer?: ReturnType<typeof setTimeout>;
-  private itemId = crypto.randomUUID();
   static styles = css`
     :host {
       display: flex;
@@ -34,85 +30,31 @@ export class PluginStatus extends LitElement {
       width: auto;
       min-width: 0;
     }
-    .popup {
-      position: fixed;
-      box-sizing: border-box;
-      width: 320px;
-      max-width: calc(100vw - 16px);
-      max-height: calc(100vh - 60px);
-      z-index: 600;
-      background: var(--surface-2, #25272b);
-      border: 1px solid var(--border-strong, #555);
-      box-shadow: 0 8px 24px #0006;
-      border-radius: var(--radius-md, 6px);
-    }
-    .popup::after {
-      content: '';
-      position: absolute;
-      left: var(--pointer-left);
-      bottom: -5px;
-      width: 8px;
-      height: 8px;
-      transform: translateX(-50%) rotate(45deg);
-      background: var(--surface-2, #25272b);
-      border-right: 1px solid var(--border-strong, #555);
-      border-bottom: 1px solid var(--border-strong, #555);
-      pointer-events: none;
-    }
-    .popup.pinned {
-      border-color: var(--accent-primary, #89b4fa);
-    }
-    .popup.pinned::after {
-      border-color: var(--accent-primary, #89b4fa);
-    }
   `;
+  private get tooltip() {
+    return this.renderRoot.querySelector<SCWCTooltip>('scwc-tooltip');
+  }
   connectedCallback() {
     super.connectedCallback();
-    window.addEventListener('pointerdown', this.outside, true);
-    window.addEventListener('scwc-ui-tooltip-open', this.other);
-    window.addEventListener('keydown', this.escape);
-    window.addEventListener('resize', this.reposition);
     this.addEventListener('ui-effect', this.effect);
   }
   disconnectedCallback() {
     this.close();
-    clearTimeout(this.closeTimer);
-    clearTimeout(this.hoverTimer);
-    window.removeEventListener('pointerdown', this.outside, true);
-    window.removeEventListener('scwc-ui-tooltip-open', this.other);
-    window.removeEventListener('keydown', this.escape);
-    window.removeEventListener('resize', this.reposition);
     this.removeEventListener('ui-effect', this.effect);
     super.disconnectedCallback();
   }
-  private reposition = () => this.requestUpdate();
   protected updated(changed: PropertyValues) {
     const old = changed.get('contribution') as UIContribution | undefined;
     if (
       old &&
-      (old.pluginId !== this.contribution.pluginId ||
+      (!this.contribution.hasTooltip ||
+        old.pluginId !== this.contribution.pluginId ||
         old.ownerEpoch !== this.contribution.ownerEpoch ||
         old.id !== this.contribution.id)
     ) {
       this.close();
     }
   }
-  private outside = (event: Event) => {
-    if (!event.composedPath().includes(this)) {
-      this.close();
-    }
-  };
-  private other = (event: Event) => {
-    const detail = (event as CustomEvent).detail;
-    if (detail.id !== this.itemId && (detail.pin || !this.pinned)) {
-      this.close();
-    }
-  };
-  private escape = (event: KeyboardEvent) => {
-    if (event.key === 'Escape') {
-      this.close();
-    }
-  };
   private effect = (event: Event) => {
     const effect = (event as CustomEvent).detail;
     if (effect.type === 'tooltip.close') {
@@ -129,13 +71,7 @@ export class PluginStatus extends LitElement {
     }
   };
   private close() {
-    clearTimeout(this.closeTimer);
-    clearTimeout(this.hoverTimer);
-    if (pinnedStatus === this.itemId) {
-      pinnedStatus = null;
-    }
-    this.opened = false;
-    this.pinned = false;
+    this.tooltip?.close();
     this.menuOpened = false;
   }
   private openMenu(x?: number, y?: number) {
@@ -147,42 +83,43 @@ export class PluginStatus extends LitElement {
     this.menuPosition = { x: x ?? rect.left, y: y ?? rect.top };
     this.menuOpened = true;
   }
-  private open(pin = false) {
-    clearTimeout(this.closeTimer);
-    clearTimeout(this.hoverTimer);
-    if (!this.contribution.hasTooltip || (!pin && pinnedStatus && pinnedStatus !== this.itemId)) {
-      return;
-    }
-    if (pin) {
-      pinnedStatus = this.itemId;
-    }
-    window.dispatchEvent(
-      new CustomEvent('scwc-ui-tooltip-open', { detail: { id: this.itemId, pin } }),
+  private get anchor(): HTMLElement {
+    return (
+      this.renderRoot.querySelector('wb-declarative-view')?.shadowRoot?.querySelector('button') ??
+      this
     );
-    this.opened = true;
-    this.pinned ||= pin;
+  }
+  private open(pin = false) {
+    if (this.contribution.hasTooltip) {
+      void this.tooltip?.openFor(this.anchor, undefined, pin);
+    }
   }
   private action = (event: CustomEvent<{ kind: string; x?: number; y?: number }>) => {
     event.stopPropagation();
-    if (event.detail.kind === 'click') {
-      this.open(true);
-    }
-    if (event.detail.kind === 'hover' && !this.opened) {
-      this.hoverTimer = setTimeout(() => this.open(), 300);
-    }
-    if (event.detail.kind === 'leave' && !this.pinned) {
-      clearTimeout(this.hoverTimer);
-      this.closeTimer = setTimeout(() => {
-        if (!this.pinned) {
-          this.opened = false;
-        }
-      }, 200);
+    if (this.contribution.hasTooltip && ['click', 'hover', 'leave'].includes(event.detail.kind)) {
+      this.tooltip?.trigger(event.detail.kind as 'click' | 'hover' | 'leave', this.anchor);
     }
     if (event.detail.kind === 'escape') {
       this.close();
     }
-    if (event.detail.kind === 'contextmenu' && this.contribution.hasContextMenu) {
+    if (event.detail.kind === 'contextmenu') {
       this.openMenu(event.detail.x, event.detail.y);
+    }
+  };
+  private tooltipAction = (event: CustomEvent<{ kind: string; height?: number }>) => {
+    event.stopPropagation();
+    if (
+      event.detail.kind === 'resize' &&
+      typeof event.detail.height === 'number' &&
+      Number.isFinite(event.detail.height)
+    ) {
+      this.popupHeight = Math.ceil(event.detail.height) + 2;
+    }
+    if (event.detail.kind === 'click') {
+      this.tooltip?.pin();
+    }
+    if (event.detail.kind === 'escape') {
+      this.close();
     }
   };
   render() {
@@ -190,68 +127,33 @@ export class PluginStatus extends LitElement {
     if (!view) {
       return nothing;
     }
-    const anchor =
-      this.renderRoot
-        .querySelector('wb-declarative-view')
-        ?.shadowRoot?.querySelector('button')
-        ?.getBoundingClientRect() ?? this.getBoundingClientRect();
-    const width = Math.min(320, innerWidth - 16);
-    const left = Math.max(
-      8,
-      Math.min(innerWidth - width - 8, anchor.left + anchor.width / 2 - width / 2),
-    );
-    const bottom = innerHeight - anchor.top + 8;
-    const height = Math.max(40, Math.min(this.popupHeight, anchor.top - 16));
-    const pointer = Math.max(12, Math.min(width - 12, anchor.left + anchor.width / 2 - left));
-    const shared = { store: this.store, pool: this.pool, pluginId: view.pluginId, viewId: view.id };
     return html`<wb-declarative-view
-        .store=${shared.store}
-        .pool=${shared.pool}
-        .pluginId=${shared.pluginId}
-        .viewId=${shared.viewId}
+        .store=${this.store}
+        .pool=${this.pool}
+        .pluginId=${view.pluginId}
+        .viewId=${view.id}
         surface="statusBar"
         .sourceTabId=${this.sourceTabId}
         @ui-surface-action=${this.action}
       ></wb-declarative-view>
-      ${this.opened
-        ? html`<div
-            class=${`popup ${this.pinned ? 'pinned' : ''}`}
-            style=${`left:${left}px;bottom:${bottom}px;height:${height}px;--pointer-left:${pointer}px`}
-            role=${this.pinned ? 'dialog' : 'tooltip'}
-            aria-label=${view.title}
-            @mouseenter=${() => clearTimeout(this.closeTimer)}
-            @mouseleave=${() => {
-              if (!this.pinned) {
-                this.closeTimer = setTimeout(() => (this.opened = false), 200);
-              }
-            }}
-          >
-            <wb-declarative-view
-              .store=${this.store}
-              .pool=${this.pool}
-              .pluginId=${view.pluginId}
-              .viewId=${view.id}
-              surface="tooltip"
-              .sourceTabId=${this.sourceTabId}
-              @ui-surface-action=${(e: CustomEvent<{ kind: string; height?: number }>) => {
-                e.stopPropagation();
-                if (
-                  e.detail.kind === 'resize' &&
-                  typeof e.detail.height === 'number' &&
-                  Number.isFinite(e.detail.height)
-                ) {
-                  this.popupHeight = Math.ceil(e.detail.height) + 2;
-                }
-                if (e.detail.kind === 'click') {
-                  this.pinned = true;
-                }
-                if (e.detail.kind === 'escape') {
-                  this.close();
-                }
-              }}
-            ></wb-declarative-view>
-          </div>`
-        : nothing}
+      <scwc-tooltip
+        interactive
+        arrow
+        group="plugin-status"
+        triggers="hover click"
+        aria-label=${view.title}
+        .placements=${['top', 'bottom', 'right', 'left', 'current']}
+        style=${`height:min(${Math.max(40, this.popupHeight)}px, calc(100vh - 16px))`}
+        .content=${() => html`<wb-declarative-view
+          .store=${this.store}
+          .pool=${this.pool}
+          .pluginId=${view.pluginId}
+          .viewId=${view.id}
+          surface="tooltip"
+          .sourceTabId=${this.sourceTabId}
+          @ui-surface-action=${this.tooltipAction}
+        ></wb-declarative-view>`}
+      ></scwc-tooltip>
       ${this.menuOpened
         ? html`<wb-declarative-view
             .store=${this.store}
@@ -264,10 +166,7 @@ export class PluginStatus extends LitElement {
             .sourceTabId=${this.sourceTabId}
             @ui-menu-close=${() => {
               this.menuOpened = false;
-              this.renderRoot
-                .querySelector('wb-declarative-view')
-                ?.shadowRoot?.querySelector('button')
-                ?.focus();
+              this.anchor.focus();
             }}
           ></wb-declarative-view>`
         : nothing}`;

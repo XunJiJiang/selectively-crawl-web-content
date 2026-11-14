@@ -1026,15 +1026,15 @@ zoom-in.svg[ZU2T]: F:绘制圆框放大加号 | R:- | A:SVG图形 | S:-
 zoom-out.svg[ZU2T]: F:绘制圆框缩小减号 | R:- | A:SVG图形 | S:-
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/public/web/assets/===
-local-config-VfJoo0HP.js[LU4T]: F:分发Lit运行时与本机启动配置加载 | R:code:projects/web/src/api/local-config.ts | A:浏览器共享ESM导出 | S:仅回环同源请求配置，拒绝重定向；三秒失败回退现有配置
 index-D-iqYjNX.css[ZU4T]: F:分发工作台主题变量、全局排版与codicon字体样式 | R:code:projects/web/var.css,code:projects/web/style.css | A:全局CSS资源 | S:页面外层隐藏滚动，滚动由内部容器承担；默认深色并提供浅色树变量
-index-V59TUGyN.js[EU6L]: F:初始化工作台配置和共享组件并延迟装载主布局 | R:code:projects/web/src/main.ts,code:projects/web/src/api/local-config.ts | A:浏览器ESM启动入口 | S:先取得并存储本机配置，再导入layouts，防首请求使用旧令牌
-layouts-FuiGZIAw.js[AU7L]: F:分发工作台布局、声明式JSON树及固定渲染器宿主 | R:code:projects/web/src/layouts/root.ts,code:projects/web/src/components/declarative-view.ts | A:app-root及工作台视图组件 | S:JSON经白名单入ShadowDOM，HTML走nonce与来源校验沙箱；树复用受控host和字段适配，不展开全部业务节点
-terminal-DULQ_BAl.js[IU6M]: F:分发Web终端编辑、输出、补全与滚动交互组件 | R:code:projects/web/src/components/terminal.ts,code:projects/web/src/components/command-editor.ts | A:WorkbenchTerminal,wb-terminal | S:选区复制优先，空选区Ctrl+C取消；未知命令保留草稿；滚动用户意图退出自动跟随
-workbench-VMTHz84H.js[LU7L]: F:分发工作台共享组件、受限表达式和HTTP事件连接 | R:code:projects/web/src/api/workbench.ts,code:projects/shared/ui-expressions.ts | A:浏览器共享ESM导出 | S:连接拒绝旧代与回退序号；重同步保留页面文档；表达式不执行JS，前后端管道边界保留
+local-config-DDNEFWte.js[LU4T]: F:分发Lit运行时与本机启动配置加载 | R:code:projects/web/src/api/local-config.ts | A:浏览器共享ESM导出 | S:仅回环同源请求配置，拒绝重定向；三秒失败回退现有配置
+terminal-Dmh-hb6K.js[IU6M]: F:分发Web终端编辑、输出、补全与滚动交互组件 | R:code:projects/web/src/components/terminal.ts,code:projects/web/src/components/command-editor.ts | A:WorkbenchTerminal,wb-terminal | S:选区复制优先，空选区Ctrl+C取消；未知命令保留草稿；滚动用户意图退出自动跟随
+workbench-CQT7cJUK.js[LU7L]: F:分发工作台共享组件、受限表达式和HTTP事件连接 | R:code:projects/web/src/api/workbench.ts,code:projects/shared/ui-expressions.ts | A:浏览器共享ESM导出 | S:连接拒绝旧代与回退序号；重同步保留页面文档；表达式不执行JS，前后端管道边界保留
+index-JNk4HxjE.js[EU6L]: F:初始化工作台配置和共享组件并延迟装载主布局 | R:code:projects/web/src/main.ts,code:projects/shared/components/tooltip.ts | A:浏览器ESM启动入口 | S:先存本机配置再导入layouts；共享提示用菜单背景及16px模糊；6px箭头随最终方向；组内继承固定，外部iframe焦点移出关闭
+layouts-BHtxCO2R.js[AU7L]: F:分发工作台布局、声明式JSON树及固定渲染器宿主 | R:code:projects/web/src/layouts/root.ts,code:projects/web/src/components/declarative-view.ts | A:app-root及工作台视图组件 | S:JSON入ShadowDOM，HTML走来源沙箱；树只用显式等高提示，行与工具栏分组；状态自定义提示惰性挂载并复用shared
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/public/web/===
-index.html[EU5T]: F:装载生产工作台并标记页面身份 | R:code:projects/server/public/web/assets/index-V59TUGyN.js,code:projects/server/public/web/assets/index-D-iqYjNX.css | A:/web/HTML入口,scwc-app元标记,ICO favicon | S:预载local-config；资产基于/web/assets；初始dark-2026；元标记供脚本跳过浮窗
+index.html[EU5T]: F:装载生产工作台并标记页面身份 | R:code:projects/server/public/web/assets/index-JNk4HxjE.js,code:projects/server/public/web/assets/index-D-iqYjNX.css | A:/web/HTML入口,scwc-app元标记,ICO favicon | S:预载local-config；资产基于/web/assets；初始dark-2026；元标记供脚本跳过浮窗
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/router/===
 index.ts[MN8M]: F:接入采集、工作台和带客户端版本的HTTP请求 | R:code:projects/server/router/extension-origin.ts,code:projects/server/router/user-script.ts,code:projects/server/router/version.ts | A:app,listen,/api/metadata/scrape | S:仅明确扩展路径豁免同主机检查，仍验HTTP(S) site与Bearer；CORS允许版本头并暴露通知头；采集路由显式版本门槛；响应关闭结束任务
@@ -1187,8 +1187,8 @@ notify.test.ts[TU5T]: F:验证通知外观重构后六向定位与回调保留 |
 script-ui.test.ts[TU5M]: F:验证脚本视图校验时机、字段错误及草稿恢复 | R:code:projects/shared/components/script-ui.ts,code:projects/server/user-script/ui.ts,code:projects/server/plugins/template/input-validation-ui.ts | A:Vitest DOM用例 | S:真实编译器与运行器验证长度、格式及一致性首错中断；输入不调控制器，blur和提交完整校验；旧响应不清新错误；过期读取只恢复一次，提交不重放
 script-ui.ts[LU7L]: F:托管脚本与扩展JSON字段、错误反馈和树传输 | R:code:projects/web/src/components/ui-renderer.js,code:projects/shared/script-ui.ts | A:ScriptUIView,scwc-script-ui | S:树事件串行，读取独立；组件字段经适配器采集且错误按编辑序号拒迟到；自动绑定不存普通草稿；活动4秒读，过期恢复一次且提交不重放
 version-notice.ts[LU6S]: F:为两端显示可按版本抑制的升级通知 | R:code:projects/shared/client-version.ts | A:showVersionNotice,scwc-version-notice | S:警告按当前与最新版本去重并可持久关闭；错误不使用警告抑制键；存储不可用时仍保留本会话去重
-tooltip.test.ts[TU5T]: F:验证共享提示全文渲染与生命周期 | R:code:projects/shared/components/tooltip.ts | A:Vitest DOM用例 | S:覆盖悬停、焦点、文本变化、滚动与Esc；卸载拒绝迟到打开；DOM夹具不证明像素定位
-tooltip.ts[LU6S]: F:提供跨宿主纯文本提示及动态子元素事件委托 | R:code:projects/shared/utils/customElement.ts | A:SCWCTooltip,scwc-tooltip,attachTooltip | S:Popover顶层保留ShadowDOM主题并逃逸裁切；委托以匹配子元素作锚点；文本变化、滚动和卸载关闭；异步打开按代数取消，不使用原生title
+tooltip.test.ts[TU5L]: F:验证提示分组触发、源重连及跨iframe聚焦和关闭 | R:code:projects/shared/components/tooltip.ts | A:Vitest DOM用例 | S:伪时钟覆盖1秒开100ms关、分组固定及重连释放；外部焦点关闭而内部输入和iframe保焦；模拟无事件跨帧切换；DOM几何不证明像素布局
+tooltip.ts[LU6L]: F:统一菜单风格模糊背景提示和多触发、分组、源绑定及跨帧聚焦生命周期 | R:code:projects/shared/utils/customElement.ts,code:projects/shared/utils/frame.ts,code:projects/web/src/components/context-menu/styles.ts | A:SCWCTooltip,attachTooltip,TooltipOptions,TooltipPlacement,TooltipTrigger,trigger | S:悬停1秒离开100ms；同组继承固定即切，异组悬停受阻；绑定重连续用；仅slot保留换行；按root判焦，内部iframe按100ms跟焦；容器与6px箭头以单条SVG绘制边框和焦点轮廓
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/shared/store/===
 config.ts[CC7M]: F:协调浏览器配置控件、鉴权提示与同页配置传播 | R:code:projects/shared/utils/storage.ts,code:projects/shared/userscript-config.ts | A:ConfigController,configContext,defaultValue,parseRefreshRule,isConfig,isConfigItem | S:公共键接收同origin更新；API字段合并防抖500ms；Token变化独立发事件并清鉴权提示；提示刷新控件时保留待落盘输入；断连注销控制器
@@ -1380,11 +1380,11 @@ page-inspector.ts[AU7T]: F:承载核心JSON页面信息视图 | R:code:projects/
 terminal.ts[AU8L]: F:管理Web终端视图 | R:code:projects/web/src/components/command-editor.ts,code:projects/web/src/workbench/store.ts,code:projects/web/src/components/scroll-container.ts | A:wb-terminal,activate,closeCurrent,cancel,alter | S:草稿串行CAS、命令幂等；执行去续行而待答保原文；执行中隐藏普通输入，未知命令保草稿并本地提示；选区优先复制，无选区Ctrl+C取消，强停须确认；整行按seq锚定；捕获滚轮和pointerdown先于容器消费事件记录用户滚动，避免follow拉回
 scroll-container.ts[LU6M]: F:适配工作台滚动、整行视口及脚本复用 | R:code:projects/shared/components/scroll-container/index.ts | A:wb-scroll-container,WorkbenchScrollContainer,lineScroll,wholeLines,thin,dragOnly | S:普通事件限80px，整行模式限实测一行；最大200ms且零加速；弹层max-height传到视口，原生textarea先滚自身；dragOnly还需禁滚轮
 declarative-menu.ts[LU6S]: F:把编译菜单投影为工作台菜单项 | R:code:projects/shared/declarative-ui.ts,code:projects/web/src/components/context-menu/menu-types.ts | A:DeclarativeMenu | S:仅消费核心编译节点；勾选采集字段及编辑序号；模板同步标签和禁用态；按钮图标占位不进入菜单文本
-declarative-view.test.ts[TU7L]: F:验证Web字段提示、前端验证时机与消费回填校验 | R:code:projects/web/src/components/declarative-view.ts,code:projects/shared/components/tooltip.ts | A:Vitest DOM用例 | S:前端验证器编辑时不调用、blur显示原错；提示保留说明与脏刷新，shared悬浮提示刷新释放；无效字段阻止前端消费，回填需后端验证；提交不重放
+declarative-view.test.ts[TU7L]: F:验证Web字段校验、刷新保留及JSON页签树提示集成 | R:code:projects/web/src/components/declarative-view.ts,code:projects/shared/components/tooltip.ts | A:Vitest DOM用例 | S:前端验证仅blur或显式消费；无效字段不交前端，回填须后端验证；刷新释放旧提示；覆盖页签包装后树与工具栏满秒提示；几何夹具不证明像素排版
 declarative-view.ts[AU8L]: F:托管工作台声明式视图、树消息续接和字段校验反馈 | R:code:projects/web/src/components/ui-renderer.js,code:projects/web/src/api/workbench.ts,code:projects/shared/ui-expressions.ts | A:DeclarativeView,wb-declarative-view | S:JSON白名单入ShadowDOM，HTML走nonce与source沙箱；前端控制器限原来源页，树事件串行且按实例拒旧响应；消费及回填重验；错误带field和编辑序号；过期读恢复一次，提交不重放
 json-renderer-policy.ts[LS8S]: F:校验JSON安全节点、树描述与字段规则边界 | R:code:projects/shared/tree-model.ts,code:projects/shared/declarative-ui.ts | A:validateJSONModel,validateJSONAttribute | S:树host必须已在安全节点中且名称唯一；静态树再验结构与配额，资产图标也过资源策略；仅同源/web/ui/assets无凭据或hash；ShadowDOM不替代白名单
-plugin-status.test.ts[TU5T]: F:验证状态项提示层与右键菜单切换 | R:code:projects/web/src/components/plugin-status.ts | A:Vitest用例 | S:右键先关闭固定tooltip，再按真实指针坐标开工作台菜单；关闭事件销毁菜单
-plugin-status.ts[AU6M]: F:呈现插件状态项、提示层与上下文菜单 | R:code:projects/web/src/components/declarative-view.ts | A:wb-plugin-status,PluginStatus | S:固定提示层跨状态项互斥，悬停300ms打开、离开200ms关闭；右键先关提示层再以指针坐标开菜单；owner变化、外点与Esc释放显示
+plugin-status.test.ts[TU5T]: F:验证状态项共享触发、菜单切换及宿主释放 | R:code:projects/web/src/components/plugin-status.ts,code:projects/shared/components/tooltip.ts | A:Vitest用例 | S:悬停1秒且离开取消；右键先关固定层再按指针开菜单；owner变更关闭自定义内容
+plugin-status.ts[AU6S]: F:把插件状态项、菜单及表面事件接入共享提示状态机 | R:code:projects/web/src/components/declarative-view.ts,code:projects/shared/components/tooltip.ts | A:wb-plugin-status,PluginStatus | S:悬停与点击由shared触发，状态项共用分组；自定义内容惰性挂载且按受控resize回报高度；右键先关层再按指针开菜单，owner变化关闭
 ui-content.css[ZU5S]: F:约束声明式表面的滚动、紧凑内边距及核心配置操作布局 | R:code:projects/web/src/components/json-components.ts,code:projects/server/public/resources/styles/json-ui.css | A:.ui-root,.ui-scroll,.ui-select,页面信息data-ui-key规则 | S:内容根允许溢出至外层滚动视口，不能裁切单根分组；嵌套Tabs只分剩余高度，保存行留正常流；原生选择目标隐藏，control part为8px圆角
 ui-frame.js[IU8T]: F:在HTML沙箱建立固定渲染器消息桥 | R:code:projects/web/src/components/ui-renderer.js,code:projects/web/src/components/declarative-view.ts | A:scwc-ui-ready,MessagePort握手 | S:仅接受parent且匹配nonce、协议和版本的首次端口；建立后移除欢迎监听；opaque origin不能替代source与nonce核验
 ui-renderer.d.ts[FU6T]: F:声明固定渲染器消息、树字段适配及宿主生命周期合同 | R:code:projects/web/src/components/ui-renderer.js,code:projects/shared/tree.ts | A:UIRendererMessage,UIRendererComponents,createUIRenderer | S:组件钩子可选，HTML沙箱不需注册工作台组件；树通过适配器读写值；消息以renderRevision拒旧
@@ -1491,7 +1491,7 @@ ui-content.ts[FU5L]: F:定义双侧栏配置、树与输入验证页及状态提
 script-ui.ts[FE5M]: F:声明脚本与扩展的树、配置、输入验证及事件样例 | R:code:projects/server/plugins/template/tree-ui.ts,code:projects/server/plugins/template/settings-ui.ts | A:scripts | S:外层v2内层1；树复用工作台提供器；普通字段按站保存，全局本站自动绑定；数字在事件管道转换
 settings-ui.ts[FU5M]: F:提供全局、本站与显式控制器的分组配置样例 | R:code:projects/server/plugins/template/configuration.ts,code:projects/server/plugins/template/declarative-ui.ts,code:projects/shared/declarative-ui.ts | A:globalSettings,controllerSettings,siteSettings | S:控件名用中划线而配置键保留点号；显式绑定保留基线，仅供工作台；site仅脚本扩展按origin保存；数字默认值为字符串
 input-validation-ui.ts[FU5M]: F:提供多入口输入规则、密码比较及非法声明样例 | R:code:projects/shared/declarative-ui.ts,code:projects/server/plugins/template/ui-content.ts,code:projects/server/plugins/template/script-ui.ts | A:inputValidationHandlers,inputValidationContent,invalidInputExamples,rejectedInputContent | S:两密码共用长度和格式规则，再验证一致性；只读校验不回显密码；Web用核心通知、脚本消费返回值；备注共用全局键且失焦保存；非法候选不作初始内容
-tree-ui.ts[AE6L]: F:共用静动态JSON树演示和可持久排序的数据提供器 | R:code:projects/shared/tree-model.ts,code:projects/shared/tree.ts | A:TreeDemoProvider,treeDemoHandlers,treeDemoContent | S:600文件每页120项；错误分支每代首次失败；移动串行校验版本与锚点，顺序及幂等回执原子保存；环境变量可隔离数据文件
+tree-ui.ts[AE6L]: F:共用静动态JSON树演示和可持久排序的数据提供器 | R:code:projects/shared/tree-model.ts,code:projects/shared/tree.ts | A:TreeDemoProvider,treeDemoHandlers,treeDemoContent | S:600文件每页120项；错误分支每代首读失败；移动串行验版本与锚点，顺序和幂等回执原子保存；环境变量可隔离文件；静态提示显式配置
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/plugins/template/tests/===
 integration.test.mjs[TE6L]: F:验证模板SDK、配置、树字段及多入口输入校验全链 | R:code:projects/server/plugins/template/index.ts,code:projects/server/plugins/template/input-validation-ui.ts | A:node:test,JSDOM,MessageChannel | S:真实HTTP和IPC验证拒写及字段归属；输入夹具给树提供字段适配器；树视觉由浏览器冒烟验证，DOM不证明像素布局
@@ -1594,11 +1594,11 @@ fetch.ts[IN5S]: F:声明请求接口并提供旧版safeId工厂 | R:code:project
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/plugins/template/data/===
 tree-demo.json[PD4T]: F:保存模板树的节点顺序、数据版本及移动幂等回执 | R:code:projects/server/plugins/template/tree-ui.ts | A:version,roots,children,receipts | S:属于可变演示数据；排序与operationId回执同次落盘
 
-===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/public/lib/===
-scwcutils.iife.mwezqpt7.js[LE7T]: F:分发插件页面会话、请求生命周期及UI处理器SDK | R:code:projects/webutils/lib/index.ts,code:projects/webutils/lib/workbench.ts | A:全局scwcutils | S:fetch等待ready，Socket须先await ready；页面grant绑定来源；暂停只重放显式可中断请求，回调留当前文档
-
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/shared/components/tree/===
 tree.css[ZU5T]: F:排版固定行高树、居中折叠图标及行操作拖放反馈 | R:code:projects/shared/components/tree/tree.ts | A:.ui-tree-host,.tree-row,.tree-twistie,.tree-actions,树主题变量 | S:选中填充与焦点描边独立，失焦保留选中；行绝对定位；折叠按钮覆盖通用悬停背景；高对比模式补边框
-tree.test.ts[TU6M]: F:验证树选择焦点、连续点击、提示锚点及虚拟窗口生命周期 | R:code:projects/shared/components/tree/tree.ts,code:projects/shared/tree-session.ts | A:Vitest DOM用例 | S:万节点少于35行且保留屏外焦点；焦点进出不得替换鼠标目标；忽略取消的迟到响应拒收；几何夹具不证明像素排版
-tree.ts[LU8L]: F:实现三宿主共用的虚拟JSON树交互和字段适配器 | R:code:projects/shared/tree-model.ts,code:projects/shared/components/scroll-container/scroll-container.ts,code:projects/shared/components/tooltip.ts,code:projects/shared/tree.ts | A:JSONTree,TreeBridge,command,readValue,writeValue,dispose | S:状态独立于回收行并保留屏外焦点；焦点进出不重建行，逐次click切换；提示委托锚定当前行；分支查询代数拒旧；搜索不递归加载，远端清空恢复原视图且过滤禁拖；写成功刷新失败保留回执；释放取消请求与观察器
+tree.test.ts[TU6M]: F:验证树选择焦点、分组延迟提示及虚拟窗口生命周期 | R:code:projects/shared/components/tree/tree.ts,code:projects/shared/tree-session.ts | A:Vitest DOM用例 | S:首个提示满秒、同树行立即切换；工具栏与行组、不同树隔离；万节点少于35行并保留屏外焦点；焦点不换鼠标目标，迟到响应拒收
+tree.ts[LU8L]: F:实现三宿主共用的虚拟JSON树交互和字段适配器 | R:code:projects/shared/tree-model.ts,code:projects/shared/components/scroll-container/scroll-container.ts,code:projects/shared/components/tooltip.ts,code:projects/shared/tree.ts | A:JSONTree,TreeBridge,command,readValue,writeValue,dispose | S:状态独立于回收行并保留屏外焦点，焦点进出不重建行；每树工具栏与行分别独立成组；只用显式tooltip，等高提示试右左下上原位；分支查询拒旧，搜索不递归加载且过滤禁拖；写成功刷新失败保留回执，释放取消请求与观察器
+
+===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/public/lib/===
+scwcutils.iife.mwgddiup.js[LE7T]: F:分发插件页面会话、请求生命周期及UI处理器SDK | R:code:projects/webutils/lib/index.ts,code:projects/webutils/lib/workbench.ts | A:全局scwcutils | S:fetch等待ready，Socket须先await ready；页面grant绑定来源；暂停只重放显式可中断请求，回调留当前文档
 

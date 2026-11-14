@@ -137,7 +137,9 @@ export class JSONTree implements TreeFieldAdapter {
       element.append(glyph);
       element.addEventListener('click', run);
       toolbar.append(element);
-      this.tooltipCleanups.push(attachTooltip(element, () => label));
+      this.tooltipCleanups.push(
+        attachTooltip(element, () => label, { group: `${this.prefix}toolbar` }),
+      );
       return element;
     };
     if (options.search !== false) {
@@ -227,6 +229,9 @@ export class JSONTree implements TreeFieldAdapter {
     this.tooltipCleanups.push(
       attachTooltip(this.list, (row) => row.dataset.treeTooltip ?? '', {
         delegate: '[data-tree-tooltip]',
+        group: `${this.prefix}items`,
+        placements: ['right', 'left', 'bottom', 'top', 'current'],
+        matchAnchorHeight: true,
       }),
     );
     if (typeof ResizeObserver === 'function') {
@@ -737,11 +742,10 @@ export class JSONTree implements TreeFieldAdapter {
         }
         element.append(actions);
       }
-      element.dataset.treeTooltip =
-        cached?.error ??
-        view?.tooltip ??
-        item.tooltip ??
-        [item.label, item.description].filter(Boolean).join(' — ');
+      const tooltip = view?.tooltip ?? item.tooltip;
+      if (tooltip) {
+        element.dataset.treeTooltip = tooltip;
+      }
       fragment.append(element);
       if (
         this.definition.controllers.render &&
