@@ -1,16 +1,20 @@
 import { css, html, LitElement, render, unsafeCSS } from 'lit';
 import { repeat } from 'lit/directives/repeat.js';
 import { customElement } from '../utils/customElement.ts';
-import { NotifyController, type NotifyCloseSource } from '../notify-controller.ts';
-import type { INotifyOptions, NotifyHandle, NotifyPlacement } from '../types/notify.d.ts';
+import { hostedNotify, NotifyManager } from '../notify-manager.ts';
+import type {
+  INotifyOptions,
+  NotifyHandle,
+  NotifyInteraction,
+  NotifyPlacement,
+  NotifyState,
+} from '../types/notify.d.ts';
 import { renderNotificationContent } from './notification.ts';
 import cardStyle from './notification.css?raw';
 import style from './notify.css?raw';
 
 export { NotifyController } from '../notify-controller.ts';
-interface Item extends INotifyOptions {
-  id: string;
-  placement: NotifyPlacement;
+interface Item extends NotifyState {
   leaving?: boolean;
 }
 const placements: NotifyPlacement[] = ['tl', 'tc', 'tr', 'bl', 'bc', 'br'];
@@ -19,52 +23,39 @@ const placements: NotifyPlacement[] = ['tl', 'tc', 'tr', 'bl', 'bc', 'br'];
 class NotificationView {
   private items = new Map<string, Item>();
   private removals = new Map<string, ReturnType<typeof setTimeout>>();
-  readonly controller = new NotifyController((id, source) => this.leave(id, source));
+  readonly manager = new NotifyManager((state, id) => {
+    if (state?.banner) {
+      this.items.set(id, state);
+    } else {
+      const item = this.items.get(id);
+      if (item && !item.leaving) {
+        item.leaving = true;
+        this.removals.set(
+          id,
+          setTimeout(() => {
+            this.removals.delete(id);
+            this.items.delete(id);
+            this.requestUpdate();
+          }, 250),
+        );
+      }
+    }
+    this.requestUpdate();
+  });
+  get controller() {
+    return this.manager.controller;
+  }
   private requestUpdate: () => void;
   constructor(requestUpdate: () => void) {
     this.requestUpdate = requestUpdate;
   }
   notify(options: INotifyOptions): NotifyHandle {
-    const id = crypto.randomUUID();
-    const item: Item = { ...options, id, placement: options.placement ?? 'tr' };
-    this.items.set(id, item);
-    this.schedule(item);
-    this.requestUpdate();
-    return {
-      id,
-      close: () => this.controller.close(id),
-      update: (value) => {
-        if (item.leaving || !this.items.has(id)) {
-          return false;
-        }
-        Object.assign(item, value);
-        this.schedule(item);
-        this.requestUpdate();
-        return true;
-      },
-    };
+    return this.manager.notify(options);
   }
-  private schedule(item: Item) {
-    const busy = item.progress !== undefined && item.progress !== false && item.progress !== 100;
-    this.controller.set(item.id, busy ? 0 : (item.duration ?? 3000));
-  }
-  private leave(id: string, source: NotifyCloseSource) {
-    const item = this.items.get(id);
-    if (!item || item.leaving) {
-      return;
-    }
-    item.leaving = true;
-    this.requestUpdate();
-    this.removals.set(
-      id,
-      setTimeout(() => {
-        this.removals.delete(id);
-        this.items.delete(id);
-        this.requestUpdate();
-      }, 250),
-    );
-    if (source !== 'manual') {
-      item.onclose?.(source);
+  private interact(id: string, value: NotifyInteraction) {
+    // Exit animations can still emit focus/hover events after the owner removed the record.
+    if (this.manager.items.has(id)) {
+      void this.manager.interact(id, value).catch((error) => console.error('通知操作失败', error));
     }
   }
   render() {
@@ -80,16 +71,16 @@ class NotificationView {
               role=${item.type === 'error' ? 'alert' : 'status'}
               @click=${(event: MouseEvent) => {
                 event.stopPropagation();
-                item.onclick?.();
+                this.interact(item.id, { type: 'click' });
               }}
-              @mouseenter=${() => this.controller.pause(item.id)}
-              @mouseleave=${() => this.controller.resume(item.id)}
-              @focusin=${() => this.controller.pause(item.id, 'focus')}
+              @mouseenter=${() => this.interact(item.id, { type: 'hover', value: true })}
+              @mouseleave=${() => this.interact(item.id, { type: 'hover', value: false })}
+              @focusin=${() => this.interact(item.id, { type: 'focus', value: true })}
               @focusout=${(event: FocusEvent) => {
                 if (
                   !(event.currentTarget as HTMLElement).contains(event.relatedTarget as Node | null)
                 ) {
-                  this.controller.resume(item.id, 'focus');
+                  this.interact(item.id, { type: 'focus', value: false });
                 }
               }}
             >
@@ -105,7 +96,10 @@ class NotificationView {
                         (action) => html` <button
                           @click=${(event: MouseEvent) => {
                             event.stopPropagation();
-                            void action.onClick();
+                            this.interact(item.id, {
+                              type: 'action',
+                              actionId: action.id,
+                            });
                           }}
                         >
                           ${action.label}
@@ -170,6 +164,10 @@ class StandaloneNotify {
 
 /** Workbench-style notifications with a lazily mounted, per-document host. */
 export class Notify {
+  private options: Pick<INotifyOptions, 'useCore'>;
+  constructor(options: Pick<INotifyOptions, 'useCore'> = {}) {
+    this.options = options;
+  }
   private static standalone?: StandaloneNotify;
   static getInstance(): SCWCNotify | StandaloneNotify {
     if (!globalThis.customElements) {
@@ -191,10 +189,10 @@ export class Notify {
     return element;
   }
   static notify(options: INotifyOptions) {
-    return Notify.getInstance().notify(options);
+    return hostedNotify(options) ?? Notify.getInstance().notify(options);
   }
   notify(options: INotifyOptions) {
-    return Notify.notify(options);
+    return Notify.notify({ ...this.options, ...options });
   }
   create(options: INotifyOptions) {
     return this.notify(options);

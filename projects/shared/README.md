@@ -36,11 +36,16 @@ import { Notify, notify } from 'scwc:shared/frontend';
 const notifications = new Notify();
 const handle = notifications.success('采集完成', { description: '已保存 12 项', placement: 'tc' });
 handle.update({ description: '已保存 15 项', progress: 100 });
+await handle.markRead();
+await handle.setProgress(false);
 handle.close();
 notify({ title: '后台处理中', progress: null, placement: 'bc' });
+new Notify({ useCore: false }).info('仅在插件页显示', { placement: 'tc' });
 ```
 
 位置支持 `tl/tr/tc/bl/br/bc`（左上、右上、顶部居中、左下、右下、底部居中）。支持 info/success/warn/error、正文、进度、按钮回调、点击和关闭回调；`duration` 单位为毫秒，0 表示持续显示，未完成进度会暂停自动关闭。程序调用 `close()` 不触发 `onclose`，自动隐藏和关闭按钮分别传 `auto/user`。需要独立样式时可只导入 `NotifyController`，通过 `set/pause/resume/close` 管理通知，并在宿主挂载/卸载时调用 `connect/suspend`，最终释放时调用 `dispose`。
+
+核心插件页默认 `useCore: true`：嵌入工作台时在核心通知区显示，位置跟随核心页面（当前右下角），插件的 `placement` 被静默忽略。构造 `new Notify({ useCore: false })` 或对单条通知设置 `useCore: false` 可保留插件页内展示；独立打开页面时也在本页显示。SDK 另公开 `scwcutils.Notify/notify`。对象、回调、计时和状态由创建的插件文档管理，核心的展示和交互通过页面通道双向同步，文档销毁时释放。句柄还提供 `setContent/setProgress/setActions/markRead/getState/isVisible`，状态控制方法返回 Promise；`update/close` 保留同步布尔返回值。自动隐藏保留记录和句柄，显式关闭移除记录；`autoRead: false` 可交由插件主动管理已读。详见[工作台通知接口](../../docs/workbench-feedback.md)。
 
 ## 插件主动通知脚本和扩展
 

@@ -3,6 +3,8 @@ import { UI_UNAVAILABLE, uiValue, type UIValue } from '../../../shared/declarati
 import type { ConfigChange } from '../../../server/types/plugin-config.d.ts';
 import { commands, effectiveKeys } from './commands.ts';
 import { InstancePort, PROTOCOL } from '../../../shared/workbench-protocol.ts';
+import { isNotifyState } from '../../../shared/notify-manager.ts';
+import type { NotifyState } from '../../../shared/types/notify.d.ts';
 import type { WorkbenchStore } from './store.ts';
 import type { ConfigSnapshot, PageSession, PluginTab, WorkbenchEvent } from './types.ts';
 import { uid, groups } from './model.ts';
@@ -326,6 +328,7 @@ export class FramePool extends EventTarget {
     this.changed();
   }
   private invalidate(r: FrameRuntime) {
+    this.store.releasePageNotifications(r.epoch);
     r.configDispatch?.dispose();
     r.configDispatch = undefined;
     r.frontendHandlers = undefined;
@@ -405,7 +408,11 @@ export class FramePool extends EventTarget {
       r.session = session;
       const channel = new MessageChannel();
       r.port = new InstancePort(channel.port1, r.tabId, epoch);
-      r.port.onEvent = (method, payload) => this.onEvent(r, method, payload);
+      r.port.onEvent = (method, payload) => {
+        if (r.epoch === epoch) {
+          this.onEvent(r, method, payload);
+        }
+      };
       r.port.onRequest = async (method, payload) => {
         if (method === 'host.executeCommand') {
           const { commandId, args } = payload as { commandId: string; args: unknown };
@@ -453,6 +460,34 @@ export class FramePool extends EventTarget {
     if (this.runtimes.get(r.tabId) !== r) {
       return;
     }
+    if (method === 'notify.changed') {
+      const data = payload as { id?: unknown; state?: unknown } | null;
+      const tab = this.store.workspace?.snapshot.tabs.find((value) => value.id === r.tabId);
+      if (
+        !data ||
+        typeof data.id !== 'string' ||
+        !/^[a-zA-Z0-9-]{1,100}$/.test(data.id) ||
+        (data.state !== null && (!isNotifyState(data.state) || data.state.id !== data.id)) ||
+        tab?.kind !== 'plugin' ||
+        !r.port
+      ) {
+        return;
+      }
+      const epoch = r.epoch;
+      const id = data.id;
+      this.store.syncPageNotification(
+        `page:${epoch}:${id}`,
+        data.state as NotifyState | null,
+        { tabId: r.tabId, pluginId: tab.pluginId, ownerId: epoch },
+        async (interaction) => {
+          if (r.epoch !== epoch || this.runtimes.get(r.tabId) !== r || !r.port) {
+            throw new Error('通知所属页面已关闭');
+          }
+          return r.port.request('notify.interact', { id, interaction });
+        },
+      );
+      return;
+    }
     if (method === 'ready') {
       r.state = 'ready';
       clearTimeout(r.handshakeTimer);
@@ -467,7 +502,7 @@ export class FramePool extends EventTarget {
     if (method === 'ui.value.changed') {
       this.dispatchEvent(
         new CustomEvent('ui-value-changed', {
-          detail: { ...(payload as object),tabId: r.tabId, frameEpoch: r.epoch },
+          detail: { ...(payload as object), tabId: r.tabId, frameEpoch: r.epoch },
         }),
       );
     }
@@ -962,6 +997,7 @@ export class FramePool extends EventTarget {
     this.changed();
   }
   private remove(r: FrameRuntime) {
+    this.store.releasePageNotifications(r.epoch);
     r.transition = undefined;
     clearTimeout(r.handshakeTimer);
     clearTimeout(r.checkpointTimer);

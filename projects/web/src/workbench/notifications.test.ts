@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { WorkbenchStore } from './store.ts';
+import { NotifyManager } from '../../../shared/notify-manager.ts';
 import type { Notification, WorkbenchEvent } from './types.ts';
 import type { NotificationHost, SystemNotificationPermission } from './notification-host.ts';
 vi.mock('../../../shared/store/config.ts', () => ({
@@ -59,6 +60,52 @@ function systemFixture() {
     } as WorkbenchEvent);
   return { host, close, event };
 }
+
+it('uses page-owned timers, pauses and history instead of starting another core banner lifetime', async () => {
+  vi.useFakeTimers();
+  store = new WorkbenchStore();
+  const manager = new NotifyManager((state, id) =>
+    store.syncPageNotification(
+      id,
+      state,
+      { pluginId: 'alpha', tabId: 'tab', ownerId: 'doc' },
+      (interaction) => manager.interact(id, interaction),
+    ),
+  );
+  const notice = manager.notify({
+    title: '短时通知',
+    duration: 100,
+    progress: null,
+    autoRead: false,
+  });
+  await vi.advanceTimersByTimeAsync(10000);
+  expect(store.toasts).toHaveLength(1);
+  await notice.setProgress(100);
+  await vi.advanceTimersByTimeAsync(40);
+  store.hoverToast(notice.id, true);
+  store.focusToast(notice.id, true);
+  store.hoverToast(notice.id, false);
+  await vi.advanceTimersByTimeAsync(1000);
+  expect(store.toasts).toHaveLength(1);
+  expect((await notice.getState()).readAt).toBeNull();
+  store.focusToast(notice.id, false);
+  await vi.advanceTimersByTimeAsync(60);
+  expect(store.toasts).toHaveLength(0);
+  expect(store.notificationItems).toHaveLength(1);
+  expect(await notice.isVisible()).toBe(false);
+  store.setVisibleNotifications([notice.id]);
+  expect(await notice.isVisible()).toBe(true);
+  expect((await notice.getState()).seenAt).not.toBeNull();
+  await notice.setProgress(false);
+  await notice.markRead();
+  expect(store.notificationItems[0]).toMatchObject({ progress: false, readAt: expect.any(String) });
+  expect(store.toasts).toHaveLength(0);
+  store.setVisibleNotifications([]);
+  expect(await notice.isVisible()).toBe(false);
+  notice.close();
+  expect(store.notificationItems).toHaveLength(0);
+  manager.dispose();
+});
 
 describe('system notification escalation', () => {
   it('requests permission immediately and reports a dismissed or blocked request', async () => {

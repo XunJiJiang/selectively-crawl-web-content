@@ -4524,6 +4524,8 @@ export class AppRoot extends LitElement {
             icon: icon(t.level === 'warn' ? 'warning' : t.level),
             onClose: () => this.store.dismissToast(t.id),
             onFocus: (focused) => this.store.focusToast(t.id, focused),
+            onClick: () => this.store.clickToast(t.id),
+            onHover: (hovered) => this.store.hoverToast(t.id, hovered),
           }),
       )}
     </div>`;
@@ -4553,10 +4555,7 @@ export class AppRoot extends LitElement {
             event.stopPropagation();
             this.act(async () => {
               if (action.type === 'callback' && action.id) {
-                await this.store.api.request(
-                  `/notifications/${notification.id}/actions/${action.id}`,
-                  {},
-                );
+                await this.store.invokeNotificationAction(notification.id, action.id);
               } else if (action.path) {
                 await this.command(
                   'openUrl',

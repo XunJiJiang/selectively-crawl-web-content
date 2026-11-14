@@ -1,9 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { requireValue } from '../../../shared/workbench-protocol.ts';
+import { requireValue, InstancePort, PROTOCOL } from '../../../shared/workbench-protocol.ts';
 import { FramePool } from './frames.ts';
 import { WorkbenchStore } from './store.ts';
 import { addTab, groups, moveTab, newPluginTab, splitGroup } from './model.ts';
 import type { WorkspaceSnapshot } from './types.ts';
+import { MessageChannel as NodeMessageChannel } from 'node:worker_threads';
+import { Notify } from '../../../shared/components/notify.ts';
+import { createWorkbenchSDK } from '../../../webutils/lib/workbench.ts';
 vi.mock('../../../shared/store/config.ts', () => ({
   ConfigController: {
     config: {
@@ -113,6 +116,124 @@ function fixture() {
   pool.sync();
   return { pool, store, snapshot, tab, root, container, command };
 }
+it('projects shared Notify state through the page SDK while preserving document ownership and local opt-out', async () => {
+  const { pool, store, tab } = fixture();
+  const runtime = requireValue(pool.runtimes.get(tab.id));
+  const channel = new NodeMessageChannel();
+  const core = new InstancePort(channel.port1 as unknown as MessagePort, tab.id, runtime.epoch);
+  runtime.port = core;
+  core.onEvent = (method, payload) =>
+    (
+      pool as unknown as { onEvent(r: typeof runtime, method: string, payload: unknown): void }
+    ).onEvent(runtime, method, payload);
+  const parent = { postMessage: vi.fn() };
+  vi.stubGlobal('parent', parent);
+  const sdk = createWorkbenchSDK(vi.fn());
+  // Creation before the welcome must use the eventual core presentation without a local flash.
+  const onclick = vi.fn(),
+    onclose = vi.fn(),
+    oldAction = vi.fn();
+  const notice = new Notify().info('插件下载', {
+    placement: 'tl',
+    progress: null,
+    autoRead: false,
+    onclick,
+    onclose,
+    actions: [{ label: '旧操作', onClick: oldAction }],
+  });
+  expect(document.querySelector('scwc-notify')).toBeNull();
+  window.dispatchEvent(
+    new MessageEvent('message', {
+      source: parent as unknown as Window,
+      origin: location.origin,
+      ports: [channel.port2 as unknown as MessagePort],
+      data: {
+        protocol: PROTOCOL,
+        version: 1,
+        type: 'welcome',
+        documentNonce: (
+          await (async () => {
+            await Promise.resolve();
+            return parent.postMessage.mock.calls[0][0] as { documentNonce: string };
+          })()
+        ).documentNonce,
+        session: {
+          grant: 'grant',
+          safeId: 'safe',
+          tabId: tab.id,
+          frameEpoch: runtime.epoch,
+          expiresAt: Date.now() + 300000,
+        },
+        focused: true,
+        visible: true,
+      },
+    }),
+  );
+  await sdk.ready;
+  await vi.waitFor(() => expect(store.toasts).toHaveLength(1));
+  const id = store.toasts[0].id;
+  expect(store.toasts[0].notification).toMatchObject({
+    source: 'page',
+    pluginId: 'p',
+    progress: null,
+    readAt: null,
+  });
+  expect(store.toasts[0].notification).not.toHaveProperty('placement');
+  await notice.markRead();
+  await notice.setContent('正在下载', '已完成一半');
+  await notice.setProgress(50);
+  await vi.waitFor(() =>
+    expect(store.toasts[0].notification).toMatchObject({
+      title: '正在下载',
+      message: '已完成一半',
+      progress: 50,
+      readAt: expect.any(String),
+    }),
+  );
+  await notice.markRead(false);
+  await vi.waitFor(() => expect(store.toasts[0].notification.readAt).toBeNull());
+  await store.ackNotifications([id]);
+  expect((await notice.getState()).readAt).not.toBeNull();
+  store.clickToast(id);
+  await vi.waitFor(() => expect(onclick).toHaveBeenCalledOnce());
+  const staleAction = requireValue(store.toasts[0].notification.actions[0].id);
+  const action = vi.fn(async () => {
+    await notice.setProgress(100);
+  });
+  await notice.setActions([{ label: '完成', onClick: action }]);
+  await vi.waitFor(() => expect(store.toasts[0].notification.actions[0].label).toBe('完成'));
+  await expect(store.invokeNotificationAction(id, staleAction)).rejects.toThrow('已失效');
+  await store.invokeNotificationAction(
+    id,
+    requireValue(store.toasts[0].notification.actions[0].id),
+  );
+  expect(action).toHaveBeenCalledOnce();
+  expect(oldAction).not.toHaveBeenCalled();
+  await vi.waitFor(() => expect(store.toasts[0].notification.progress).toBe(100));
+  // Host placement never enters this projection; explicit opt-out still uses all six local placements.
+  const local = new Notify({ useCore: false }).success('插件内显示', {
+    placement: 'bc',
+    duration: 0,
+  });
+  const element = requireValue(document.querySelector('scwc-notify'));
+  await element.updateComplete;
+  expect(element.shadowRoot?.querySelector('.bc-list .notify-item')).not.toBeNull();
+  expect(store.toasts).toHaveLength(1);
+  await local.markRead();
+  expect((await local.getState()).readAt).not.toBeNull();
+  local.close();
+  await store.deleteNotifications([id]);
+  expect(onclose).toHaveBeenCalledWith('user');
+  await vi.waitFor(() => expect(store.toasts).toHaveLength(0));
+  expect(notice.update({ progress: 1 })).toBe(false);
+  const remaining = Notify.notify({ title: '随文档释放', progress: null });
+  await vi.waitFor(() => expect(store.toasts).toHaveLength(1));
+  expect(remaining.id).not.toBe(notice.id);
+  (pool as unknown as { invalidate(r: typeof runtime): void }).invalidate(runtime);
+  expect(store.toasts).toHaveLength(0);
+  expect(store.notificationItems).toHaveLength(0);
+  window.dispatchEvent(new Event('pagehide'));
+});
 describe('stable iframe ownership and hibernation safety', () => {
   it('sends one blur when focus enters the auxiliary sidebar and restores page focus', () => {
     const { pool, store, tab } = fixture();

@@ -1,6 +1,7 @@
 import { NotifyController } from '../../../shared/notify-controller.ts';
 import { BrowserWorkspace, type WorkspacePersistence } from './browser-workspace.ts';
 import { createFeedbackClient } from '../../../shared/workbench-feedback.ts';
+import type { NotifyInteraction, NotifyState } from '../../../shared/types/notify.d.ts';
 import { requireValue } from '../../../shared/workbench-protocol.ts';
 import { WorkbenchAPI, ApiError, EventConnection } from '../api/workbench.ts';
 import { ConfigController } from '../../../shared/store/config.ts';
@@ -286,6 +287,86 @@ export class WorkbenchStore extends EventTarget {
   bookmarks: Bookmark[] = [];
   history: ClosedTab[] = [];
   notifications: Notification[] = [];
+  private pageNotifications = new Map<
+    string,
+    {
+      ownerId: string;
+      notification: Notification;
+      interact: (value: NotifyInteraction) => Promise<unknown>;
+    }
+  >();
+  private visiblePageNotifications = new Set<string>();
+  syncPageNotification(
+    id: string,
+    state: NotifyState | null,
+    owner: { pluginId: string; tabId: string; ownerId: string },
+    interact: (value: NotifyInteraction) => Promise<unknown>,
+  ) {
+    if (!state) {
+      this.pageNotifications.delete(id);
+      this.visiblePageNotifications.delete(id);
+      this.toasts = this.toasts.filter((toast) => toast.id !== id);
+      this.changed();
+      return;
+    }
+    if (!this.pageNotifications.has(id) && this.pageNotifications.size >= 1000) {
+      return;
+    }
+    const notification: Notification = {
+      id,
+      ...owner,
+      source: 'page',
+      title: state.title,
+      message: state.description,
+      level: state.type,
+      progress: state.progress,
+      autoRead: state.autoRead,
+      readAt: state.readAt,
+      seenAt: state.seenAt,
+      updatedAt: state.updatedAt,
+      visible: state.visible,
+      count: 1,
+      actions: state.actions.map((action) => ({ ...action, type: 'callback' })),
+    };
+    this.pageNotifications.set(id, { ownerId: owner.ownerId, notification, interact });
+    const toast = this.toasts.find((value) => value.id === id);
+    if (!state.banner) {
+      this.toasts = this.toasts.filter((value) => value.id !== id);
+    } else if (toast) {
+      Object.assign(toast, { notification, text: state.title, level: state.type });
+    } else {
+      this.toast(state.title, state.type, notification);
+    }
+    this.changed();
+  }
+  releasePageNotifications(ownerId: string) {
+    for (const [id, item] of this.pageNotifications) {
+      if (item.ownerId === ownerId) {
+        this.pageNotifications.delete(id);
+        this.visiblePageNotifications.delete(id);
+        this.toasts = this.toasts.filter((toast) => toast.id !== id);
+      }
+    }
+    this.changed();
+  }
+  private interactPageNotification(id: string, interaction: NotifyInteraction) {
+    return this.pageNotifications.get(id)?.interact(interaction);
+  }
+  clickToast(id: string) {
+    void this.interactPageNotification(id, { type: 'click' })?.catch((error) =>
+      this.toast(this.message(error), 'error'),
+    );
+  }
+  hoverToast(id: string, value: boolean) {
+    void this.interactPageNotification(id, { type: 'hover', value })?.catch(() => undefined);
+  }
+  async invokeNotificationAction(id: string, actionId: string) {
+    if (this.pageNotifications.has(id)) {
+      await this.interactPageNotification(id, { type: 'action', actionId });
+    } else {
+      await this.api.request(`/notifications/${id}/actions/${actionId}`, {});
+    }
+  }
   terminals: Terminal[] = [];
   executions: Execution[] = [];
   inputs: InputRequest[] = [];
@@ -599,7 +680,11 @@ export class WorkbenchStore extends EventTarget {
   }
   get notificationItems() {
     const active = new Set(this.toasts.map((t) => t.id));
-    return [...this.localNotifications, ...this.notifications]
+    return [
+      ...this.localNotifications,
+      ...this.notifications,
+      ...[...this.pageNotifications.values()].map((item) => item.notification),
+    ]
       .filter((n) => !active.has(n.id))
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   }
@@ -639,6 +724,9 @@ export class WorkbenchStore extends EventTarget {
   }
   private scheduleToast(id: string) {
     this.toastTimers.remove(id);
+    if (this.pageNotifications.has(id)) {
+      return;
+    }
     const toast = this.toasts.find((t) => t.id === id);
     if (
       !toast ||
@@ -657,6 +745,13 @@ export class WorkbenchStore extends EventTarget {
       return;
     }
     toast.focused = focused;
+    if (this.pageNotifications.has(id)) {
+      void this.interactPageNotification(id, { type: 'focus', value: focused })?.catch(
+        () => undefined,
+      );
+      this.changed();
+      return;
+    }
     if (focused) {
       this.toastTimers.remove(id);
       if (toast.notification.autoRead !== false) {
@@ -689,6 +784,7 @@ export class WorkbenchStore extends EventTarget {
     for (const n of [
       ...this.localNotifications,
       ...this.notifications,
+      ...[...this.pageNotifications.values()].map((item) => item.notification),
       ...this.toasts.map((t) => t.notification),
     ]) {
       if (ids.includes(n.id)) {
@@ -697,12 +793,28 @@ export class WorkbenchStore extends EventTarget {
     }
     this.persistNotifications();
     this.changed();
-    const remote = ids.filter((id) => !this.localNotifications.some((n) => n.id === id));
+    const remote = ids.filter(
+      (id) => !this.pageNotifications.has(id) && !this.localNotifications.some((n) => n.id === id),
+    );
+    await Promise.all(
+      ids
+        .filter((id) => this.pageNotifications.has(id))
+        .map((id) => this.interactPageNotification(id, { type: 'read', read: true })),
+    );
     if (remote.length) {
       await this.api.request('/notifications/ack', { ids: remote });
     }
   }
   setVisibleNotifications(ids: string[]) {
+    const next = new Set(ids.filter((id) => this.pageNotifications.has(id)));
+    for (const id of new Set([...next, ...this.visiblePageNotifications])) {
+      if (next.has(id) !== this.visiblePageNotifications.has(id)) {
+        void this.interactPageNotification(id, { type: 'visible', value: next.has(id) })?.catch(
+          () => undefined,
+        );
+      }
+    }
+    this.visiblePageNotifications = next;
     this.visibleNotifications = ids.filter((id) => this.notifications.some((n) => n.id === id));
     clearInterval(this.visibilityTimer);
     this.reportNotificationVisibility();
@@ -727,7 +839,14 @@ export class WorkbenchStore extends EventTarget {
   }
   async deleteNotifications(ids: string[]) {
     this.systemNotifications.close(ids);
-    const remote = ids.filter((id) => !this.localNotifications.some((n) => n.id === id));
+    const remote = ids.filter(
+      (id) => !this.pageNotifications.has(id) && !this.localNotifications.some((n) => n.id === id),
+    );
+    await Promise.all(
+      ids
+        .filter((id) => this.pageNotifications.has(id))
+        .map((id) => this.interactPageNotification(id, { type: 'close' })),
+    );
     this.localNotifications = this.localNotifications.filter((n) => !ids.includes(n.id));
     this.notifications = this.notifications.filter((n) => !ids.includes(n.id));
     this.persistNotifications();

@@ -2,6 +2,7 @@ import { createWorkbenchSDK } from './workbench.ts';
 import { requireValue } from '../../shared/workbench-protocol.ts';
 import type { TFetch, TResource, TWebSocket } from './utils/fetch.ts';
 import type { RequestOptions } from '../../shared/request-lifecycle.ts';
+import { Notify, notify } from '../../shared/components/notify.ts';
 let installed: TFetch | undefined;
 const resource: TResource = (url, options) => installed?.resource(url, options) ?? '';
 const websocket: TWebSocket = (url, protocols, options) => {
@@ -17,7 +18,7 @@ const fetchProxy = Object.assign(
   }) as TFetch,
   { resource, websocket },
 );
-const base = { fetch: fetchProxy, resource, websocket };
+const base = { fetch: fetchProxy, resource, websocket, Notify, notify };
 const extended = createWorkbenchSDK((fetch) => {
   installed = fetch;
 });

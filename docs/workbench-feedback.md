@@ -4,6 +4,37 @@
 
 核心后端通过 `projects/server/workbench/feedback.ts` 的 `createBackendFeedback()` 获取相同接口；核心前端通过 `WorkbenchStore.logger` 和 `WorkbenchStore.tasks` 使用。
 
+插件 Web 还可直接使用 shared 的具象通知类，无需自行包装通知控制器：
+
+```ts
+import { Notify, notify } from 'scwc:shared/frontend';
+// 无模块导入时也可使用 scwcutils.Notify 和 scwcutils.notify。
+const notices = new Notify(); // useCore 默认 true
+const notice = notices.info('正在导入', {
+  description: '等待文件读取',
+  progress: null,
+  autoRead: false,
+  placement: 'tl',
+});
+await notice.setContent('正在导入', '已完成一半');
+await notice.setProgress(50);
+await notice.markRead(true);
+notice.update({ title: '导入完成', type: 'success', progress: 100 });
+await notice.setActions([{ label: '标为未读', onClick: () => notice.markRead(false) }]);
+const state = await notice.getState();
+const visible = await notice.isVisible();
+notice.close();
+
+// 关闭核心展示后，通知在插件页面内按 placement 显示。
+const local = new Notify({ useCore: false });
+local.success('页面内完成', { placement: 'bc' });
+notify({ title: '单条页面内通知', useCore: false, placement: 'tr' });
+```
+
+`Notify.notify()`、`notify()` 和实例方法均支持每条通知的 `useCore`；实例构造设置作为默认值。嵌入核心工作台时默认在核心通知区展示，插件传入或更新的 `placement` 被静默忽略，位置跟随核心页面布局（当前右下角）。关闭 `useCore` 或独立打开插件页时使用插件文档内的六向通知。展示宿主在创建时确定，更新内容不会切换宿主；SDK 握手前创建的默认通知会等待核心通道，不会先在插件页闪现。
+
+通知对象、计时器、已读状态、进度和回调始终留在创建它的插件文档，核心只保留展示投影。插件的所有状态更新实时反映到核心横幅及通知中心，核心的按钮、点击、已读、关闭和悬停/聚焦暂停操作回传原文档。按钮替换后旧操作失效；自动隐藏横幅保留通知记录和原控制句柄，`close()` 删除记录且不触发 `onclose`；用户关闭触发 `onclose('user')`，自动隐藏触发 `onclose('auto')`。每个文档保留最多 1000 条记录；文档关闭、刷新或休眠销毁后，其投影和回调一并释放。此接口的 `visible` 包含横幅或通知中心的可见状态，`banner` 单独表示横幅，`seenAt` 表示首次进入通知中心可视区。`update()` 和 `close()` 保留同步布尔返回值，其余状态控制方法返回 Promise。原有 `scwcutils.logger` 的持久通知接口继续适用，其生命周期和可见性定义见下文。
+
 ```ts
 // 插件后端：const { logger, tasks } = context.workbench;
 // 插件前端：const { logger, tasks } = scwcutils;

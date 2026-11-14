@@ -89,6 +89,30 @@ it('keeps active progress open, updates content and supports shared action butto
   expect(root.querySelector('.notify-item')).toBeNull();
 });
 
+it('keeps the handle and read state after automatic hiding and supports local state controls', async () => {
+  const { element, handle, root } = await fixture({
+    title: '已完成',
+    duration: 100,
+    autoRead: false,
+  });
+  root.querySelector('.notify-item')?.dispatchEvent(new FocusEvent('focusin'));
+  expect((await handle.getState()).readAt).toBeNull();
+  await handle.markRead();
+  await handle.setContent('记录已更新', '仍由原句柄管理');
+  await handle.setProgress(100);
+  expect((await handle.getState()).readAt).not.toBeNull();
+  root.querySelector('.notify-item')?.dispatchEvent(new FocusEvent('focusout'));
+  await vi.advanceTimersByTimeAsync(400);
+  await element.updateComplete;
+  expect(root.querySelector('.notify-item')).toBeNull();
+  expect(await handle.isVisible()).toBe(false);
+  await handle.markRead(false);
+  await handle.setProgress(false);
+  expect(await handle.getState()).toMatchObject({ readAt: null, progress: false, banner: false });
+  expect(handle.close()).toBe(true);
+  expect(handle.close()).toBe(false);
+});
+
 it('renders the same shared view when an isolated content world has no CustomElementRegistry', () => {
   vi.stubGlobal('customElements', null);
   vi.stubGlobal(

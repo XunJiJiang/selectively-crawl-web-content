@@ -80,7 +80,7 @@ export function createPageHandlers(
         signal: controller.signal,
         readValue: (name: string) => {
           uiAssert(
-            Object.hasOwn(data.context?.fields ?? {}, name),
+            Object.prototype.hasOwnProperty.call(data.context?.fields ?? {}, name),
             'UI_UNKNOWN_VALUE',
             '字段未采集',
           );

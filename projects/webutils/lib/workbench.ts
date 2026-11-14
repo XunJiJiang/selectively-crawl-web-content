@@ -1,6 +1,8 @@
 import { createPageHandlers } from './ui-handlers.ts';
 import { TicketSocket } from './ticket-socket.ts';
 import { createFeedbackClient } from '../../shared/workbench-feedback.ts';
+import { installNotifyHost, NotifyManager } from '../../shared/notify-manager.ts';
+import type { NotifyInteraction } from '../../shared/types/notify.d.ts';
 import type { TaskState } from '../../shared/workbench-feedback.ts';
 import { RequestLifecycle, type RequestOptions } from '../../shared/request-lifecycle.ts';
 import { ManagedResources } from '../../shared/managed-resources.ts';
@@ -180,6 +182,18 @@ export function createWorkbenchSDK(install: (fetch: TFetch) => void) {
     }
     return value;
   });
+  const sharedNotifications = new NotifyManager((state, id) => {
+    void ready
+      .then(() => {
+        if (!disposed) {
+          port?.event('notify.changed', { id, state });
+        }
+      })
+      .catch((error) => console.error('通知同步失败', error));
+  });
+  const uninstallNotifyHost = hosted
+    ? installNotifyHost((options) => sharedNotifications.notify(options))
+    : undefined;
   const actionEvents = new Set<string>();
   const dispatchFeedbackAction = (value: { id: string; actionId: string; eventId?: string }) => {
     if (value.eventId && actionEvents.has(value.eventId)) {
@@ -477,6 +491,10 @@ export function createWorkbenchSDK(install: (fetch: TFetch) => void) {
   }
   async function handle(method: string, payload: unknown, id: string) {
     const data = payload as Record<string, unknown>;
+    if (method === 'notify.interact') {
+      await sharedNotifications.interact(String(data.id), data.interaction as NotifyInteraction);
+      return true;
+    }
     if (method === 'connection.pause') {
       if (!network.pause()) {
         return false;
@@ -681,6 +699,9 @@ export function createWorkbenchSDK(install: (fetch: TFetch) => void) {
     installSession(message.session);
     readyResolve();
     port.event('ready', { title: document.title, url: location.href });
+    for (const { state } of sharedNotifications.items.values()) {
+      port.event('notify.changed', { id: state.id, state });
+    }
     for (const id of feedbackTasks) {
       port.event('activity.acquire', { id: `feedback-task:${id}`, reason: '任务' });
     }
@@ -893,6 +914,8 @@ export function createWorkbenchSDK(install: (fetch: TFetch) => void) {
     }
     feedback.dispose();
     disposed = true;
+    uninstallNotifyHost?.();
+    sharedNotifications.dispose();
     uiHandlers.dispose();
     configListeners.clear();
     network.pause();
