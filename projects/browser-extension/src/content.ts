@@ -2,6 +2,8 @@ import { browser, type Reply } from './browser.ts';
 import { getCrawlData } from '../../user-script/src/utils/claw.ts';
 import { getSelector, getElementBySelector } from '../../user-script/src/utils/selector.ts';
 import type { Draft, Item } from './model.ts';
+import { notify } from '../../shared/components/notify.ts';
+import type { SiteNotificationOptions } from '../../shared/site-notifications.ts';
 
 // 重复注入时复用当前文档的选择器；不挂载用户脚本的浮窗或连接配置。
 const installed = '__scwcExtensionPickerV1';
@@ -115,6 +117,7 @@ if (!scope[installed]) {
       command: string;
       selector?: string;
       items: Item[];
+      notification?: SiteNotificationOptions;
     };
     if (sender.id !== browser.runtime.id || message.type !== 'scwc.page') {
       return;
@@ -125,6 +128,11 @@ if (!scope[installed]) {
       }
       let data: unknown;
       switch (message.command) {
+        case 'notification':
+          if (message.notification) {
+            notify(message.notification);
+          }
+          break;
         case 'ping':
           break;
         case 'start':

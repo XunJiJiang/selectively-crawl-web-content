@@ -211,6 +211,11 @@ export class PluginProcessClient {
   }
 
   private async cacheCall(method: string, args: unknown): Promise<unknown> {
+    if (method === 'notification.site') {
+      const { siteNotifications } = await import('../../user-script/notifications.ts');
+      const { site, options } = args as { site: string; options: unknown };
+      return siteNotifications.publish(this.options.pluginId ?? this.options.name, site, options);
+    }
     if (method === 'ui.content') {
       return declarativeUI.setContent(this.owner, args as never);
     }

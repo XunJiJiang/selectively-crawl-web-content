@@ -21,6 +21,13 @@ interface BrowserAPI {
     getURL(path: string): string;
     sendMessage<T = unknown>(message: unknown): Promise<T>;
     onMessage: {
+      removeListener?(
+        listener: (
+          message: unknown,
+          sender: MessageSender,
+          respond: (response: unknown) => void,
+        ) => boolean | void,
+      ): void;
       addListener(
         listener: (
           message: unknown,

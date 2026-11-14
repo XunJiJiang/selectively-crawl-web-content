@@ -1,3 +1,4 @@
+import { NotifyController } from '../../shared/notify-controller.ts';
 import { LitElement, html, css, unsafeCSS, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
@@ -19,13 +20,6 @@ import styles from './notifications.css?raw';
 
 export { notificationStorageKey, type NotificationType } from './notification-model.ts';
 const lifetime = 5000;
-interface Timer {
-  remaining: number;
-  startedAt: number;
-  handle?: ReturnType<typeof setTimeout>;
-  paused: Set<'pointer' | 'focus'>;
-}
-
 @customElement('scwc-extension-notifications')
 export class ExtensionNotifications extends LitElement {
   static styles = css`
@@ -39,9 +33,15 @@ export class ExtensionNotifications extends LitElement {
   @state() private accessor below = 0;
   @state() private accessor filter: 'all' | 'unread' | 'read' = 'all';
   suppressVersion: (notice: VersionNotice) => Promise<unknown> = async () => undefined;
-  private timers = new Map<string, Timer>();
+  private timers = new NotifyController((id) => {
+    this.records = this.records.map((entry) =>
+      entry.id === id ? { ...entry, visible: false } : entry,
+    );
+  });
   private ready = this.load();
   private writes: Promise<unknown> = Promise.resolve();
+  private persisted = new Map<string, string>();
+  private pendingMutations = 0;
   private observer?: ResizeObserver;
   private frame?: () => void;
   private animationFrame?: () => void;
@@ -56,10 +56,7 @@ export class ExtensionNotifications extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
-    for (const record of this.records.filter((entry) => entry.visible)) {
-      this.timers.get(record.id)?.paused.clear();
-      this.start(record.id);
-    }
+    this.timers.connect();
     if (typeof ResizeObserver !== 'undefined') {
       this.observer = new ResizeObserver(() => this.layout());
       this.observer.observe(this);
@@ -70,9 +67,7 @@ export class ExtensionNotifications extends LitElement {
   }
   disconnectedCallback() {
     super.disconnectedCallback();
-    for (const id of this.timers.keys()) {
-      this.pause(id, 'pointer');
-    }
+    this.timers.suspend();
     this.observer?.disconnect();
     this.frame?.();
     this.frame = undefined;
@@ -88,22 +83,84 @@ export class ExtensionNotifications extends LitElement {
       this.records = [...readNotifications(saved), ...this.records].sort(
         (a, b) => a.createdAt - b.createdAt,
       );
+      this.persisted = new Map(
+        readNotifications(saved).map((record) => [record.id, JSON.stringify(record)]),
+      );
       this.captureUnread();
     } catch {
       // 存储不可用时，当前弹窗仍可显示和查看通知。
     }
   }
   private persist() {
+    this.pendingMutations++;
     this.writes = this.writes
       .then(async () => {
         await this.ready;
-        await browser.storage?.local.set({
-          [notificationStorageKey]: this.records.map((entry) => ({ ...entry, visible: false })),
-        });
+        const records = this.records.map((entry) => ({ ...entry, visible: false }));
+        const next = new Map(records.map((record) => [record.id, JSON.stringify(record)]));
+        if (browser.runtime?.sendMessage) {
+          const reply = await browser.runtime.sendMessage<{ ok: boolean; error?: string }>({
+            type: 'notifications.save',
+            upsert: records.filter(
+              (record) => this.persisted.get(record.id) !== next.get(record.id),
+            ),
+            remove: [...this.persisted.keys()].filter((id) => !next.has(id)),
+          });
+          if (!reply?.ok) {
+            throw new Error(reply?.error ?? '通知保存失败');
+          }
+        } else {
+          await browser.storage?.local.set({ [notificationStorageKey]: records });
+        }
+        this.persisted = next;
       })
-      .catch(() => undefined);
+      .catch(() => undefined)
+      .finally(() => {
+        this.pendingMutations--;
+      });
   }
-  add(message: string, type: NotificationType = 'info', versionNotice?: VersionNotice) {
+  /** Background has already persisted this record; popup rendering never duplicates the write. */
+  async receive(
+    record: ExtensionNotification,
+    options: { duration?: number; scope?: string } = {},
+  ) {
+    await this.ready;
+    if (this.records.some((entry) => entry.id === record.id)) {
+      return;
+    }
+    this.records = [...this.records, { ...record, visible: options.scope !== 'external' }];
+    this.persisted.set(record.id, JSON.stringify({ ...record, visible: false }));
+    this.unreadCohort.add(record.id);
+    if (options.scope !== 'external') {
+      this.timers.set(record.id, options.duration ?? lifetime);
+    }
+    if (!this.isConnected) {
+      this.timers.suspend();
+    }
+    this.followToasts = true;
+    this.followHistory = true;
+  }
+  async refreshHistory() {
+    await this.writes;
+    const saved = readNotifications(
+      (await browser.storage.local.get(notificationStorageKey))[notificationStorageKey],
+    );
+    if (this.pendingMutations) {
+      return;
+    }
+    const visible = new Map(
+      this.records.filter((record) => record.visible).map((record) => [record.id, record]),
+    );
+    this.records = saved.map((record) => visible.get(record.id) ?? record);
+    this.persisted = new Map(saved.map((record) => [record.id, JSON.stringify(record)]));
+    this.captureUnread();
+  }
+  add(
+    message: string,
+    type: NotificationType = 'info',
+    versionNotice?: VersionNotice,
+    options: { duration?: number } = {},
+  ) {
     if (!message) {
       return;
     }
@@ -123,46 +180,21 @@ export class ExtensionNotifications extends LitElement {
     };
     this.records = [...this.records, record];
     this.unreadCohort.add(record.id);
-    this.timers.set(record.id, { remaining: lifetime, startedAt: 0, paused: new Set() });
-    if (this.isConnected) {
-      this.start(record.id);
+    this.timers.set(record.id, options.duration ?? lifetime);
+    if (!this.isConnected) {
+      this.timers.suspend();
     }
     this.persist();
     return record.id;
   }
-  private start(id: string) {
-    const timer = this.timers.get(id);
-    if (!timer || timer.paused.size || timer.handle !== undefined || !this.isConnected) {
-      return;
-    }
-    timer.startedAt = Date.now();
-    timer.handle = setTimeout(() => {
-      this.timers.delete(id);
-      this.records = this.records.map((entry) =>
-        entry.id === id ? { ...entry, visible: false } : entry,
-      );
-      // 历史在创建时已保存；到时只撤掉横幅，不删除历史。
-    }, timer.remaining);
-  }
   private pause(id: string, reason: 'pointer' | 'focus') {
-    const timer = this.timers.get(id);
-    if (!timer) {
-      return;
-    }
-    timer.paused.add(reason);
-    if (timer.handle !== undefined) {
-      clearTimeout(timer.handle);
-      timer.handle = undefined;
-      timer.remaining = Math.max(0, timer.remaining - (Date.now() - timer.startedAt));
-    }
+    this.timers.pause(id, reason);
   }
   private resume(id: string, reason: 'pointer' | 'focus') {
-    this.timers.get(id)?.paused.delete(reason);
-    this.start(id);
+    this.timers.resume(id, reason);
   }
   private dismiss(id: string) {
-    clearTimeout(this.timers.get(id)?.handle);
-    this.timers.delete(id);
+    this.timers.remove(id);
     this.records = this.records.filter((entry) => entry.id !== id);
     this.persist();
   }
@@ -188,7 +220,7 @@ export class ExtensionNotifications extends LitElement {
       if (this.historyOpen) {
         this.captureUnread();
       }
-      for (const id of this.timers.keys()) {
+      for (const id of this.timers.ids) {
         this.resume(id, 'pointer');
         this.resume(id, 'focus');
       }
@@ -372,7 +404,7 @@ export class ExtensionNotifications extends LitElement {
     }
     this.expanded = false;
     // 展开/收起与滚动可能把条目从指针下移开，释放已失去悬停的暂停状态。
-    for (const id of this.timers.keys()) {
+    for (const id of this.timers.ids) {
       this.resume(id, 'pointer');
     }
   }

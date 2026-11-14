@@ -3,7 +3,8 @@
 /** Importing this entry registers the shared custom elements for the current page. */
 export * from './backend.ts';
 export * from './components/index.ts';
-export { notify } from './components/notify.ts';
+export { notify, Notify, SCWCNotify, NotifyController } from './components/notify.ts';
+export * from './components/notification.ts';
 export * from './components/scroll-container/index.ts';
 export { JSONTree } from './components/tree/tree.ts';
 export type { TreeBridge } from './components/tree/tree.ts';

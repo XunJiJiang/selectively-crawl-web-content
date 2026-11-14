@@ -40,6 +40,11 @@ import {
 } from '../../shared/script-ui.ts';
 import type { FieldValue } from '../../shared/declarative-ui.ts';
 import type { ScriptUIView } from '../../shared/components/script-ui.ts';
+import type {
+  SiteNotificationOptions,
+  NotificationScope,
+} from '../../shared/site-notifications.ts';
+import type { ExtensionNotification } from './notification-model.ts';
 
 // 原生弹窗在小屏幕上会被浏览器压低；缩短内部布局以保持底栏可见。
 window.addEventListener('resize', () => {
@@ -82,6 +87,24 @@ export class ExtensionPopup extends LitElement {
   private templates = new ScriptUIRefreshQueue<PluginBatch>();
   private notifications = new ExtensionNotifications();
   private shownVersions = new Set<string>();
+  private receiveNotification = (
+    input: unknown,
+    sender: { id?: string },
+    respond: (value: unknown) => void,
+  ) => {
+    const message = input as {
+      type?: string;
+      record: ExtensionNotification;
+      options: SiteNotificationOptions;
+    };
+    if (sender.id !== browser.runtime.id || message.type !== 'notification.received') {
+      return;
+    }
+    void this.notifications
+      .receive(message.record, message.options)
+      .then(() => respond({ ok: true }));
+    return true;
+  };
   @state() private accessor refreshingPlugins = new Set<string>();
   private versionNotice = (event: Event) => {
     const notice = (event as CustomEvent<VersionNotice>).detail;
@@ -127,11 +150,13 @@ export class ExtensionPopup extends LitElement {
     super.connectedCallback();
     this.notifications.suppressVersion = (notice) => call({ type: 'version.dismiss', notice });
     window.addEventListener('scwc-version-notice', this.versionNotice);
+    browser.runtime?.onMessage?.addListener(this.receiveNotification);
     void this.initialize();
   }
   disconnectedCallback() {
     super.disconnectedCallback();
     window.removeEventListener('scwc-version-notice', this.versionNotice);
+    browser.runtime?.onMessage?.removeListener?.(this.receiveNotification);
     this.generation++;
     this.pluginGeneration++;
     clearInterval(this.poll);
@@ -140,8 +165,36 @@ export class ExtensionPopup extends LitElement {
       clearTimeout(timer);
     }
   }
-  private say(message: string, error = false) {
-    this.notifications.add(message, error ? 'error' : 'info');
+  private say(message: string, error = false, scope: NotificationScope = 'internal') {
+    this.showNotification(message, error ? 'error' : 'info', scope);
+  }
+  private showNotification(
+    message: string,
+    type: NotificationType = 'info',
+    scope: NotificationScope = 'internal',
+  ) {
+    void this.notify({ title: message, type, scope }).catch((error) =>
+      this.notifications.add(error instanceof Error ? error.message : String(error), 'error'),
+    );
+  }
+  /** Local callers and plugin responses use the same scope contract. */
+  async notify(options: SiteNotificationOptions) {
+    if (options.scope === 'external') {
+      const id = await call<string>({
+        type: 'notification.show',
+        tab: this.tab,
+        site: this.site,
+        options,
+      });
+      await this.notifications.refreshHistory();
+      return id;
+    }
+    return this.notifications.add(
+      options.description ? `${options.title}\n${options.description}` : options.title,
+      options.type,
+      undefined,
+      options,
+    );
   }
   private async run(work: () => Promise<void>) {
     try {
@@ -494,7 +547,10 @@ export class ExtensionPopup extends LitElement {
   private showResult(input: unknown) {
     const result = input as { message?: string; data?: unknown };
     const data = result.data as
-      | { type?: string; data?: { message?: string; type?: NotificationType } }
+      | {
+          type?: string;
+          data?: { message?: string; type?: NotificationType; scope?: NotificationScope };
+        }
       | unknown[]
       | undefined;
     if (Array.isArray(data)) {
@@ -513,7 +569,7 @@ export class ExtensionPopup extends LitElement {
         return;
       }
     } else if (data?.data?.message) {
-      this.notifications.add(data.data.message, data.data.type ?? 'info');
+      this.showNotification(data.data.message, data.data.type ?? 'info', data.data.scope);
       return;
     }
     this.notifications.add(

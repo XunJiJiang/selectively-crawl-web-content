@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import './notify.ts';
+import { notify } from './notify.ts';
 import type { INotifyOptions } from '../types/notify.d.ts';
 import { requireValue } from '../workbench-protocol.ts';
 
@@ -67,4 +67,40 @@ it('preserves hover pause, automatic close and silent manual close', async () =>
   await vi.advanceTimersByTimeAsync(32);
   expect(handle.close()).toBe(true);
   expect(onclose).toHaveBeenCalledTimes(1);
+});
+
+it('keeps active progress open, updates content and supports shared action buttons', async () => {
+  const action = vi.fn();
+  const { element, root, handle } = await fixture({
+    title: '处理中',
+    progress: null,
+    duration: 100,
+    actions: [{ label: '详情', onClick: action }],
+  });
+  await vi.advanceTimersByTimeAsync(1000);
+  expect(root.querySelector('[role="progressbar"]')?.getAttribute('aria-valuetext')).toBe('加载中');
+  requireValue(root.querySelector<HTMLButtonElement>('.notification-buttons button')).click();
+  expect(action).toHaveBeenCalledOnce();
+  handle.update({ title: '处理完成', progress: 100 });
+  await element.updateComplete;
+  expect(root.textContent).toContain('处理完成');
+  await vi.advanceTimersByTimeAsync(350);
+  await element.updateComplete;
+  expect(root.querySelector('.notify-item')).toBeNull();
+});
+
+it('renders the same shared view when an isolated content world has no CustomElementRegistry', () => {
+  vi.stubGlobal('customElements', null);
+  vi.stubGlobal(
+    'CSSStyleSheet',
+    class {
+      replaceSync() {
+        /* jsdom has no stylesheet parser. */
+      }
+    },
+  );
+  const handle = notify({ title: '隔离环境通知', placement: 'bc', duration: 0 });
+  const shadow = requireValue(document.querySelector('#scwc-notify-root')?.shadowRoot);
+  expect(shadow.querySelector('.bc-list .notify-title-text')?.textContent).toBe('隔离环境通知');
+  expect(handle.close()).toBe(true);
 });

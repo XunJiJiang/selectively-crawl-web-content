@@ -290,6 +290,9 @@ async function initialize(args: Initialize): Promise<Manifest> {
     );
   }
   await plugin.onLoad?.(logger, {
+    notifications: {
+      notify: (site, options) => peer.call<string>('notification.site', { site, options }, 10000),
+    },
     workbench: { logger: feedback.logger, tasks: feedback.tasks, ui: declarative.api },
     tasks: processTasks.reporter,
     signal: processTasks.controller.signal,

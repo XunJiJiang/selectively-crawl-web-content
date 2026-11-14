@@ -55,6 +55,7 @@ import { app } from './index.ts';
 import { attachUpgradeDispatcher } from './web/workbench/websocket.ts';
 import { TOKEN } from '../common/env.ts';
 import { closeUserScriptConfig } from '../user-script/config.ts';
+import { siteNotifications } from '../user-script/notifications.ts';
 import {
   defaultSiteData,
   websiteOrigin,
@@ -93,7 +94,13 @@ function snapshot(
 }
 async function sync(
   value: UserScriptSnapshot,
-  options: { token?: string; origin?: string; watch?: boolean; site?: string } = {},
+  options: {
+    token?: string;
+    origin?: string;
+    watch?: boolean;
+    site?: string;
+    notificationCursor?: string;
+  } = {},
 ) {
   const response = await fetch(
     base + `/api/userscript/config/sync?site=${encodeURIComponent(options.site ?? value.website)}`,
@@ -104,7 +111,11 @@ async function sync(
         origin: options.origin ?? new URL(value.website).origin,
         authorization: `Bearer ${options.token ?? TOKEN}`,
       },
-      body: JSON.stringify({ snapshot: value, watch: options.watch }),
+      body: JSON.stringify({
+        snapshot: value,
+        watch: options.watch,
+        notificationCursor: options.notificationCursor,
+      }),
     },
   );
   return { status: response.status, ...(await response.json()) };
@@ -124,6 +135,45 @@ function message(socket: WebSocket) {
   });
 }
 describe('authenticated website sync and live notification', () => {
+  it('bridges proactive notifications to polling and sockets, including the ticket handshake gap', async () => {
+    const value = snapshot('https://notification.example'),
+      origin = 'chrome-extension://notification-test';
+    const initial = await sync(value, { origin, watch: true });
+    const packets: { type: string; notification?: { title: string; scope: string } }[] = [];
+    siteNotifications.publish('plugin', value.website, {
+      title: '握手期间',
+      scope: 'external',
+      placement: 'tc',
+    });
+    const socket = connect(initial.data.ticket, origin);
+    socket.on('message', (data) => packets.push(JSON.parse(String(data))));
+    await new Promise<void>((resolve, reject) => {
+      socket.once('open', resolve);
+      socket.once('error', reject);
+    });
+    await vi.waitFor(() =>
+      expect(packets.some((packet) => packet.notification?.title === '握手期间')).toBe(true),
+    );
+    siteNotifications.publish('plugin', value.website, { title: '主动推送' });
+    await vi.waitFor(() =>
+      expect(packets.some((packet) => packet.notification?.title === '主动推送')).toBe(true),
+    );
+    const polled = await sync(value, { origin, notificationCursor: initial.data.cursor });
+    expect(polled.data.notifications.map((entry: { title: string }) => entry.title)).toEqual([
+      '握手期间',
+      '主动推送',
+    ]);
+    expect(
+      (await sync(value, { origin, notificationCursor: polled.data.cursor })).data.notifications,
+    ).toEqual([]);
+    expect(
+      (
+        await sync(snapshot('https://different.example'), {
+          notificationCursor: initial.data.cursor,
+        })
+      ).data.notifications,
+    ).toEqual([]);
+  });
   it('authenticates extension origins, shares data and binds tickets to the requesting extension', async () => {
     const value = snapshot('https://extension-http.example');
     value.data.window.pos = { x: 800, y: 600 };

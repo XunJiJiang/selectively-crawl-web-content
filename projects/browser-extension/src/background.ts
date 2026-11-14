@@ -3,10 +3,24 @@ import { ExtensionStore } from './storage.ts';
 import { requestCore, pendingVersionNotice, dismissVersionNotice } from './core.ts';
 import type { VersionNotice } from '../../shared/client-version.ts';
 import type { ScriptUIEvent } from '../../shared/script-ui.ts';
-import { draftKey, type Draft, type Settings, type SiteData, type Snapshot } from './model.ts';
+import {
+  coreAddress,
+  draftKey,
+  type Draft,
+  type Settings,
+  type SiteData,
+  type Snapshot,
+} from './model.ts';
 import { websiteOrigin } from '../../shared/userscript-config.ts';
 import type { PluginConfig } from '../../shared/types/plugin.d.ts';
 import { installNotificationBadge } from './notification-badge.ts';
+import { deliverNotification, saveNotificationChanges } from './notification-delivery.ts';
+import type {
+  SiteNotification,
+  SiteNotificationOptions,
+  SiteNotificationBatch,
+} from '../../shared/site-notifications.ts';
+import type { ExtensionNotification } from './notification-model.ts';
 
 installNotificationBadge();
 
@@ -27,6 +41,8 @@ export interface CrawlData {
   failed: string[];
 }
 export type Request =
+  | { type: 'notification.show'; tab?: number; site: string; options: SiteNotificationOptions }
+  | { type: 'notifications.save'; upsert: ExtensionNotification[]; remove: string[] }
   | { type: 'version.dismiss'; notice: VersionNotice }
   | {
       type: 'plugin.event';
@@ -108,11 +124,117 @@ void browser.storage.local
   .setAccessLevel?.({ accessLevel: 'TRUSTED_CONTEXTS' })
   .catch(() => undefined);
 const syncing = new Map<string, Promise<Snapshot>>();
-async function sync(site: string) {
+const watches = new Map<
+  number,
+  {
+    site: string;
+    key: string;
+    socket: WebSocket;
+    retry?: ReturnType<typeof setTimeout>;
+    heartbeat?: ReturnType<typeof setInterval>;
+  }
+>();
+const cursors = new Map<string, string>();
+const watchStorageKey = 'scwc.extension.notification-watches.v1';
+let watchWrites: Promise<unknown> = Promise.resolve();
+function persistWatches() {
+  watchWrites = watchWrites
+    .then(() =>
+      browser.storage.local.set({
+        [watchStorageKey]: [...watches].map(([tab, watch]) => ({ tab, site: watch.site })),
+      }),
+    )
+    .catch(() => undefined);
+}
+function closeWatch(tab: number) {
+  const watch = watches.get(tab);
+  watches.delete(tab);
+  clearTimeout(watch?.retry);
+  clearInterval(watch?.heartbeat);
+  watch?.socket.close();
+  if (watch) {
+    persistWatches();
+  }
+}
+function watchNotifications(tab: number, site: string, snapshot: Snapshot, ticket?: string) {
+  if (!ticket || typeof WebSocket === 'undefined') {
+    return;
+  }
+  const key = JSON.stringify(snapshot.data.config.api);
+  const existing = watches.get(tab);
+  if (existing?.site === site && existing.key === key && existing.socket.readyState <= 1) {
+    return;
+  }
+  closeWatch(tab);
+  const url = coreAddress(snapshot.data.config, '/api/userscript/config/events');
+  url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+  url.searchParams.set('ticket', ticket);
+  const socket = new WebSocket(url);
+  const watch = {
+    site,
+    key,
+    socket,
+    retry: undefined as ReturnType<typeof setTimeout> | undefined,
+    heartbeat: undefined as ReturnType<typeof setInterval> | undefined,
+  };
+  watches.set(tab, watch);
+  persistWatches();
+  socket.onopen = () => {
+    if (watches.get(tab) !== watch) {
+      return;
+    }
+    // Application traffic keeps Chrome MV3 notification connections alive while the popup is closed.
+    watch.heartbeat = setInterval(() => {
+      if (socket.readyState === 1) {
+        socket.send('{"type":"ping"}');
+      }
+    }, 20000);
+  };
+  socket.onmessage = (event) => {
+    if (watches.get(tab) !== watch) {
+      return;
+    }
+    try {
+      const message = JSON.parse(String(event.data)) as {
+        type: string;
+        notification: SiteNotification;
+      };
+      if (message.type === 'notification') {
+        void deliverNotification(tab, site, message.notification, message.notification).catch(
+          () => undefined,
+        );
+      }
+    } catch {
+      /* Invalid packets never reach the popup or page. */
+    }
+  };
+  const reconnect = () => {
+    clearInterval(watch.heartbeat);
+    clearTimeout(watch.retry);
+    if (watches.get(tab) !== watch) {
+      return;
+    }
+    watch.retry = setTimeout(() => {
+      if (watches.get(tab) === watch) {
+        void sync(site, tab).catch(() => {
+          if (watches.get(tab) === watch) {
+            void getSyncCircuit().then((circuit) => {
+              if (!circuit.blocked) {
+                reconnect();
+              }
+            });
+          }
+        });
+      }
+    }, 2000);
+  };
+  socket.onclose = reconnect;
+}
+async function sync(site: string, targetTab?: number) {
   const running = syncing.get(site);
   if (running) {
     await running;
-    return sync(site);
+    return sync(site, targetTab);
   }
   const work = (async () => {
     if ((await getSyncCircuit()).blocked) {
@@ -120,13 +242,30 @@ async function sync(site: string) {
     }
     try {
       const snapshot = await store.load(site);
-      const response = await requestCore<{ data: { snapshot: unknown } }>(
-        snapshot.data.config,
-        site,
-        '/api/userscript/config/sync',
-        { snapshot: store.wire(snapshot), watch: false },
-      );
+      const key = JSON.stringify([websiteOrigin(site), snapshot.data.config.api]);
+      const response = await requestCore<{
+        data: SiteNotificationBatch & { snapshot: unknown; ticket?: string };
+      }>(snapshot.data.config, site, '/api/userscript/config/sync', {
+        snapshot: store.wire(snapshot),
+        watch: true,
+        notificationCursor: cursors.get(key),
+      });
       const accepted = await store.accept(site, response.data.snapshot, snapshot.updatedAt);
+      const tab =
+        targetTab === undefined
+          ? (await browser.tabs.query({ active: true, currentWindow: true }))[0]
+          : await browser.tabs.get(targetTab);
+      if (tab?.id !== undefined && tab.url === site) {
+        for (const notification of response.data.notifications ?? []) {
+          await deliverNotification(tab.id, site, notification, notification).catch(
+            () => undefined,
+          );
+        }
+        watchNotifications(tab.id, site, accepted, response.data.ticket);
+      }
+      if (response.data.cursor) {
+        cursors.set(key, response.data.cursor);
+      }
       await setSyncCircuit({ failures: 0, blocked: false });
       return accepted;
     } catch (error) {
@@ -152,6 +291,28 @@ async function sync(site: string) {
     }
   }
 }
+// Recreate prior subscriptions when an MV3 worker is restarted; credentials remain in ExtensionStore.
+void browser.storage.local
+  .get(watchStorageKey)
+  .then(async (saved) => {
+    const entries = saved[watchStorageKey];
+    if (!Array.isArray(entries)) {
+      return;
+    }
+    for (const entry of entries) {
+      if (!Number.isInteger(entry?.tab) || typeof entry?.site !== 'string') {
+        continue;
+      }
+      try {
+        if ((await browser.tabs.get(entry.tab)).url === entry.site) {
+          await sync(entry.site, entry.tab);
+        }
+      } catch {
+        /* Removed tabs and unavailable core connections are retried on next popup sync. */
+      }
+    }
+  })
+  .catch(() => undefined);
 async function tabAt(tab: number, site: string) {
   const current = await browser.tabs.get(tab);
   if (current.url !== site) {
@@ -218,6 +379,10 @@ async function handle(message: Request, sender: MessageSender): Promise<unknown>
     throw new Error('请求来源不是扩展弹窗');
   }
   switch (message.type) {
+    case 'notification.show':
+      return deliverNotification(message.tab, message.site, message.options);
+    case 'notifications.save':
+      return saveNotificationChanges(message.upsert, message.remove);
     case 'version.dismiss':
       return dismissVersionNotice(message.notice);
     case 'plugin.event': {
@@ -254,6 +419,11 @@ async function handle(message: Request, sender: MessageSender): Promise<unknown>
     case 'settings.save': {
       const previous = await store.settings();
       const saved = await store.saveSettings(message.settings);
+      if (JSON.stringify(previous.config.api) !== JSON.stringify(message.settings.config.api)) {
+        for (const tab of watches.keys()) {
+          closeWatch(tab);
+        }
+      }
       if (previous.config.api.token !== message.settings.config.api.token) {
         await setSyncCircuit({ failures: 0, blocked: false });
       }
@@ -262,6 +432,16 @@ async function handle(message: Request, sender: MessageSender): Promise<unknown>
     case 'site.patch': {
       const previous = await store.load(message.site);
       const next = await store.patch(message.site, message.patch);
+      if (
+        message.patch.config &&
+        JSON.stringify(previous.data.config.api) !== JSON.stringify(message.patch.config.api)
+      ) {
+        for (const [tab, watch] of watches) {
+          if (websiteOrigin(watch.site) === websiteOrigin(message.site)) {
+            closeWatch(tab);
+          }
+        }
+      }
       if (
         message.patch.config &&
         previous.data.config.api.token !== message.patch.config.api.token
@@ -339,6 +519,9 @@ async function handle(message: Request, sender: MessageSender): Promise<unknown>
   }
 }
 browser.runtime.onMessage.addListener((input, sender, respond) => {
+  if ((input as { type?: string })?.type === 'notification.received') {
+    return;
+  }
   void handle(input as Request, sender).then(
     (data) => respond({ ok: true, data, versionNotice: pendingVersionNotice }),
     (error: unknown) =>
@@ -352,9 +535,14 @@ browser.runtime.onMessage.addListener((input, sender, respond) => {
   return true;
 });
 browser.tabs.onRemoved.addListener((tab) => {
+  closeWatch(tab);
   void browser.storage.local.remove(draftKey(tab));
 });
 browser.tabs.onUpdated.addListener((tab, change) => {
+  const watch = watches.get(tab);
+  if (watch && change.url && change.url !== watch.site) {
+    closeWatch(tab);
+  }
   if (change.status === 'loading') {
     void browser.storage.local.remove(draftKey(tab));
   }

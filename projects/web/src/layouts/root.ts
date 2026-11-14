@@ -1,3 +1,5 @@
+import { renderNotification } from '../../../shared/components/notification.ts';
+import notificationStyles from '../../../shared/components/notification.css?raw';
 import type { DeclarativeView } from '../components/declarative-view.ts';
 import type { UIContribution, ClientEffect } from '../../../shared/declarative-ui.ts';
 import '../components/plugin-status.ts';
@@ -118,6 +120,7 @@ const menus = ['页面', '视图', '布局', '插件', '工具', '帮助'];
 export class AppRoot extends LitElement {
   static styles = css`
     ${unsafeCSS(style)}
+    ${unsafeCSS(notificationStyles)}
   `;
   readonly store = new WorkbenchStore();
   private pool?: FramePool;
@@ -265,7 +268,8 @@ export class AppRoot extends LitElement {
     this.requestUpdate();
   }
   private focusExists = (target: FocusLocation) =>
-    target.kind === 'sidebar' || target.kind === 'auxiliary' ||
+    target.kind === 'sidebar' ||
+    target.kind === 'auxiliary' ||
     (target.kind === 'tab'
       ? this.snapshot.tabs.some((t) => t.id === target.id)
       : target.view === 'output' ||
@@ -327,7 +331,7 @@ export class AppRoot extends LitElement {
     this.store.addEventListener('change', this.changed);
     this.store.addEventListener('reveal-notification', this.revealNotification);
     this.store.addEventListener('server-event', this.uiRegistryEvent);
-    this.store.addEventListener('core-restarted',this.uiRegistryEvent);
+    this.store.addEventListener('core-restarted', this.uiRegistryEvent);
     this.addEventListener('ui-effect', this.uiEffect);
     window.addEventListener('keydown', this.keydown);
     window.addEventListener('pointerdown', this.dismissTopbarMenu, true);
@@ -359,7 +363,7 @@ export class AppRoot extends LitElement {
     this.pool?.dispose();
     this.store.dispose();
     this.store.removeEventListener('server-event', this.uiRegistryEvent);
-    this.store.removeEventListener('core-restarted',this.uiRegistryEvent);
+    this.store.removeEventListener('core-restarted', this.uiRegistryEvent);
     this.removeEventListener('ui-effect', this.uiEffect);
     super.disconnectedCallback();
   }
@@ -689,18 +693,29 @@ export class AppRoot extends LitElement {
   }
   async command(id: string, args?: unknown): Promise<unknown> {
     if (id === 'installBrowserExtension') {
-      if (this.extensionInstallRunning) { return; }
+      if (this.extensionInstallRunning) {
+        return;
+      }
       this.extensionInstallRunning = true;
       this.store.toast('正在打开浏览器扩展安装向导…', 'info');
       // 此操作不依赖工作区租约；绕过休眠重连等待，失败或超时直接反馈给用户。
       const signal = AbortSignal.timeout(20000);
       try {
-        const result = await this.store.api.request<{ status: 'opened' | 'unsupported'; message: string }>('/browser-extension/install', {}, signal, false, false, true);
+        const result = await this.store.api.request<{
+          status: 'opened' | 'unsupported';
+          message: string;
+        }>('/browser-extension/install', {}, signal, false, false, true);
         this.store.toast(result.message, result.status === 'unsupported' ? 'warn' : 'info');
       } catch (error) {
-        if (signal.aborted) { throw Object.assign(new Error('打开安装向导超时，请检查核心运行状态后重试。'), { cause: error }); }
+        if (signal.aborted) {
+          throw Object.assign(new Error('打开安装向导超时，请检查核心运行状态后重试。'), {
+            cause: error,
+          });
+        }
         throw error;
-      } finally { this.extensionInstallRunning = false; }
+      } finally {
+        this.extensionInstallRunning = false;
+      }
       return;
     }
     if (id === 'installUserscript') {
@@ -1607,10 +1622,12 @@ export class AppRoot extends LitElement {
     if (this.dragging) {
       return;
     }
-    const hovered = event.composedPath().find(
-      (node): node is HTMLElement =>
-        node instanceof HTMLElement && node.hasAttribute('data-resize-key'),
-    );
+    const hovered = event
+      .composedPath()
+      .find(
+        (node): node is HTMLElement =>
+          node instanceof HTMLElement && node.hasAttribute('data-resize-key'),
+      );
     if (!hovered) {
       this.leaveResize();
       return;
@@ -2193,7 +2210,11 @@ export class AppRoot extends LitElement {
       : icon(view?.icon?.kind === 'builtin' ? view.icon.name : 'extensions');
   }
   private uiRegistryEvent = (event: Event) => {
-    if(event.type==='core-restarted'){this.uiRegistryLoaded=false;void this.loadUIRegistry();return;}
+    if (event.type === 'core-restarted') {
+      this.uiRegistryLoaded = false;
+      void this.loadUIRegistry();
+      return;
+    }
     const type = (event as CustomEvent).detail?.type;
     if (type === 'ui.registry.changed' || type === 'catalog.changed') {
       void this.loadUIRegistry();
@@ -2334,7 +2355,8 @@ export class AppRoot extends LitElement {
       (v) => v.surface === 'auxiliarySidebar' && v.pluginId === pluginId,
     );
     const selected = this.snapshot.layout.auxiliarySidebar.selectedView;
-    const pluginTitle = this.store.catalog.find((item) => item.pluginId === pluginId)?.title ?? pluginId;
+    const pluginTitle =
+      this.store.catalog.find((item) => item.pluginId === pluginId)?.title ?? pluginId;
     const showCustom = Boolean(
       custom &&
       (custom.hideCurrentPage ||
@@ -2342,59 +2364,78 @@ export class AppRoot extends LitElement {
           selected.pluginId === custom.pluginId &&
           selected.viewId === custom.id)),
     );
-    return html`<div class="sidebar-header auxiliary-header" data-tabs=${Boolean(custom && !custom.hideCurrentPage)}>
-      ${custom && !custom.hideCurrentPage
-        ? html`<div class="auxiliary-tabs" role="tablist" aria-label="辅助侧栏页面"
-            @keydown=${(event: KeyboardEvent) => {
-              if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
-                return;
-              }
-              event.preventDefault();
-              const buttons = [...(event.currentTarget as HTMLElement).querySelectorAll<HTMLButtonElement>('[role=tab]')];
-              const index = buttons.indexOf(event.target as HTMLButtonElement);
-              const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : (index + (event.key === 'ArrowRight' ? 1 : -1) + buttons.length) % buttons.length;
-              buttons[next]?.click();
-              buttons[next]?.focus();
-            }}>
-            <button
-              class="tab-item auxiliary-page-info"
-              role="tab"
-              title="页面信息"
-              aria-selected=${!showCustom}
-              tabindex=${showCustom ? -1 : 0}
-              @click=${() =>
-                this.act(() =>
-                  this.store.update((s) => {
-                    s.layout.auxiliarySidebar.selectedView = {
-                      kind: 'core',
-                      viewId: 'currentPage',
-                    };
-                  }),
-                )}
+    return html`<div
+        class="sidebar-header auxiliary-header"
+        data-tabs=${Boolean(custom && !custom.hideCurrentPage)}
+      >
+        ${custom && !custom.hideCurrentPage
+          ? html`<div
+              class="auxiliary-tabs"
+              role="tablist"
+              aria-label="辅助侧栏页面"
+              @keydown=${(event: KeyboardEvent) => {
+                if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
+                  return;
+                }
+                event.preventDefault();
+                const buttons = [
+                  ...(event.currentTarget as HTMLElement).querySelectorAll<HTMLButtonElement>(
+                    '[role=tab]',
+                  ),
+                ];
+                const index = buttons.indexOf(event.target as HTMLButtonElement);
+                const next =
+                  event.key === 'Home'
+                    ? 0
+                    : event.key === 'End'
+                      ? buttons.length - 1
+                      : (index + (event.key === 'ArrowRight' ? 1 : -1) + buttons.length) %
+                        buttons.length;
+                buttons[next]?.click();
+                buttons[next]?.focus();
+              }}
             >
-              <span class="tab-label">页面信息</span></button
-            ><button
-              class="tab-item auxiliary-plugin-tab"
-              role="tab"
-              title=${pluginTitle ?? ''}
-              aria-selected=${showCustom}
-              tabindex=${showCustom ? 0 : -1}
-              @click=${() =>
-                this.act(() =>
-                  this.store.update((s) => {
-                    s.layout.auxiliarySidebar.selectedView = {
-                      kind: 'plugin',
-                      pluginId: custom.pluginId,
-                      viewId: custom.id,
-                    };
-                  }),
-                )}
-            >
-              <span class="tab-label">${pluginTitle}</span>
-            </button>
-          </div>`
-        : html`<strong title=${showCustom ? pluginTitle ?? '' : '页面信息'}>${showCustom ? pluginTitle : '页面信息'}</strong>`}
-      ${iconButton('close', '隐藏辅助侧栏', () => this.act(() => this.command('auxiliary')))}
+              <button
+                class="tab-item auxiliary-page-info"
+                role="tab"
+                title="页面信息"
+                aria-selected=${!showCustom}
+                tabindex=${showCustom ? -1 : 0}
+                @click=${() =>
+                  this.act(() =>
+                    this.store.update((s) => {
+                      s.layout.auxiliarySidebar.selectedView = {
+                        kind: 'core',
+                        viewId: 'currentPage',
+                      };
+                    }),
+                  )}
+              >
+                <span class="tab-label">页面信息</span></button
+              ><button
+                class="tab-item auxiliary-plugin-tab"
+                role="tab"
+                title=${pluginTitle ?? ''}
+                aria-selected=${showCustom}
+                tabindex=${showCustom ? 0 : -1}
+                @click=${() =>
+                  this.act(() =>
+                    this.store.update((s) => {
+                      s.layout.auxiliarySidebar.selectedView = {
+                        kind: 'plugin',
+                        pluginId: custom.pluginId,
+                        viewId: custom.id,
+                      };
+                    }),
+                  )}
+              >
+                <span class="tab-label">${pluginTitle}</span>
+              </button>
+            </div>`
+          : html`<strong title=${showCustom ? (pluginTitle ?? '') : '页面信息'}
+              >${showCustom ? pluginTitle : '页面信息'}</strong
+            >`}
+        ${iconButton('close', '隐藏辅助侧栏', () => this.act(() => this.command('auxiliary')))}
       </div>
       ${showCustom && custom
         ? html`<wb-declarative-view
@@ -4473,27 +4514,17 @@ export class AppRoot extends LitElement {
         this.store.toasts,
         (t) => t.id,
         (t) =>
-          html`<div
-            class=${`toast ${t.level} ${t.focused ? 'focused' : ''}`}
-            tabindex="0"
-            @click=${(e: MouseEvent) => (e.currentTarget as HTMLElement).focus()}
-            @focusin=${() => this.store.focusToast(t.id, true)}
-            @focusout=${(e: FocusEvent) => {
-              if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) {
-                this.store.focusToast(t.id, false);
-              }
-            }}
-            role=${t.level === 'error' ? 'alert' : 'status'}
-          >
-            <span>${icon(t.level === 'warn' ? 'warning' : t.level)}</span>
-            <div class="toast-body">
-              <strong>${t.text}</strong>${t.notification.message
-                ? html`<p>${t.notification.message}</p>`
-                : nothing}${this.renderNotificationActions(t.notification)}
-            </div>
-            ${iconButton('close', '关闭提示', () => this.store.dismissToast(t.id))}
-            ${this.renderProgress(t.notification.progress)}
-          </div>`,
+          renderNotification({
+            title: t.text,
+            message: t.notification.message,
+            level: t.level,
+            focused: t.focused,
+            progress: t.notification.progress,
+            actions: this.renderNotificationActions(t.notification),
+            icon: icon(t.level === 'warn' ? 'warning' : t.level),
+            onClose: () => this.store.dismissToast(t.id),
+            onFocus: (focused) => this.store.focusToast(t.id, focused),
+          }),
       )}
     </div>`;
   }

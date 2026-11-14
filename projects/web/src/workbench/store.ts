@@ -1,3 +1,4 @@
+import { NotifyController } from '../../../shared/notify-controller.ts';
 import { BrowserWorkspace, type WorkspacePersistence } from './browser-workspace.ts';
 import { createFeedbackClient } from '../../../shared/workbench-feedback.ts';
 import { requireValue } from '../../../shared/workbench-protocol.ts';
@@ -357,7 +358,7 @@ export class WorkbenchStore extends EventTarget {
   private events?: EventConnection;
   private renewTimer?: ReturnType<typeof setInterval>;
   private refreshTimer?: ReturnType<typeof setTimeout>;
-  private toastTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private toastTimers = new NotifyController((id) => this.dismissToast(id, false));
   private disposed = false;
   private pending?: { path: string; body: unknown };
   private executionGeneration = 0;
@@ -637,7 +638,7 @@ export class WorkbenchStore extends EventTarget {
     this.changed();
   }
   private scheduleToast(id: string) {
-    clearTimeout(this.toastTimers.get(id));
+    this.toastTimers.remove(id);
     const toast = this.toasts.find((t) => t.id === id);
     if (
       !toast ||
@@ -648,10 +649,7 @@ export class WorkbenchStore extends EventTarget {
     ) {
       return;
     }
-    this.toastTimers.set(
-      id,
-      setTimeout(() => this.dismissToast(id, false), 6000),
-    );
+    this.toastTimers.set(id, 6000);
   }
   focusToast(id: string, focused: boolean) {
     const toast = this.toasts.find((t) => t.id === id);
@@ -660,7 +658,7 @@ export class WorkbenchStore extends EventTarget {
     }
     toast.focused = focused;
     if (focused) {
-      clearTimeout(this.toastTimers.get(id));
+      this.toastTimers.remove(id);
       if (toast.notification.autoRead !== false) {
         toast.notification.readAt = new Date().toISOString();
       }
@@ -673,8 +671,7 @@ export class WorkbenchStore extends EventTarget {
     this.changed();
   }
   dismissToast(id: string, manual = true) {
-    clearTimeout(this.toastTimers.get(id));
-    this.toastTimers.delete(id);
+    this.toastTimers.remove(id);
     const toast = this.toasts.find((t) => t.id === id);
     this.toasts = this.toasts.filter((t) => t.id !== id);
     if (toast && !manual && !toast.remote) {
@@ -1380,8 +1377,7 @@ export class WorkbenchStore extends EventTarget {
             if (!ids.includes(t.id)) {
               return true;
             }
-            clearTimeout(this.toastTimers.get(t.id));
-            this.toastTimers.delete(t.id);
+            this.toastTimers.remove(t.id);
             return false;
           });
         } else {
@@ -1501,9 +1497,7 @@ export class WorkbenchStore extends EventTarget {
     this.api.requests.resume();
     clearTimeout(this.refreshTimer);
     clearTimeout(this.retryTimer);
-    for (const timer of this.toastTimers.values()) {
-      clearTimeout(timer);
-    }
+    this.toastTimers.dispose();
     this.events?.close();
     if (this.lease) {
       void this.api

@@ -1,26 +1,29 @@
+import type { FeedbackProgress, NotificationAction } from '../workbench-feedback.ts';
+export type NotifyPlacement = 'tl' | 'tr' | 'tc' | 'bl' | 'br' | 'bc';
 export interface INotifyOptions {
   title: string;
   description?: string;
   type?: 'info' | 'success' | 'warn' | 'error';
-  placement?: 'tl' | 'tr' | 'tc' | 'bl' | 'br' | 'bc';
+  placement?: NotifyPlacement;
+  /** Milliseconds; zero keeps the notification open. */
   duration?: number;
+  progress?: FeedbackProgress;
+  actions?: NotificationAction[];
   onclose?: (source: 'auto' | 'user') => void;
   onclick?: () => void;
 }
-
+export interface NotifyHandle {
+  id: string;
+  close(): boolean;
+  update(value: Partial<INotifyOptions>): boolean;
+}
+/** Retained for callers that previously imported the legacy render-state type. */
 export type TNotify = Required<INotifyOptions> & {
   id: string;
   idx: number;
   timeoutId: ReturnType<typeof setTimeout> | undefined;
   offset: number;
   height: number;
-  // beforePreparation: 刚添加到列表中, 尚未渲染到页面上, 需要隐式渲染计算高度
-  // preparation: 正在隐式渲染计算高度
-  // beforeEnter: 已经渲染到页面上, 但尚未开始进入动画
-  // enter: 执行进入动画中或者已经完成进入动画, 此阶段内不重渲染
-  // beforeLeave: 开始离开动画, 但尚未开始离开动画
-  // leave: 正在离开动画中
-  // removed: 已经离开动画完成, 可以从列表中删除
   state:
     | 'beforePreparation'
     | 'preparation'

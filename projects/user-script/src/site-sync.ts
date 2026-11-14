@@ -1,6 +1,8 @@
 import { type UserScriptSnapshot } from '../../shared/userscript-config.ts';
 import { type SiteStore } from './site-store.ts';
 import { requestCore } from './api/request.ts';
+import { notify } from '../../shared/components/notify.ts';
+import type { SiteNotificationBatch } from '../../shared/site-notifications.ts';
 import {
   isCoreSyncBlocked,
   notifyCoreSyncBlocked,
@@ -38,6 +40,7 @@ export class SiteConfigConnection {
   private generation = 0;
   private retryDelay = 500;
   private connectionKey = '';
+  private notificationCursor?: string;
   private connectionToken = '';
   private hasConnectionToken = false;
   private store: SiteStore;
@@ -73,6 +76,7 @@ export class SiteConfigConnection {
       this.retryDelay = 500;
     }
     if (key !== this.connectionKey && this.connectionKey) {
+      this.notificationCursor = undefined;
       this.generation++;
       this.abort?.abort();
       this.connected = false;
@@ -132,7 +136,11 @@ export class SiteConfigConnection {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${config.api.token}`,
         },
-        body: JSON.stringify({ snapshot, watch: false }),
+        body: JSON.stringify({
+          snapshot,
+          watch: false,
+          notificationCursor: this.notificationCursor,
+        }),
         signal: controller.signal,
       });
       const result = await response.json();
@@ -142,6 +150,11 @@ export class SiteConfigConnection {
       if (this.stopped || generation !== this.generation) {
         return;
       }
+      const batch = result.data as Partial<SiteNotificationBatch>;
+      for (const notification of batch.notifications ?? []) {
+        notify({ ...notification, placement: notification.placement ?? config.notify.placement });
+      }
+      this.notificationCursor = batch.cursor;
       // 只有这份上传后没有新编辑时，才接受相同日期的核心裁决。
       this.store.accept(result.data.snapshot, this.store.snapshot.updatedAt === snapshot.updatedAt);
       if (this.stopped || generation !== this.generation) {

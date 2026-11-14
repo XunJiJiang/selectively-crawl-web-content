@@ -12,6 +12,8 @@ import {
 } from '../../shared/userscript-config.ts';
 
 vi.mock('./api/request.ts', () => ({ requestCore: vi.fn() }));
+vi.mock('../../shared/components/notify.ts', () => ({ notify: vi.fn() }));
+import { notify } from '../../shared/components/notify.ts';
 let store: SiteStore, connection: SiteConfigConnection;
 const nativeFetch = globalThis.fetch,
   nativeSocket = globalThis.WebSocket;
@@ -56,6 +58,33 @@ async function flush() {
   await vi.advanceTimersByTimeAsync(0);
 }
 describe('website configuration connection and live updates', () => {
+  it('receives proactive notifications through manager polling, passes the cursor and ignores extension scope', async () => {
+    fetcher.mockResolvedValueOnce(
+      Response.json({
+        success: true,
+        data: { snapshot: store.snapshot, cursor: 'boot:0', notifications: [] },
+      }),
+    );
+    connection.start();
+    await flush();
+    fetcher.mockResolvedValueOnce(
+      Response.json({
+        success: true,
+        data: {
+          snapshot: store.snapshot,
+          cursor: 'boot:1',
+          notifications: [
+            { id: 'one', title: '主动通知', type: 'success', scope: 'internal', placement: 'tc' },
+          ],
+        },
+      }),
+    );
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(JSON.parse(fetcher.mock.calls[1][1]?.body ?? '{}').notificationCursor).toBe('boot:0');
+    expect(notify).toHaveBeenCalledWith(
+      expect.objectContaining({ title: '主动通知', placement: 'tc' }),
+    );
+  });
   it('keeps the origin connection and values through a same-origin path change', async () => {
     fetcher.mockImplementation(async () => response(store.snapshot));
     connection.start();

@@ -12,6 +12,7 @@ import { taskRegistry, invocationStorage, outputWindowId } from '../../common/ta
 import { setInputHandler } from '../../common/interaction.ts';
 import { setLogSink } from '../../utils/log.ts';
 import { createCommandCompletionCache } from '../../utils/commandCompletion.ts';
+import { siteNotifications } from '../../user-script/notifications.ts';
 import apiRouter, {
   registerPluginApi,
   registerPluginResources,
@@ -136,6 +137,36 @@ function setup(options: { mode?: string; timeout?: number; entry?: string; sourc
 function apis(handler: SCWC.IHostedPluginHandler): SCWC.THostedPluginApi[] {
   return must(handler.ui).api as SCWC.THostedPluginApi[];
 }
+
+it('lets a plugin retain the notification API and push after onLoad has returned', async () => {
+  const received = vi.fn();
+  const release = siteNotifications.subscribe('https://proactive.example', received);
+  try {
+    const { client } = setup({
+      source: `export default {
+      onRequest() {},
+      onLoad(_logger, context) {
+        setTimeout(() => context.notifications.notify('https://proactive.example/page', {
+          title: '独立后台通知', type: 'success', scope: 'external', placement: 'bc'
+        }), 100);
+      }
+    };`,
+    });
+    await client.start();
+    await vi.waitFor(() =>
+      expect(received).toHaveBeenCalledWith(
+        expect.objectContaining({
+          pluginId: 'fixture',
+          title: '独立后台通知',
+          scope: 'external',
+          placement: 'bc',
+        }),
+      ),
+    );
+  } finally {
+    release();
+  }
+});
 
 function api(handler: SCWC.IHostedPluginHandler, pathname: string, method?: string) {
   return must(

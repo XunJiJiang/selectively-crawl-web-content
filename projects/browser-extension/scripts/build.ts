@@ -30,6 +30,21 @@ export async function buildBrowserExtensions(output = defaultOutput) {
       minify: false,
       define: { __SCWC_VERSION__: JSON.stringify(rootMetadata.version) },
       tsconfig: path.join(project, 'tsconfig.json'),
+      plugins: [
+        {
+          name: 'raw-css',
+          setup(build) {
+            build.onResolve({ filter: /\.css\?raw$/ }, (args) => ({
+              path: path.resolve(args.resolveDir, args.path.slice(0, -4)),
+              namespace: 'raw-css',
+            }));
+            build.onLoad({ filter: /.*/, namespace: 'raw-css' }, async (args) => ({
+              contents: await fs.readFile(args.path, 'utf8'),
+              loader: 'text',
+            }));
+          },
+        },
+      ],
     });
   }
   await fs.cp(path.join(project, 'assets/icons'), path.join(chromium, 'icons'), {

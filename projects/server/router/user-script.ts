@@ -7,8 +7,12 @@ import { WebSocketServer } from 'ws';
 import { getUserScriptConfig } from '../user-script/config.ts';
 import { websiteOrigin } from '../../shared/userscript-config.ts';
 import { WorkbenchError } from '../workbench/storage.ts';
+import { siteNotifications } from '../user-script/notifications.ts';
 
-const tickets = new Map<string, { website: string; origin: string; expires: number }>();
+const tickets = new Map<
+  string,
+  { website: string; origin: string; expires: number; notificationCursor: string }
+>();
 const router = Router();
 // 此路由经核心 Bearer 鉴权；不提供工作台编辑接口，也不接受插件页面的会话 grant。
 router.post('/config/sync', routeVersion('3.2.0'), (req, res) => {
@@ -26,6 +30,7 @@ router.post('/config/sync', routeVersion('3.2.0'), (req, res) => {
       preserveFloatingWindow: extension,
     });
     let ticket: string | undefined;
+    const notificationBatch = siteNotifications.read(website, req.body.notificationCursor);
     if (req.body.watch === true) {
       for (const [key, value] of tickets) {
         if (value.expires <= Date.now()) {
@@ -36,9 +41,21 @@ router.post('/config/sync', routeVersion('3.2.0'), (req, res) => {
         throw new WorkbenchError('too_many_connections', '配置连接过多', 503);
       }
       ticket = randomUUID();
-      tickets.set(ticket, { website, origin, expires: Date.now() + 30000 });
+      tickets.set(ticket, {
+        website,
+        origin,
+        expires: Date.now() + 30000,
+        notificationCursor: notificationBatch.cursor,
+      });
     }
-    res.set('Cache-Control', 'no-store').json({ success: true, data: { snapshot, ticket } });
+    res.set('Cache-Control', 'no-store').json({
+      success: true,
+      data: {
+        snapshot,
+        ticket,
+        ...notificationBatch,
+      },
+    });
   } catch (error) {
     res
       .status(error instanceof WorkbenchError ? error.status : 400)
@@ -86,6 +103,17 @@ export function attachUserScriptConfigSockets(server: Server) {
         client.send(JSON.stringify({ type: 'config.changed', snapshot }));
       };
       const unsubscribe = getUserScriptConfig().subscribe(ticket.website, send);
+      const sendNotification = (notification: unknown) => {
+        if (client.bufferedAmount > 1024 * 1024) {
+          client.terminate();
+          return;
+        }
+        client.send(JSON.stringify({ type: 'notification', notification }));
+      };
+      const unsubscribeNotifications = siteNotifications.subscribe(
+        ticket.website,
+        sendNotification,
+      );
       client.on('error', () => client.terminate());
       client.on('pong', () => {
         alive = true;
@@ -100,8 +128,13 @@ export function attachUserScriptConfigSockets(server: Server) {
       client.once('close', () => {
         clearInterval(check);
         unsubscribe();
+        unsubscribeNotifications();
       });
       send(getUserScriptConfig().get(ticket.website));
+      for (const notification of siteNotifications.read(ticket.website, ticket.notificationCursor)
+        .notifications) {
+        sendNotification(notification);
+      }
     });
   };
 }

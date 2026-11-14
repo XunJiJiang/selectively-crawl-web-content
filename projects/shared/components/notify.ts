@@ -1,395 +1,227 @@
+import { css, html, LitElement, render, unsafeCSS } from 'lit';
+import { repeat } from 'lit/directives/repeat.js';
+import { customElement } from '../utils/customElement.ts';
+import { NotifyController, type NotifyCloseSource } from '../notify-controller.ts';
+import type { INotifyOptions, NotifyHandle, NotifyPlacement } from '../types/notify.d.ts';
+import { renderNotificationContent } from './notification.ts';
+import cardStyle from './notification.css?raw';
 import style from './notify.css?raw';
 
-import { state } from 'lit/decorators.js';
-import { customElement } from '../utils/customElement.ts';
-import { ref } from 'lit/directives/ref.js';
-import { repeat } from 'lit/directives/repeat.js';
-import type { INotifyOptions, TNotify } from '../types/notify.d.ts';
-import { css, html, LitElement, noChange, nothing, svg, unsafeCSS } from 'lit';
-import { v4 as uuidv4 } from 'uuid';
-
-declare global {
-  interface Window {
-    scwc?: {
-      notify?: (options: INotifyOptions) => void;
-    };
-  }
+export { NotifyController } from '../notify-controller.ts';
+interface Item extends INotifyOptions {
+  id: string;
+  placement: NotifyPlacement;
+  leaving?: boolean;
 }
+const placements: NotifyPlacement[] = ['tl', 'tc', 'tr', 'bl', 'bc', 'br'];
 
-class Notify {
-  private static instance: SCWCNotify | null = null;
-  /** 是否已经由其他通知来源实例化过 scwc-notify */
-  private static isNotifyElementInstantiated = false;
-
-  constructor() {
-    Notify.getInstance();
+/** Shared state and view also work in Chrome's isolated world without CustomElementRegistry. */
+class NotificationView {
+  private items = new Map<string, Item>();
+  private removals = new Map<string, ReturnType<typeof setTimeout>>();
+  readonly controller = new NotifyController((id, source) => this.leave(id, source));
+  private requestUpdate: () => void;
+  constructor(requestUpdate: () => void) {
+    this.requestUpdate = requestUpdate;
   }
-
-  static getInstance() {
-    if (!Notify.instance) {
-      const existingNotifyElement = document.querySelector('scwc-notify') && !!window.scwc?.notify;
-      if (existingNotifyElement) {
-        Notify.instance = null;
-        Notify.isNotifyElementInstantiated = true;
-        return;
-      }
-
-      Notify.instance = document.createElement('scwc-notify');
-      const notifyRoot = document.createElement('div');
-      notifyRoot.className = 'scwc-notify-root';
-      notifyRoot.style.cssText = `
-        position: fixed;
-        z-index: 2147483646;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        pointer-events: none;
-      `;
-      notifyRoot.appendChild(Notify.instance);
-      console.log('append notify root to body', Notify.instance);
-      document.body.appendChild(notifyRoot);
-
-      // 在 window.scwc 上注册 notify 方法
-      if (!window.scwc) {
-        window.scwc = {};
-      }
-      window.scwc.notify = (options: INotifyOptions) => {
-        Notify.instance?.notify(options);
-      };
-    }
-    return Notify.instance;
-  }
-
-  static notify(options: INotifyOptions) {
-    if (Notify.isNotifyElementInstantiated) {
-      window.scwc?.notify?.(options);
-      return;
-    }
-    Notify.getInstance()?.notify(options);
-  }
-
-  notify(options: INotifyOptions) {
-    Notify.notify(options);
-  }
-}
-
-const notifyClass = new Notify();
-
-export const notify = (options: INotifyOptions) => {
-  notifyClass.notify(options);
-};
-
-const defaultNotifyOptions: Omit<Required<INotifyOptions>, 'title'> = {
-  description: '',
-  type: 'info',
-  placement: 'tr',
-  duration: 3000,
-  onclose: () => {
-    /* */
-  },
-  onclick: () => {
-    /* */
-  },
-};
-
-@customElement('scwc-notify')
-class SCWCNotify extends LitElement {
-  static styles = [
-    css`
-      ${unsafeCSS(style)}
-    `,
-  ];
-
-  @state()
-  private accessor infoList = {
-    tl: new Map<string, TNotify>(),
-    tr: new Map<string, TNotify>(),
-    tc: new Map<string, TNotify>(),
-    bl: new Map<string, TNotify>(),
-    br: new Map<string, TNotify>(),
-    bc: new Map<string, TNotify>(),
-  };
-
-  notify(options: INotifyOptions) {
-    const notifyOptions = { ...defaultNotifyOptions, ...options };
-    const placement = notifyOptions.placement ?? defaultNotifyOptions.placement;
-    const notifyItem: TNotify = {
-      ...notifyOptions,
-      id: uuidv4(),
-      idx: this.infoList[placement].size,
-      timeoutId: void 0,
-      offset: 0,
-      // TODO: 需要替换为实际的通知高度和间距计算方式
-      // 当 height 为 0 时，不需要考虑通知之间的间距，直接将新通知渲染在可视区域外，获取到实际高度后再更新位置
-      height: 0,
-      // TODO: 需要在通知渲染后获取实际高度, 当 height 为 0 时，表示尚未获取到高度，需要先渲染到可视区域外
-      // 获取到实际高度后，更新 notifyItem 的 height 属性，并调用 updateNotifyOffsets 以调整所有通知的位置
-      state: 'beforePreparation',
-      ref: void 0,
-    };
-    this.infoList[notifyOptions.placement].set(notifyItem.id, notifyItem);
-    notifyItem.timeoutId = setTimeout(() => {
-      notifyItem.timeoutId = void 0;
-      this.handleNotifyClose(notifyItem.id, placement, 'auto');
-    }, notifyOptions.duration);
-
-    this.updateNotifyOffsets(placement);
-
+  notify(options: INotifyOptions): NotifyHandle {
+    const id = crypto.randomUUID();
+    const item: Item = { ...options, id, placement: options.placement ?? 'tr' };
+    this.items.set(id, item);
+    this.schedule(item);
+    this.requestUpdate();
     return {
-      id: notifyItem.id,
-      /**
-       * 主动关闭通知，不会触发自动关闭或用户关闭的回调函数
-       */
-      close: () => {
-        return this.handleNotifyClose(notifyItem.id, placement, 'manual');
+      id,
+      close: () => this.controller.close(id),
+      update: (value) => {
+        if (item.leaving || !this.items.has(id)) {
+          return false;
+        }
+        Object.assign(item, value);
+        this.schedule(item);
+        this.requestUpdate();
+        return true;
       },
     };
   }
-
-  private handleNotifyClose(
-    id: string,
-    placement: NonNullable<INotifyOptions['placement']>,
-    source: 'auto' | 'user' | 'manual',
-  ) {
-    const notifyItem = this.infoList[placement].get(id);
-    if (notifyItem) {
-      if (source !== 'manual') {
-        notifyItem.onclose(source);
-      }
-      clearTimeout(notifyItem.timeoutId);
-      notifyItem.timeoutId = void 0;
-      notifyItem.state = 'beforeLeave';
-      this.updateNotifyOffsets(placement);
-      return true;
+  private schedule(item: Item) {
+    const busy = item.progress !== undefined && item.progress !== false && item.progress !== 100;
+    this.controller.set(item.id, busy ? 0 : (item.duration ?? 3000));
+  }
+  private leave(id: string, source: NotifyCloseSource) {
+    const item = this.items.get(id);
+    if (!item || item.leaving) {
+      return;
     }
-    return false;
-  }
-
-  /** 变化了的位置 */
-  @state()
-  private accessor changedPlacement = {
-    tl: false,
-    tr: false,
-    tc: false,
-    bl: false,
-    br: false,
-    bc: false,
-  };
-
-  /**
-   * 当通知数量变化时，重新计算通知的 offset，并更新状态以触发重新渲染
-   */
-  private updateNotifyOffsets(placement: Required<INotifyOptions>['placement']) {
-    this.changedPlacement[placement] = true;
+    item.leaving = true;
     this.requestUpdate();
+    this.removals.set(
+      id,
+      setTimeout(() => {
+        this.removals.delete(id);
+        this.items.delete(id);
+        this.requestUpdate();
+      }, 250),
+    );
+    if (source !== 'manual') {
+      item.onclose?.(source);
+    }
   }
-
-  private renderNotifyContent(
-    item: TNotify,
-    placement: NonNullable<INotifyOptions['placement']>,
-    interactive = false,
-  ) {
-    // 与工作台通知相同的状态图标、正文列和关闭按钮；不依赖网页字体。
-    const symbol =
-      item.type === 'warn'
-        ? svg`<path d="M8 1.5 15 14H1Z"></path><path d="M8 5.5v4M8 11.5v.1"></path>`
-        : svg`<circle cx="8" cy="8" r="6.5"></circle>
-            ${
-              item.type === 'success'
-                ? svg`<path d="m4.5 8 2.5 2.5 4.5-5"></path>`
-                : item.type === 'error'
-                  ? svg`<path d="m5.5 5.5 5 5m0-5-5 5"></path>`
-                  : svg`<path d="M8 7v4M8 4.5v.1"></path>`
-            }`;
-    return html`
-      <span class="notify-icon" aria-hidden="true">
-        <svg viewBox="0 0 16 16">${symbol}</svg>
-      </span>
-      <div class="notify-body">
-        <strong class="notify-title-text">${item.title}</strong>
-        ${item.description ? html`<p class="notify-content">${item.description}</p>` : nothing}
-      </div>
-      <button
-        class="notify-close"
-        type="button"
-        aria-label="关闭提示"
-        ?disabled=${!interactive}
-        @click=${(event: MouseEvent) => {
-          event.stopPropagation();
-          if (interactive) {
-            this.handleNotifyClose(item.id, placement, 'user');
-          }
-        }}
-      >
-        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 4 8 8m0-8-8 8"></path></svg>
-      </button>
-    `;
-  }
-
   render() {
-    const lists = Object.entries(this.infoList) as [
-      'tl' | 'tr' | 'tc' | 'bl' | 'br' | 'bc',
-      Map<string, TNotify>,
-    ][];
-    return html`
-      <div class="notify-container" aria-live="polite">
-        ${lists.map(([placement, list]) => {
-          if (this.changedPlacement[placement]) {
-            this.changedPlacement[placement] = false;
-          } else {
-            return noChange;
-          }
-          const listValues = Array.from(list.values());
-          // BUG: 当某个通知删除时, 其在dom中一并渲染的注释节点<!-- -->没有被删除
-          return html`
-            <div class="notify-list ${placement}-list">
-              ${repeat(
-                listValues,
-                (item) => item.id,
-                (item, idx) => {
-                  if (item.state === 'beforePreparation') {
-                    item.state = 'preparation';
-                    return html`
-                      <div
-                        class="notify-item preparation ${placement}-item  ${item.type}-item"
-                        ${ref((ele) => {
-                          if (ele) {
-                            item.ref = ele;
-                            // 刚添加到列表中, 尚未渲染到页面上, 需要隐式渲染计算高度
-                            // 获取到实际高度后，更新 notifyItem 的 height 属性，并调用 updateNotifyOffsets 以调整所有通知的位置
-                            requestAnimationFrame(() => {
-                              if (item.height === 0) {
-                                const rect = ele.getBoundingClientRect();
-                                item.height = rect.height;
-                              }
-                              if (idx > 0) {
-                                // 检查前一个通知是否已经获取到偏移量和高度
-                                const prevItem = listValues[idx - 1];
-                                if (['beforePreparation', 'preparation'].includes(prevItem.state)) {
-                                  // 前一个通知尚未准备好，先不更新位置，等待下一次状态更新时再处理
-                                  return;
-                                }
-                              }
-                              item.state = 'beforeEnter';
-                              this.updateNotifyOffsets(placement);
-                            });
-                          }
-                        })}
-                      >
-                        ${this.renderNotifyContent(item, placement)}
-                      </div>
-                    `;
-                  } else if (item.state === 'beforeEnter') {
-                    return html`
-                      <div
-                        class="notify-item before-enter ${placement}-item ${item.type}-item"
-                        style=${(() => {
-                          // 获取上一个通知的 offset 和 height 以计算当前通知的 offset
-                          const prevItem = listValues[idx - 1];
-
-                          // TODO: 当通知数量大于 4 时默认折叠, 需要写到插件设置里
-                          // if (prevItem && listValues.length > 4) {
-                          //   item.offset = prevItem.offset + 8;
-                          // } else if
-                          if (prevItem) {
-                            item.offset = prevItem.offset + prevItem.height + 12;
-                          } else {
-                            item.offset = 0;
-                          }
-                          return placement.startsWith('b')
-                            ? `bottom: ${item.offset}px;`
-                            : `top: ${item.offset}px;`;
-                        })()}
-                        ${ref((ele) => {
-                          requestAnimationFrame(() => {
-                            item.state = 'enter';
-                            if (ele) {
-                              item.ref = ele;
-                              ele.classList.remove('before-enter');
-                              ele.classList.add('enter');
-                            }
-                          });
-                        })}
-                        @click=${(e: MouseEvent) => {
-                          e.stopPropagation();
-                          item.onclick();
-                        }}
-                        @mouseenter=${() => {
-                          clearTimeout(item.timeoutId);
-                        }}
-                        @mouseleave=${() => {
-                          clearTimeout(item.timeoutId);
-                          item.timeoutId = setTimeout(() => {
-                            this.handleNotifyClose(item.id, placement, 'auto');
-                          }, defaultNotifyOptions.duration);
-                        }}
-                      >
-                        ${this.renderNotifyContent(item, placement, true)}
-                      </div>
-                    `;
-                  } else if (item.state === 'beforeLeave') {
-                    return html`
-                      <div
-                        class="notify-item before-leave ${placement}-item ${item.type}-item"
-                        style=${placement.startsWith('b')
-                          ? `bottom: ${item.offset}px;`
-                          : `top: ${item.offset}px;`}
-                        ${ref((ele) => {
-                          requestAnimationFrame(() => {
-                            item.state = 'leave';
-                            if (ele) {
-                              item.ref = ele;
-                              ele.classList.remove('before-leave');
-                              ele.classList.add('leave');
-                              setTimeout(() => {
-                                item.state = 'removed';
-                                const notifyList = this.infoList[placement];
-                                notifyList.delete(item.id);
-                                this.updateNotifyOffsets(placement);
-                              }, 250 /* 此处应该根据离开动画的执行速度来执行 */);
-                              setTimeout(() => {
-                                // 更新后面通知的 offset
-                                for (let i = idx + 1; i < listValues.length; i++) {
-                                  listValues[i].offset -= item.height + 12;
-                                  const ele = listValues[i].ref;
-                                  if (ele && ele instanceof HTMLElement) {
-                                    if (placement.startsWith('b')) {
-                                      ele.style.bottom = `${listValues[i].offset}px`;
-                                    } else {
-                                      ele.style.top = `${listValues[i].offset}px`;
-                                    }
-                                  }
-                                }
-                              }, 0);
-                            }
-                          });
-                        })}
-                        @click=${(e: MouseEvent) => {
-                          e.stopPropagation();
-                          item.onclick();
-                        }}
-                      >
-                        ${this.renderNotifyContent(item, placement)}
-                      </div>
-                    `;
-                  } else if (item.state === 'removed') {
-                    return nothing;
-                  } else {
-                    return noChange;
-                  }
-                },
-              )}
-            </div>
-          `;
-        })}
-      </div>
-    `;
+    return html`<div class="notify-container" aria-live="polite">
+      ${placements.map(
+        (placement) => html` <div class=${`notify-list ${placement}-list`}>
+          ${repeat(
+            [...this.items.values()].filter((item) => item.placement === placement),
+            (item) => item.id,
+            (item) => html` <div
+              class=${`notify-item scwc-notification ${placement}-item ${item.type ?? 'info'} ${item.type ?? 'info'}-item ${item.leaving ? 'leave' : 'enter'}`}
+              tabindex="0"
+              role=${item.type === 'error' ? 'alert' : 'status'}
+              @click=${(event: MouseEvent) => {
+                event.stopPropagation();
+                item.onclick?.();
+              }}
+              @mouseenter=${() => this.controller.pause(item.id)}
+              @mouseleave=${() => this.controller.resume(item.id)}
+              @focusin=${() => this.controller.pause(item.id, 'focus')}
+              @focusout=${(event: FocusEvent) => {
+                if (
+                  !(event.currentTarget as HTMLElement).contains(event.relatedTarget as Node | null)
+                ) {
+                  this.controller.resume(item.id, 'focus');
+                }
+              }}
+            >
+              ${renderNotificationContent({
+                title: item.title,
+                message: item.description,
+                level: item.type,
+                progress: item.progress,
+                onClose: () => this.controller.close(item.id, 'user'),
+                actions: item.actions?.length
+                  ? html`<div class="notification-buttons">
+                      ${item.actions.map(
+                        (action) => html` <button
+                          @click=${(event: MouseEvent) => {
+                            event.stopPropagation();
+                            void action.onClick();
+                          }}
+                        >
+                          ${action.label}
+                        </button>`,
+                      )}
+                    </div>`
+                  : undefined,
+              })}
+            </div>`,
+          )}
+        </div>`,
+      )}
+    </div>`;
   }
 }
 
+export class SCWCNotify extends LitElement {
+  static styles = css`
+    ${unsafeCSS(cardStyle)} ${unsafeCSS(style)}
+  `;
+  private view = new NotificationView(() => this.requestUpdate());
+  get controller() {
+    return this.view.controller;
+  }
+  connectedCallback() {
+    super.connectedCallback();
+    this.controller.connect();
+  }
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    this.controller.suspend();
+  }
+  notify(options: INotifyOptions) {
+    return this.view.notify(options);
+  }
+  render() {
+    return this.view.render();
+  }
+}
+if (globalThis.customElements) {
+  customElement('scwc-notify')(SCWCNotify);
+}
+
+class StandaloneNotify {
+  readonly element = document.createElement('div');
+  readonly shadowRoot = this.element.attachShadow({ mode: 'open' });
+  private view = new NotificationView(() => render(this.view.render(), this.shadowRoot));
+  constructor() {
+    this.element.className = 'scwc-notify-root';
+    this.element.id = 'scwc-notify-root';
+    this.element.style.cssText = 'position:fixed;inset:0;z-index:2147483646;pointer-events:none';
+    const sheet = new CSSStyleSheet();
+    sheet.replaceSync(cardStyle + style);
+    this.shadowRoot.adoptedStyleSheets = [sheet];
+    (document.body ?? document.documentElement).append(this.element);
+    render(this.view.render(), this.shadowRoot);
+  }
+  notify(options: INotifyOptions) {
+    return this.view.notify(options);
+  }
+}
+
+/** Workbench-style notifications with a lazily mounted, per-document host. */
+export class Notify {
+  private static standalone?: StandaloneNotify;
+  static getInstance(): SCWCNotify | StandaloneNotify {
+    if (!globalThis.customElements) {
+      if (!Notify.standalone?.element.isConnected) {
+        Notify.standalone = new StandaloneNotify();
+      }
+      return Notify.standalone;
+    }
+    let element = document.querySelector<SCWCNotify>('scwc-notify');
+    if (!element) {
+      element = document.createElement('scwc-notify');
+      const root = document.createElement('div');
+      root.className = 'scwc-notify-root';
+      root.id = 'scwc-notify-root';
+      root.style.cssText = 'position:fixed;inset:0;z-index:2147483646;pointer-events:none';
+      root.append(element);
+      (document.body ?? document.documentElement).append(root);
+    }
+    return element;
+  }
+  static notify(options: INotifyOptions) {
+    return Notify.getInstance().notify(options);
+  }
+  notify(options: INotifyOptions) {
+    return Notify.notify(options);
+  }
+  create(options: INotifyOptions) {
+    return this.notify(options);
+  }
+  info(title: string, options: Omit<INotifyOptions, 'title' | 'type'> = {}) {
+    return this.notify({ ...options, title, type: 'info' });
+  }
+  success(title: string, options: Omit<INotifyOptions, 'title' | 'type'> = {}) {
+    return this.notify({ ...options, title, type: 'success' });
+  }
+  warn(title: string, options: Omit<INotifyOptions, 'title' | 'type'> = {}) {
+    return this.notify({ ...options, title, type: 'warn' });
+  }
+  error(title: string, options: Omit<INotifyOptions, 'title' | 'type'> = {}) {
+    return this.notify({ ...options, title, type: 'error' });
+  }
+}
+export const notify = (options: INotifyOptions) => Notify.notify(options);
 declare global {
+  interface Window {
+    scwc?: { notify?: typeof notify };
+  }
   interface HTMLElementTagNameMap {
     'scwc-notify': SCWCNotify;
   }
+}
+if (typeof window !== 'undefined') {
+  window.scwc ??= {};
+  window.scwc.notify ??= notify;
 }

@@ -37,6 +37,8 @@ namespace SCWC {
    * 允许插件长期持有该对象并在需要时调用其中的函数
    */
   export interface ILoadContext {
+    /** 可长期持有；向已连接的网站脚本或扩展主动发送通知。 */
+    notifications: import('../../shared/site-notifications.ts').SiteNotifications;
     /** 可长期持有的工作台通知与任务控制器工厂。 */
     workbench: {
       logger: import('../types/notifications.d.ts').NotificationLogger;
@@ -141,6 +143,7 @@ namespace SCWC {
           data: {
             type: 'success' | 'error' | 'warn' | 'info';
             message: string;
+            scope?: import('../../shared/site-notifications.ts').NotificationScope;
           };
         }
       | Promise<{
@@ -148,6 +151,7 @@ namespace SCWC {
           data: {
             type: 'success' | 'error' | 'warn' | 'info';
             message: string;
+            scope?: import('../../shared/site-notifications.ts').NotificationScope;
           };
         }>;
   }
@@ -219,6 +223,10 @@ namespace SCWC {
   export type TaskController = import('../types/notifications.d.ts').TaskController;
   export type NotificationLogger = import('../types/notifications.d.ts').NotificationLogger;
   export type NotificationController = import('../types/notifications.d.ts').NotificationController;
+  export type SiteNotifications = import('../../shared/site-notifications.ts').SiteNotifications;
+  export type SiteNotificationOptions =
+    import('../../shared/site-notifications.ts').SiteNotificationOptions;
+  export type NotificationScope = import('../../shared/site-notifications.ts').NotificationScope;
   export type PluginLogger = import('../types/task.d.ts').PluginLogger;
   export type InvocationContext = import('../types/task.d.ts').InvocationContext;
   export type InvocationInputError = import('../common/interaction.ts').InvocationInputError;
