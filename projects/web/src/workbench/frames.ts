@@ -1,4 +1,11 @@
 import { ConfigDispatchQueue } from '../../../shared/config-dispatch.ts';
+import {
+  CORE_WEB_THEME_TOKENS,
+  isCoreWebConfigChannel,
+  type CoreWebConfigChannel,
+  type CoreWebConfigMessage,
+  type CoreWebTheme,
+} from '../../../shared/core-web-config.ts';
 import { UI_UNAVAILABLE, uiValue, type UIValue } from '../../../shared/declarative-ui.ts';
 import type { ConfigChange } from '../../../server/types/plugin-config.d.ts';
 import { commands, effectiveKeys } from './commands.ts';
@@ -24,6 +31,7 @@ export interface FrameRuntime {
   checkpointTimer?: ReturnType<typeof setTimeout>;
   reconnectTimer?: ReturnType<typeof setTimeout>;
   configDispatch?: ConfigDispatchQueue;
+  coreConfigChannels?: Set<CoreWebConfigChannel>;
   frontendHandlers?: {
     revision: number;
     handlers: { name: string; readOnly: boolean; watch: boolean }[];
@@ -50,6 +58,7 @@ export class FramePool extends EventTarget {
   readonly hibernated = new Map<string, boolean>();
   private raf = 0;
   private bindingRevision = -1;
+  private coreConfigRevision = 0;
   private observer: ResizeObserver;
   private timer: ReturnType<typeof setInterval>;
   private stopped = false;
@@ -331,6 +340,7 @@ export class FramePool extends EventTarget {
     this.store.releasePageNotifications(r.epoch);
     r.configDispatch?.dispose();
     r.configDispatch = undefined;
+    r.coreConfigChannels = undefined;
     r.frontendHandlers = undefined;
     clearTimeout(r.handshakeTimer);
     clearTimeout(r.checkpointTimer);
@@ -369,6 +379,7 @@ export class FramePool extends EventTarget {
     if (r.nonce && r.nonce !== data.documentNonce) {
       r.configDispatch?.dispose();
       r.configDispatch = undefined;
+      r.coreConfigChannels = undefined;
       r.frontendHandlers = undefined;
     }
     if (r.handshaking) {
@@ -414,6 +425,12 @@ export class FramePool extends EventTarget {
         }
       };
       r.port.onRequest = async (method, payload) => {
+        if (r.epoch !== epoch) {
+          throw new Error('页面文档已变化');
+        }
+        if (method === 'core-config.subscribe') {
+          return this.subscribeCoreConfig(r, payload);
+        }
         if (method === 'host.executeCommand') {
           const { commandId, args } = payload as { commandId: string; args: unknown };
           if (!['openUrl', 'bookmark', 'notifications'].includes(commandId)) {
@@ -433,7 +450,6 @@ export class FramePool extends EventTarget {
           type: 'welcome',
           documentNonce: data.documentNonce,
           session,
-          theme: this.themeProjection(),
           capabilities: { search: true },
           keybindings: this.bindings(),
           navigationIndex: tab.navigation.index,
@@ -458,6 +474,13 @@ export class FramePool extends EventTarget {
   };
   private onEvent(r: FrameRuntime, method: string, payload: unknown) {
     if (this.runtimes.get(r.tabId) !== r) {
+      return;
+    }
+    if (method === 'core-config.unsubscribe') {
+      const channel = (payload as { channel?: unknown } | null)?.channel;
+      if (isCoreWebConfigChannel(channel)) {
+        r.coreConfigChannels?.delete(channel);
+      }
       return;
     }
     if (method === 'notify.changed') {
@@ -793,27 +816,37 @@ export class FramePool extends EventTarget {
       this.changed();
     }
   }
-  private themeProjection() {
+  private subscribeCoreConfig(r: FrameRuntime, payload: unknown): CoreWebConfigMessage {
+    if (this.runtimes.get(r.tabId) !== r) {
+      throw new Error('页面文档已释放');
+    }
+    const channel = (payload as { channel?: unknown } | null)?.channel;
+    if (!isCoreWebConfigChannel(channel)) {
+      throw new Error('未公开的核心 Web 配置通道');
+    }
+    (r.coreConfigChannels ??= new Set()).add(channel);
+    return this.coreConfigSnapshot(channel);
+  }
+  private coreConfigSnapshot(channel: CoreWebConfigChannel): CoreWebConfigMessage {
     const styles = getComputedStyle(document.documentElement);
     return {
-      mode: document.documentElement.dataset.theme,
-      tokens: Object.fromEntries(
-        [
-          '--surface-0',
-          '--surface-1',
-          '--text-primary',
-          '--text-secondary',
-          '--border-default',
-          '--accent-primary',
-          '--font-sans',
-        ].map((key) => [key, styles.getPropertyValue(key).trim()]),
-      ),
+      channel,
+      revision: this.coreConfigRevision,
+      value: {
+        preference: this.store.preferences.values.theme ?? 'dark-2026',
+        mode: document.documentElement.dataset.theme ?? 'dark-2026',
+        tokens: Object.fromEntries(
+          CORE_WEB_THEME_TOKENS.map((key) => [key, styles.getPropertyValue(key).trim()]),
+        ) as CoreWebTheme['tokens'],
+      },
     };
   }
-  theme() {
-    const theme = this.themeProjection();
+  coreConfigChanged() {
+    this.coreConfigRevision++;
     for (const r of this.runtimes.values()) {
-      r.port?.event('theme.changed', theme);
+      for (const channel of r.coreConfigChannels ?? []) {
+        r.port?.event('core-config.changed', this.coreConfigSnapshot(channel));
+      }
     }
   }
   private bindings() {

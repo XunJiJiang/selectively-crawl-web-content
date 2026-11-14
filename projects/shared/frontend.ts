@@ -20,3 +20,11 @@ export { ManagedResources } from './managed-resources.ts';
 export type * from './types/config.d.ts';
 export type * from './types/notify.d.ts';
 export type * from './types/plugin.d.ts';
+export type {
+  CoreWebConfig,
+  CoreWebConfigChannel,
+  CoreWebConfigValues,
+  CoreWebTheme,
+  CoreWebThemeMode,
+  CoreWebThemeToken,
+} from './core-web-config.ts';

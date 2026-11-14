@@ -1,6 +1,6 @@
 {
   "name": "scwc-terminal-plugin-template",
-  "version": "3.4.6",
+  "version": "3.4.7",
   "type": "module",
   "main": "index.ts",
   "enabled": false

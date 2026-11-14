@@ -107,7 +107,9 @@ CommandRegistry 为所有工作台可配置命令提供稳定 commandId、名称
 
 ### 1.5 主题模式与菜单溢出
 
-主题偏好为 `system | light-2026 | dark-2026`，system 分别映射到“2026 浅色/2026 深色”。主设计文档给出 VS Code Light 2026 / Dark 2026 的配色参考；本合同不固定色值、字体、间距或控件外形。外壳、Shadow DOM 菜单、内置设置页、输出和终端读取统一语义 token；SDK welcome 和后续 theme.changed 下发有效模式及允许的 token，插件可选择应用。
+主题偏好为 `system | light-2026 | dark-2026`，system 分别映射到“2026 浅色/2026 深色”。主设计文档给出 VS Code Light 2026 / Dark 2026 的配色参考；本合同不固定色值、字体、间距或控件外形。外壳、Shadow DOM 菜单、内置设置页、输出和终端读取统一语义 token。
+
+普通插件页面通过通用只读配置接口 `scwcutils.coreConfig.subscribe('theme', callback)` 主动注册监听，返回注销函数；通道和回调值完整类型化，当前只允许 `theme`。首次交付当前选择 `preference`、生效样式 `mode` 及允许的 `tokens`，随后按文档推送变化；跟随系统和实际样式分开表达，未来样式标识不被折叠成深浅色。welcome 不主动下发样式；未注册的页面不收配置。SDK 不修改插件样式，是否跟随由插件决定。独立浏览器页的 `host.capabilities.coreConfig` 为 false。协议使用 `core-config.subscribe/unsubscribe/changed`，重建连接恢复订阅、文档销毁释放注册，版本序号拒绝迟到快照。样式同步属于这一配置机制，详见 [Web Utils](../projects/webutils/README.md)。
 
 左上角不预留 logo/产品标题。顶级菜单按登记顺序尽量全部显示，按实际可用空间从末尾逐项移入“…”；只剩两个菜单加“…”时若仍不足，全部收入“…”。不显示一个菜单加“…”的过渡态。折叠/恢复只影响呈现，同一 commandId、快捷键和目标绑定不变；溢出结果不作为用户布局持久化。
 

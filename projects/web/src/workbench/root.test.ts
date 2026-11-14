@@ -98,6 +98,31 @@ async function fixture() {
   return requireValue(app.shadowRoot);
 }
 
+it('publishes theme selection changes and system changes through core configuration', async () => {
+  await fixture();
+  const state = app as unknown as {
+    applyTheme(): void;
+    themeMedia: { matches: boolean };
+    pool: { coreConfigChanged(): void };
+  };
+  state.applyTheme();
+  const changed = vi.spyOn(state.pool, 'coreConfigChanged');
+  app.store.preferences.values.theme = 'system';
+  state.applyTheme();
+  expect(document.documentElement.dataset.theme).toBe('dark-2026');
+  expect(changed).toHaveBeenCalledTimes(1);
+  app.store.preferences.values.theme = 'dark-2026';
+  state.applyTheme();
+  expect(changed).toHaveBeenCalledTimes(2);
+  app.store.preferences.values.theme = 'system';
+  state.themeMedia.matches = false;
+  state.applyTheme();
+  expect(document.documentElement.dataset.theme).toBe('light-2026');
+  expect(changed).toHaveBeenCalledTimes(3);
+  state.applyTheme();
+  expect(changed).toHaveBeenCalledTimes(3);
+});
+
 describe('userscript installation entry', () => {
   it('shows extension installation under quick access > and warns when Safari cannot install', async () => {
     const root = await fixture();

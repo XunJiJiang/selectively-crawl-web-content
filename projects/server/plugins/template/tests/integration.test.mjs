@@ -153,6 +153,8 @@ before(async () => {
     format: 'iife',
     globalName: '__sdk',
     platform: 'browser',
+    // SDK 的共享通知样式使用 Vite ?raw 语义，esbuild 夹具同样按字符串加载。
+    loader: { '.css': 'text' },
   });
   sdkCode = sdkBuild.outputFiles[0].text + '\nwindow.scwcutils = __sdk.default;';
 });
@@ -262,6 +264,20 @@ async function browser(hosted) {
     });
     const { port1, port2 } = new MessageChannel();
     item.host = new InstancePort(port1, tabId, frameEpoch);
+    item.host.onRequest = async (method, payload) => {
+      assert.equal(method, 'core-config.subscribe');
+      assert.equal(payload.channel, 'theme');
+      return {
+        channel: 'theme', revision: 0,
+        value: {
+          preference: 'dark-2026', mode: 'dark-2026',
+          tokens: Object.fromEntries([
+            '--surface-0', '--surface-1', '--text-primary', '--text-secondary',
+            '--border-default', '--accent-primary', '--font-sans',
+          ].map((key) => [key, ''])),
+        },
+      };
+    };
     item.messages = [];
     item.host.onEvent = (method, payload) => item.messages.push({ method, payload });
     const parent = {
@@ -280,7 +296,6 @@ async function browser(hosted) {
               session,
               focused: true,
               visible: true,
-              theme: { mode: 'dark-2026' },
               keybindings: [],
             },
           }),

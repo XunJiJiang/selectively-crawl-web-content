@@ -71,7 +71,7 @@
 | config.subscribe(undefined,callback) | undefined 键 | 同上，记录 pluginId/changedKeys/effectiveValues/revision/schemaRevision/originRequestId |
 | 配置暂停/恢复与去重 | 两个同插件页面 | T7 两个真实 SDK 文档+核心 ConfigDispatchQueue，第二页 inactive 后恢复交付；不等同完整节能计时验收 |
 | host.capabilities | 普通页统一模板接入 | 真实浏览器已显示 pageApiVersion=2、uiHandlers=true、configurationWrite=false |
-| theme.mode/tokens/onChange | web/main.ts | 现有主题消费与注销保留；暗/亮完整视觉仍需核验 |
+| coreConfig.subscribe('theme', callback) | web/main.ts | 主动按通道订阅当前样式、应用及注销；独立页不订阅，暗/亮完整视觉仍需核验 |
 | page.onVisibility/onFocus | SDK 仍存在，页面通过 externalState 观察 | 未删除；T3 实际焦点/可见变化 |
 | navigation.report/navigate/registerAdapter | 报告页面导航 / 导航到演示锚点 | adapter 用普通 history 更新当前文档，保存 dispose；不注入 inspector 属性 |
 | search.register/dispose | 当前页面“模板参数/监听/配置/生命周期”四项 | 宿主搜索能力存在时注册，返回 cursor/total 并检查 signal；全工作台搜索手工入口为 F1 |

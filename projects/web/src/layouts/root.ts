@@ -400,9 +400,10 @@ export class AppRoot extends LitElement {
     const theme =
       preference === 'system' ? (this.themeMedia.matches ? 'dark-2026' : 'light-2026') : preference;
     document.documentElement.dataset.theme = theme;
-    if (theme !== this.previousTheme) {
-      this.previousTheme = theme;
-      this.pool?.theme();
+    const selection = JSON.stringify([preference, theme]);
+    if (selection !== this.previousTheme) {
+      this.previousTheme = selection;
+      this.pool?.coreConfigChanged();
     }
   }
   private commandEvent = (event: CustomEvent<{ id: string; args?: unknown }>) => {

@@ -1027,14 +1027,14 @@ zoom-out.svg[ZU2T]: F:绘制圆框缩小减号 | R:- | A:SVG图形 | S:-
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/public/web/assets/===
 index-D-iqYjNX.css[ZU4T]: F:分发工作台主题变量、全局排版与codicon字体样式 | R:code:projects/web/var.css,code:projects/web/style.css | A:全局CSS资源 | S:页面外层隐藏滚动，滚动由内部容器承担；默认深色并提供浅色树变量
-index-CovDmEih.js[EU6L]: F:初始化工作台配置和共享组件并延迟装载主布局 | R:code:projects/web/src/main.ts,code:projects/shared/components/notify.ts,code:projects/shared/components/tooltip.ts | A:浏览器ESM入口 | S:先存本机配置再加载layouts；通知惰性挂载并复用文档状态管理；提示同组继承固定，外部iframe焦点关闭
-layouts-BBUsO5ps.js[AU7L]: F:分发工作台布局、声明式视图及插件通知投影 | R:code:projects/web/src/layouts/root.ts,code:projects/web/src/workbench/frames.ts,code:projects/web/src/workbench/store.ts | A:app-root及工作台视图 | S:插件通知按epoch隔离，销毁撤投影；核心不接管计时或位置参数，交互回原文档；JSON入ShadowDOM，HTML走来源沙箱
 local-config-taNKm1cA.js[LU4T]: F:分发Lit运行时与本机启动配置加载 | R:code:projects/web/src/api/local-config.ts | A:浏览器共享ESM导出 | S:仅回环同源请求配置，拒绝重定向；三秒失败回退现有配置
 terminal-BEBwup-b.js[IU6M]: F:分发Web终端编辑、输出、补全与滚动组件 | R:code:projects/web/src/components/terminal.ts,code:projects/web/src/components/command-editor.ts | A:WorkbenchTerminal,wb-terminal | S:选区复制优先，空选区Ctrl+C取消；补全拒迟到；未知命令留草稿；滚动用户意图退出跟随
 workbench-CeiTHksj.js[LU7L]: F:分发工作台共享组件、表达式和HTTP事件连接 | R:code:projects/web/src/api/workbench.ts,code:projects/shared/ui-expressions.ts | A:浏览器共享ESM导出 | S:连接拒旧代与回退序号，重同步保留文档；表达式不执行JS，前后端管道边界保留
+index-CxLojP3-.js[EU6L]: F:初始化工作台配置和共享组件并延迟装载主布局 | R:code:projects/web/src/main.ts,code:projects/shared/components/notify.ts,code:projects/shared/components/tooltip.ts | A:浏览器ESM入口 | S:先存本机配置再加载layouts；通知惰性挂载并复用文档状态管理；提示同组继承固定，外部iframe焦点关闭
+layouts-9hg75dhm.js[AU7L]: F:分发工作台布局、声明式视图及插件配置和通知通道 | R:code:projects/web/src/layouts/root.ts,code:projects/web/src/workbench/frames.ts,code:projects/web/src/workbench/store.ts | A:app-root及工作台视图 | S:核心样式按显式theme通道注册交付，换文档清注册；通知按epoch隔离且交互回原文档，位置取核心；JSON入ShadowDOM，HTML走来源沙箱
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/public/web/===
-index.html[EU5T]: F:装载生产工作台并标记页面身份 | R:code:projects/server/public/web/assets/index-CovDmEih.js,code:projects/server/public/web/assets/index-D-iqYjNX.css | A:/web/HTML入口,scwc-app元标记,ICO favicon | S:预载local-config；资产基于/web/assets；初始dark-2026；元标记供脚本跳过浮窗
+index.html[EU5T]: F:装载生产工作台并标记页面身份 | R:code:projects/server/public/web/assets/index-CxLojP3-.js,code:projects/server/public/web/assets/index-D-iqYjNX.css | A:/web/HTML入口,scwc-app元标记,ICO favicon | S:预载local-config；资产基于/web/assets；初始dark-2026；元标记供脚本跳过浮窗
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/router/===
 index.ts[MN8M]: F:接入采集、工作台和带客户端版本的HTTP请求 | R:code:projects/server/router/extension-origin.ts,code:projects/server/router/user-script.ts,code:projects/server/router/version.ts | A:app,listen,/api/metadata/scrape | S:仅明确扩展路径豁免同主机检查，仍验HTTP(S) site与Bearer；CORS允许版本头并暴露通知头；采集路由显式版本门槛；响应关闭结束任务
@@ -1233,7 +1233,7 @@ declarative-ui.ts[FU8L]: F:定义声明式UI、字段验证、树描述及带归
 ui-expressions.test.ts[TU6S]: F:验证调用语法、字段引用重验及验证返回契约 | R:code:projects/shared/ui-expressions.ts,code:projects/shared/ui-validation.ts | A:Vitest用例 | S:依赖失败阻止消费且归属依赖字段；每次读重新验证；仅事件顶层裸调用，$this取候选；错误返回结构拒绝
 ui-expressions.ts[KU8L]: F:解析受限调用、树上下文并在字段消费前验证 | R:code:projects/shared/declarative-ui.ts,code:projects/shared/ui-validation.ts | A:parseProgram,parseTemplate,parseValidator,evaluateArgument,validateUIField,validateUIFields | S:事件顶层裸调用接收$event，显式括号不补参，管道裸调用仍接事件；$tree仅树程序，禁止任意成员访问及JS；$for与value.read重验，$this仅验证候选；前后端回执仅跳对应验证阶段
 backend.ts[LG7T]: F:公开后端工具、UI树协议及无样式通知控制器 | R:code:projects/shared/declarative-ui.ts,code:projects/shared/tree-model.ts,code:projects/shared/notify-controller.ts | A:通用工具,UI反馈与站点通知类型,TreeDataStore,NotifyController | S:SDK同步导入；运行依赖须无DOM并兼容Node原生可擦除TS
-frontend.ts[EU7T]: F:公开共享浏览器组件、通知视图控制器及工具类型 | R:code:projects/shared/backend.ts,code:projects/shared/components/notify.ts,code:projects/shared/components/tree/tree.ts | A:表单组件,Notify,notify,SCWCNotify,NotifyController,通知渲染器 | S:导入需要DOM与存储；通知首次调用挂载；Vite仅注入HTML入口，Worker不加载
+frontend.ts[EU7T]: F:公开共享浏览器组件、通知视图控制器及核心Web配置类型 | R:code:projects/shared/backend.ts,code:projects/shared/components/notify.ts,code:projects/shared/core-web-config.ts | A:表单组件,Notify,notify,SCWCNotify,NotifyController,CoreWebConfig | S:导入需要DOM与存储；通知首次调用挂载；Vite仅注入HTML入口，Worker不加载
 package.json[FV6T]: F:声明shared工作区包及前后端子路径 | R:code:projects/shared/frontend.ts,code:projects/shared/backend.ts,code:projects/scripts/sync-versions.ts | A:@scwc/shared,version,exports,dependencies | S:版本随根包；私有ESM直接导出TS；浏览器依赖随Vite包进入发行资产
 userscript-config-schema.ts[FC7T]: F:校验网站同步快照与历史路径副本 | R:code:projects/shared/userscript-config.ts | A:snapshotSchema,pathSnapshotSchema | S:同步协议仅接受版本1规范origin；版本2路径结构只供本地迁移读取；日期限毫秒ISO且严格字段、数量和文本边界
 userscript-config.ts[FC7T]: F:定义网站配置快照、默认值及Token变更事件身份 | R:code:projects/shared/types/config.d.ts | A:UserScriptSnapshot,UserScriptSiteData,websiteOrigin,defaultSiteData,copySiteData,API_TOKEN_CHANGED_EVENT | S:版本1只按HTTP或HTTPS的origin区分，路径、query、hash及iframe身份均不区分；新默认epoch不覆盖已修改数据
@@ -1251,6 +1251,7 @@ notify-controller.test.ts[TM5T]: F:验证通知剩余计时、多原因暂停和
 notify-controller.ts[LM7T]: F:独立管理通知计时、暂停、关闭与宿主生命周期 | R:- | A:NotifyController,NotifyCloseSource | S:无DOM样式依赖；0时长常驻，暂停保存剩余时长且按原因叠加；set保留暂停原因；移除不回调，close区分auto/user/manual
 site-notifications.ts[FM6T]: F:定义网站主动通知、范围与投递游标协议 | R:code:projects/shared/types/notify.d.ts | A:NotificationScope,SiteNotificationOptions,SiteNotification,SiteNotificationBatch,SiteNotifications | S:不含函数与操作按钮；scope仅扩展采用，脚本忽略；网站归一HTTP(S) origin，notify异步返回通知ID
 notify-manager.ts[LM7M]: F:在创建文档管理通知状态、回调、计时及宿主路由 | R:code:projects/shared/notify-controller.ts,code:projects/shared/types/notify.d.ts | A:NotifyManager,installNotifyHost,hostedNotify,isNotifyState | S:自动隐藏保留千条有界记录和句柄；close删除且静默，用户关闭回调；操作ID替换即失效；Symbol.for共享注入SDK与插件模块宿主；跨帧状态验证后才展示
+core-web-config.ts[CC7S]: F:定义公开核心Web配置通道与只读样式类型并校验跨页快照 | R:code:projects/web/src/workbench/frames.ts,code:projects/webutils/lib/core-config.ts | A:CoreWebConfig,CoreWebConfigValues,CoreWebTheme,readCoreWebConfigMessage,CORE_WEB_THEME_TOKENS | S:仅公开theme；preference保留system选择而mode表示生效样式，保留未来非空标识；token仅白名单且复制冻结；revision必须非负安全整数
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/terminal/===
 clipboard.ts[IU4T]: F:写入系统剪贴板 | R:code:projects/terminal/controller.ts | A:copyText | S:按平台依次尝试原生工具，全部失败后向终端发送OSC52
@@ -1417,7 +1418,7 @@ header.css[ZU3T]: F:排版旧版顶栏 | R:code:projects/web/src/layouts/header.
 header.ts[IU4T]: F:提供旧版侧栏切换 | R:code:projects/web/src/layouts/header.css | A:app-header,toggle-left-bar | S:仅派发事件，展开状态由外部属性决定
 index.ts[EU4T]: F:注册工作台根组件 | R:code:projects/web/src/layouts/root.ts | A:副作用导入入口 | S:-
 root.css[ZU2T]: F:保留根布局基础样式 | R:- | A::host | S:当前工作台根组件直接导入workbench.css，本文件未被其使用
-root.ts[AU9L]: F:编排工作台布局、贡献视图和共享通知交互 | R:code:projects/web/src/workbench/store.ts,code:projects/web/src/workbench/frames.ts,code:projects/shared/components/notification.ts | A:app-root,AppRoot,command | S:核心通知区统一定位；插件横幅点击、悬停、聚焦及按钮经Store回原文档；权限仅点击申请；安装防重且20秒超时绕过休眠；辅助栏参与焦点历史，取消拖放恢复布局
+root.ts[AU9L]: F:编排工作台布局、核心样式配置传播、贡献视图和共享通知交互 | R:code:projects/web/src/workbench/store.ts,code:projects/web/src/workbench/frames.ts,code:projects/shared/components/notification.ts | A:app-root,AppRoot,command | S:样式选择与生效模式任一变化均通知配置通道；插件通知交互经Store回原文档；权限仅点击申请；安装防重且20秒超时绕过休眠；辅助栏参与焦点历史，取消拖放恢复布局
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/web/src/===
 main.test.ts[TI5T]: F:验证Web启动请求顺序 | R:code:projects/web/src/main.ts | A:Vitest用例 | S:断言首次插件API请求发生在当前token加载并写入存储之后
@@ -1429,8 +1430,8 @@ api.d.ts[FE4T]: F:声明插件页面响应 | R:code:projects/web/src/api/plugins
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/web/src/workbench/===
 commands.ts[CU6S]: F:统一工作台命令、脚本及扩展安装入口与按键匹配 | R:code:projects/web/src/layouts/root.ts,code:projects/web/src/components/command-editor.ts | A:commands,effectiveKeys,eventKey,matchesKey,editableTarget,conflicts | S:扩展安装作用于核心机器；覆盖逆序找相同上下文，Mod按平台映射且完整匹配修饰键，输入识别穿透ShadowDOM
 editor.test.ts[TU6M]: F:验证独立终端输入交互 | R:code:projects/web/src/components/command-editor.ts | A:Vitest用例 | S:覆盖IME续行、字素选区和撤销隔离；Tab循环及多级前缀补全，旧终端候选拒收
-frames.test.ts[TU6M]: F:验证页面池几何、文档保留与shared通知端口同步 | R:code:projects/web/src/workbench/frames.ts,code:projects/webutils/lib/workbench.ts,code:projects/shared/components/notify.ts | A:Vitest与真实MessageChannel用例 | S:验证握手前创建、双向已读、进度、旧按钮失效、位置忽略、本页选择及文档释放；几何夹具不证明像素排版
-frames.ts[AU8L]: F:管理页面实例、配置交付、前端UI及通知投影通道 | R:code:projects/shared/config-dispatch.ts,code:projects/shared/workbench-protocol.ts,code:projects/shared/notify-manager.ts,code:projects/web/src/workbench/store.ts | A:FramePool,FrameRuntime,invokeUI | S:通知身份绑定epoch并验证状态，交互回创建文档，失效或删除释放投影；iframe稳定父容器；配置仅活动ready页交付；UI只用来源tab及epoch；暂停先确认保护任务
+frames.test.ts[TU6L]: F:验证页面池几何、文档保留及核心配置和通知端口同步 | R:code:projects/web/src/workbench/frames.ts,code:projects/webutils/lib/workbench.ts,code:projects/shared/components/notify.ts | A:Vitest与真实MessageChannel用例 | S:配置仅订阅后交付，覆盖初值、同模式偏好变化、未来样式、注销及换代；通知保留文档归属与本页选择；几何夹具不证明像素排版
+frames.ts[AU8L]: F:管理页面实例、插件及核心配置交付、前端UI和通知投影通道 | R:code:projects/shared/config-dispatch.ts,code:projects/shared/core-web-config.ts,code:projects/shared/workbench-protocol.ts,code:projects/shared/notify-manager.ts,code:projects/web/src/workbench/store.ts | A:FramePool,FrameRuntime,invokeUI,coreConfigChanged | S:核心配置仅按显式通道注册推送，初值带revision，换文档清注册；插件配置仅活动ready页交付；通知按epoch隔离且交互回源；iframe稳定父容器；UI只用来源tab及epoch；暂停先确认保护请求
 menu.test.ts[TU5T]: F:验证工作台菜单关闭 | R:code:projects/web/src/components/context-menu/wb-context-menu.ts | A:Vitest用例 | S:覆盖真实背景幂等关闭、原坐标重开、覆盖回调及禁用项拒选
 model.ts[DU7M]: F:变换工作区布局、标签和导航记录 | R:code:projects/web/src/workbench/types.ts,code:projects/shared/workbench-layout.ts | A:addTab,focusTab,splitGroup,moveTab,navigateTab,relocatedUrl | S:重置布局使用schema2；限制200标签、8组、500导航项；移动拒缺失ID并收拢空组；重定位核验installationId，精确保留重复query与hash
 protocol.test.ts[TN6T]: F:验证页面端口隔离 | R:code:projects/shared/workbench-protocol.ts | A:Vitest用例 | S:真实MessageChannel验证错误tab、旧epoch、重复序号拒收，关闭必须拒绝待答RPC
@@ -1449,7 +1450,7 @@ dialogs.ts[FU4T]: F:声明工作台弹层表单 | R:code:projects/web/src/workbe
 focus-history.test.ts[TU5T]: F:验证工作台焦点遍历 | R:code:projects/web/src/workbench/focus-history.ts | A:Vitest用例 | S:关闭标签与归档终端必须跳过并移除；侧栏和单个终端分别记位，新焦点截断前进分支
 focus-history.ts[DU6T]: F:记录工作台标签、辅助栏与终端焦点历史 | R:code:projects/web/src/layouts/root.ts | A:FocusLocation,FocusHistory | S:最多500项，连续相同位置去重；canGo也清失效位置，记录新位置截断前进分支
 notifications.test.ts[TM6M]: F:验证页面通知计时归属、历史及浏览器系统提醒 | R:code:projects/web/src/workbench/store.ts,code:projects/shared/notify-manager.ts,code:projects/web/src/workbench/notification-host.ts | A:Vitest用例 | S:伪时钟验证插件计时、双原因暂停、隐藏后状态及可见性；浏览器夹具隔离内核；历史不重放且异步取消，不证明真实系统横幅
-root.test.ts[TU6L]: F:验证工作台布局、通知任务与安装交互 | R:code:projects/web/src/layouts/root.ts,code:projects/web/src/workbench/store.ts | A:Vitest用例 | S:覆盖扩展Safari警告、暂停时立即HTTP安装及进度；显式授权通知不强制已读，并验证焦点、拖放及布局阈值
+root.test.ts[TU6L]: F:验证工作台布局、通知任务、安装及样式配置传播 | R:code:projects/web/src/layouts/root.ts,code:projects/web/src/workbench/store.ts | A:Vitest用例 | S:覆盖同模式偏好变化和系统样式变化仍发配置；安装暂停时立即HTTP且Safari警告；显式授权通知不强制已读，保留焦点、拖放与布局阈值验证
 bookmarks.test.ts[TU5T]: F:验证收藏树拖放反馈 | R:code:projects/web/src/workbench/ui.ts | A:Vitest用例 | S:伪时钟校验中部悬停650ms展开、边缘提示线和后代拒收；混合顺序由夹具提供
 browser-workspace.ts[PD7T]: F:持久化浏览器布局种子与刷新会话身份 | R:code:projects/web/src/workbench/types.ts,code:projects/web/src/workbench/store.ts | A:WorkspacePersistence,BrowserWorkspace,WorkspaceSession | S:按安装隔离；仅刷新或历史导航恢复本页工作区及owner，新标签只复制全局布局；不订阅跨页变化，存储禁用时降级
 request-lifecycle.test.ts[TN6T]: F:验证请求暂停恢复边界 | R:code:projects/shared/request-lifecycle.ts | A:Vitest用例 | S:未标记工作阻止暂停；只重发由暂停中止的标记请求，调用方取消在等待重连期间仍有效
@@ -1459,6 +1460,7 @@ layout-geometry.ts[KU7L]: F:计算工作台压缩与联动拖拽尺寸 | R:code:
 notification-host.test.ts[TU5T]: F:验证浏览器通知宿主聚焦、授权、图标与点击 | R:code:projects/web/src/workbench/notification-host.ts | A:Vitest用例 | S:伪造Notification；可见但失焦算后台；只显式授权，点击关闭句柄并回调
 notification-host.ts[IU7T]: F:隔离可替换的应用聚焦与系统通知宿主能力 | R:code:projects/server/public/resources/notification.png | A:ApplicationFocus,NotificationHost,SystemNotificationProvider,SystemNotificationHandle,browserNotificationHost | S:桌面宿主强制交内核；浏览器需安全上下文；聚焦要求可见及hasFocus；通知用随包PNG，授权只显式申请
 system-notifications.ts[AM7S]: F:将选定的实时通知在浏览器失焦时升级为系统提醒 | R:code:projects/web/src/workbench/notification-host.ts,code:projects/shared/workbench-feedback.ts | A:SystemNotifications,publish,update,closeAll,dispose | S:历史不补发；id/count去重，closeAll撤销迟到句柄但允许再开启；dispose终止发送，失败保留应用内通知
+core-config.test.ts[TC6S]: F:验证核心Web配置的类型关联、订阅竞态及文档边界 | R:code:projects/webutils/lib/core-config.ts,code:projects/shared/core-web-config.ts | A:Vitest用例及类型断言 | S:覆盖迟到初值、重连revision重置、多监听器独立注销、未来样式和冻结快照；未知通道及独立页拒订阅，SDK不改DOM
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/web/scripts/===
 dev-options.test.ts[TV5T]: F:验证Web开发参数与代理契约 | R:code:projects/web/scripts/dev-options.ts,code:projects/web/vite.config.ts | A:Vitest用例 | S:覆盖两种参数写法、非法端口、六路代理含/web/ui及PORT环境不变；保留来源且Web严格监听3201
@@ -1500,12 +1502,12 @@ input-validation-ui.ts[FU5M]: F:提供多入口输入规则、密码比较及非
 tree-ui.ts[AE6L]: F:共用静动态JSON树演示和可持久排序的数据提供器 | R:code:projects/shared/tree-model.ts,code:projects/shared/tree.ts | A:TreeDemoProvider,treeDemoHandlers,treeDemoContent | S:600文件每页120项；错误分支每代首读失败；移动串行验版本与锚点，顺序和幂等回执原子保存；环境变量可隔离文件；静态提示显式配置
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/plugins/template/tests/===
-integration.test.mjs[TE6L]: F:验证模板SDK、配置、树字段及多入口输入校验全链 | R:code:projects/server/plugins/template/index.ts,code:projects/server/plugins/template/input-validation-ui.ts | A:node:test,JSDOM,MessageChannel | S:真实HTTP和IPC验证拒写及字段归属；输入夹具给树提供字段适配器；树视觉由浏览器冒烟验证，DOM不证明像素布局
+integration.test.mjs[TE6L]: F:验证模板SDK、配置、树字段及多入口输入校验全链 | R:code:projects/server/plugins/template/index.ts,code:projects/server/plugins/template/input-validation-ui.ts,code:projects/webutils/lib/workbench.ts | A:node:test,JSDOM,MessageChannel | S:真实HTTP和IPC验证拒写及字段归属；SDK夹具按文本加载CSS并响应核心配置订阅；树字段用适配器，DOM不证明像素布局
 isolate-environment.mjs[TQ5T]: F:隔离集成测试环境文件加载 | R:code:projects/server/common/environment.ts,code:projects/server/plugins/template/tests/integration.test.mjs | A:registerHooks,load | S:只替换environment模块，父子进程均注入，阻止真实.env覆盖临时数据路径
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/plugins/template/web/===
 index.html[EE4T]: F:装载模板验证页面 | R:code:projects/server/plugins/template/web/main.ts | A:template-validation,main.ts | S:初始深色；SDK由核心页面路由注入
-main.ts[TE6L]: F:交互验证页面生命周期、请求保护与统一反馈 | R:code:projects/server/plugins/template/web/ui-demo.ts,code:projects/server/plugins/template/feedback-demo.ts,code:projects/webutils/lib/workbench.ts | A:template-validation,TemplateValidation | S:ready后拒绝旧SDK；Light DOM供资源观察，默认请求保护连接；双按钮分别延迟三秒发通知，脏草稿随生命周期保存
+main.ts[TE6L]: F:交互验证页面生命周期、请求保护、核心样式订阅与统一反馈 | R:code:projects/server/plugins/template/web/ui-demo.ts,code:projects/server/plugins/template/feedback-demo.ts,code:projects/webutils/lib/workbench.ts | A:template-validation,TemplateValidation | S:ready后检查coreConfig等SDK能力；仅工作台主动订阅theme并在断开注销，独立页用自身样式；Light DOM供资源观察；默认请求保护连接，脏草稿随生命周期保存
 styles.css[ZU4M]: F:排版模板验证面板和事件记录 | R:code:projects/server/plugins/template/web/main.ts | A:.panel,.metrics,.columns,.event-list,data-theme | S:提供深浅主题回退变量供SDK覆盖；900px以下单列
 tsconfig.json[FQ4T]: F:检查模板浏览器源码类型 | R:code:projects/webutils/lib.d.ts,code:projects/server/plugins/template/feedback-demo.ts | A:files,include,compilerOptions | S:严格无输出且只允许可擦除语法；显式加入SDK全局声明与共用反馈模块
 ui-demo.ts[AE6M]: F:演示页面处理器、配置订阅和后端UI控制 | R:code:projects/webutils/lib/workbench.ts,code:projects/server/plugins/template/configuration.ts,code:projects/server/plugins/template/declarative-ui.ts | A:PageUIDemo | S:回调只用当前文档状态；配置写入走后端显式基线，冲突保留草稿；先撤后端模板引用再await注销；搜索与导航适配随页面释放
@@ -1596,7 +1598,8 @@ vite.config.ts[FV6T]: F:构建插件页面工具IIFE | R:code:projects/webutils/
 index.ts[LE7T]: F:暴露插件页面SDK、请求代理和shared通知入口 | R:code:projects/webutils/lib/workbench.ts,code:projects/webutils/lib/utils/fetch.ts,code:projects/shared/components/notify.ts | A:default scwcutils,TSCWCUtils,Notify,notify | S:通知直接复用shared具象类；fetch等待ready，Socket须先await；resource未安装返回空串；请求保留interruptible
 ticket-socket.ts[IN6S]: F:代理可暂停恢复的单次票据Socket | R:code:projects/webutils/lib/workbench.ts | A:TicketSocket | S:暂停仅关闭底层并拒旧代事件，恢复保留回调及binaryType；发送要求OPEN；主动关闭阻止后续恢复
 ui-handlers.ts[LU7S]: F:托管页面本地UI回调、版本与监听 | R:code:projects/shared/declarative-ui.ts | A:createPageHandlers | S:函数留当前页面，仅发版本描述；模板调用必须只读；监听限128，取消后的迟到订阅立即释放；注销使全部监听失效
-workbench.ts[LE8L]: F:供给页面会话、生命周期、UI与文档通知宿主SDK | R:code:projects/webutils/lib/ui-handlers.ts,code:projects/shared/request-lifecycle.ts,code:projects/shared/workbench-feedback.ts,code:projects/shared/notify-manager.ts | A:createWorkbenchSDK,ready,ui,config,lifecycle | S:嵌入时安装通知宿主，状态计时回调留文档，ready后投影核心，欢迎重发且pagehide释放；握手验来源及nonce；重连换grant不刷新文档；仅显式可中断请求重放；配置只读
+workbench.ts[LE8L]: F:供给页面会话、核心配置订阅、生命周期、UI与文档通知宿主SDK | R:code:projects/webutils/lib/core-config.ts,code:projects/webutils/lib/ui-handlers.ts,code:projects/shared/request-lifecycle.ts,code:projects/shared/workbench-feedback.ts,code:projects/shared/notify-manager.ts | A:createWorkbenchSDK,ready,coreConfig,ui,config,lifecycle | S:coreConfig仅工作台内按需订阅，不再独立暴露theme；欢迎连接重建恢复注册，pagehide释放；握手验来源及nonce；通知状态计时回调留文档；重连换grant不刷新文档；仅显式可中断请求重放
+core-config.ts[LC7S]: F:按插件文档管理类型化核心Web配置订阅与快照交付 | R:code:projects/shared/core-web-config.ts,code:projects/shared/workbench-protocol.ts | A:createCoreConfigSubscriptions | S:首次监听才向宿主注册，最后注销停止；缓存初值且拒旧revision，换连接清缓存重订并拒旧连接响应；监听异常隔离；独立页拒注册，不修改DOM；dispose后停止交付
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/webutils/lib/utils/===
 fetch.ts[IN5S]: F:声明请求接口并提供旧版safeId工厂 | R:code:projects/server/router/web/api/index.ts,code:projects/shared/request-lifecycle.ts | A:createFetch,TFetch,TResource,TWebSocket | S:旧工厂用Bearer与site请求safeId，Socket令牌仍在查询；主SDK的页面grant由独立会话实现
@@ -1610,5 +1613,5 @@ tree.test.ts[TU6M]: F:验证树选择焦点、分组延迟提示及虚拟窗口�
 tree.ts[LU8L]: F:实现三宿主共用的虚拟JSON树交互和字段适配器 | R:code:projects/shared/tree-model.ts,code:projects/shared/components/scroll-container/scroll-container.ts,code:projects/shared/components/tooltip.ts,code:projects/shared/tree.ts | A:JSONTree,TreeBridge,command,readValue,writeValue,dispose | S:状态独立于回收行并保留屏外焦点，焦点进出不重建行；每树工具栏与行分别独立成组；只用显式tooltip，等高提示试右左下上原位；分支查询拒旧，搜索不递归加载且过滤禁拖；写成功刷新失败保留回执，释放取消请求与观察器
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/public/lib/===
-scwcutils.iife.mwgled4r.js[LE7L]: F:分发插件会话SDK及shared具象通知类 | R:code:projects/webutils/lib/index.ts,code:projects/webutils/lib/workbench.ts,code:projects/shared/components/notify.ts | A:全局scwcutils及Notify与notify | S:fetch等ready，Socket先await；通知状态与回调留文档，默认跨端口投影核心；useCore关闭时本页展示；仅显式可中断请求重放
+scwcutils.iife.mwgmm82e.js[LE7L]: F:分发插件会话SDK、核心配置订阅及shared具象通知类 | R:code:projects/webutils/lib/index.ts,code:projects/webutils/lib/workbench.ts,code:projects/webutils/lib/core-config.ts | A:全局scwcutils及Notify与notify | S:coreConfig按通道主动订阅，不改插件样式；fetch等ready，Socket先await；通知状态与回调留文档，默认投影核心；仅显式可中断请求重放
 

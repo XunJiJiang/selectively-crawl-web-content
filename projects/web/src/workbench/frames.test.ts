@@ -234,6 +234,83 @@ it('projects shared Notify state through the page SDK while preserving document 
   expect(store.notificationItems).toHaveLength(0);
   window.dispatchEvent(new Event('pagehide'));
 });
+
+it('delivers core Web settings only to subscribed plugin documents through the SDK', async () => {
+  const { pool, store, tab } = fixture();
+  const runtime = requireValue(pool.runtimes.get(tab.id));
+  const host = pool as unknown as {
+    subscribeCoreConfig(r: typeof runtime, payload: unknown): unknown;
+    onEvent(r: typeof runtime, method: string, payload: unknown): void;
+    invalidate(r: typeof runtime): void;
+  };
+  const channel = new NodeMessageChannel();
+  const core = new InstancePort(channel.port1 as unknown as MessagePort, tab.id, runtime.epoch);
+  runtime.port = core;
+  core.onRequest = async (_method, payload) => host.subscribeCoreConfig(runtime, payload);
+  core.onEvent = (method, payload) => host.onEvent(runtime, method, payload);
+  const events = vi.spyOn(core, 'event');
+  const parent = { postMessage: vi.fn() };
+  vi.stubGlobal('parent', parent);
+  const sdk = createWorkbenchSDK(vi.fn());
+  await Promise.resolve();
+  const previous = document.documentElement.dataset.theme;
+  disposers.push(() => {
+    if (previous === undefined) {
+      delete document.documentElement.dataset.theme;
+    } else {
+      document.documentElement.dataset.theme = previous;
+    }
+  });
+  document.documentElement.dataset.theme = 'light-2026';
+  store.preferences.values.theme = 'system';
+  window.dispatchEvent(
+    new MessageEvent('message', {
+      source: parent as unknown as Window,
+      origin: location.origin,
+      ports: [channel.port2 as unknown as MessagePort],
+      data: {
+        protocol: PROTOCOL,
+        version: 1,
+        type: 'welcome',
+        documentNonce: parent.postMessage.mock.calls[0][0].documentNonce,
+        session: {
+          grant: 'grant',
+          safeId: 'safe',
+          tabId: tab.id,
+          frameEpoch: runtime.epoch,
+          expiresAt: Date.now() + 300000,
+        },
+      },
+    }),
+  );
+  await sdk.ready;
+  expect(sdk.host.capabilities.coreConfig).toBe(true);
+  pool.coreConfigChanged();
+  expect(events.mock.calls.filter(([method]) => method === 'core-config.changed')).toHaveLength(0);
+  expect(() => host.subscribeCoreConfig(runtime, { channel: 'keybindings' })).toThrow('未公开');
+  const listener = vi.fn();
+  const stop = sdk.coreConfig.subscribe('theme', listener);
+  await vi.waitFor(() => expect(listener).toHaveBeenCalledTimes(1));
+  expect(listener.mock.calls[0][0]).toMatchObject({ preference: 'system', mode: 'light-2026' });
+  // A preference change must be observable even when the resolved mode is unchanged.
+  store.preferences.values.theme = 'light-2026';
+  pool.coreConfigChanged();
+  await vi.waitFor(() => expect(listener).toHaveBeenCalledTimes(2));
+  expect(listener.mock.calls[1][0]).toMatchObject({ preference: 'light-2026', mode: 'light-2026' });
+  document.documentElement.dataset.theme = 'future-style';
+  pool.coreConfigChanged();
+  await vi.waitFor(() => expect(listener).toHaveBeenCalledTimes(3));
+  expect(listener.mock.calls[2][0].mode).toBe('future-style');
+  stop();
+  await vi.waitFor(() => expect(runtime.coreConfigChannels?.size).toBe(0));
+  pool.coreConfigChanged();
+  expect(listener).toHaveBeenCalledTimes(3);
+  sdk.coreConfig.subscribe('theme', listener);
+  await vi.waitFor(() => expect(runtime.coreConfigChannels?.size).toBe(1));
+  host.invalidate(runtime);
+  expect(runtime.coreConfigChannels).toBeUndefined();
+  window.dispatchEvent(new Event('pagehide'));
+});
 describe('stable iframe ownership and hibernation safety', () => {
   it('sends one blur when focus enters the auxiliary sidebar and restores page focus', () => {
     const { pool, store, tab } = fixture();

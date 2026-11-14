@@ -76,9 +76,13 @@ class TemplateValidation extends LitElement {
         throw new Error('请构建后从核心工作台打开；独立 Vite 开发服务器不会注入 scwcutils。');
       this.sdk = sdk;
       await sdk.ready; // resource/websocket 是同步工厂，必须等待授权。
-      if (sdk.host.capabilities.pageApiVersion !== 2 || !sdk.ui?.handlers)
+      if (
+        sdk.host.capabilities.pageApiVersion !== 2 ||
+        !sdk.ui?.handlers ||
+        !sdk.coreConfig?.subscribe
+      )
         throw new Error(
-          '核心注入的 scwcutils 构建产物过期：本模板要求 pageApiVersion=2 和 ui.handlers。请由核心维护者重建 webutils 后刷新页面。',
+          '核心注入的 scwcutils 构建产物过期：本模板要求 pageApiVersion=2、ui.handlers 和 coreConfig。请由核心维护者重建 webutils 后刷新页面。',
         );
       if (!this.isConnected) return;
       this.uiDemo = new PageUIDemo(
@@ -93,13 +97,16 @@ class TemplateValidation extends LitElement {
           this.log(`externalState ${JSON.stringify(this.external)}`);
         }),
       );
-      const theme = () => {
-        document.documentElement.dataset.theme = sdk.theme.mode;
-        for (const [name, value] of Object.entries(sdk.theme.tokens))
-          document.documentElement.style.setProperty(name, value);
-      };
-      theme();
-      this.disposers.push(sdk.theme.onChange(theme));
+      // 样式跟随是本模板主动选择的配置订阅；独立浏览器页保留自身样式。
+      if (sdk.host.capabilities.coreConfig) {
+        this.disposers.push(
+          sdk.coreConfig.subscribe('theme', (theme) => {
+            document.documentElement.dataset.theme = theme.mode;
+            for (const [name, value] of Object.entries(theme.tokens))
+              document.documentElement.style.setProperty(name, value);
+          }),
+        );
+      }
       this.disposers.push(
         sdk.lifecycle.register({
           onSuspend: () => {

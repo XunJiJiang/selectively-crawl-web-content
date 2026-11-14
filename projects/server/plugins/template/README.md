@@ -4,6 +4,8 @@
 
 完整接口覆盖、测试证据与已知核心缺口见 [接口覆盖表](docs/coverage.md)，源码分工见 [项目地图](docs/map.md)。
 
+普通页使用 `sdk.coreConfig.subscribe('theme', callback)` 主动选择跟随核心样式：首个回调提供当前样式，后续切换自动通知；组件断开时注销。`theme.preference` 是核心设置选择，`theme.mode` 为实际生效样式，`theme.tokens` 为公开变量；未来样式标识原样保留。仅 `host.capabilities.coreConfig` 为 true 时注册，独立浏览器页保留默认样式。这是通用配置暴露机制中的 `theme` 通道，其他插件无需跟随；旧 `sdk.theme` 已替换。完整接口见 [Web Utils](../../../webutils/README.md)。
+
 ## 脚本与扩展配置
 
 `index.ts` 的 `pluginConfig.scripts` 引用 `script-ui.ts`，按[配置迁移文档](../../../../docs/client-plugin-ui.md)显式声明 `version: 'v2'`。内容为 `{ format: 'json', version: 1, root }`，由脚本与扩展的共用渲染器加载；v2 要求客户端 3.2.0 或更高版本。
@@ -44,7 +46,7 @@
 
 ## 最短接入与操作
 
-在本目录执行 `bun run check`、`bun run build:web`、`bun run test:integration`。后端只使用 Node 原生可擦除 TS。普通页必须先 `await sdk.ready`；本模板检查 `pageApiVersion=2` 与 `ui.handlers`，旧 SDK 会显示明确的版本错误，不恢复旧接口。
+在本目录执行 `bun run check`、`bun run build:web`、`bun run test:integration`。后端只使用 Node 原生可擦除 TS。普通页必须先 `await sdk.ready`；本模板检查 `pageApiVersion=2`、`ui.handlers` 与 `coreConfig`，旧 SDK 会显示明确的版本错误，不恢复旧接口。
 
 1. 使用已有 `http://localhost:3201/web/`，插件菜单“重启后端”仅重载 template，再刷新普通插件页。不要另起开发服务器。
 2. 主侧栏“模板验证”提供名称/参数、数据/监听、自动绑定配置、控制器配置、输入限制/验证、核心处理器和 UI/生命周期。输入后点“同域异步链”，观察字段规范化；“数据/监听”分别增加前后端计数。嵌套标签支持方向键、Home/End，内容更新保持稳定 key/id。

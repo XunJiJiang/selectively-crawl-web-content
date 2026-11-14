@@ -1,4 +1,5 @@
 import { createPageHandlers } from './ui-handlers.ts';
+import { createCoreConfigSubscriptions } from './core-config.ts';
 import { TicketSocket } from './ticket-socket.ts';
 import { createFeedbackClient } from '../../shared/workbench-feedback.ts';
 import { installNotifyHost, NotifyManager } from '../../shared/notify-manager.ts';
@@ -48,6 +49,7 @@ export function createWorkbenchSDK(install: (fetch: TFetch) => void) {
   });
   void ready.catch(() => undefined);
   const hosted = window.parent !== window;
+  const coreConfig = createCoreConfigSubscriptions(hosted);
   const nonce = crypto.randomUUID();
   let hostFocused = false,
     hostVisible = true;
@@ -142,18 +144,7 @@ export function createWorkbenchSDK(install: (fetch: TFetch) => void) {
   }
   const configPath = () =>
     `/plugins/${encodeURIComponent(decodeURIComponent(location.pathname.split('/')[4]))}/config`;
-  let themeMode = 'dark-2026',
-    themeTokens: Record<string, string> = {};
   let keybindings: { id: string; keys: string[] }[] = [];
-  const applyTheme = (value: unknown) => {
-    if (typeof value === 'string') {
-      themeMode = value;
-    } else if (value && typeof value === 'object') {
-      const data = value as { mode: string; tokens?: Record<string, string> };
-      themeMode = data.mode;
-      themeTokens = data.tokens ?? {};
-    }
-  };
   const feedbackTasks = new Set<string>();
   const feedbackTaskRevisions = new Map<string, number>();
   const trackFeedbackTask = (task: TaskState) => {
@@ -232,22 +223,14 @@ export function createWorkbenchSDK(install: (fetch: TFetch) => void) {
       },
       onChange: (fn: (value: unknown) => void) => on('external-state.changed', fn),
     },
-    theme: {
-      get mode() {
-        return themeMode;
-      },
-      get tokens() {
-        return { ...themeTokens };
-      },
-      onChange: (fn: (value: { mode: string; tokens: Record<string, string> }) => void) =>
-        on('theme.changed', () => fn({ mode: themeMode, tokens: { ...themeTokens } })),
-    },
+    coreConfig: coreConfig.api,
     host: {
       capabilities: {
         workbench: hosted,
         search: hosted,
         configuration: true,
         configurationWrite: false,
+        coreConfig: hosted,
         pageApiVersion: 2,
         uiHandlers: true,
         lifecycle: hosted,
@@ -651,8 +634,8 @@ export function createWorkbenchSDK(install: (fetch: TFetch) => void) {
         }
         emit('external-state.changed', api.externalState.get());
       }
-      if (method === 'theme.changed') {
-        applyTheme(payload);
+      if (method === 'core-config.changed') {
+        coreConfig.receive(payload);
       }
       if (method === 'keybindings.changed') {
         keybindings = payload as typeof keybindings;
@@ -691,12 +674,12 @@ export function createWorkbenchSDK(install: (fetch: TFetch) => void) {
       emit(method, payload);
     };
     keybindings = Array.isArray(message.keybindings) ? message.keybindings : [];
-    applyTheme(message.theme);
     hostFocused = Boolean(message.focused);
     hostVisible = Boolean(message.visible);
     navigationBase = (Number(message.navigationIndex) || 0) - navigationPosition;
     emit('external-state.changed', api.externalState.get());
     installSession(message.session);
+    coreConfig.connect(port);
     readyResolve();
     port.event('ready', { title: document.title, url: location.href });
     for (const { state } of sharedNotifications.items.values()) {
@@ -708,7 +691,6 @@ export function createWorkbenchSDK(install: (fetch: TFetch) => void) {
     if (network.blocking) {
       port.event('requests.changed', { delta: network.blocking });
     }
-    emit('theme.changed', message.theme);
   });
   let standaloneSocket: WebSocket | undefined;
   let standaloneRetry: ReturnType<typeof setTimeout> | undefined;
@@ -917,6 +899,7 @@ export function createWorkbenchSDK(install: (fetch: TFetch) => void) {
     uninstallNotifyHost?.();
     sharedNotifications.dispose();
     uiHandlers.dispose();
+    coreConfig.dispose();
     configListeners.clear();
     network.pause();
     resources.dispose();
