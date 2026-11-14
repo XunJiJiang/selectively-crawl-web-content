@@ -59,6 +59,20 @@ bun install
 >
 > 可通过配置 `.env` 中的 `PORT` 修改
 
+### 同步与递增版本
+
+`bun run sync:versions` 将根目录 `package.json.version` 同步到工作区项目及内置示例插件。可选传入一个参数 `1`、`2` 或 `3`，先递增根版本的对应位，并将后续位归零，再同步到各项目。递增时根版本须为 `x.y.z` 格式。
+
+以 `3.13.4` 为例：
+
+```bash
+bun run sync:versions 1 # 4.0.0
+bun run sync:versions 2 # 3.14.0
+bun run sync:versions 3 # 3.13.5
+```
+
+业务插件保留独立版本；`server/plugins/template`、`terminal/plugins/template` 和 `terminal/plugins/scwc` 随根版本同步。构建命令仍只同步版本，不自动递增。
+
 ### 安装油猴脚本
 
 运行 `bun run --cwd projects/user-script build` 后，在核心终端执行 `server install-userscript`，或在 Web 快速访问中输入 `>` 并选择“安装油猴脚本”，即可尝试在默认浏览器打开安装界面。需要先安装并启用 Tampermonkey 等脚本管理器；未安装扩展时浏览器可能显示源码或下载文件，系统无法确认扩展是否接管。可检测到的打开失败会提示通知。
