@@ -79,6 +79,7 @@ export class ScriptUIView extends LitElement {
   private recovering = false;
   private instance = '';
   private fields: ScriptUIEvent['fields'] = {};
+  private treeEvents: Promise<unknown> = Promise.resolve();
   private serialized = '';
   private revision = 0;
   private dataGeneration = 0;
@@ -162,7 +163,10 @@ export class ScriptUIView extends LitElement {
             `[data-scwc-node="${field.nodeId}"]`,
           );
           if (node && this.uiRoot.activeElement !== node) {
-            if (field.kind === 'boolean') {
+            const adapter = this.components.fieldAdapter?.(field.nodeId);
+            if (adapter) {
+              adapter.writeValue(this.values[field.name]);
+            } else if (field.kind === 'boolean') {
               node.checked = this.values[field.name] === true;
             } else if (field.kind === 'multiple' && node instanceof HTMLSelectElement) {
               for (const option of node.options) {
@@ -194,6 +198,11 @@ export class ScriptUIView extends LitElement {
     try {
       validateJSONModel(this.model.compiled);
       const compiled = structuredClone(this.model.compiled);
+      for (const tree of compiled.trees ?? []) {
+        if (hasOwn(this.values, tree.name)) {
+          tree.options.value = this.values[tree.name] as string | string[];
+        }
+      }
       const apply = (nodes: typeof compiled.nodes) => {
         for (const node of nodes) {
           const field = compiled.fields.find((f) => f.nodeId === node.id);
@@ -231,7 +240,12 @@ export class ScriptUIView extends LitElement {
         data: {
           method: 'init',
           renderRevision: this.revision,
-          payload: { compiled, renderRevision: this.revision, surface: 'scripts' },
+          payload: {
+            compiled,
+            instanceId: this.instance,
+            renderRevision: this.revision,
+            surface: 'scripts',
+          },
         },
       });
       this.updates(
@@ -366,7 +380,45 @@ export class ScriptUIView extends LitElement {
     });
   }
   private receive(message: UIRendererMessage) {
-    if (message.method === 'fields') {
+    if (message.method === 'tree') {
+      const request = message.payload as import('../tree.ts').TreeRequest;
+      const revision = this.revision;
+      void this.invoke({
+        version: 'v2',
+        instanceId: this.instance,
+        bindingId: '$tree',
+        eventId: request.requestId,
+        readOnly: request.kind !== 'command' || request.command.type !== 'move',
+        fields: structuredClone(this.fields),
+        treeRequest: { ...request, renderRevision: 1 },
+      })
+        .then((result) => {
+          if (this.isConnected && revision === this.revision && result.treeResponse) {
+            this.renderer?.receive({
+              data: { method: 'tree', renderRevision: revision, payload: result.treeResponse },
+            });
+          }
+        })
+        .catch((error: unknown) => {
+          if (revision === this.revision) {
+            this.renderer?.receive({
+              data: {
+                method: 'tree',
+                renderRevision: revision,
+                payload: {
+                  ...request,
+                  sequence: 0,
+                  error: {
+                    code: 'TREE_REQUEST_FAILED',
+                    message: error instanceof Error ? error.message : '树请求失败',
+                    retryable: true,
+                  },
+                },
+              },
+            });
+          }
+        });
+    } else if (message.method === 'fields') {
       const next = message.payload as ScriptUIEvent['fields'];
       for (const [name, field] of Object.entries(next)) {
         if (field.editSequence > (this.fields[name]?.editSequence ?? 0)) {
@@ -385,21 +437,33 @@ export class ScriptUIView extends LitElement {
         this.serialized = serialized;
         this.saveValues(values);
       }
-    } else if (message.method === 'event') {
+    } else if (message.method === 'event' || message.method === 'tree-event') {
       this.dataGeneration++;
-      const payload = message.payload as Pick<ScriptUIEvent, 'bindingId' | 'event' | 'fields'>;
+      const payload = message.payload as Pick<
+        ScriptUIEvent,
+        'bindingId' | 'event' | 'fields' | 'tree'
+      >;
       const instance = this.instance;
       const revision = this.revision;
       const sequences = Object.fromEntries(
         Object.entries(payload.fields).map(([name, field]) => [name, field.editSequence]),
       );
-      void this.invoke({
-        ...payload,
-        fields: structuredClone({ ...this.fields, ...payload.fields }),
-        version: 'v2',
-        instanceId: instance,
-        eventId: crypto.randomUUID(),
-      })
+      const invoke = () =>
+        this.invoke({
+          ...payload,
+          fields: structuredClone({ ...this.fields, ...payload.fields }),
+          version: 'v2',
+          instanceId: instance,
+          eventId: crypto.randomUUID(),
+        });
+      const work =
+        message.method === 'tree-event'
+          ? this.treeEvents.catch(() => undefined).then(invoke)
+          : invoke();
+      if (message.method === 'tree-event') {
+        this.treeEvents = work;
+      }
+      void work
         .then((result) => {
           if (this.instance === instance && this.revision === revision && this.isConnected) {
             this.dataGeneration++;
@@ -419,11 +483,14 @@ export class ScriptUIView extends LitElement {
                   editSequences: Object.fromEntries(
                     Object.keys(result.saved ?? {}).map((name) => [name, sequences[name]]),
                   ),
-                  effects: Object.entries(result.saved ?? {}).map(([name, value]) => ({
-                    id: crypto.randomUUID(),
-                    type: 'value.write',
-                    args: [name, value],
-                  })),
+                  effects: [
+                    ...(result.effects ?? []),
+                    ...Object.entries(result.saved ?? {}).map(([name, value]) => ({
+                      id: crypto.randomUUID(),
+                      type: 'value.write',
+                      args: [name, value],
+                    })),
+                  ],
                 },
               },
             });

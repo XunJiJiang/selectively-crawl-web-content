@@ -6,7 +6,7 @@ import {
 } from '../../shared/client-version.ts';
 
 /** Last repository version in which any HTTP route changed. Update alongside route literals. */
-export const LATEST_ROUTE_VERSION = '3.2.0';
+export const LATEST_ROUTE_VERSION = '3.4.0';
 
 /** Missing headers belong to the co-released Web UI or legacy clients. */
 export function routeVersion<P = import('express-serve-static-core').ParamsDictionary>(

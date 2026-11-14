@@ -90,3 +90,7 @@ JSON `input`（text、number、password）和 `textarea` 支持 `minLength`、`m
 原有前端 `page.register/update`、`settings.register`、`config.set/reset` 和页面配置校验票据已移除。配置定义、校验和持久修改应移到插件后端。旧定义在后端重新确认前只读，旧 `page-required` 定义必须显式迁移。
 
 核心“当前页面”编辑保留本地草稿，远端变更不会覆盖正在编辑的值。发生冲突后，可接受远端值，或保留草稿并以新版本重新校验。
+
+## JSON 树（3.4.0 起）
+
+JSON 视图支持 `type: "tree"`。完整声明、分页/搜索/移动控制器、事件、字段适配和程序化接口见 [JSON 树使用说明](json-tree.md) 与 [完整设计契约](json-tree-design.md)。工作台、脚本浮窗和浏览器扩展共用校验与状态算法；脚本/扩展继续只调用后端处理器，HTML 沙箱及菜单项不增加树标签。

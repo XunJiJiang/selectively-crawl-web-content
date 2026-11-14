@@ -1,20 +1,5 @@
-import fs from 'node:fs/promises';
-import { validateUIValue } from '../../shared/ui-validation.ts';
-import path from 'node:path';
-import { randomUUID, createHash } from 'node:crypto';
-import { compileUI, compileCSS, validateAttribute } from './ui-compiler.ts';
-import { getPluginConfig } from './plugin-config.ts';
-import { workbenchEvents } from './events.ts';
-import { coreBootId } from './storage.ts';
 import {
-  parseProgram,
-  evaluateArgument,
-  evaluateTemplate,
-  walkArgument,
-  validateUIFields,
-  validateUIField,
-} from '../../shared/ui-expressions.ts';
-import {
+  uiRequired,
   UIError,
   UI_UNAVAILABLE,
   UI_LIMITS,
@@ -35,7 +20,25 @@ import {
   type NormalizedUIEvent,
   type UINode,
 } from '../../shared/declarative-ui.ts';
+import fs from 'node:fs/promises';
+import { validateUIValue } from '../../shared/ui-validation.ts';
+import path from 'node:path';
+import { randomUUID, createHash } from 'node:crypto';
+import { compileUI, compileCSS, validateAttribute } from './ui-compiler.ts';
+import { getPluginConfig } from './plugin-config.ts';
+import { workbenchEvents } from './events.ts';
+import { coreBootId } from './storage.ts';
+import {
+  parseProgram,
+  evaluateArgument,
+  evaluateTemplate,
+  walkArgument,
+  validateUIFields,
+  validateUIField,
+} from '../../shared/ui-expressions.ts';
 import type { ConfigSnapshot } from '../types/plugin-config.d.ts';
+import { TreeSessions } from '../../shared/tree-session.ts';
+import type { TreeRequest, TreeResponse, TreeWireEvent, TreeCommand } from '../../shared/tree.ts';
 
 type Remote = (data: Record<string, unknown>) => Promise<unknown>;
 interface Registration {
@@ -129,6 +132,9 @@ const coreNames = new Set([
   'inspector.config.reset',
   'inspector.config.rebase',
   'inspector.config.discard',
+  ...['expand', 'collapse', 'expandAll', 'collapseAll', 'reveal', 'refresh', 'filter', 'move'].map(
+    (name) => `tree.${name}`,
+  ),
 ]);
 const escape = (v: unknown) =>
   String(v ?? '').replace(
@@ -163,6 +169,165 @@ class UIExecutionFailure extends UIError {
   }
 }
 export class DeclarativeUIService {
+  private trees = new Map<string, TreeSessions>();
+  private treeJobs = new Map<
+    string,
+    {
+      instance: Instance;
+      owner: string;
+      revision: number;
+      result: Promise<TreeResponse>;
+      wake?: () => void;
+      stage?: {
+        token: string;
+        call: CallNode;
+        args: UIValue[];
+        fields: Record<string, UIValue>;
+        event?: NormalizedUIEvent;
+      };
+      resume?: (value: UIValue | undefined) => void;
+    }
+  >();
+  private treeSet(instance: Instance) {
+    let trees = this.trees.get(instance.id);
+    if (!trees) {
+      trees = new TreeSessions();
+      this.trees.set(instance.id, trees);
+    }
+    const reg = this.registrations.get(instance.pluginId);
+    return trees.sync(
+      instance.compiled.trees,
+      {
+        resource: (raw) => {
+          uiAssert(reg, 'UI_RESOURCE_DENIED', '资源不可用');
+          return this.resource(reg, instance.cap, raw);
+        },
+        validateCall: (name, readonly, watch) => this.validateCall(reg, name, readonly, watch),
+        reads: (name) =>
+          reg?.snapshot.handlers.find((handler) => handler.name === name)?.reads ?? [],
+      },
+      reg?.revision,
+    );
+  }
+  async tree(id: string, owner: string, request: TreeRequest, fields: unknown = {}) {
+    const instance = this.get(id, owner);
+    uiAssert(
+      request.instanceId === id && request.renderRevision === instance.revision,
+      'TREE_STALE_INSTANCE',
+      '树请求实例或模板已变化',
+    );
+    uiAssert(
+      (this.registrations.get(instance.pluginId)?.revision ?? 0) === instance.registryRevision,
+      'UI_STALE_HANDLERS',
+      '处理器版本已变化',
+    );
+    const trees = this.treeSet(instance);
+    trees.quota();
+    const session = trees.get(request.treeId),
+      token = randomUUID();
+    const job: NonNullable<ReturnType<typeof this.treeJobs.get>> = {
+      instance,
+      owner,
+      revision: instance.revision,
+      result: Promise.resolve(undefined as never),
+    };
+    const candidate = {
+      ...instance,
+      fields: this.capture(instance, fields),
+      readDeadline: Date.now() + 10000,
+    };
+    this.treeJobs.set(token, job);
+    job.result = session
+      .request(request, {
+        fields: candidate.fields,
+        signal: instance.controller.signal,
+        invoke: async (call, args, signal) => {
+          if (call.domain === 'frontend') {
+            uiAssert(
+              instance.sourceTabId && instance.sourceFrameEpoch,
+              'TREE_SOURCE_UNAVAILABLE',
+              '此树控制器需要原来源页面',
+            );
+            return new Promise<UIValue | undefined>((resolve, reject) => {
+              const abort = () => {
+                reject(new UIError('TREE_CANCELLED', '树读取已取消'));
+              };
+              signal.addEventListener('abort', abort, { once: true });
+              job.stage = { token: randomUUID(), call, args, fields: candidate.fields };
+              job.resume = (value) => {
+                signal.removeEventListener('abort', abort);
+                resolve(value);
+              };
+              job.wake?.();
+            });
+          }
+          if (!call.name.startsWith('core:')) {
+            const result = (await this.remote(
+              candidate,
+              'handler',
+              call.name,
+              args,
+              undefined,
+              call.readOnly ? 'render' : 'event',
+              undefined,
+              {},
+              signal,
+            )) as { hasValue: boolean; value: UIValue };
+            return result.hasValue ? result.value : undefined;
+          }
+          return this.call(candidate, call, args, [], call.readOnly);
+        },
+      })
+      .finally(() => {
+        job.wake?.();
+      });
+    return this.deliverTreeJob(token);
+  }
+  private async deliverTreeJob(token: string): Promise<unknown> {
+    const job = this.treeJobs.get(token);
+    uiAssert(job, 'TREE_STALE_INSTANCE', '树续接已失效');
+    if (job.stage) {
+      return { frontend: { ...job.stage, job: token } };
+    }
+    const changed = new Promise<null>((resolve) => {
+      job.wake = () => resolve(null);
+    });
+    const result = await Promise.race([job.result, changed]);
+    if (result === null) {
+      const stage = job.stage as
+        | { token: string; call: CallNode; args: UIValue[]; fields: Record<string, UIValue> }
+        | undefined;
+      if (stage) {
+        return { frontend: { ...stage, job: token } };
+      }
+      const completed = await job.result;
+      this.treeJobs.delete(token);
+      return { treeResponse: completed };
+    }
+    this.treeJobs.delete(token);
+    return { treeResponse: result };
+  }
+  async continueTree(
+    id: string,
+    owner: string,
+    body: { job: string; token: string; value?: UIValue; error?: boolean },
+  ) {
+    const job = this.treeJobs.get(body.job);
+    uiAssert(
+      job &&
+        job.instance === this.get(id, owner) &&
+        job.owner === owner &&
+        job.revision === job.instance.revision &&
+        job.stage?.token === body.token,
+      'TREE_STALE_INSTANCE',
+      '树前端续接已失效',
+    );
+    const resume = uiRequired(job.resume);
+    job.stage = undefined;
+    job.resume = undefined;
+    resume(body.error ? undefined : body.value === undefined ? undefined : uiValue(body.value));
+    return this.deliverTreeJob(body.job);
+  }
   private registrations = new Map<string, Registration>();
   private instances = new Map<string, Instance>();
   private iconTickets = new Map<
@@ -170,7 +335,16 @@ export class DeclarativeUIService {
     { owner: string; pluginId: string; windowId: string; expires: number; paths: Set<string> }
   >();
   private revision = 0;
-  private frontendAcks=new Map<string,{job:string;instanceId:string;windowId:string;created:number;promise?:Promise<unknown>}>();
+  private frontendAcks = new Map<
+    string,
+    {
+      job: string;
+      instanceId: string;
+      windowId: string;
+      created: number;
+      promise?: Promise<unknown>;
+    }
+  >();
   private continuations = new Map<
     string,
     {
@@ -178,10 +352,10 @@ export class DeclarativeUIService {
       eventId: string;
       branches: CallNode[][];
       next: number;
-      completed:number;
-      effects:ClientEffect[];
-      renderRevision:number;
-      registryRevision:number;
+      completed: number;
+      effects: ClientEffect[];
+      renderRevision: number;
+      registryRevision: number;
       event: NormalizedUIEvent;
       initial: Record<string, UIValue>;
       deadline: number;
@@ -189,7 +363,7 @@ export class DeclarativeUIService {
       result?: UIValue;
     }
   >();
-  private watchCallbacks = new Map<string, {owner:string;run:()=>void}>();
+  private watchCallbacks = new Map<string, { owner: string; run: () => void }>();
   constructor() {
     workbenchEvents.on('event', (event) => {
       if (['config.changed', 'catalog.changed'].includes(event.type)) {
@@ -327,7 +501,14 @@ export class DeclarativeUIService {
       } else if (!this.provider(view.definition.content)) {
         if (view.surface === 'auxiliarySidebar' && view.definition.hideCurrentPage === true) {
           const content = view.definition.content;
-          uiAssert(content && typeof content === 'object' && !Array.isArray(content) && ['json', 'html'].includes(String(content.format)), 'UI_INVALID_CONTENT', '隐藏页面信息前必须提供 JSON 或 HTML 模板');
+          uiAssert(
+            content &&
+              typeof content === 'object' &&
+              !Array.isArray(content) &&
+              ['json', 'html'].includes(String(content.format)),
+            'UI_INVALID_CONTENT',
+            '隐藏页面信息前必须提供 JSON 或 HTML 模板',
+          );
         }
         this.compile(reg, view.definition.content as never, undefined);
       }
@@ -754,6 +935,7 @@ export class DeclarativeUIService {
     return instance;
   }
   private public(instance: Instance) {
+    this.treeSet(instance);
     return {
       id: instance.id,
       pluginId: instance.pluginId,
@@ -799,6 +981,7 @@ export class DeclarativeUIService {
     invocation: HandlerContext['invocation'] = 'event',
     event?: NormalizedUIEvent,
     extraContext: Record<string, unknown> = {},
+    signal: AbortSignal = instance.controller.signal,
   ) {
     const reg = this.registrations.get(instance.pluginId);
     uiAssert(reg && reg.owner === instance.owner, 'UI_STALE_HANDLERS', '插件处理器已失效');
@@ -823,7 +1006,7 @@ export class DeclarativeUIService {
       );
       timer.unref();
     });
-    instance.controller.signal.addEventListener('abort', cancel, { once: true });
+    signal.addEventListener('abort', cancel, { once: true });
     try {
       return await Promise.race([
         timeout,
@@ -844,7 +1027,7 @@ export class DeclarativeUIService {
       ]);
     } finally {
       clearTimeout(timer);
-      instance.controller.signal.removeEventListener('abort', cancel);
+      signal.removeEventListener('abort', cancel);
     }
   }
   private async content(instance: Instance) {
@@ -906,8 +1089,11 @@ export class DeclarativeUIService {
               };
             }
             const itemId = String(item.id);
-            const controlName = UI_CONTROL_NAME.test(itemId) && !['__proto__', 'prototype', 'constructor'].includes(itemId)
-              ? itemId : 'menu-' + createHash('sha256').update(itemId).digest('hex').slice(0, 20);
+            const controlName =
+              UI_CONTROL_NAME.test(itemId) &&
+              !['__proto__', 'prototype', 'constructor'].includes(itemId)
+                ? itemId
+                : 'menu-' + createHash('sha256').update(itemId).digest('hex').slice(0, 20);
             return item.kind === 'checkbox'
               ? {
                   type: 'checkbox',
@@ -943,6 +1129,7 @@ export class DeclarativeUIService {
     instance.registryRevision = reg?.revision ?? 0;
     instance.revision++;
     instance.fields = {};
+    this.treeSet(instance);
     instance.boundConfigs = undefined;
   }
   async inspector(instance: Instance) {
@@ -1048,8 +1235,7 @@ export class DeclarativeUIService {
     const configFieldMap = new Map<string, string>();
     instance.configFields = configFieldMap;
     const watch = (path: string) => `\${watch:core:get(${JSON.stringify('inspector.' + path)})}`;
-    const configWatch = (key: string) =>
-      `\${watch:core:config.read(${JSON.stringify(key)})}`;
+    const configWatch = (key: string) => `\${watch:core:config.read(${JSON.stringify(key)})}`;
     const text = (key: string, value: string, tone?: string): UINode => ({
       type: 'text',
       key,
@@ -1061,7 +1247,10 @@ export class DeclarativeUIService {
       key: `property-row-${key}`,
       direction: 'row',
       gap: 'medium',
-      children: [text(`property-label-${key}`, label, 'muted'), text(`property-value-${key}`, value)],
+      children: [
+        text(`property-label-${key}`, label, 'muted'),
+        text(`property-value-${key}`, value),
+      ],
     });
     const properties = Array.isArray(data.properties)
       ? (data.properties as unknown as { key: string; label: string; value: string }[])
@@ -1293,7 +1482,11 @@ export class DeclarativeUIService {
                     gap: 'small',
                     children: diagnostics.length
                       ? diagnostics.flatMap((item, index) => [
-                          text(`diagnostic-${index}-code`, `${item.source} · ${item.code}`, 'title'),
+                          text(
+                            `diagnostic-${index}-code`,
+                            `${item.source} · ${item.code}`,
+                            'title',
+                          ),
                           text(`diagnostic-${index}-message`, item.message),
                         ])
                       : [text('no-diagnostics', '当前没有诊断信息。', 'muted')],
@@ -1337,21 +1530,33 @@ export class DeclarativeUIService {
     return result;
   }
   private referencedFields(instance: Instance, nodes: ArgumentNode[], names = new Set<string>()) {
-    const collect = (root: ArgumentNode) => walkArgument(root, (node) => {
-      if (node.type === 'field') {names.add(node.name);}
-      if (node.type === 'call') {
-        if (node.name === 'core:value.read' && node.args[0]?.type === 'literal' && typeof node.args[0].value === 'string') {
-          names.add(node.args[0].value);
+    const collect = (root: ArgumentNode) =>
+      walkArgument(root, (node) => {
+        if (node.type === 'field') {
+          names.add(node.name);
         }
-        for (const name of this.registrations.get(instance.pluginId)?.snapshot.handlers.find((handler) => handler.name === node.name)?.reads ?? []) {
-          names.add(name);
+        if (node.type === 'call') {
+          if (
+            node.name === 'core:value.read' &&
+            node.args[0]?.type === 'literal' &&
+            typeof node.args[0].value === 'string'
+          ) {
+            names.add(node.args[0].value);
+          }
+          for (const name of this.registrations
+            .get(instance.pluginId)
+            ?.snapshot.handlers.find((handler) => handler.name === node.name)?.reads ?? []) {
+            names.add(name);
+          }
         }
-      }
-    });
+      });
     nodes.forEach(collect);
     for (const name of names) {
-      const validator = instance.compiled.fields.find((field) => field.name === name)?.validation?.validator;
-      if (validator) {collect(validator);}
+      const validator = instance.compiled.fields.find((field) => field.name === name)?.validation
+        ?.validator;
+      if (validator) {
+        collect(validator);
+      }
     }
     return names;
   }
@@ -1404,16 +1609,29 @@ export class DeclarativeUIService {
       try {
         uiAssert(Date.now() < instance.readDeadline, 'UI_EXECUTION_TIMEOUT', '模板数据获取超时');
         if (frontend) {
-          const dependencies: ArgumentNode[] = binding.parts.filter((part): part is ArgumentNode => typeof part !== 'string');
+          const dependencies: ArgumentNode[] = binding.parts.filter(
+            (part): part is ArgumentNode => typeof part !== 'string',
+          );
           const target = instance.compiled.fields.find((field) => field.nodeId === binding.nodeId);
-          if (target?.validation?.validator && ['value', 'checked'].includes(binding.attribute ?? '')) {
+          if (
+            target?.validation?.validator &&
+            ['value', 'checked'].includes(binding.attribute ?? '')
+          ) {
             dependencies.push(target.validation.validator);
           }
           // Include validator dependencies, never the entire unverified browser draft.
           const names = this.referencedFields(instance, dependencies);
-          await validateUIFields(names, { fields: instance.fields, fieldDefinitions: instance.compiled.fields,
-            deferFrontendValidation: true, invoke: (call, args) => this.call(instance, call, args, [], true) });
-          updates.push({ id: binding.id, frontend: true, fields: Object.fromEntries([...names].map((name) => [name, instance.fields[name]])) });
+          await validateUIFields(names, {
+            fields: instance.fields,
+            fieldDefinitions: instance.compiled.fields,
+            deferFrontendValidation: true,
+            invoke: (call, args) => this.call(instance, call, args, [], true),
+          });
+          updates.push({
+            id: binding.id,
+            frontend: true,
+            fields: Object.fromEntries([...names].map((name) => [name, instance.fields[name]])),
+          });
           continue;
         }
         const value = await evaluateTemplate(binding.parts, {
@@ -1429,8 +1647,23 @@ export class DeclarativeUIService {
         const field = instance.compiled.fields.find((field) => field.nodeId === binding.nodeId);
         if (field && ['value', 'checked'].includes(binding.attribute ?? '')) {
           const candidate = { ...instance, fields: { ...instance.fields, [field.name]: value } };
-          await validateUIField(field.name, { fields: candidate.fields, fieldDefinitions: instance.compiled.fields,
-            invoke: (call, args) => this.call(candidate, call, args, [], true, binding.id) });
+          await validateUIField(field.name, {
+            fields: candidate.fields,
+            fieldDefinitions: instance.compiled.fields,
+            invoke: (call, args) => this.call(candidate, call, args, [], true, binding.id),
+          });
+        }
+        const tree = this.treeSet(ownerInstance).field(field?.name ?? '');
+        if (tree && binding.attribute === 'value') {
+          tree.validateSelection(value, true);
+          updates.push({ id: binding.id, value });
+          continue;
+        }
+        if (tree && binding.attribute === 'disabled') {
+          tree.disabled = value === true;
+        }
+        if (tree && binding.attribute === 'readonly') {
+          tree.readonly = value === true;
         }
         let resolved = validateAttribute(binding.attribute, value);
         if (['src', 'href'].includes(binding.attribute ?? '') && resolved !== null) {
@@ -1444,7 +1677,11 @@ export class DeclarativeUIService {
         }
         updates.push({ id: binding.id, value: resolved });
       } catch (e) {
-        updates.push({ id: binding.id, error: e instanceof UIError ? e.message : '数据读取失败', field: e instanceof UIError ? e.field : undefined });
+        updates.push({
+          id: binding.id,
+          error: e instanceof UIError ? e.message : '数据读取失败',
+          field: e instanceof UIError ? e.field : undefined,
+        });
       }
     }
     ownerInstance.baseline ??= instance.baseline;
@@ -1476,14 +1713,29 @@ export class DeclarativeUIService {
         .map((binding) => ({ id: binding.id, expressionBindingId: binding.id })),
     };
   }
-  async validateValues(id: string, owner: string, body: { renderRevision: number; fields: unknown }) {
+  async validateValues(
+    id: string,
+    owner: string,
+    body: { renderRevision: number; fields: unknown },
+  ) {
     const instance = this.get(id, owner);
-    uiAssert((this.registrations.get(instance.pluginId)?.revision ?? 0) === instance.registryRevision,
-      'UI_STALE_HANDLERS', '处理器注册版本已变化');
+    uiAssert(
+      (this.registrations.get(instance.pluginId)?.revision ?? 0) === instance.registryRevision,
+      'UI_STALE_HANDLERS',
+      '处理器注册版本已变化',
+    );
     uiAssert(body.renderRevision === instance.revision, 'UI_STALE_RENDER', '模板已变化');
-    const candidate = { ...instance, fields: this.capture(instance, body.fields), readDeadline: Date.now() + 10000 };
-    await validateUIFields(Object.keys(candidate.fields), { fields: candidate.fields, fieldDefinitions: candidate.compiled.fields,
-      deferFrontendValidation: true, invoke: (call, args) => this.call(candidate, call, args, [], true) });
+    const candidate = {
+      ...instance,
+      fields: this.capture(instance, body.fields),
+      readDeadline: Date.now() + 10000,
+    };
+    await validateUIFields(Object.keys(candidate.fields), {
+      fields: candidate.fields,
+      fieldDefinitions: candidate.compiled.fields,
+      deferFrontendValidation: true,
+      invoke: (call, args) => this.call(candidate, call, args, [], true),
+    });
     return { validated: true };
   }
   unsubscribe(id: string, owner: string, expressionId: string) {
@@ -1539,7 +1791,10 @@ export class DeclarativeUIService {
         previous?.stop();
         uiAssert(instance.watches.size < UI_LIMITS.subscriptions, 'UI_QUOTA_EXCEEDED', '监听过多');
         const id = randomUUID();
-        this.watchCallbacks.set(id, {owner:instance.owner,run:()=>this.invalidate(instance)});
+        this.watchCallbacks.set(id, {
+          owner: instance.owner,
+          run: () => this.invalidate(instance),
+        });
         const response = (await this.remote(instance, 'watch.start', call.name, args, id)) as {
           hasValue: boolean;
           value: UIValue;
@@ -1672,8 +1927,33 @@ export class DeclarativeUIService {
         '写入的字段值类型不匹配',
       );
       const candidate = { ...instance, fields: { ...instance.fields, [key]: args[1] } };
-      await validateUIField(key, { fields: candidate.fields, fieldDefinitions: instance.compiled.fields,
-        invoke: (call, values) => this.call(candidate, call, values, [], true) });
+      await validateUIField(key, {
+        fields: candidate.fields,
+        fieldDefinitions: instance.compiled.fields,
+        invoke: (call, values) => this.call(candidate, call, values, [], true),
+      });
+      const tree = this.treeSet(instance).field(key);
+      if (tree) {
+        const patches = await tree.prepareSelection(
+          args[1],
+          { instanceId: instance.id, renderRevision: instance.revision },
+          {
+            fields: instance.fields,
+            signal: instance.controller.signal,
+            invoke: (call, values) => this.call(instance, call, values, [], true),
+          },
+        );
+        for (const patch of patches) {
+          effects.push({
+            id: randomUUID(),
+            type: 'tree.patch',
+            args: [key, patch as unknown as UIValue],
+            instanceId: instance.id,
+            renderRevision: instance.revision,
+          });
+        }
+        tree.validateSelection(args[1], true);
+      }
       instance.fields[key] = args[1];
       instance.frontendValidated?.delete(key);
       effects.push({
@@ -1684,6 +1964,56 @@ export class DeclarativeUIService {
         renderRevision: instance.revision,
       });
       return args[1];
+    }
+    if (name.startsWith('tree.')) {
+      const tree = this.treeSet(instance).field(string(first));
+      uiAssert(tree, 'TREE_UNKNOWN_TREE', '树目标不属于当前实例');
+      const type = name.slice(5);
+      const command =
+        type === 'move'
+          ? {
+              type,
+              sourceIds: args[1],
+              ...(args[2] as object),
+              expectedVersion: tree.store.version,
+            }
+          : ['expand', 'collapse', 'reveal'].includes(type)
+            ? { type, nodeId: args[1] }
+            : type === 'refresh'
+              ? { type, parentId: args[1] ?? null }
+              : type === 'filter'
+                ? { type, query: args[1] }
+                : { type };
+      const result = await tree.request(
+        {
+          instanceId: instance.id,
+          renderRevision: instance.revision,
+          treeId: tree.definition.treeId,
+          dataEpoch: tree.definition.dataEpoch,
+          requestId: randomUUID(),
+          kind: 'command',
+          operationId: randomUUID(),
+          command: command as TreeCommand,
+        },
+        {
+          fields: instance.fields,
+          signal: instance.controller.signal,
+          invoke: (call, values) => this.call(instance, call, values, effects, call.readOnly),
+        },
+      );
+      uiAssert(
+        !result.error,
+        result.error?.code ?? 'TREE_COMMAND_FAILED',
+        result.error?.message ?? '树命令失败',
+      );
+      effects.push({
+        id: randomUUID(),
+        type: 'tree.command',
+        args: [first, command as unknown as UIValue, result as unknown as UIValue],
+        instanceId: instance.id,
+        renderRevision: instance.revision,
+      });
+      return result as unknown as UIValue;
     }
     if (name === 'get') {
       const key = string(first);
@@ -1773,8 +2103,11 @@ export class DeclarativeUIService {
         instance.compiled.fields.find((item) => item.name === field)?.kind === 'boolean';
       const output = boolean ? value === 'true' : value;
       const candidate = { ...instance, fields: { ...instance.fields, [field]: output } };
-      await validateUIField(field, { fields: candidate.fields, fieldDefinitions: instance.compiled.fields,
-        invoke: (call, values) => this.call(candidate, call, values, [], true) });
+      await validateUIField(field, {
+        fields: candidate.fields,
+        fieldDefinitions: instance.compiled.fields,
+        invoke: (call, values) => this.call(candidate, call, values, [], true),
+      });
       effects.push({
         id: randomUUID(),
         type: 'value.write',
@@ -1944,7 +2277,12 @@ export class DeclarativeUIService {
     }
     throw new UIError('UI_HANDLER_NOT_FOUND', '处理器不存在');
   }
-  watchChanged(owner:string,id:string){const callback=this.watchCallbacks.get(id);if(callback?.owner===owner){callback.run();}}
+  watchChanged(owner: string, id: string) {
+    const callback = this.watchCallbacks.get(id);
+    if (callback?.owner === owner) {
+      callback.run();
+    }
+  }
   private async callBefore(
     instance: Instance,
     call: CallNode,
@@ -2001,6 +2339,7 @@ export class DeclarativeUIService {
         try {
           prev = await evaluateArgument(step, {
             event: plain(event) as unknown as UIValue,
+            tree: event.tree as unknown as UIValue,
             prev,
             fields: instance.fields,
             fieldDefinitions: instance.compiled.fields,
@@ -2037,7 +2376,10 @@ export class DeclarativeUIService {
     const effects: ClientEffect[] = [];
     try {
       uiAssert(
-        this.instances.get(job.instance.id) === job.instance && Date.now() < job.deadline&&job.instance.revision===job.renderRevision&&(this.registrations.get(job.instance.pluginId)?.revision??0)===job.registryRevision,
+        this.instances.get(job.instance.id) === job.instance &&
+          Date.now() < job.deadline &&
+          job.instance.revision === job.renderRevision &&
+          (this.registrations.get(job.instance.pluginId)?.revision ?? 0) === job.registryRevision,
         'UI_EXECUTION_TIMEOUT',
         '调用已过期',
       );
@@ -2052,12 +2394,25 @@ export class DeclarativeUIService {
           }
           const validator = chain[0].validationField;
           const names = new Set<string>(validator ? [validator] : Object.keys(job.initial));
-          if (validator) {this.referencedFields(job.instance, chain, names);}
-          await validateUIFields(names, { fields: job.initial, fieldDefinitions: job.instance.compiled.fields,
-            frontendValidated: job.instance.frontendValidated, deferFrontendValidation: Boolean(validator),
-            invoke: (call, args) => this.callBefore(job.instance, { ...call, readOnly: true }, args, [], job.event, 0) });
+          if (validator) {
+            this.referencedFields(job.instance, chain, names);
+          }
+          await validateUIFields(names, {
+            fields: job.initial,
+            fieldDefinitions: job.instance.compiled.fields,
+            frontendValidated: job.instance.frontendValidated,
+            deferFrontendValidation: Boolean(validator),
+            invoke: (call, args) =>
+              this.callBefore(job.instance, { ...call, readOnly: true }, args, [], job.event, 0),
+          });
           const fields = Object.fromEntries([...names].map((name) => [name, job.initial[name]]));
-          const phase=randomUUID();this.frontendAcks.set(phase,{job:token,instanceId:job.instance.id,windowId:job.instance.windowId,created:Date.now()});
+          const phase = randomUUID();
+          this.frontendAcks.set(phase, {
+            job: token,
+            instanceId: job.instance.id,
+            windowId: job.instance.windowId,
+            created: Date.now(),
+          });
           return {
             status: 'frontend',
             continuation: phase,
@@ -2070,13 +2425,16 @@ export class DeclarativeUIService {
           };
         }
         const result = await this.run(job.instance, [chain], job.event, effects);
-        if (!chain[0]?.validationStep) { job.result = result; job.completed++; }
+        if (!chain[0]?.validationStep) {
+          job.result = result;
+          job.completed++;
+        }
       }
       job.effects.push(...effects);
       const result = {
         status: 'succeeded',
         ...(job.result === undefined ? {} : { result: job.result }),
-        effects:job.effects,
+        effects: job.effects,
       };
       this.closeContinuation(token, result);
       return result;
@@ -2084,7 +2442,7 @@ export class DeclarativeUIService {
       job.effects.push(...effects);
       const result = {
         status: job.completed ? 'partial' : 'failed',
-        effects:job.effects,
+        effects: job.effects,
         error: error instanceof UIError ? error.message : '处理器执行失败',
         field: error instanceof UIError ? error.field : undefined,
       };
@@ -2104,7 +2462,7 @@ export class DeclarativeUIService {
     }
     job.finish();
   }
-  continueEvent(id:string,owner:string,token:string,succeeded:boolean){
+  continueEvent(id: string, owner: string, token: string, succeeded: boolean) {
     const instance = this.get(id, owner);
     const ack = this.frontendAcks.get(token);
     uiAssert(
@@ -2126,7 +2484,9 @@ export class DeclarativeUIService {
       ack.promise = Promise.resolve(result);
     } else {
       const field = job.branches[job.next - 1]?.[0]?.validationField;
-      if (field) {(instance.frontendValidated ??= new Set()).add(field);}
+      if (field) {
+        (instance.frontendValidated ??= new Set()).add(field);
+      }
       ack.promise = this.advance(ack.job);
     }
     return ack.promise;
@@ -2140,6 +2500,7 @@ export class DeclarativeUIService {
       renderRevision: number;
       fields: unknown;
       event?: NormalizedUIEvent;
+      tree?: TreeWireEvent;
     },
   ) {
     for (const [token, ack] of this.frontendAcks) {
@@ -2154,7 +2515,11 @@ export class DeclarativeUIService {
       '处理器注册版本已变化',
     );
     uiAssert(body.renderRevision === instance.revision, 'UI_STALE_RENDER', '模板已变化');
-    const binding = instance.compiled.events.find((b) => b.id === body.bindingId);
+    const treeEvent = body.tree
+      ? this.treeSet(instance).get(body.tree.treeId).event(body.tree, body.bindingId)
+      : undefined;
+    const binding =
+      treeEvent?.binding ?? instance.compiled.events.find((b) => b.id === body.bindingId);
     uiAssert(binding, 'UI_INVALID_PROGRAM', '事件绑定不存在');
     uiAssert(
       typeof body.eventId === 'string' && body.eventId.length <= 100,
@@ -2185,7 +2550,17 @@ export class DeclarativeUIService {
       );
       instance.executionDeadline = Date.now() + 10000;
       instance.frontendValidated = new Set();
-      instance.fields = this.capture(instance, body.fields, [...new Set(binding.capture)]);
+      const captured = body.tree
+        ? Object.fromEntries(
+            Object.entries(body.fields as object).filter(([name]) =>
+              binding.capture.includes(name),
+            ),
+          )
+        : body.fields;
+      instance.fields = this.capture(instance, captured, [...new Set(binding.capture)]);
+      for (const [name, value] of Object.entries(instance.fields)) {
+        this.treeSet(instance).field(name)?.validateSelection(value, !!body.tree);
+      }
       const values = Object.fromEntries(binding.capture.map((key) => [key, instance.fields[key]]));
       const event: NormalizedUIEvent = {
         type:
@@ -2193,6 +2568,7 @@ export class DeclarativeUIService {
             ? 'hover'
             : binding.event,
         values: values as never,
+        ...(treeEvent?.event ?? {}),
       };
       if (binding.event === 'mouseenter' || binding.event === 'mouseleave') {
         event.phase = binding.event === 'mouseenter' ? 'enter' : 'leave';
@@ -2235,7 +2611,11 @@ export class DeclarativeUIService {
           instance,
           eventId: body.eventId,
           branches: binding.program.branches,
-          next: 0,completed:0,effects:[],renderRevision:instance.revision,registryRevision:instance.registryRevision??0,
+          next: 0,
+          completed: 0,
+          effects: [],
+          renderRevision: instance.revision,
+          registryRevision: instance.registryRevision ?? 0,
           event,
           initial: plain(instance.fields),
           deadline: Date.now() + 10000,
@@ -2250,7 +2630,8 @@ export class DeclarativeUIService {
         const result = await this.run(instance, binding.program.branches, event, effects);
         return {
           status: 'succeeded',
-          completedBranches: binding.program.branches.filter((chain) => !chain[0]?.validationStep).length,
+          completedBranches: binding.program.branches.filter((chain) => !chain[0]?.validationStep)
+            .length,
           ...(result === undefined ? {} : { result }),
           effects,
         };
@@ -2306,6 +2687,13 @@ export class DeclarativeUIService {
       }
     }
     instance.controller.abort();
+    this.trees.get(id)?.dispose();
+    this.trees.delete(id);
+    for (const [token, job] of this.treeJobs) {
+      if (job.instance === instance) {
+        this.treeJobs.delete(token);
+      }
+    }
     for (const [token, ack] of this.frontendAcks) {
       if (ack.instanceId === instance.id) {
         this.frontendAcks.delete(token);

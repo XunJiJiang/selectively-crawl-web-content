@@ -7,5 +7,7 @@ export { completionInput } from './command-completion.ts';
 export * from './declarative-ui.ts';
 export * from './ui-expressions.ts';
 export * from './workbench-feedback.ts';
+export * from './tree.ts';
+export * from './tree-model.ts';
 export type * from './types/api.d.ts';
 export type * from './types/utils.d.ts';

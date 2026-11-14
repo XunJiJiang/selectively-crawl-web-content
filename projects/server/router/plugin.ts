@@ -139,7 +139,9 @@ const getConfig: RequestHandler = async (req, res) => {
         pluginConfigs.push({
           id: plugin.pluginId,
           version: 'v2',
-          compatibleVersions: SCRIPT_CONFIG_RANGES,
+          compatibleVersions: ui.compiled.trees?.length
+            ? { ...SCRIPT_CONFIG_RANGES, v2: '3.4.0-*' }
+            : SCRIPT_CONFIG_RANGES,
           title: scripts.title,
           description: scripts.description ?? scripts.title,
           refreshRule,
@@ -378,10 +380,12 @@ const eventSchema = z.object({
   eventId: z.string().min(1).max(200),
   bindingId: z.string().min(1),
   readOnly: z.boolean().optional(),
+  treeRequest: z.unknown().optional(),
+  tree: z.unknown().optional(),
   fields: z.record(
     z.string(),
     z.object({
-      value: z.union([z.string().max(16384), z.boolean(), z.array(z.string().max(16384)).max(256)]),
+      value: z.union([z.string().max(16384), z.boolean(), z.array(z.string().max(16384)).max(500)]),
       editSequence: z.number().int().nonnegative(),
     }),
   ),
@@ -412,22 +416,23 @@ router.post('/event', routeVersion('3.2.0'), async (req, res) => {
   }
   try {
     const { id: _, data: crawlData, ...request } = parsed.data;
-    const data = await plugin.handler.scriptUI.event(request, {
-      version: 'v2',
-      site: siteInfo(req.query.site),
-      data: crawlData,
-      values: {},
-      logger: plugin.logger,
-    });
+    const data = await plugin.handler.scriptUI.event(
+      request as import('../../shared/script-ui.ts').ScriptUIEvent,
+      {
+        version: 'v2',
+        site: siteInfo(req.query.site),
+        data: crawlData,
+        values: {},
+        logger: plugin.logger,
+      },
+    );
     res.json({ code: 200, message: 'success', data });
   } catch (error) {
-    res
-      .status(400)
-      .json({
-        code: 400,
-        errorCode: error instanceof Error && 'code' in error ? error.code : undefined,
-        field: error instanceof Error && 'field' in error ? error.field : undefined,
-        message: error instanceof Error ? error.message : '插件事件失败',
-      });
+    res.status(400).json({
+      code: 400,
+      errorCode: error instanceof Error && 'code' in error ? error.code : undefined,
+      field: error instanceof Error && 'field' in error ? error.field : undefined,
+      message: error instanceof Error ? error.message : '插件事件失败',
+    });
   }
 });

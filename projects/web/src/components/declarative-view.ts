@@ -20,10 +20,15 @@ import {
   type NormalizedUIEvent,
   type ClientEffect,
 } from '../../../shared/declarative-ui.ts';
-import { evaluateArgument, evaluateTemplate, validateUIFields } from '../../../shared/ui-expressions.ts';
+import {
+  evaluateArgument,
+  evaluateTemplate,
+  validateUIFields,
+} from '../../../shared/ui-expressions.ts';
 import type { WorkbenchStore } from '../workbench/store.ts';
 import type { FramePool } from '../workbench/frames.ts';
 import { ApiError } from '../api/workbench.ts';
+import type { TreeRequest, TreeResponse, TreeWireEvent } from '../../../shared/tree.ts';
 
 type FieldSnapshot = Record<string, { value: UIValue; editSequence: number }>;
 interface ViewState {
@@ -58,11 +63,12 @@ export class DeclarativeView extends LitElement {
   private generation = 0;
   private valueGeneration = 0;
   private fields: FieldSnapshot = {};
+  private treeEvents: Promise<unknown> = Promise.resolve();
   private watches = new Map<string, { id: string; key: string; value?: UIValue }>();
   private pending = false;
   private contentRefresh?: { instance: ViewState; queued: boolean; promise: Promise<void> };
   private recoveringStaleData = false;
-  private opening=false;
+  private opening = false;
   private openingContext?: string;
   private reopenAfterOpening = false;
   private inputPending = new Map<
@@ -74,40 +80,44 @@ export class DeclarativeView extends LitElement {
   private usedWatches = new Set<string>();
   private frameReady = false;
   private awaitingInitialFields = false;
-  static styles = [css`
-    :host {
-      display: flex;
-      flex-direction: column;
-      width: 100%;
-      height: 100%;
-      min-height: 0;
-      min-width: 0;
-      overflow: hidden;
-    }
-    iframe {
-      width: 100%;
-      flex: 1;
-      min-height: 0;
-      border: 0;
-      display: block;
-      background: transparent;
-    }
-    .error {
-      padding: 8px;
-      color: var(--color-error, #e88);
-    }
-    :host([surface='contextMenu']) {
-      position: fixed;
-      inset: 0;
-      z-index: 1100;
-    }
-  `, unsafeCSS(primitiveStyles), unsafeCSS(contentStyles)];
+  static styles = [
+    css`
+      :host {
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+        height: 100%;
+        min-height: 0;
+        min-width: 0;
+        overflow: hidden;
+      }
+      iframe {
+        width: 100%;
+        flex: 1;
+        min-height: 0;
+        border: 0;
+        display: block;
+        background: transparent;
+      }
+      .error {
+        padding: 8px;
+        color: var(--color-error, #e88);
+      }
+      :host([surface='contextMenu']) {
+        position: fixed;
+        inset: 0;
+        z-index: 1100;
+      }
+    `,
+    unsafeCSS(primitiveStyles),
+    unsafeCSS(contentStyles),
+  ];
   connectedCallback() {
     super.connectedCallback();
     window.addEventListener('message', this.hello);
     this.store?.addEventListener('server-event', this.changed);
     this.store?.addEventListener('change', this.workspaceChanged);
-    this.store?.addEventListener('core-restarted',this.restarted);
+    this.store?.addEventListener('core-restarted', this.restarted);
     this.pool?.addEventListener('ui-value-changed', this.frontChanged);
     this.pool?.addEventListener('ui-handlers-changed', this.frontRegistry);
   }
@@ -120,7 +130,7 @@ export class DeclarativeView extends LitElement {
     window.removeEventListener('message', this.hello);
     this.store?.removeEventListener('server-event', this.changed);
     this.store?.removeEventListener('change', this.workspaceChanged);
-    this.store?.removeEventListener('core-restarted',this.restarted);
+    this.store?.removeEventListener('core-restarted', this.restarted);
     this.pool?.removeEventListener('ui-value-changed', this.frontChanged);
     this.pool?.removeEventListener('ui-handlers-changed', this.frontRegistry);
     this.release();
@@ -180,7 +190,7 @@ export class DeclarativeView extends LitElement {
     }
     const openingContext = `${workspace.workspaceId}:${lease.token}`;
     this.reopenAfterOpening = false;
-    this.opening=true;
+    this.opening = true;
     this.openingContext = openingContext;
     try {
       const source = this.sourceTabId ? this.pool?.runtimes.get(this.sourceTabId) : undefined;
@@ -211,9 +221,7 @@ export class DeclarativeView extends LitElement {
       void this.initialize();
     } catch (error) {
       if (generation === this.generation) {
-        if (
-          openingContext !== `${this.store.workspace?.workspaceId}:${this.store.lease?.token}`
-        ) {
+        if (openingContext !== `${this.store.workspace?.workspaceId}:${this.store.lease?.token}`) {
           this.reopenAfterOpening = true;
         } else {
           this.error = this.store.message(error);
@@ -238,7 +246,9 @@ export class DeclarativeView extends LitElement {
     const frame = this.renderRoot.querySelector('iframe');
     if (
       event.source !== frame?.contentWindow ||
-      event.data?.type !== 'scwc-ui-ready' ||event.data.protocol!=='scwc-declarative-ui'||event.data.version!==1||
+      event.data?.type !== 'scwc-ui-ready' ||
+      event.data.protocol !== 'scwc-declarative-ui' ||
+      event.data.version !== 1 ||
       event.data.nonce !== this.uiNonce
     ) {
       return;
@@ -249,7 +259,11 @@ export class DeclarativeView extends LitElement {
     this.port.onmessage = (event) => void this.receive(event.data);
     this.port.start();
     this.frameReady = true;
-    frame.contentWindow?.postMessage({ protocol:'scwc-declarative-ui',version:1,nonce: this.uiNonce }, '*', [channel.port2]);
+    frame.contentWindow?.postMessage(
+      { protocol: 'scwc-declarative-ui', version: 1, nonce: this.uiNonce },
+      '*',
+      [channel.port2],
+    );
     void this.initialize();
   };
   private async initialize() {
@@ -259,7 +273,9 @@ export class DeclarativeView extends LitElement {
       return;
     }
     if (this.surface === 'contextMenu') {
-      this.menuModel = new DeclarativeMenu(instance.compiled, (bindingId, fields, type) => this.execute({ bindingId, fields, event: { type } }));
+      this.menuModel = new DeclarativeMenu(instance.compiled, (bindingId, fields, type) =>
+        this.execute({ bindingId, fields, event: { type } }),
+      );
       this.fields = this.menuModel.fields;
       this.frameReady = true;
       void this.updateValues();
@@ -271,7 +287,11 @@ export class DeclarativeView extends LitElement {
         this.port?.close();
         this.port = undefined;
         uiAssert(this.shadowRoot, 'UI_INVALID_CONTENT', 'JSON 渲染容器未就绪');
-        this.directRenderer ??= createUIRenderer(this.shadowRoot, (message) => void this.receive(message), createJSONComponents());
+        this.directRenderer ??= createUIRenderer(
+          this.shadowRoot,
+          (message) => void this.receive(message),
+          createJSONComponents(),
+        );
         this.frameReady = true;
       } catch (error) {
         this.error = this.store.message(error);
@@ -319,6 +339,78 @@ export class DeclarativeView extends LitElement {
   }
   private async receive(message: { method: string; renderRevision: number; payload: unknown }) {
     if (!this.instance || message.renderRevision !== this.instance.renderRevision) {
+      return;
+    }
+    if (message.method === 'tree') {
+      const instance = this.instance,
+        request = message.payload as TreeRequest;
+      try {
+        let result = await this.store.api.request<{
+          treeResponse?: TreeResponse;
+          frontend?: {
+            job: string;
+            token: string;
+            call: CallNode;
+            args: UIValue[];
+            fields: Record<string, UIValue>;
+          };
+        }>(`/ui/instances/${instance.id}/trees`, {
+          ...this.store.session(),
+          request,
+          fields: this.fields,
+        });
+        while (result.frontend && this.instance === instance) {
+          const stage = result.frontend;
+          try {
+            const value = await this.invoke(
+              stage.call,
+              stage.args,
+              '',
+              undefined,
+              instance,
+              stage.fields,
+            );
+            result = await this.store.api.request(`/ui/instances/${instance.id}/trees/continue`, {
+              ...this.store.session(),
+              job: stage.job,
+              token: stage.token,
+              ...(value === undefined ? {} : { value }),
+            });
+          } catch {
+            result = await this.store.api.request(`/ui/instances/${instance.id}/trees/continue`, {
+              ...this.store.session(),
+              job: stage.job,
+              token: stage.token,
+              error: true,
+            });
+          }
+        }
+        if (this.instance === instance && result.treeResponse) {
+          this.send('tree', result.treeResponse);
+        }
+      } catch (error) {
+        if (this.instance === instance) {
+          this.send('tree', {
+            ...request,
+            sequence: 0,
+            error: {
+              code: error instanceof ApiError ? error.code : 'TREE_REQUEST_FAILED',
+              message: this.store.message(error),
+              retryable: true,
+            },
+          });
+        }
+      }
+      return;
+    }
+    if (message.method === 'tree-event') {
+      const data = message.payload as {
+        bindingId: string;
+        fields: FieldSnapshot;
+        event: NormalizedUIEvent;
+        tree: TreeWireEvent;
+      };
+      this.treeEvents = this.treeEvents.catch(() => undefined).then(() => this.execute(data));
       return;
     }
     if (message.method === 'fields') {
@@ -379,8 +471,10 @@ export class DeclarativeView extends LitElement {
       );
     }
   }
-  private restarted=()=>{void this.open();};
-  private workspaceChanged=()=>{
+  private restarted = () => {
+    void this.open();
+  };
+  private workspaceChanged = () => {
     const workspaceId = this.store.workspace?.workspaceId;
     if (this.instance && workspaceId !== this.instance.workspaceId) {
       void this.open();
@@ -494,7 +588,7 @@ export class DeclarativeView extends LitElement {
     bindingId: string,
     event?: NormalizedUIEvent,
     expected = this.instance,
-    capturedFields?:Record<string,UIValue>,
+    capturedFields?: Record<string, UIValue>,
   ) {
     const instance = this.instance;
     uiAssert(instance === expected, 'UI_STALE_INSTANCE', '页面上下文已改变');
@@ -564,7 +658,14 @@ export class DeclarativeView extends LitElement {
       instance = this.instance;
     try {
       const result = await this.store.api.request<{
-        updates: { id: string; value?: UIValue; frontend?: boolean; error?: string; field?: string; fields?: Record<string, UIValue> }[];
+        updates: {
+          id: string;
+          value?: UIValue;
+          frontend?: boolean;
+          error?: string;
+          field?: string;
+          fields?: Record<string, UIValue>;
+        }[];
       }>(`/ui/instances/${instance.id}/data`, {
         renderRevision: instance.renderRevision,
         fields: this.fields,
@@ -579,23 +680,35 @@ export class DeclarativeView extends LitElement {
             uiAssert(Date.now() < deadline, 'UI_EXECUTION_TIMEOUT', '页面模板数据获取超时');
             const fields = update.fields ?? {};
             await validateUIFields(Object.keys(fields), {
-              fields, fieldDefinitions: instance.compiled.fields,
+              fields,
+              fieldDefinitions: instance.compiled.fields,
               backendValidated: new Set(Object.keys(fields)),
-              invoke: (validator, values) => this.invoke(validator, values, binding.id, undefined, instance, fields),
+              invoke: (validator, values) =>
+                this.invoke(validator, values, binding.id, undefined, instance, fields),
             });
             update.value = await evaluateTemplate(binding.parts, {
               fields,
               fieldDefinitions: instance.compiled.fields,
               backendValidated: new Set(Object.keys(fields)),
-              invoke: (call, args) => this.invoke(call, args, binding.id, undefined, instance, fields),
+              invoke: (call, args) =>
+                this.invoke(call, args, binding.id, undefined, instance, fields),
             });
-            const targetField = instance.compiled.fields.find((field) => field.nodeId === binding.nodeId);
+            const targetField = instance.compiled.fields.find(
+              (field) => field.nodeId === binding.nodeId,
+            );
             if (targetField?.validation && ['value', 'checked'].includes(binding.attribute ?? '')) {
               const candidate = { ...(update.fields ?? {}), [targetField.name]: update.value };
-              await this.store.api.request(`/ui/instances/${instance.id}/validate`, { renderRevision: instance.renderRevision, fields: candidate });
-              await validateUIFields([targetField.name], { fields: candidate, fieldDefinitions: instance.compiled.fields,
+              await this.store.api.request(`/ui/instances/${instance.id}/validate`, {
+                renderRevision: instance.renderRevision,
+                fields: candidate,
+              });
+              await validateUIFields([targetField.name], {
+                fields: candidate,
+                fieldDefinitions: instance.compiled.fields,
                 backendValidated: new Set(Object.keys(candidate)),
-                invoke: (call, args) => this.invoke(call, args, binding.id, undefined, instance, candidate) });
+                invoke: (call, args) =>
+                  this.invoke(call, args, binding.id, undefined, instance, candidate),
+              });
             }
             if (['src', 'href'].includes(binding.attribute ?? '')) {
               uiAssert(typeof update.value === 'string', 'UI_INVALID_VALUE_TYPE', '资源需要字符串');
@@ -611,9 +724,15 @@ export class DeclarativeView extends LitElement {
               update.value = instance.assetRoot + url.pathname + '?cap=' + instance.assetCapability;
             }
             if (
-              ['checked', 'disabled', 'readonly', 'selected', 'multiple', 'hidden', 'data-ui-visible'].includes(
-                binding.attribute ?? '',
-              )
+              [
+                'checked',
+                'disabled',
+                'readonly',
+                'selected',
+                'multiple',
+                'hidden',
+                'data-ui-visible',
+              ].includes(binding.attribute ?? '')
             ) {
               uiAssert(
                 typeof update.value === 'boolean',
@@ -623,9 +742,18 @@ export class DeclarativeView extends LitElement {
             }
           } catch (error) {
             update.error = this.store.message(error);
-            update.field = error instanceof ApiError && error.data && typeof error.data === 'object' && 'field' in error.data
-              ? String(error.data.field) : error instanceof Error && 'field' in error ? String(error.field ?? '') || undefined : undefined;
-            if (update.field) {delete update.value;}
+            update.field =
+              error instanceof ApiError &&
+              error.data &&
+              typeof error.data === 'object' &&
+              'field' in error.data
+                ? String(error.data.field)
+                : error instanceof Error && 'field' in error
+                  ? String(error.field ?? '') || undefined
+                  : undefined;
+            if (update.field) {
+              delete update.value;
+            }
           }
         }
       }
@@ -681,6 +809,7 @@ export class DeclarativeView extends LitElement {
     bindingId: string;
     fields: FieldSnapshot;
     event: NormalizedUIEvent;
+    tree?: TreeWireEvent;
   }) {
     const instance = this.instance;
     if (!instance) {
@@ -707,7 +836,7 @@ export class DeclarativeView extends LitElement {
         renderRevision: instance.renderRevision,
       });
       while (response.status === 'frontend') {
-        this.send('result',{effects:response.effects,editSequences});
+        this.send('result', { effects: response.effects, editSequences });
         await this.applyEffects(response.effects);
         try {
           for (const chain of response.branches ?? []) {
@@ -716,11 +845,13 @@ export class DeclarativeView extends LitElement {
               uiAssert(call.domain === 'frontend', 'UI_CROSS_DOMAIN_PIPE', '前端链不能调用后端');
               prev = await evaluateArgument(call, {
                 event: response.event as unknown as UIValue,
+                tree: response.event.tree as unknown as UIValue,
                 prev,
                 fields: response.fields,
                 fieldDefinitions: instance.compiled.fields,
                 backendValidated: new Set(Object.keys(response.fields)),
-                invoke: (c, args) => this.invoke(c, args, '', response.event, instance,response.fields),
+                invoke: (c, args) =>
+                  this.invoke(c, args, '', response.event, instance, response.fields),
               });
               if (prev === UI_UNAVAILABLE) {
                 break;
@@ -733,9 +864,16 @@ export class DeclarativeView extends LitElement {
             succeeded: true,
           });
         } catch (error) {
-          response=await this.store.api.request(`/ui/instances/${instance.id}/events/continue`,{...this.store.session(),continuation:response.continuation,succeeded:false});
+          response = await this.store.api.request(`/ui/instances/${instance.id}/events/continue`, {
+            ...this.store.session(),
+            continuation: response.continuation,
+            succeeded: false,
+          });
           response.error = this.store.message(error);
-          response.field = error instanceof Error && 'field' in error ? String(error.field ?? '') || undefined : undefined;
+          response.field =
+            error instanceof Error && 'field' in error
+              ? String(error.field ?? '') || undefined
+              : undefined;
           break;
         }
       }
@@ -750,19 +888,28 @@ export class DeclarativeView extends LitElement {
         editSequences,
         saved: response.effects.some((effect) => effect.type === 'config.saved'),
       });
-      await this.applyEffects(response.effects??[]);
+      await this.applyEffects(response.effects ?? []);
       this.dispatchEvent(
         new CustomEvent('ui-executed', { detail: response, bubbles: true, composed: true }),
       );
       void this.updateValues();
     } catch (error) {
       if (this.instance === instance) {
-        this.send('result', { error: this.store.message(error), editSequences,
-          field: error instanceof ApiError && error.data && typeof error.data === 'object' && 'field' in error.data ? error.data.field : undefined });
+        this.send('result', {
+          error: this.store.message(error),
+          editSequences,
+          field:
+            error instanceof ApiError &&
+            error.data &&
+            typeof error.data === 'object' &&
+            'field' in error.data
+              ? error.data.field
+              : undefined,
+        });
       }
     }
   }
-  private async applyEffects(effects:ClientEffect[]){
+  private async applyEffects(effects: ClientEffect[]) {
     for (const effect of effects) {
       if (this.appliedEffects.has(effect.id)) {
         continue;
@@ -836,37 +983,86 @@ export class DeclarativeView extends LitElement {
   }
   render() {
     if (this.surface === 'contextMenu') {
-      return html`<wb-context-menu .x=${this.menuX} .y=${this.menuY} .items=${this.menuItems} .loading=${!this.menuLoaded}
+      return html`<wb-context-menu
+        .x=${this.menuX}
+        .y=${this.menuY}
+        .items=${this.menuItems}
+        .loading=${!this.menuLoaded}
         @wb-menu-close=${() => this.closeContextMenu()}
         @wb-menu-select=${async (event: CustomEvent<{ id: string }>) => {
           const find = (items: ContextMenuItem[]): ContextMenuItem | undefined => {
             for (const item of items) {
-              if (item.id === event.detail.id) {return item;}
-              if (item.kind === 'submenu') { const found = find(item.children); if (found) {return found;} }
+              if (item.id === event.detail.id) {
+                return item;
+              }
+              if (item.kind === 'submenu') {
+                const found = find(item.children);
+                if (found) {
+                  return found;
+                }
+              }
             }
           };
           const item = find(this.menuItems);
-          if (!item || ('disabled' in item && item.disabled)) {return;}
-          if (item.kind === 'action') {await item.action();}
-          else if (item.kind === 'checkbox') {await item.action(!item.checked);}
+          if (!item || ('disabled' in item && item.disabled)) {
+            return;
+          }
+          if (item.kind === 'action') {
+            await item.action();
+          } else if (item.kind === 'checkbox') {
+            await item.action(!item.checked);
+          }
           this.closeContextMenu();
-        }}></wb-context-menu>`;
+        }}
+      ></wb-context-menu>`;
     }
     if (!this.instance || this.instance.compiled.format === 'json') {
       return html`${this.error ? html`<p class="error" role="alert">${this.error}</p>` : nothing}
         <div class="ui-root ui-direct" data-surface=${this.surface}>
-          <wb-scroll-container class="ui-content-scroll"><div id="content"></div></wb-scroll-container><div id="error" role="alert"></div>
+          <wb-scroll-container class="ui-content-scroll"
+            ><div id="content"></div
+          ></wb-scroll-container>
+          <div id="error" role="alert"></div>
         </div>`;
     }
     const origin = location.origin;
     const themeNames = [
-      '--font-sans', '--font-mono', '--text-xs', '--text-sm', '--text-md', '--leading-normal',
-      '--font-semibold', '--space-1', '--space-2', '--space-3', '--space-4', '--surface-0',
-      '--surface-1', '--surface-2', '--surface-3', '--surface-4', '--text-primary',
-      '--text-secondary', '--text-tertiary', '--text-disabled', '--border-subtle',
-      '--border-default', '--border-strong', '--border-focus', '--accent-primary', '--accent-hover',
-      '--status-success', '--status-warning', '--status-error', '--radius-sm', '--radius-md',
-      '--accent-subtle', '--status-success-bg', '--status-warning-bg', '--status-error-bg', '--wb-tab-bar-height',
+      '--font-sans',
+      '--font-mono',
+      '--text-xs',
+      '--text-sm',
+      '--text-md',
+      '--leading-normal',
+      '--font-semibold',
+      '--space-1',
+      '--space-2',
+      '--space-3',
+      '--space-4',
+      '--surface-0',
+      '--surface-1',
+      '--surface-2',
+      '--surface-3',
+      '--surface-4',
+      '--text-primary',
+      '--text-secondary',
+      '--text-tertiary',
+      '--text-disabled',
+      '--border-subtle',
+      '--border-default',
+      '--border-strong',
+      '--border-focus',
+      '--accent-primary',
+      '--accent-hover',
+      '--status-success',
+      '--status-warning',
+      '--status-error',
+      '--radius-sm',
+      '--radius-md',
+      '--accent-subtle',
+      '--status-success-bg',
+      '--status-warning-bg',
+      '--status-error-bg',
+      '--wb-tab-bar-height',
     ];
     const theme = themeNames
       .map((name) => {

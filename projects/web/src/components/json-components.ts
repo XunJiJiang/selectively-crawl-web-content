@@ -5,6 +5,9 @@ import { attachTooltip } from '../../../shared/components/tooltip.ts';
 import type { WorkbenchScrollContainer } from './scroll-container.ts';
 import type { WbMenuSelect } from './context-menu/wb-menu-select.ts';
 import type { UIRendererComponents } from './ui-renderer.js';
+import { JSONTree } from '../../../shared/components/tree/tree.ts';
+import treeStyle from '../../../shared/components/tree/tree.css?raw';
+import type { TreeResponse } from '../../../shared/tree.ts';
 
 /** Enhance validated native nodes; plugin models never choose custom element tags. */
 export function createJSONComponents(
@@ -15,6 +18,26 @@ export function createJSONComponents(
   const selects = new Map<HTMLSelectElement, WbMenuSelect>();
   const feedback = new Map<HTMLElement, { message: HTMLElement; copy: HTMLElement | null }>();
   const cleanups: (() => void)[] = [];
+  const trees = new Map<string, JSONTree>();
+  const pendingTrees = new Map<
+    string,
+    {
+      resolve(response: TreeResponse): void;
+      reject(error: Error): void;
+      timer: ReturnType<typeof setTimeout>;
+    }
+  >();
+  const disposeTrees = () => {
+    for (const tree of trees.values()) {
+      tree.dispose();
+    }
+    trees.clear();
+    for (const request of pendingTrees.values()) {
+      clearTimeout(request.timer);
+      request.reject(new Error('树宿主已释放'));
+    }
+    pendingTrees.clear();
+  };
   const updateFeedback = () => {
     for (const [field, { message, copy }] of feedback) {
       const controlBounds = field.getBoundingClientRect();
@@ -47,6 +70,9 @@ export function createJSONComponents(
   };
   const key = (scroll: WorkbenchScrollContainer) => scroll.dataset.uiScroll ?? 'content';
   const update = () => {
+    for (const tree of trees.values()) {
+      tree.update();
+    }
     for (const [node, scroll] of containers) {
       scroll.hidden = node.hidden;
     }
@@ -71,12 +97,62 @@ export function createJSONComponents(
     updateFeedback();
   };
   return {
-    mount(element) {
+    mount(element, context) {
+      const previous = new Map(
+        [...trees.values()].map((tree) => [
+          tree.definition.key,
+          {
+            signature: tree.definition.signature,
+            epoch: tree.definition.dataEpoch,
+            state: tree.captureState(),
+            data: tree.captureData(),
+          },
+        ]),
+      );
+      disposeTrees();
       cleanups.splice(0).forEach((dispose) => dispose());
       containers.clear();
       selects.clear();
       feedback.clear();
       content = element;
+      if (context?.compiled.trees?.length) {
+        const style = document.createElement('style');
+        style.textContent = treeStyle;
+        content.prepend(style);
+        for (const definition of context.compiled.trees) {
+          const host = [...content.querySelectorAll<HTMLElement>('[data-scwc-node]')].find(
+            (node) => node.dataset.scwcNode === definition.hostNodeId,
+          );
+          if (!host) {
+            throw new Error('树 host 不存在');
+          }
+          const tree = new JSONTree(host, definition, {
+            request: (body, requestId) =>
+              new Promise((resolve, reject) => {
+                const timer = setTimeout(() => {
+                  pendingTrees.delete(requestId);
+                  reject(new Error('树请求超时'));
+                }, 11000);
+                pendingTrees.set(requestId, { resolve, reject, timer });
+                context.request({
+                  ...body,
+                  instanceId: context.instanceId,
+                  renderRevision: context.renderRevision,
+                  treeId: definition.treeId,
+                  dataEpoch: definition.dataEpoch,
+                  requestId,
+                });
+              }),
+            event: (bindingId, event, modifiers) => context.event(bindingId, event, modifiers),
+          });
+          trees.set(definition.hostNodeId, tree);
+          const saved = previous.get(definition.key);
+          if (saved?.signature === definition.signature && saved.epoch === definition.dataEpoch) {
+            tree.restoreData(saved.data);
+            tree.restoreState(saved.state);
+          }
+        }
+      }
       for (const message of content.querySelectorAll<HTMLElement>('.ui-field-error')) {
         const field = message.parentElement;
         if (field) {
@@ -196,6 +272,26 @@ export function createJSONComponents(
       update();
     },
     update,
+    fieldAdapter(nodeId) {
+      return trees.get(nodeId);
+    },
+    treePatch(name, patch) {
+      [...trees.values()].find((tree) => tree.definition.name === name)?.applyPatch(patch);
+    },
+    treeResponse(response) {
+      const pending = pendingTrees.get(response.requestId);
+      if (pending) {
+        pendingTrees.delete(response.requestId);
+        clearTimeout(pending.timer);
+        pending.resolve(response);
+      }
+    },
+    treeEffect(name, command, response) {
+      const tree = [...trees.values()].find((tree) => tree.definition.name === name);
+      if (tree) {
+        void tree.applyEffect(command, response);
+      }
+    },
     focusTarget(node) {
       const select = selects.get(node as HTMLSelectElement);
       return select ?? node;
@@ -240,6 +336,7 @@ export function createJSONComponents(
       return content.getBoundingClientRect().height + overflow;
     },
     dispose() {
+      disposeTrees();
       cleanups.splice(0).forEach((dispose) => dispose());
       containers.clear();
       selects.clear();

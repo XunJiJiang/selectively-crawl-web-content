@@ -113,3 +113,9 @@ node --test projects/server/plugins/template/tests/integration.test.mjs
 - `progress=null` 为不定进度，`0–100` 为百分比，`false` 隐藏。通知 `isVisible()` 指通知中心视口，浮层显示不改变此值；已读由 `markRead` 独立控制。
 - 自动测试覆盖真实 IPC/HTTP/SQLite、前后端通知回调、任务更新、SDK MessagePort 状态与暂停、Fetch 重放/主动取消、资源 DOM 解绑还原、真实 Socket 保护与重连，以及 Lit 按钮更新。JSDOM 不做像素布局和真实图片解码，宿主消息夹具不代表完整工作台的空闲调度；第 2–9 步中的核心 UI 和计时仍需手工验收。
 - template 属于核心示例，AOCI 收尾按仓库根 AGENTS 的 template 例外维护。
+
+## JSON 树演示
+
+主侧栏“模板验证”和脚本/扩展“配置样例”的“JSON 树”页签共用 `tree-ui.ts`。五棵树覆盖静态/动态、单选/多选、只读/禁用、本地/远端搜索、跨目录拖动、自定义行和裸事件。动态源有 600 项、每页 120 项，首次读取错误分支后可点击重试；排序原子保存到 `data/tree-demo.json`，`SCWC_TEMPLATE_TREE_DEMO_FILE` 可覆盖演示文件位置。
+
+在根目录构建 Web、用户脚本与浏览器扩展后，运行 `node projects/browser-extension/scripts/tree-smoke.ts` 验证三种实际宿主，并在 `dist/browser-extension/previews/tree/` 查看截图。GM 请求桥为测试模拟；不代表已在脚本管理器中安装。组件协议与限制见根目录 `docs/json-tree.md`。

@@ -1,3 +1,4 @@
+import { uiRequired } from '../../../shared/declarative-ui.ts';
 import { fileURLToPath } from 'node:url';
 import type {
   PluginUI,
@@ -8,6 +9,7 @@ import type {
   AuxiliaryHandle,
 } from '../../../shared/declarative-ui.ts';
 import { ids, mainContent, auxiliaryContent, statusDefinition } from './ui-content.ts';
+import { treeDemoHandlers } from './tree-ui.ts';
 import {
   inputValidationHandlers,
   invalidInputExamples,
@@ -67,6 +69,8 @@ export class DeclarativeDemo {
       for (const [name, definition] of Object.entries(inputValidationHandlers)) {
         await register(name, definition);
       }
+      for (const [name, definition] of Object.entries(treeDemoHandlers))
+        await register(name, definition);
       await register('demo.normalize', {
         readOnly: true,
         async run(value) {
@@ -327,7 +331,9 @@ export class DeclarativeDemo {
         throw new Error('此操作需要真实来源页 tabId');
       this.property++;
       await this.inspector?.invalidate(
-        action === 'inspector.target' ? { tabId: context!.sourceTabId! } : undefined,
+        action === 'inspector.target'
+          ? { tabId: uiRequired(uiRequired(context).sourceTabId) }
+          : undefined,
       );
       this.last = 'HostUI 当前忽略 invalidate target，实际为全量投影失效';
       this.notify();

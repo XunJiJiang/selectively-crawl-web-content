@@ -57,6 +57,14 @@
 }
 :root,
 :root[data-theme='dark-2026'] {
+  --tree-selection: #094771;
+  --tree-selection-text: #ffffff;
+  --tree-inactive-selection: #37373d;
+  --tree-hover: #2a2d2e;
+  --tree-focus: #007fd4;
+  --tree-match: #2aaaff;
+  --tree-drop: #383b3d;
+  --tree-insert: #007fd4;
   --surface-0: #05070c;
   --surface-1: #0a0d12;
   --surface-2: #0f131c;
@@ -110,6 +118,14 @@
   --shadow-modal: var(--shadow-xl);
 }
 :root[data-theme='light-2026'] {
+  --tree-selection: #0060c0;
+  --tree-selection-text: #ffffff;
+  --tree-inactive-selection: #e4e6f1;
+  --tree-hover: #e8e8e8;
+  --tree-focus: #0060c0;
+  --tree-match: #005fb8;
+  --tree-drop: #d6ebff;
+  --tree-insert: #0060c0;
   color-scheme: light;
   --surface-0: #fefefe;
   --surface-1: #f5f6f7;

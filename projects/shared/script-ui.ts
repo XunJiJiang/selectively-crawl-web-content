@@ -52,6 +52,8 @@ export interface ScriptUIEvent {
   bindingId: string;
   /** Only the reserved $read binding accepts this; it never executes event programs. */
   readOnly?: boolean;
+  treeRequest?: import('./tree.ts').TreeRequest;
+  tree?: import('./tree.ts').TreeWireEvent;
   fields: Record<string, { value: FieldValue; editSequence: number }>;
   event?: { modifiers?: { alt: boolean; ctrl: boolean; meta: boolean; shift: boolean } };
 }
@@ -59,6 +61,8 @@ export interface ScriptUIResult {
   result?: UIValue;
   saved?: Record<string, FieldValue>;
   updates: ScriptUIModel['updates'];
+  treeResponse?: import('./tree.ts').TreeResponse;
+  effects?: import('./declarative-ui.ts').ClientEffect[];
 }
 
 /** One in-flight template per key; duplicate invalidations coalesce into one trailing read. */

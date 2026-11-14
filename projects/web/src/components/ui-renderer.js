@@ -34,6 +34,8 @@ export function createUIRenderer(root, emit, components) {
     appliedEffects = new Set();
   const send = (method, payload) => emit({ method, payload, renderRevision });
   const value = (field) => {
+    const adapter = components?.fieldAdapter?.(field.nodeId);
+    if (adapter) return adapter.readValue();
     const node = nodes.get(field.nodeId);
     return field.kind === 'boolean'
       ? node.checked
@@ -112,6 +114,11 @@ export function createUIRenderer(root, emit, components) {
     return true;
   };
   const assign = (node, attribute, value) => {
+    const adapter = components?.fieldAdapter?.(node.getAttribute?.('data-scwc-node'));
+    if (adapter && attribute === 'value') {
+      adapter.writeValue(value);
+      return;
+    }
     if (!attribute) {
       node.textContent = value === null ? '' : String(value);
       return;
@@ -216,7 +223,13 @@ export function createUIRenderer(root, emit, components) {
       wrapper.append(node, message);
       fieldErrors.set(field.name, { node, message, text });
     }
-    components?.mount(content);
+    components?.mount(content, {
+      compiled: model,
+      instanceId: data.id ?? data.instanceId,
+      renderRevision,
+      request: (request) => send('tree', request),
+      event: (bindingId, tree, modifiers) => send('tree-event', { bindingId, tree, fields: snapshot(), event: { modifiers } }),
+    });
     content.parentElement.dataset.surface = data.surface;
     const dynamicStyle = root.querySelector('#dynamic-style');
     if (dynamicStyle) dynamicStyle.textContent = model.styles.join('\n');
@@ -249,6 +262,10 @@ export function createUIRenderer(root, emit, components) {
       };
       node.addEventListener('input', changed);
       node.addEventListener('change', changed);
+      node.addEventListener('tree-reconcile', () => {
+        edits.set(field.name, (edits.get(field.name) ?? 0) + 1);
+        notifyFields();
+      });
     }
     for (const name of [...dirty])
       if (!model.fields.some((field) => field.name === name)) {
@@ -305,6 +322,11 @@ export function createUIRenderer(root, emit, components) {
     }
     if (data.renderRevision !== renderRevision) return;
     const payload = data.payload;
+    if (data.method === 'tree') {
+      components?.treeResponse?.(payload);
+      notifyFields();
+      return;
+    }
     if (data.method === 'updates') {
       for (const update of payload) {
         const binding = model.expressions.find((b) => b.id === update.id);
@@ -349,6 +371,8 @@ export function createUIRenderer(root, emit, components) {
         if (effect.type === 'element.focus' && node) (components?.focusTarget(node) ?? node).focus();
         if (effect.type === 'section.toggle' && node) node.hidden = !node.hidden;
         if (effect.type === 'scroll.to') node?.scrollIntoView({ block: 'nearest' });
+        if (effect.type === 'tree.command') components?.treeEffect?.(effect.args[0], effect.args[1], effect.args[2]);
+        if (effect.type === 'tree.patch') components?.treePatch?.(effect.args[0], effect.args[1]);
       }
       if (payload.saved)
         for (const [name, sequence] of Object.entries(payload.editSequences ?? {}))

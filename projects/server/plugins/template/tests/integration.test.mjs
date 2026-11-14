@@ -1021,6 +1021,11 @@ test('脚本配置 v2：真实 HTTP/IPC 编译、默认值、字段快照与七�
       ['testInputText', 'string'],
       ['testInputNumber', 'string'],
       ['testCheckbox', 'boolean'],
+      ['staticFiles', 'multiple'],
+      ['dynamicFiles', 'multiple'],
+      ['singleFile', 'string'],
+      ['readonlyFile', 'string'],
+      ['disabledFile', 'string'],
     ],
   );
   const nodes = allNodes(model.compiled.nodes);
@@ -1161,7 +1166,7 @@ test('配置新样例：分组全局绑定、后端校验、本站隔离及刷�
   const nodes = allNodes(model.compiled.nodes);
   assert.deepEqual(
     nodes.filter((node) => node.attrs?.role === 'tab').map((node) => node.children[0].text),
-    ['插件全局配置', '本站配置', '自定义控制器', '输入限制 / 验证'],
+    ['JSON 树', '插件全局配置', '本站配置', '自定义控制器', '输入限制 / 验证'],
   );
   const originalTabs = nodes.filter((node) =>
     ['global', 'site', 'custom'].includes(node.attrs?.['data-ui-tab-panel']),
@@ -1398,7 +1403,17 @@ test('输入限制样例：主辅侧栏、状态提示与脚本扩展经真实 H
     const dom = new JSDOM('<div><div id="content"></div><div id="error"></div></div>', { runScripts: 'outside-only' });
     try {
       dom.window.eval(rendererSource.replace('export function createUIRenderer', 'window.createUIRenderer = function createUIRenderer'));
-      const renderer = dom.window.createUIRenderer(dom.window.document, () => undefined);
+      // This fixture checks input validation. Supply the component field adapter
+      // contract for tree fields; actual tree DOM is exercised by tree-smoke.ts.
+      const adapters = new Map((model.compiled.trees ?? []).map((tree) => {
+        let value = tree.options.value ?? (tree.options.selectionMode === 'multiple' ? [] : '');
+        return [tree.hostNodeId, { readValue: () => value, writeValue: (next) => { value = next; } }];
+      }));
+      const renderer = dom.window.createUIRenderer(dom.window.document, () => undefined, {
+        mount() {}, update() {}, captureScroll() { return new Map(); }, restoreScroll() {},
+        measureHeight() { return 0; }, dispose() {}, fieldAdapter(id) { return adapters.get(id); },
+        focusTarget(node) { return node; },
+      });
       renderer.receive({ data: { method: 'init', payload: { compiled: model.compiled, renderRevision: 1, surface: 'mainSidebar' } } });
       renderer.receive({ data: { method: 'updates', renderRevision: 1, payload: updates.filter((update) => !update.frontend && !update.error) } });
       const document = dom.window.document;

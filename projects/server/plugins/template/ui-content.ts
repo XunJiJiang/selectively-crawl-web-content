@@ -1,6 +1,7 @@
 import type { UIContent, UINode, StatusBarDefinition } from '../../../shared/declarative-ui.ts';
 import { controllerSettings, globalSettings } from './settings-ui.ts';
 import { inputValidationContent, invalidInputExamples } from './input-validation-ui.ts';
+import { treeDemoContent } from './tree-ui.ts';
 
 export const ids = { main: 'template-overview', aux: 'template-details', status: 'template-state' };
 const text = (value: string): UINode => ({ type: 'text', text: value });
@@ -57,6 +58,7 @@ export function mainContent(note = '静态 JSON 来源'): UIContent {
       key: 'demo-tabs',
       label: '模板接入示例',
       tabs: [
+        { id: 'tree', label: 'JSON 树', children: treeDemoContent() },
         {
           id: 'arguments',
           label: '名称 / 参数',

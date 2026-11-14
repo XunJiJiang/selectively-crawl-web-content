@@ -1,10 +1,12 @@
 import {
+  uiRequired,
   uiAssert,
   uiControlName,
   UI_LIMITS,
   type CompiledUI,
 } from '../../../shared/declarative-ui.ts';
 import { validateUIRules } from '../../../shared/ui-validation.ts';
+import { TreeDataStore } from '../../../shared/tree-model.ts';
 
 const tags = new Set([
   'div',
@@ -104,6 +106,30 @@ export function validateJSONModel(model: CompiledUI) {
     }
   };
   visit(model.nodes, 0);
+  const treeNames = new Set<string>();
+  for (const tree of model.trees ?? []) {
+    uiControlName(tree.name);
+    uiAssert(
+      ids.has(tree.hostNodeId) &&
+        !treeNames.has(tree.name) &&
+        tree.dataEpoch.length <= 100 &&
+        tree.bindings.length <= 512,
+      'TREE_INVALID_DATA',
+      '树描述无效',
+    );
+    treeNames.add(tree.name);
+    new TreeDataStore(tree.dataEpoch, tree.nodes).checkQuota();
+    const icons = tree.nodes ? [...tree.nodes] : [];
+    while (icons.length) {
+      const item = uiRequired(icons.pop());
+      for (const icon of [item.icon, item.expandedIcon]) {
+        if (icon?.kind === 'asset') {
+          validateJSONAttribute('src', icon.path);
+        }
+      }
+      icons.push(...(item.children ?? []));
+    }
+  }
   for (const field of model.fields) {
     uiControlName(field.name);
     uiAssert(ids.has(field.nodeId), 'UI_INVALID_CONTENT', 'JSON 字段目标无效');

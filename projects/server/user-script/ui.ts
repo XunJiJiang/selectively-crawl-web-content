@@ -15,6 +15,7 @@ import {
   type UINode,
   type CallNode,
   type FieldValue,
+  type ClientEffect,
 } from '../../shared/declarative-ui.ts';
 import type {
   ScriptConfigV2,
@@ -23,6 +24,8 @@ import type {
   ScriptUIModel,
   ScriptUIResult,
 } from '../../shared/script-ui.ts';
+import { TreeSessions } from '../../shared/tree-session.ts';
+import type { TreeCommand } from '../../shared/tree.ts';
 
 const builtins: Record<string, (...args: UIValue[]) => UIValue> = {
   'string.trim': (v) => String(v ?? '').trim(),
@@ -42,6 +45,8 @@ const builtins: Record<string, (...args: UIValue[]) => UIValue> = {
   default: (v, fallback) => (v === null || v === '' ? fallback : v),
 };
 type Instance = {
+  trees: TreeSessions;
+  registration: string;
   site: string;
   model: ScriptUIModel;
   config: ScriptConfigV2;
@@ -58,6 +63,18 @@ type Instance = {
 
 /** Lives inside the plugin process. Functions and event programs never come from the browser. */
 export class ScriptUIRuntime {
+  private handlerIds = new WeakMap<object, number>();
+  private nextHandlerId = 0;
+  private registration(config: ScriptConfigV2) {
+    return JSON.stringify(
+      Object.entries(config.handlers ?? {}).map(([name, handler]) => {
+        if (!this.handlerIds.has(handler.run)) {
+          this.handlerIds.set(handler.run, ++this.nextHandlerId);
+        }
+        return [name, this.handlerIds.get(handler.run), handler.readOnly === true];
+      }),
+    );
+  }
   private storage?: ScriptConfigStorage;
   constructor(storage?: ScriptConfigStorage) {
     this.storage = storage;
@@ -80,7 +97,9 @@ export class ScriptUIRuntime {
     }
     if (name.startsWith('core:')) {
       uiAssert(
-        Object.hasOwn(builtins, name.slice(5)) || name === 'core:value.read',
+        Object.hasOwn(builtins, name.slice(5)) ||
+          name === 'core:value.read' ||
+          (!readOnly && (name === 'core:value.write' || name.startsWith('core:tree.'))),
         'UI_UNKNOWN_HANDLER',
         `未知内置处理器 ${name}`,
       );
@@ -104,8 +123,105 @@ export class ScriptUIRuntime {
     args: UIValue[],
     instance?: Instance,
     saved?: Record<string, FieldValue>,
+    effects: ClientEffect[] = [],
   ) {
     this.validate(config, call.name, call.readOnly === true, call.watch);
+    if (call.name === 'core:value.write') {
+      uiAssert(instance && typeof args[0] === 'string', 'UI_UNKNOWN_VALUE', '字段不存在');
+      const name = args[0],
+        field = instance.model.compiled.fields.find((field) => field.name === name),
+        value = args[1];
+      uiAssert(
+        field &&
+          (field.kind === 'multiple'
+            ? Array.isArray(value) && value.every((item) => typeof item === 'string')
+            : field.kind === 'boolean'
+              ? typeof value === 'boolean'
+              : typeof value === 'string'),
+        'UI_INVALID_VALUE_TYPE',
+        '字段值类型无效',
+      );
+      const tree = instance.trees.field(name);
+      if (tree) {
+        const patches = await tree.prepareSelection(
+          value,
+          { instanceId: instance.model.instanceId, renderRevision: 1 },
+          {
+            fields: context.values,
+            signal: context.signal,
+            invoke: (call, args, signal) =>
+              this.invoke(config, { ...context, signal }, call, args, instance),
+          },
+        );
+        for (const patch of patches) {
+          effects.push({
+            id: randomUUID(),
+            type: 'tree.patch',
+            args: [name, patch as unknown as UIValue],
+            instanceId: instance.model.instanceId,
+            renderRevision: 1,
+          });
+        }
+        tree.validateSelection(value, true);
+      }
+      context.values[name] = value as FieldValue;
+      if (saved) {
+        saved[name] = value as FieldValue;
+      }
+      return value;
+    }
+    if (call.name.startsWith('core:tree.')) {
+      uiAssert(instance && typeof args[0] === 'string', 'TREE_UNKNOWN_TREE', '树目标无效');
+      const tree = instance.trees.field(args[0]);
+      uiAssert(tree, 'TREE_UNKNOWN_TREE', '树不存在');
+      const type = call.name.slice(10);
+      const command =
+        type === 'move'
+          ? {
+              type,
+              sourceIds: args[1],
+              ...(args[2] as object),
+              expectedVersion: tree.store.version,
+            }
+          : ['expand', 'collapse', 'reveal'].includes(type)
+            ? { type, nodeId: args[1] }
+            : type === 'refresh'
+              ? { type, parentId: args[1] ?? null }
+              : type === 'filter'
+                ? { type, query: args[1] }
+                : { type };
+      const result = await tree.request(
+        {
+          instanceId: instance.model.instanceId,
+          renderRevision: 1,
+          treeId: tree.definition.treeId,
+          dataEpoch: tree.definition.dataEpoch,
+          requestId: crypto.randomUUID(),
+          kind: 'command',
+          operationId: crypto.randomUUID(),
+          command: command as TreeCommand,
+        },
+        {
+          fields: context.values,
+          signal: context.signal,
+          invoke: (call, args) =>
+            this.invoke(config, context, call, args, instance, saved, effects),
+        },
+      );
+      uiAssert(
+        !result.error,
+        result.error?.code ?? 'TREE_COMMAND_FAILED',
+        result.error?.message ?? '树命令失败',
+      );
+      effects.push({
+        id: crypto.randomUUID(),
+        type: 'tree.command',
+        args: [args[0], command as unknown as UIValue, result as unknown as UIValue],
+        instanceId: instance.model.instanceId,
+        renderRevision: 1,
+      });
+      return result as unknown as UIValue;
+    }
     if (/^core:(?:site\.)?config\.bound\.(read|write)$/.test(call.name)) {
       uiAssert(instance && this.storage, 'UI_INVALID_CONTENT', '配置实例未就绪');
       const scope = call.name.startsWith('core:site.') ? 'site' : 'plugin';
@@ -180,10 +296,24 @@ export class ScriptUIRuntime {
         const field = instance.model.compiled.fields.find(
           (field) => field.nodeId === binding.nodeId,
         );
+        const tree = [...instance.trees.sessions.values()].find(
+          (tree) => tree.definition.hostNodeId === binding.nodeId,
+        );
+        if (tree && binding.attribute === 'disabled') {
+          tree.disabled = value === true;
+        }
+        if (tree && binding.attribute === 'readonly') {
+          tree.readonly = value === true;
+        }
         if (field && ['value', 'checked'].includes(binding.attribute ?? '')) {
-          uiAssert(typeof value === 'string' || typeof value === 'boolean' ||
-            (Array.isArray(value) && value.every((item) => typeof item === 'string')),
-            'UI_INVALID_VALUE_TYPE', '控件值类型无效');
+          tree?.validateSelection(value, true);
+          uiAssert(
+            typeof value === 'string' ||
+              typeof value === 'boolean' ||
+              (Array.isArray(value) && value.every((item) => typeof item === 'string')),
+            'UI_INVALID_VALUE_TYPE',
+            '控件值类型无效',
+          );
           const candidate = { ...context, values: { ...context.values, [field.name]: value } };
           await validateUIField(field.name, {
             ...scope,
@@ -208,6 +338,7 @@ export class ScriptUIRuntime {
   async render(config: ScriptConfigV2, context: ScriptContext): Promise<ScriptUIModel> {
     for (const [id, instance] of this.instances) {
       if (Date.now() - instance.touched > 15 * 60_000) {
+        instance.trees.dispose();
         this.instances.delete(id);
       }
     }
@@ -216,6 +347,7 @@ export class ScriptUIRuntime {
       if (oldest === undefined) {
         break;
       }
+      this.instances.get(oldest)?.trees.dispose();
       this.instances.delete(oldest);
     }
     const source =
@@ -285,7 +417,28 @@ export class ScriptUIRuntime {
       }
     };
     collect(compiled.nodes);
+    for (const tree of compiled.trees ?? []) {
+      if (tree.options.selectionMode !== 'none') {
+        defaults[tree.name] =
+          tree.options.value ?? (tree.options.selectionMode === 'multiple' ? [] : '');
+      }
+    }
+    const previous = context.previousInstanceId
+      ? this.instances.get(context.previousInstanceId)
+      : undefined;
+    const registration = this.registration(config);
+    const reuseTrees =
+      previous?.site === context.site.url &&
+      previous.registration === registration &&
+      [...previous.trees.sessions.values()].every((tree) => tree.pendingCount === 0);
     const instance: Instance = {
+      registration,
+      trees: (reuseTrees ? previous.trees : new TreeSessions()).sync(compiled.trees, {
+        resource: () => {
+          throw new Error('脚本树仅允许内置图标');
+        },
+        validateCall: (name, readonly, watch) => this.validate(config, name, readonly, watch),
+      }),
       site: context.site.url,
       model,
       config,
@@ -301,9 +454,6 @@ export class ScriptUIRuntime {
       values: { ...defaults, ...context.values },
     });
     model.boundFields = [...instance.bound.keys()];
-    const previous = context.previousInstanceId
-      ? this.instances.get(context.previousInstanceId)
-      : undefined;
     if (previous?.site === instance.site) {
       for (const field of context.dirtyFields ?? []) {
         const baseline = previous.bound.get(field),
@@ -318,6 +468,10 @@ export class ScriptUIRuntime {
           instance.bound.set(field, { ...baseline });
         }
       }
+      if (!reuseTrees) {
+        previous.trees.dispose();
+      }
+      this.instances.delete(previous.model.instanceId);
     }
     this.instances.set(model.instanceId, instance);
     return model;
@@ -325,6 +479,13 @@ export class ScriptUIRuntime {
   async event(request: ScriptUIEvent, context: ScriptContext): Promise<ScriptUIResult> {
     uiValue(request, UI_LIMITS.bytes);
     const instance = this.instances.get(request.instanceId);
+    if (instance) {
+      uiAssert(
+        instance.registration === this.registration(instance.config),
+        'UI_STALE_HANDLERS',
+        '树处理器注册已变化，请刷新',
+      );
+    }
     uiAssert(
       request.version === 'v2' &&
         instance &&
@@ -334,7 +495,48 @@ export class ScriptUIRuntime {
       '插件配置已过期，请刷新插件',
     );
     const readOnly = request.readOnly === true && request.bindingId === '$read';
-    const binding = instance.model.compiled.events.find((item) => item.id === request.bindingId);
+    if (request.treeRequest) {
+      uiAssert(
+        request.treeRequest.instanceId === request.instanceId &&
+          request.treeRequest.renderRevision === 1 &&
+          request.bindingId === '$tree',
+        'TREE_STALE_INSTANCE',
+        '树请求实例不匹配',
+      );
+      const readonly =
+        request.treeRequest.kind !== 'command' || request.treeRequest.command.type !== 'move';
+      uiAssert(request.readOnly === readonly, 'TREE_INVALID_REQUEST', '树请求读写属性无效');
+      instance.touched = Date.now();
+      instance.trees.quota();
+      const fields = {
+        ...instance.defaults,
+        ...Object.fromEntries(
+          Object.entries(request.fields).map(([name, field]) => [name, field.value]),
+        ),
+      };
+      const treeResponse = await instance.trees
+        .get(request.treeRequest.treeId)
+        .request(request.treeRequest, {
+          fields,
+          signal: context.signal,
+          invoke: (call, args, signal) =>
+            this.invoke(
+              instance.config,
+              { ...context, values: fields, signal },
+              call,
+              args,
+              instance,
+            ),
+        });
+      instance.trees.quota();
+      return { updates: [], treeResponse };
+    }
+    const treeEvent = request.tree
+      ? instance.trees.get(request.tree.treeId).event(request.tree, request.bindingId)
+      : undefined;
+    const binding =
+      treeEvent?.binding ??
+      instance.model.compiled.events.find((item) => item.id === request.bindingId);
     uiAssert(
       (readOnly || (!request.readOnly && binding)) && request.eventId?.length <= 200,
       'UI_INVALID_EVENT',
@@ -356,6 +558,9 @@ export class ScriptUIRuntime {
         '字段值类型无效',
       );
       fields[field.name] = value;
+      if (treeEvent) {
+        instance.trees.field(field.name)?.validateSelection(value);
+      }
     }
     const fingerprint = JSON.stringify(request);
     const cached = readOnly ? undefined : instance.replies.get(request.eventId);
@@ -389,12 +594,14 @@ export class ScriptUIRuntime {
         }
         uiAssert(binding, 'UI_INVALID_EVENT', '未知事件绑定');
         const saved: Record<string, FieldValue> = {};
+        const effects: ClientEffect[] = [];
         const eventField = instance.model.compiled.fields.find((f) => f.nodeId === binding.nodeId);
         const event: UIValue = {
           type: binding.event,
           values: Object.fromEntries(binding.for.map((name) => [name, fields[name]])),
           ...(eventField ? { name: eventField.name, value: fields[eventField.name] } : {}),
           ...(request.event?.modifiers ? { modifiers: request.event.modifiers } : {}),
+          ...(treeEvent ? (treeEvent.event as unknown as Record<string, UIValue>) : {}),
         };
         const invoke = async (call: CallNode, args: UIValue[]) => {
           signal.throwIfAborted();
@@ -405,7 +612,7 @@ export class ScriptUIRuntime {
           });
           try {
             return await Promise.race([
-              this.invoke(instance.config, ctx, call, args, instance, saved),
+              this.invoke(instance.config, ctx, call, args, instance, saved, effects),
               cancelled,
             ]);
           } finally {
@@ -419,6 +626,7 @@ export class ScriptUIRuntime {
             prev = await evaluateArgument(step, {
               fields,
               event,
+              tree: treeEvent?.event.tree as unknown as UIValue,
               prev,
               invoke,
               fieldDefinitions: instance.model.compiled.fields,
@@ -432,6 +640,7 @@ export class ScriptUIRuntime {
           ...(result === undefined ? {} : { result }),
           updates: await this.updates(instance, ctx),
           saved,
+          effects,
         };
       })
       .finally(() => {

@@ -1,5 +1,6 @@
 import { globalSettings, siteSettings } from './settings-ui.ts';
 import { inputValidationContent, inputValidationHandlers } from './input-validation-ui.ts';
+import { treeDemoContent, treeDemoHandlers } from './tree-ui.ts';
 
 // 外层 v2 是脚本/扩展协议，内层 version: 1 是 JSON 内容格式。
 export const scripts: SCWC.TScriptConfigV2 = {
@@ -15,6 +16,7 @@ export const scripts: SCWC.TScriptConfigV2 = {
       key: 'script-settings-tabs',
       label: '插件配置样例',
       tabs: [
+        { id: 'tree', label: 'JSON 树', children: treeDemoContent() },
         { id: 'global', label: '插件全局配置', children: globalSettings() },
         { id: 'site', label: '本站配置', children: siteSettings() },
         {
@@ -136,6 +138,7 @@ export const scripts: SCWC.TScriptConfigV2 = {
   },
   // 使用普通方法取得当前 ScriptContext；函数留在插件进程，不发送到浏览器。
   handlers: {
+    ...treeDemoHandlers,
     ...inputValidationHandlers,
     example: {
       async run() {

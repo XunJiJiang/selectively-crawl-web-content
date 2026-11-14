@@ -1,0 +1,37 @@
+.ui-tree-host{display:flex;flex-direction:column;min-height:0;min-width:0;font:13px var(--font-sans,system-ui);color:var(--text-primary,#ccc);border:1px solid var(--border-default,#454545);border-radius:4px;overflow:hidden;position:relative}
+.tree-toolbar{display:flex;align-items:center;gap:2px;min-height:28px;padding:0 4px;flex-shrink:0}
+.tree-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;font-weight:600;letter-spacing:.3px}
+.ui-root .ui-tree-host button,.ui-tree-host button{border:0;background:transparent;color:inherit;padding:2px 4px;min-height:20px;height:20px;line-height:16px;border-radius:3px;cursor:pointer;flex-shrink:0}
+.ui-tree-host button:hover{background:var(--tree-hover,var(--surface-3,#333))}
+.ui-tree-host button:focus-visible,.tree-search:focus-visible{outline:1px solid var(--tree-focus,var(--border-focus,#007fd4));outline-offset:-1px}
+.ui-tree-host button:disabled{opacity:.4;cursor:default}
+.ui-root .ui-tree-host input.tree-search,.tree-search{box-sizing:border-box;min-width:0;width:calc(100% - 12px);margin:0 6px 4px;background:var(--surface-1,#252526);color:inherit;border:1px solid var(--border-default,#555);border-radius:3px;padding:4px 6px;font:inherit;flex-shrink:0}
+.tree-scroll{flex:1;min-height:0;min-width:0}
+.tree-list{position:relative;min-width:0;outline:none;min-height:100%}
+.tree-row{position:absolute;left:0;right:0;box-sizing:border-box;display:flex;align-items:center;gap:3px;white-space:nowrap;user-select:none;cursor:default;outline:none;padding-right:5px}
+.tree-row:hover{background:var(--tree-hover,var(--surface-2,#2a2d2e))}
+.tree-row[aria-selected=true]{background:var(--tree-inactive-selection,#37373d)}
+.ui-tree-host:focus-within .tree-row[aria-selected=true]{background:var(--tree-selection,#094771);color:var(--tree-selection-text,#fff)}
+.tree-list:focus-within .tree-row[data-focus=true]{box-shadow:inset 0 0 0 1px var(--tree-focus,var(--border-focus,#007fd4))}
+.tree-row[aria-disabled=true]{color:var(--text-disabled,#777)}
+.tree-row[data-readonly=true]{cursor:default}
+.tree-twistie{width:16px;height:100%;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
+.ui-root .ui-tree-host .tree-twistie button,.tree-row .tree-twistie button{padding:0;width:16px;min-width:16px}
+.tree-icon{display:inline-flex;width:16px;height:16px;flex:0 0 16px;align-items:center;justify-content:center}
+.tree-icon img{width:16px;height:16px;object-fit:contain}
+.tree-content{flex:1;display:flex;gap:6px;align-items:center;min-width:0;overflow:hidden;height:100%}
+.tree-label,.tree-description,.tree-part{overflow:hidden;text-overflow:ellipsis}
+.tree-description,.tree-muted{color:var(--text-secondary,#999)}
+.tree-part-stack{display:inline-flex;align-items:center;min-width:0}
+.tree-badge{border-radius:8px;padding:0 5px;font-size:11px;background:var(--surface-3,#444)}
+.tree-warning{color:var(--status-warning,#cca700)}.tree-error{color:var(--status-error,#f48771)}
+.ui-tree-host mark{background:transparent;color:var(--tree-match,#2aaaff);font-weight:600}
+.tree-actions{display:none;align-items:center;flex-shrink:0}
+.tree-row:hover .tree-actions,.tree-row[data-focus=true] .tree-actions,.tree-actions:focus-within{display:flex}
+.tree-status{font-size:11px;padding:2px 6px;min-height:16px;color:var(--text-secondary,#999);flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tree-guides-always .tree-row,.tree-guides-onHover:hover .tree-row{background-image:repeating-linear-gradient(to right,var(--border-subtle,#444) 0 1px,transparent 1px var(--tree-indent,8px));background-repeat:no-repeat;background-size:var(--tree-guides-width,0px) 100%;background-position:8px 0}
+.tree-row[data-drop=before]{border-top:2px solid var(--tree-insert,#007fd4)}
+.tree-row[data-drop=after]{border-bottom:2px solid var(--tree-insert,#007fd4)}
+.tree-row[data-drop=inside]{background-color:var(--tree-drop,#383b3d);box-shadow:inset 0 0 0 1px var(--tree-insert,#007fd4)}
+.tree-live{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+@media(forced-colors:active){.tree-row[aria-selected=true]{outline:1px solid Highlight}.tree-row[data-focus=true]{outline:1px dashed CanvasText}.ui-tree-host mark{color:Highlight}.tree-row[data-drop]{outline:2px solid Highlight}}

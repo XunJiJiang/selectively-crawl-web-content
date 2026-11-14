@@ -151,6 +151,9 @@ class Parser {
     if (this.take('$this')) {
       return { type: 'this' };
     }
+    if (this.take('$tree')) {
+      return { type: 'tree' };
+    }
     if (this.take('$for:')) {
       const name = this.name();
       uiControlName(name);
@@ -227,7 +230,7 @@ export function walkArgument(node: ArgumentNode, visit: (node: ArgumentNode) => 
     node.entries.forEach(([, arg]) => walkArgument(arg, visit));
   }
 }
-export function parseProgram(text: string): UIProgram {
+export function parseProgram(text: string, tree = false): UIProgram {
   const parser = new Parser(text);
   const branches: CallNode[][] = [];
   do {
@@ -237,6 +240,7 @@ export function parseProgram(text: string): UIProgram {
       uiAssert(chain.length < 16, 'UI_QUOTA_EXCEEDED', '调用链过长');
       walkArgument(call, (node) => {
         uiAssert(node.type !== 'this', 'UI_INVALID_EXPRESSION', '$this 仅用于控件验证器');
+        uiAssert(tree || node.type !== 'tree', 'UI_INVALID_EXPRESSION', '$tree 仅用于树绑定');
         if (node.type === 'prev' && !chain.length) {
           throw new UIError('UI_PREV_UNAVAILABLE', '第一步不能引用 $prev');
         }
@@ -270,7 +274,7 @@ export function parseExpression(text: string): ArgumentNode {
   let domain: string | undefined;
   walkArgument(expression, (node) => {
     uiAssert(
-      node.type !== 'event' && node.type !== 'prev' && node.type !== 'this',
+      node.type !== 'event' && node.type !== 'prev' && node.type !== 'this' && node.type !== 'tree',
       'UI_INVALID_EXPRESSION',
       '渲染模板不能读取 $event、$prev 或 $this',
     );
@@ -287,7 +291,7 @@ export function parseValidator(text: string, field: string): CallNode {
   parser.end();
   walkArgument(call, (node) => {
     uiAssert(
-      node.type !== 'event' && node.type !== 'prev',
+      node.type !== 'event' && node.type !== 'prev' && node.type !== 'tree',
       'UI_INVALID_EXPRESSION',
       '验证器不能读取 $event 或 $prev',
     );
@@ -353,6 +357,7 @@ export interface EvaluationScope {
   event?: UIValue;
   prev?: UIValue;
   thisValue?: UIValue;
+  tree?: UIValue;
   fields: Record<string, UIValue>;
   fieldDefinitions?: UIField[];
   validating?: string[];
@@ -423,6 +428,10 @@ export async function evaluateArgument(
   if (node.type === 'this') {
     uiAssert(scope.thisValue !== undefined, 'UI_INVALID_EXPRESSION', '当前验证控件不可用');
     return scope.thisValue;
+  }
+  if (node.type === 'tree') {
+    uiAssert(scope.tree !== undefined, 'UI_INVALID_EXPRESSION', '树上下文不可用');
+    return scope.tree;
   }
   if (node.type === 'field') {
     uiAssert(hasOwn(scope.fields, node.name), 'UI_UNKNOWN_VALUE', `未采集字段 ${node.name}`);

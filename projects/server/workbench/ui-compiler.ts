@@ -1,8 +1,5 @@
-import { JSDOM } from 'jsdom';
-import createDOMPurify from 'dompurify';
-import * as css from 'css-tree';
-import { createHash } from 'node:crypto';
 import {
+  uiRequired,
   UI_LIMITS,
   uiAssert,
   uiName,
@@ -16,6 +13,10 @@ import {
   type UIField,
   type CallNode,
 } from '../../shared/declarative-ui.ts';
+import { JSDOM } from 'jsdom';
+import createDOMPurify from 'dompurify';
+import * as css from 'css-tree';
+import { createHash } from 'node:crypto';
 import {
   parseProgram,
   parseTemplate,
@@ -23,6 +24,8 @@ import {
   walkArgument,
 } from '../../shared/ui-expressions.ts';
 import { validateUIRules } from '../../shared/ui-validation.ts';
+import { compileTree } from '../../shared/tree-compiler.ts';
+import type { CompiledTree, UITreeNode } from '../../shared/tree.ts';
 
 const tags = [
   'section',
@@ -677,7 +680,47 @@ export function compileUI(content: UIContent, options: CompileOptions): Compiled
     'UI_INVALID_CONTENT',
     '声明式内容版本无效',
   );
-  const html = content.format === 'html' ? content.html : jsonHTML(content.root);
+  const trees: CompiledTree[] = [];
+  const treeSources = new Map<string, UITreeNode>();
+  const prepare = (node: UINode, depth = 0): UINode => {
+    uiAssert(depth <= UI_LIMITS.depth, 'UI_QUOTA_EXCEEDED', 'JSON 结构过深');
+    if (node.type === 'tree') {
+      const source = node as UITreeNode,
+        tree = compileTree(source, options);
+      uiAssert(
+        !trees.some((other) => other.treeId === tree.treeId || other.name === tree.name),
+        'TREE_INVALID_DATA',
+        '树 key 或 name 重复',
+      );
+      tree.signature = createHash('sha256').update(JSON.stringify(source)).digest('hex');
+      trees.push(tree);
+      treeSources.set(tree.treeId, source);
+      return {
+        type: 'stack',
+        key: `__tree_host_${trees.length}`,
+        visible: source.visible,
+        children: [],
+      };
+    }
+    return {
+      ...node,
+      ...(node.children
+        ? { children: node.children.map((child) => prepare(child, depth + 1)) }
+        : {}),
+      ...(node.tabs
+        ? {
+            tabs: node.tabs.map((tab) => ({
+              ...tab,
+              children: tab.children.map((child) => prepare(child, depth + 1)),
+            })),
+          }
+        : {}),
+    };
+  };
+  if (content.format === 'json') {
+    uiValueContent(content);
+  }
+  const html = content.format === 'html' ? content.html : jsonHTML(prepare(content.root));
   uiAssert(
     typeof html === 'string' && Buffer.byteLength(html) <= UI_LIMITS.bytes,
     'UI_QUOTA_EXCEEDED',
@@ -941,6 +984,61 @@ export function compileUI(content: UIContent, options: CompileOptions): Compiled
     result.nodes = [...inert.childNodes]
       .map((n) => visit(n, 0))
       .filter((n): n is SafeNode => n !== null);
+    if (trees.length) {
+      result.trees = trees;
+      const all = result.nodes.flatMap(function collect(node): SafeNode[] {
+        return [node, ...(node.children ?? []).flatMap(collect)];
+      });
+      for (const [index, tree] of trees.entries()) {
+        const hosts = all.filter((node) => node.key === `__tree_host_${index + 1}`);
+        uiAssert(hosts.length === 1, 'TREE_INVALID_DATA', '树 host 标识冲突');
+        const host = hosts[0],
+          source = uiRequired(treeSources.get(tree.treeId));
+        tree.hostNodeId = host.id;
+        host.key = tree.key;
+        host.attrs = {
+          ...host.attrs,
+          'data-ui-key': tree.key,
+          class: 'ui-tree-host',
+          name: tree.name,
+          'aria-label': tree.label,
+        };
+        delete host.attrs['data-layout'];
+        delete host.attrs['data-gap'];
+        for (const property of ['disabled', 'readonly', 'value'] as const) {
+          const value = source[property];
+          if (typeof value === 'string' && value.includes('${')) {
+            expr(host.id, property, value);
+          } else if (value === true) {
+            host.attrs[property] = '';
+          }
+        }
+        if (tree.options.selectionMode !== 'none') {
+          result.fields.push({
+            name: tree.name,
+            nodeId: host.id,
+            kind: tree.options.selectionMode === 'multiple' ? 'multiple' : 'string',
+            form: all.find(
+              (node) => node.tag === 'form' && JSON.stringify(node).includes(`"id":"${host.id}"`),
+            )?.attrs?.name,
+          });
+        }
+        for (const binding of tree.bindings) {
+          binding.nodeId = host.id;
+        }
+      }
+      for (const tree of trees) {
+        for (const binding of tree.bindings) {
+          for (const name of binding.capture) {
+            uiAssert(
+              result.fields.some((field) => field.name === name),
+              'UI_UNKNOWN_VALUE',
+              `树引用未声明字段 ${name}`,
+            );
+          }
+        }
+      }
+    }
     uiAssert(
       result.fields.length <= UI_LIMITS.fields &&
         new Set(result.fields.map((f) => f.name)).size === result.fields.length,
@@ -1160,6 +1258,14 @@ export function compileUI(content: UIContent, options: CompileOptions): Compiled
   } finally {
     dom.window.close();
   }
+}
+function uiValueContent(content: UIContent) {
+  // Count the actual declaration, including tree data which is not expanded to SafeNodes.
+  uiAssert(
+    Buffer.byteLength(JSON.stringify(content)) <= UI_LIMITS.bytes,
+    'UI_QUOTA_EXCEEDED',
+    'UI 内容过大',
+  );
 }
 export function validateAttribute(
   name: string | undefined,

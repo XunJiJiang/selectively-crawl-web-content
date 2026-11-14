@@ -16,7 +16,7 @@ export function declarativeRouter() {
     uiAssert(!res.locals.pageSession, 'UI_RESOURCE_DENIED', '普通页面授权不能调用声明式 UI 接口');
     next();
   });
-  /** 
+  /**
    * /web/api/workbench/ui/{path}
    */
   const route = (
@@ -113,6 +113,12 @@ export function declarativeRouter() {
   route('post', '/instances/:id/events', '3.2.0', (req) =>
     declarativeUI.execute(String(req.params.id), requireLease(req), req.body),
   );
+  route('post', '/instances/:id/trees', '3.4.0', (req) =>
+    declarativeUI.tree(String(req.params.id), requireLease(req), req.body.request, req.body.fields),
+  );
+  route('post', '/instances/:id/trees/continue', '3.4.0', (req) =>
+    declarativeUI.continueTree(String(req.params.id), requireLease(req), req.body),
+  );
   route('delete', '/instances/:id/subscriptions/:subscriptionId', '3.2.0', (req) =>
     declarativeUI.unsubscribe(
       String(req.params.id),
@@ -139,9 +145,12 @@ export function declarativeRouter() {
       next(error);
       return;
     }
-    res
-      .status(error.code === 'UI_RESOURCE_DENIED' ? 403 : 400)
-      .json({ success: false, code: error.code, message: error.message, data: error.field ? { field: error.field } : undefined });
+    res.status(error.code === 'UI_RESOURCE_DENIED' ? 403 : 400).json({
+      success: false,
+      code: error.code,
+      message: error.message,
+      data: error.field ? { field: error.field } : undefined,
+    });
   });
   return router;
 }

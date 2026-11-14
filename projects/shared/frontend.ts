@@ -5,6 +5,8 @@ export * from './backend.ts';
 export * from './components/index.ts';
 export { notify } from './components/notify.ts';
 export * from './components/scroll-container/index.ts';
+export { JSONTree } from './components/tree/tree.ts';
+export type { TreeBridge } from './components/tree/tree.ts';
 export * from './utils/common.ts';
 export * from './utils/console.ts';
 export { customElement } from './utils/customElement.ts';

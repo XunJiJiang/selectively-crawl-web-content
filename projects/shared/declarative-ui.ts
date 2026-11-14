@@ -35,6 +35,10 @@ export function uiAssert(condition: unknown, code: string, message: string): ass
     throw new UIError(code, message);
   }
 }
+export function uiRequired<T>(value: T | null | undefined): T {
+  uiAssert(value !== null && value !== undefined, 'UI_INVALID_CONTENT', '必要的 UI 状态不可用');
+  return value;
+}
 export function uiName(value: unknown): asserts value is string {
   uiAssert(
     typeof value === 'string' && UI_NAME.test(value),
@@ -109,6 +113,7 @@ export interface NormalizedUIEvent {
   value?: FieldValue;
   values?: Record<string, FieldValue>;
   modifiers?: { alt: boolean; ctrl: boolean; meta: boolean; shift: boolean };
+  tree?: import('./tree.ts').TreeEvent['tree'];
 }
 export interface HandlerContext {
   invocation: 'event' | 'render' | 'watch';
@@ -312,6 +317,7 @@ export type ArgumentNode =
   | { type: 'event' }
   | { type: 'prev' }
   | { type: 'this' }
+  | { type: 'tree' }
   | { type: 'field'; name: string }
   | { type: 'array'; items: ArgumentNode[] }
   | { type: 'object'; entries: [string, ArgumentNode][] }
@@ -368,6 +374,7 @@ export interface CompiledUI {
   events: UIEventBinding[];
   expressions: UIExpressionBinding[];
   styles: string[];
+  trees?: import('./tree.ts').CompiledTree[];
 }
 export interface UIContribution {
   pluginId: string;
