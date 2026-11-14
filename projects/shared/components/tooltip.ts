@@ -92,24 +92,55 @@ export class SCWCTooltip extends LitElement {
 }
 
 /** Bind to an existing element without changing its layout or using native title bubbles. */
-export function attachTooltip(target: HTMLElement, text: () => string): () => void {
+export function attachTooltip(
+  target: HTMLElement,
+  text: (anchor: HTMLElement) => string,
+  options: { delegate?: string } = {},
+): () => void {
   const tooltip = target.ownerDocument.createElement('scwc-tooltip') as SCWCTooltip;
   tooltip.setAttribute('popover', 'manual');
   tooltip.setAttribute('role', 'tooltip');
   tooltip.hidden = true;
   target.after(tooltip);
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let anchor: HTMLElement | null = null;
   const cancel = () => clearTimeout(timer);
   const close = () => {
     cancel();
     tooltip.close();
+    anchor = null;
   };
-  const open = () => {
+  const resolveAnchor = (element: EventTarget | null) => {
+    if (!options.delegate) {
+      return target;
+    }
+    const match =
+      element instanceof Element ? element.closest<HTMLElement>(options.delegate) : null;
+    return match && target.contains(match) ? match : null;
+  };
+  const open = (event: Event) => {
+    const next = resolveAnchor(event.target);
+    if (!next) {
+      close();
+      return;
+    }
     cancel();
+    if (options.delegate && next === anchor && !tooltip.hidden) {
+      return;
+    }
+    anchor = next;
     observer.takeRecords();
-    void tooltip.openFor(target, text());
+    void tooltip.openFor(next, text(next));
   };
-  const leave = () => {
+  const leave = (event?: Event) => {
+    if (
+      options.delegate &&
+      event &&
+      anchor &&
+      resolveAnchor((event as MouseEvent).relatedTarget) === anchor
+    ) {
+      return;
+    }
     cancel();
     timer = setTimeout(close, 120);
   };
@@ -124,10 +155,14 @@ export function attachTooltip(target: HTMLElement, text: () => string): () => vo
       close();
     }
   };
-  target.addEventListener('mouseenter', open);
-  target.addEventListener('mouseleave', leave);
-  target.addEventListener('focus', open);
-  target.addEventListener('blur', leave);
+  const enterEvent = options.delegate ? 'mouseover' : 'mouseenter';
+  const leaveEvent = options.delegate ? 'mouseout' : 'mouseleave';
+  const focusEvent = options.delegate ? 'focusin' : 'focus';
+  const blurEvent = options.delegate ? 'focusout' : 'blur';
+  target.addEventListener(enterEvent, open);
+  target.addEventListener(leaveEvent, leave);
+  target.addEventListener(focusEvent, open);
+  target.addEventListener(blurEvent, leave);
   tooltip.addEventListener('mouseenter', cancel);
   tooltip.addEventListener('mouseleave', leave);
   view?.addEventListener('keydown', escape);
@@ -141,10 +176,10 @@ export function attachTooltip(target: HTMLElement, text: () => string): () => vo
   return () => {
     close();
     observer.disconnect();
-    target.removeEventListener('mouseenter', open);
-    target.removeEventListener('mouseleave', leave);
-    target.removeEventListener('focus', open);
-    target.removeEventListener('blur', leave);
+    target.removeEventListener(enterEvent, open);
+    target.removeEventListener(leaveEvent, leave);
+    target.removeEventListener(focusEvent, open);
+    target.removeEventListener(blurEvent, leave);
     view?.removeEventListener('keydown', escape);
     view?.removeEventListener('resize', close);
     view?.removeEventListener('scroll', scroll, true);

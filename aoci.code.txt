@@ -1188,7 +1188,7 @@ script-ui.test.ts[TU5M]: F:验证脚本视图校验时机、字段错误及草�
 script-ui.ts[LU7L]: F:托管脚本与扩展JSON字段、错误反馈和树传输 | R:code:projects/web/src/components/ui-renderer.js,code:projects/shared/script-ui.ts | A:ScriptUIView,scwc-script-ui | S:树事件串行，读取独立；组件字段经适配器采集且错误按编辑序号拒迟到；自动绑定不存普通草稿；活动4秒读，过期恢复一次且提交不重放
 version-notice.ts[LU6S]: F:为两端显示可按版本抑制的升级通知 | R:code:projects/shared/client-version.ts | A:showVersionNotice,scwc-version-notice | S:警告按当前与最新版本去重并可持久关闭；错误不使用警告抑制键；存储不可用时仍保留本会话去重
 tooltip.test.ts[TU5T]: F:验证共享提示全文渲染与生命周期 | R:code:projects/shared/components/tooltip.ts | A:Vitest DOM用例 | S:覆盖悬停、焦点、文本变化、滚动与Esc；卸载拒绝迟到打开；DOM夹具不证明像素定位
-tooltip.ts[LU6S]: F:提供Web、脚本与扩展共用的纯文本悬浮提示 | R:code:projects/shared/utils/customElement.ts | A:SCWCTooltip,scwc-tooltip,attachTooltip | S:Popover顶层保留ShadowDOM主题并逃逸裁切；文本变化、滚动和卸载关闭；异步打开按代数取消；不使用原生title
+tooltip.ts[LU6S]: F:提供跨宿主纯文本提示及动态子元素事件委托 | R:code:projects/shared/utils/customElement.ts | A:SCWCTooltip,scwc-tooltip,attachTooltip | S:Popover顶层保留ShadowDOM主题并逃逸裁切；委托以匹配子元素作锚点；文本变化、滚动和卸载关闭；异步打开按代数取消，不使用原生title
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/shared/store/===
 config.ts[CC7M]: F:协调浏览器配置控件、鉴权提示与同页配置传播 | R:code:projects/shared/utils/storage.ts,code:projects/shared/userscript-config.ts | A:ConfigController,configContext,defaultValue,parseRefreshRule,isConfig,isConfigItem | S:公共键接收同origin更新；API字段合并防抖500ms；Token变化独立发事件并清鉴权提示；提示刷新控件时保留待落盘输入；断连注销控制器
@@ -1598,7 +1598,7 @@ tree-demo.json[PD4T]: F:保存模板树的节点顺序、数据版本及移动�
 scwcutils.iife.mwezqpt7.js[LE7T]: F:分发插件页面会话、请求生命周期及UI处理器SDK | R:code:projects/webutils/lib/index.ts,code:projects/webutils/lib/workbench.ts | A:全局scwcutils | S:fetch等待ready，Socket须先await ready；页面grant绑定来源；暂停只重放显式可中断请求，回调留当前文档
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/shared/components/tree/===
-tree.css[ZU5T]: F:排版固定行高树、搜索、行操作及拖放反馈 | R:code:projects/shared/components/tree/tree.ts | A:.ui-tree-host,.tree-row,.tree-actions,树主题变量 | S:选中填充与焦点描边独立，失焦保留选中；行绝对定位；高对比模式补边框
-tree.test.ts[TU6S]: F:验证共享树DOM的权限、搜索恢复、虚拟窗口和释放 | R:code:projects/shared/components/tree/tree.ts,code:projects/shared/tree-session.ts | A:Vitest DOM用例 | S:万节点断言少于35行且无option代理；保留一条屏外焦点行；取消忽略信号的迟到结果；几何夹具不证明真实像素效果
-tree.ts[LU8L]: F:实现三宿主共用的虚拟JSON树交互和字段适配器 | R:code:projects/shared/tree-model.ts,code:projects/shared/components/scroll-container/scroll-container.ts,code:projects/shared/tree.ts | A:JSONTree,TreeBridge,command,readValue,writeValue,dispose | S:复用滚动外部metrics，状态独立于回收行且保留屏外焦点行；按分支和查询代数拒旧结果；本地搜索不递归加载，远端投影清空恢复原视图；查询非空禁拖动；写入成功刷新失败保留已保存回执；释放取消请求与观察器
+tree.css[ZU5T]: F:排版固定行高树、居中折叠图标及行操作拖放反馈 | R:code:projects/shared/components/tree/tree.ts | A:.ui-tree-host,.tree-row,.tree-twistie,.tree-actions,树主题变量 | S:选中填充与焦点描边独立，失焦保留选中；行绝对定位；折叠按钮覆盖通用悬停背景；高对比模式补边框
+tree.test.ts[TU6M]: F:验证树选择焦点、连续点击、提示锚点及虚拟窗口生命周期 | R:code:projects/shared/components/tree/tree.ts,code:projects/shared/tree-session.ts | A:Vitest DOM用例 | S:万节点少于35行且保留屏外焦点；焦点进出不得替换鼠标目标；忽略取消的迟到响应拒收；几何夹具不证明像素排版
+tree.ts[LU8L]: F:实现三宿主共用的虚拟JSON树交互和字段适配器 | R:code:projects/shared/tree-model.ts,code:projects/shared/components/scroll-container/scroll-container.ts,code:projects/shared/components/tooltip.ts,code:projects/shared/tree.ts | A:JSONTree,TreeBridge,command,readValue,writeValue,dispose | S:状态独立于回收行并保留屏外焦点；焦点进出不重建行，逐次click切换；提示委托锚定当前行；分支查询代数拒旧；搜索不递归加载，远端清空恢复原视图且过滤禁拖；写成功刷新失败保留回执；释放取消请求与观察器
 

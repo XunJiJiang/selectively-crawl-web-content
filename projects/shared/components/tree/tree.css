@@ -16,7 +16,8 @@
 .tree-row[aria-disabled=true]{color:var(--text-disabled,#777)}
 .tree-row[data-readonly=true]{cursor:default}
 .tree-twistie{width:16px;height:100%;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
-.ui-root .ui-tree-host .tree-twistie button,.tree-row .tree-twistie button{padding:0;width:16px;min-width:16px}
+.ui-root .ui-tree-host .tree-twistie button,.tree-row .tree-twistie button{padding:0;width:16px;min-width:16px;display:inline-flex;align-items:center;justify-content:center}
+.ui-root .ui-tree-host .tree-twistie button:hover,.tree-row .tree-twistie button:hover{background:transparent}
 .tree-icon{display:inline-flex;width:16px;height:16px;flex:0 0 16px;align-items:center;justify-content:center}
 .tree-icon img{width:16px;height:16px;object-fit:contain}
 .tree-content{flex:1;display:flex;gap:6px;align-items:center;min-width:0;overflow:hidden;height:100%}

@@ -1,7 +1,7 @@
 {
   "version": 1,
   "created_at": "2026-10-18T10:54:05Z",
-  "updated_at": "2026-11-14T00:42:36Z",
+  "updated_at": "2026-11-14T02:12:10Z",
   "files": {
     ".gitattributes": {
       "role": "index",
@@ -59,9 +59,9 @@
     },
     "aoci.code.txt": {
       "role": "index",
-      "sha256": "48f0e007a2c45f01ee277a5348c7462c1558424abe9c674d0effbb27aa4722d9",
-      "size": 236252,
-      "normalized_sha256": "48f0e007a2c45f01ee277a5348c7462c1558424abe9c674d0effbb27aa4722d9"
+      "sha256": "6df84db1c33a060e62cd13366aceda89d52be0554675dfd8c1ba5870a49b3dd8",
+      "size": 236409,
+      "normalized_sha256": "6df84db1c33a060e62cd13366aceda89d52be0554675dfd8c1ba5870a49b3dd8"
     },
     "aoci.meta.txt": {
       "role": "index",
@@ -149,15 +149,15 @@
     },
     "docs/json-tree-design.md": {
       "role": "observe",
-      "sha256": "62108debc5d6b979a7b82e38c92f30c70bd45b5a549af39e45814eb4e5331bba",
-      "size": 42213,
-      "normalized_sha256": "62108debc5d6b979a7b82e38c92f30c70bd45b5a549af39e45814eb4e5331bba"
+      "sha256": "0ccbf1fd609a44673271870e9079c331bbdd591b4ee811030af1a61dadbd560b",
+      "size": 42267,
+      "normalized_sha256": "0ccbf1fd609a44673271870e9079c331bbdd591b4ee811030af1a61dadbd560b"
     },
     "docs/json-tree.md": {
       "role": "observe",
-      "sha256": "abc1d5f3ea2ace7419c64dcd34d59434f4ca088b248e3dabdc0a08f98241a388",
-      "size": 7722,
-      "normalized_sha256": "abc1d5f3ea2ace7419c64dcd34d59434f4ca088b248e3dabdc0a08f98241a388"
+      "sha256": "02e36ca896fc85713bba6a7b38e5ae112f49841e0b988ffdfff7e47d9962ca9d",
+      "size": 7857,
+      "normalized_sha256": "02e36ca896fc85713bba6a7b38e5ae112f49841e0b988ffdfff7e47d9962ca9d"
     },
     "docs/map.md": {
       "role": "observe",
@@ -215,9 +215,9 @@
     },
     "docs/待办设计.md": {
       "role": "observe",
-      "sha256": "25488751fef2648a8267b2c75406029fde12544eca799dad7920b177f8dae6b8",
-      "size": 89046,
-      "normalized_sha256": "25488751fef2648a8267b2c75406029fde12544eca799dad7920b177f8dae6b8"
+      "sha256": "877d64dd27d5bc31e20f168a4531e633cc78dba690447c069aff0d82e6b67c97",
+      "size": 89276,
+      "normalized_sha256": "877d64dd27d5bc31e20f168a4531e633cc78dba690447c069aff0d82e6b67c97"
     },
     "docs/插件声明式UI与事件管道设计.md": {
       "role": "observe",
@@ -8077,27 +8077,27 @@
     },
     "projects/shared/components/tooltip.ts": {
       "role": "index",
-      "sha256": "765e90e26b5d1a609860e23e7d0a1162959a65b6f95a7517bb976a977f8e6c12",
-      "size": 4922,
-      "normalized_sha256": "765e90e26b5d1a609860e23e7d0a1162959a65b6f95a7517bb976a977f8e6c12"
+      "sha256": "bb7ae1e3f53a57e6b0a7b60d96a3326193380d2273f4e0aa3024c75f04b3a6aa",
+      "size": 5986,
+      "normalized_sha256": "bb7ae1e3f53a57e6b0a7b60d96a3326193380d2273f4e0aa3024c75f04b3a6aa"
     },
     "projects/shared/components/tree/tree.css": {
       "role": "index",
-      "sha256": "d6b166f4274c0efed82554a29d5bfaf745d763a0626ddec4347c992e81184291",
-      "size": 4329,
-      "normalized_sha256": "d6b166f4274c0efed82554a29d5bfaf745d763a0626ddec4347c992e81184291"
+      "sha256": "fc87c5530e099dc3c6d9d2251c2db206beba6c1e82a28aa91fdc6808db433eca",
+      "size": 4502,
+      "normalized_sha256": "fc87c5530e099dc3c6d9d2251c2db206beba6c1e82a28aa91fdc6808db433eca"
     },
     "projects/shared/components/tree/tree.test.ts": {
       "role": "index",
-      "sha256": "cddd708786c038854a4b5cfb5e5d70dc0194ae1dbe32bdce5829df879f3b8ca5",
-      "size": 5226,
-      "normalized_sha256": "cddd708786c038854a4b5cfb5e5d70dc0194ae1dbe32bdce5829df879f3b8ca5"
+      "sha256": "3473e11ca1caceb556e9da37b700a508a83dd6e9a4ea68efc5f6c0d99bb14127",
+      "size": 9395,
+      "normalized_sha256": "3473e11ca1caceb556e9da37b700a508a83dd6e9a4ea68efc5f6c0d99bb14127"
     },
     "projects/shared/components/tree/tree.ts": {
       "role": "index",
-      "sha256": "d7d987b1696ff6d2c611dc72943a61954aaee2fff53c04399d48ad45867b09b4",
-      "size": 55575,
-      "normalized_sha256": "d7d987b1696ff6d2c611dc72943a61954aaee2fff53c04399d48ad45867b09b4"
+      "sha256": "95752288817ab0c413217ed7759c0c04bf1e479959dfa01f1973c94839673ebe",
+      "size": 55428,
+      "normalized_sha256": "95752288817ab0c413217ed7759c0c04bf1e479959dfa01f1973c94839673ebe"
     },
     "projects/shared/components/trigger.css": {
       "role": "index",

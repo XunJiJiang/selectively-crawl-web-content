@@ -1,6 +1,6 @@
 {
   "name": "@scwc/vite-plugin",
-  "version": "3.4.1",
+  "version": "3.4.2",
   "private": true,
   "description": "SCWC plugin frontend dependency resolution and decorator transforms for Vite",
   "keywords": [

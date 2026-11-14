@@ -92,7 +92,6 @@ export class JSONTree implements TreeFieldAdapter {
   private pendingMove = false;
   private anchor?: { id: string; offset: number; parents: string[] };
   private domIds = new Map<string, string>();
-  private hoveredText = '';
   private message = '';
   private prefix = `scwc-tree-${++nextTree}-`;
   private height = 0;
@@ -179,13 +178,11 @@ export class JSONTree implements TreeFieldAdapter {
       if (this.state.focusedId) {
         this.notify('focus', this.state.focusedId);
       }
-      this.paint();
     });
     this.listen(this.list, 'blur', () => {
       if (this.state.focusedId) {
         this.notify('blur', this.state.focusedId);
       }
-      this.paint();
     });
     this.listen(this.list, 'dragstart', (event) => this.dragStart(event as DragEvent));
     this.listen(this.list, 'dragover', (event) => this.dragOver(event as DragEvent));
@@ -227,12 +224,11 @@ export class JSONTree implements TreeFieldAdapter {
       }
     });
     this.scroll.contentScroll = () => this.queuePaint();
-    this.listen(this.list, 'pointermove', (event) => {
-      this.hoveredText =
-        (event.target as HTMLElement).closest<HTMLElement>('[data-tree-tooltip]')?.dataset
-          .treeTooltip ?? '';
-    });
-    this.tooltipCleanups.push(attachTooltip(this.list, () => this.hoveredText));
+    this.tooltipCleanups.push(
+      attachTooltip(this.list, (row) => row.dataset.treeTooltip ?? '', {
+        delegate: '[data-tree-tooltip]',
+      }),
+    );
     if (typeof ResizeObserver === 'function') {
       this.observer = new ResizeObserver(() => this.update());
       this.observer.observe(this.scroll);
@@ -689,7 +685,12 @@ export class JSONTree implements TreeFieldAdapter {
         button.tabIndex = -1;
         button.setAttribute('aria-label', expanded ? '收起' : '展开');
         button.disabled = effective.disabled;
-        button.textContent = expanded ? '⌄' : '›';
+        button.append(
+          this.icon({
+            kind: 'builtin',
+            name: expanded ? 'chevron-down-compact' : 'chevron-right-compact',
+          }),
+        );
         twistie.append(button);
       }
       element.append(twistie);
@@ -890,9 +891,6 @@ export class JSONTree implements TreeFieldAdapter {
       if (event.type === 'click') {
         void this.expand(id, !this.state.expandedIds.has(id), event);
       }
-      return;
-    }
-    if (event.type === 'click' && event.detail > 1) {
       return;
     }
     if (event.type === 'contextmenu') {
