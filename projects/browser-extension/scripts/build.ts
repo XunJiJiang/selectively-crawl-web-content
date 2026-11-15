@@ -19,7 +19,7 @@ export async function buildBrowserExtensions(output = defaultOutput) {
     build: { outDir: path.join(output, 'chromium'), emptyOutDir: true },
   });
   const chromium = path.join(output, 'chromium');
-  for (const name of ['background', 'content']) {
+  for (const name of ['background', 'content', 'coexistence-content']) {
     await buildScript({
       entryPoints: [path.join(project, `src/${name}.ts`)],
       outfile: path.join(chromium, `${name}.js`),
@@ -59,6 +59,13 @@ export async function buildBrowserExtensions(output = defaultOutput) {
       '在工具栏弹窗中选择网页内容并发送到你配置的 SCWC 核心，支持网站抓取项与插件配置同步。',
     permissions: ['activeTab', 'scripting', 'storage'],
     optional_host_permissions: ['http://*/*', 'https://*/*'],
+    content_scripts: [
+      {
+        matches: ['http://*/*', 'https://*/*'],
+        js: ['coexistence-content.js'],
+        run_at: 'document_idle',
+      },
+    ],
     action: {
       default_popup: 'index.html',
       default_title: 'SCWC · 网页采集',
@@ -75,11 +82,13 @@ export async function buildBrowserExtensions(output = defaultOutput) {
   const variants = {
     chromium: {
       ...common,
+      permissions: [...common.permissions, 'management'],
       minimum_chrome_version: '120',
       background: { service_worker: 'background.js' },
     },
     firefox: {
       ...common,
+      permissions: [...common.permissions, 'management'],
       background: { scripts: ['background.js'] },
       browser_specific_settings: {
         gecko: {

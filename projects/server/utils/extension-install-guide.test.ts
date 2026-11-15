@@ -4,6 +4,22 @@ import { installGuidePage, issueInstallGuide } from './extension-install-guide.t
 
 describe('extension installation guide', () => {
   afterEach(() => vi.useRealTimers());
+  it.each(['edge://extensions/', 'brave://extensions/', 'about:debugging#/runtime/this-firefox'])(
+    'preserves the detected browser management address %s',
+    (managerUrl) => {
+      const url = new URL(
+        issueInstallGuide({
+          browser: '当前浏览器',
+          directory: '/extension',
+          managerUrl,
+          variant: managerUrl.startsWith('about:') ? 'firefox' : 'chromium',
+        }),
+      );
+      const page = installGuidePage(url.pathname.split('/').at(-1) ?? '');
+      expect(page?.html).toContain(`value="${managerUrl}"`);
+      expect(page?.html).not.toContain('chrome://extensions');
+    },
+  );
   it('opens a regular HTTP page on the actual port and strips credentials', () => {
     const url = new URL(
       issueInstallGuide(

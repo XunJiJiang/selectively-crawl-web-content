@@ -2,6 +2,8 @@
 
 构建：`bun run --cwd projects/user-script build`。产物为 `dist/user-script/scwc.user.js`，通过核心命令 `server install-userscript` 或 Web 快速访问中的“安装油猴脚本”唤起安装。
 
+与新版浏览器扩展共存时，脚本在普通 HTTP(S) 顶层页面声明实际安装版本和管理器名称、版本，由扩展使用共享通知提示保留一种运行方式。工作台与 iframe 不发起提醒；声明不含核心地址、Token 或网站设置。管理按钮打开对应管理页，由用户手动关闭脚本或扩展；直接关闭提醒不会保存跨页面抑制状态，点击“不再提示”后由扩展在当前浏览器配置文件中持久保存该选择。
+
 ## 网站数据同步
 
 以网站 origin（协议、域名、端口）隔离数据，路径、查询参数和片段不参与配置身份。同源的顶层页面、不同路径及 iframe 共享配置。核心使用独立数据库 `SCWC_DATA_DIR/scwc/userscript-config.sqlite`（缺省 `data/scwc/userscript-config.sqlite`）。当前只在悬浮窗中提供编辑入口，工作台和插件页面没有该数据库的编辑界面或授权。

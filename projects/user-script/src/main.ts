@@ -6,11 +6,13 @@ import { ConfigController } from '../../shared/store/config.ts';
 import { FrameSettingsController } from './frame-settings.ts';
 import { setScriptVisible } from './visibility.ts';
 import { notify } from './utils/notify.ts';
+import { startCoexistenceAnnouncement } from './coexistence.ts';
 
 setScriptVisible(false);
 ConfigController.notify = notify;
 let allowed = false;
 let hindered = false;
+let stopCoexistence: (() => void) | undefined;
 const frames = new FrameSettingsController((visible) => {
   allowed = visible;
   updatePresentation();
@@ -82,6 +84,9 @@ window.addEventListener('message', hinder);
 
 function start() {
   frames.start();
+  if (!inWorkbench()) {
+    stopCoexistence = startCoexistenceAnnouncement();
+  }
 }
 if (document.readyState === 'complete') {
   start();
@@ -90,6 +95,7 @@ if (document.readyState === 'complete') {
 }
 
 export function stopUserScript() {
+  stopCoexistence?.();
   frames.stop();
   window.removeEventListener('load', start);
   window.removeEventListener('message', hinder);

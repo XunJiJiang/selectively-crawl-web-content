@@ -9,8 +9,19 @@ export interface MessageSender {
   id?: string;
   url?: string;
   tab?: BrowserTab;
+  frameId?: number;
+}
+export interface ExtensionInfo {
+  id: string;
+  name: string;
+  enabled: boolean;
+  version: string;
+  versionName?: string;
+  optionsUrl?: string;
+  icons?: { url: string }[];
 }
 interface BrowserAPI {
+  management?: { getAll(): Promise<ExtensionInfo[]> };
   action?: {
     setBadgeText(details: { text: string }): Promise<void>;
     setBadgeBackgroundColor(details: { color: string }): Promise<void>;
@@ -54,6 +65,7 @@ interface BrowserAPI {
     };
   };
   tabs: {
+    create(options: { url: string }): Promise<BrowserTab>;
     query(query: { active: boolean; currentWindow: boolean }): Promise<BrowserTab[]>;
     get(id: number): Promise<BrowserTab>;
     sendMessage<T = unknown>(id: number, message: unknown): Promise<T>;

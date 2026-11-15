@@ -3,6 +3,7 @@ import { afterEach, expect, it, vi } from 'vitest';
 vi.mock('./migrate.ts', () => ({}));
 vi.mock('./layouts/root.ts', () => ({}));
 vi.mock('../../shared/components/index.ts', () => ({}));
+vi.mock('vite-plugin-monkey/dist/client', () => ({ GM_info: undefined }));
 let stop: (() => void) | undefined;
 
 afterEach(() => {

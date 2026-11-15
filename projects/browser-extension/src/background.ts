@@ -14,6 +14,7 @@ import {
 import { websiteOrigin } from '../../shared/userscript-config.ts';
 import type { PluginConfig } from '../../shared/types/plugin.d.ts';
 import { installNotificationBadge } from './notification-badge.ts';
+import { coexistenceRequest } from './coexistence.ts';
 import { deliverNotification, saveNotificationChanges } from './notification-delivery.ts';
 import type {
   SiteNotification,
@@ -41,6 +42,9 @@ export interface CrawlData {
   failed: string[];
 }
 export type Request =
+  | { type: 'coexistence.info'; script: unknown }
+  | { type: 'coexistence.dismiss'; script: unknown }
+  | { type: 'coexistence.open'; script: unknown; target: 'script' | 'extension' }
   | { type: 'notification.show'; tab?: number; site: string; options: SiteNotificationOptions }
   | { type: 'notifications.save'; upsert: ExtensionNotification[]; remove: string[] }
   | { type: 'version.dismiss'; notice: VersionNotice }
@@ -348,6 +352,13 @@ async function extract(tab: number, site: string, full = true) {
   return { snapshot, data };
 }
 async function handle(message: Request, sender: MessageSender): Promise<unknown> {
+  if (
+    message.type === 'coexistence.info' ||
+    message.type === 'coexistence.open' ||
+    message.type === 'coexistence.dismiss'
+  ) {
+    return coexistenceRequest(message, sender);
+  }
   if (message.type === 'picker.selection') {
     const tab = sender.tab;
     if (sender.id !== browser.runtime.id || tab?.id === undefined || !sender.url) {

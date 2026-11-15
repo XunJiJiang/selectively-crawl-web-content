@@ -22,7 +22,7 @@ export default defineConfig(({ mode }) => {
           description:
             'A user script to selectively crawl web content and save it to a local server.',
           match: ['*://*/*'],
-          grant: ['unsafeWindow', 'GM_xmlhttpRequest'],
+          grant: ['unsafeWindow', 'GM_xmlhttpRequest', 'GM_info'],
           // 核心地址可在浮窗配置中修改；常用主机预声明，其余由管理器询问授权。
           connect: [
             ...new Set([

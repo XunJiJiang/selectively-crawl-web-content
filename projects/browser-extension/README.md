@@ -1,6 +1,6 @@
 # SCWC 浏览器扩展
 
-在浏览器工具栏的原生弹窗中采集当前网页。使用 Lit，复用 `projects/web` 的主题、`wb-scroll-container`、`wb-context-menu` 和 `wb-menu-select`；页面内只显示临时选择高亮，没有拖动窗口或最小化按钮。SCWC 工作台等普通 HTTP(S) 页面同样可以打开使用。
+在浏览器工具栏的原生弹窗中采集当前网页。使用 Lit，复用 `projects/web` 的主题、`wb-scroll-container`、`wb-context-menu` 和 `wb-menu-select`；页面内显示临时选择高亮和脚本共存提醒，没有拖动窗口或最小化按钮。SCWC 工作台等普通 HTTP(S) 页面同样可以打开使用。
 
 ## 构建与安装
 
@@ -62,9 +62,11 @@ xcrun safari-web-extension-converter dist/browser-extension/safari --project-loc
 
 ## 权限与核心兼容
 
-安装时只申请 `activeTab`、`scripting`、`storage`，不申请全部网页的长期访问权限。核心主机属于可选授权，用户主动连接时申请；WebExtensions 主机匹配模式按协议和主机授权，不能限定端口。
+安装时申请 `activeTab`、`scripting`、`storage`，并在 HTTP(S) 顶层网页运行轻量共存探测。Chromium 和 Firefox 另申请 `management`，仅在发现脚本后读取已安装油猴的版本和实际管理页地址，不修改任何扩展启用状态。核心主机连接仍经过用户主动授权；WebExtensions 主机匹配模式按协议和主机授权，不能限定端口。
 
-后台只接受扩展弹窗的核心请求；网页选择脚本只能报告当前标签的选择结果，无法获取核心令牌。Chromium 还将 `storage.local` 限制在可信扩展上下文。
+扩展和新版油猴脚本同时运行时，共享通知显示双方实际版本，建议保留一种使用方式。每个网页文档只提醒一次，直接关闭提醒后新页面仍会提醒；点击“不再提示”后在当前浏览器配置文件中跨网站持久生效，重启或升级后仍保留。点击“去关闭油猴脚本”打开实际安装的 Tampermonkey 管理页；点击“去关闭浏览器扩展”在明确识别的 Chrome、Edge 中打开对应管理页。按钮只负责跳转，需用户在管理页手动关闭。Firefox 的 `about:addons` 无法由扩展直接打开，Safari 需要原生应用打开设置；不支持的按钮隐藏并显示手动操作说明。优先按商店扩展 ID 识别油猴，兼容“篡改猴”等本地化名称；只有一个候选时不要求版本格式完全相同，多个候选时通过版本和 versionName 区分。仍无法识别或区分时使用手动说明。此提醒不创建浏览器身份，也不向核心同步开关。
+
+后台只接受扩展弹窗的核心请求；网页内容脚本只可报告当前标签的选择结果或请求共存提醒的固定管理页，无法获取核心令牌。Chromium 还将 `storage.local` 限制在可信扩展上下文。
 
 核心仅对现有四个采集/配置路径允许 `chrome-extension:`、`moz-extension:`、`safari-web-extension:` 来源，仍执行现有 Bearer 鉴权与 HTTP(S) site 校验。配置 Socket 票据绑定请求者精确来源。插件配置增加等价 POST 查询入口，因为 Chrome 扩展后台 GET 没有 Origin；原油猴 GET 入口保留。
 
