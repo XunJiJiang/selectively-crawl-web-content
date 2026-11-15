@@ -16,7 +16,10 @@ import { getCrawlData } from '../../utils/claw.ts';
 import type { SCWCContentPlugin } from '../content-plugin.ts';
 import { notify } from '../../utils/notify.ts';
 import { watchUrl } from '../../utils/url-watch.ts';
-import { shouldNotifyAutomaticConnectionFailure } from '../../api/sync-circuit.ts';
+import {
+  isCoreConnectionError,
+  shouldNotifyAutomaticConnectionFailure,
+} from '../../api/sync-circuit.ts';
 
 function getFullOptions(control: PluginItem): TRequiredOptions {
   return {
@@ -41,6 +44,9 @@ export class PluginsController implements ReactiveController {
   private templates = new ScriptUIRefreshQueue<Awaited<ReturnType<typeof fetchPlugins>>>();
   private lastSite?: string;
   private initial = true;
+  private userRequested = false;
+  private wasExpanded = siteStore.snapshot.data.plugin.expanded;
+  private wasMinimized = siteStore.snapshot.data.window.minimized;
   private timers = new Map<PluginItem, ReturnType<typeof setTimeout>>();
   private controlValues = new Map<
     PluginItem | ScriptConfigItem,
@@ -92,7 +98,18 @@ export class PluginsController implements ReactiveController {
       void this.reloadPlugins(true);
     }
   };
-  private siteChanged = () => {
+  private siteChanged = (event: Event) => {
+    const expanded = siteStore.snapshot.data.plugin.expanded;
+    const minimized = siteStore.snapshot.data.window.minimized;
+    if (
+      (event as CustomEvent<{ source: string }>).detail.source === 'local' &&
+      expanded &&
+      (!this.wasExpanded || (this.wasMinimized && !minimized))
+    ) {
+      this.userRequested = true;
+    }
+    this.wasExpanded = expanded;
+    this.wasMinimized = minimized;
     this.restoreValues();
     const selected = this.plugins?.find((p) => p.id === siteStore.snapshot.data.plugin.activeTab);
     if (selected) {
@@ -102,14 +119,16 @@ export class PluginsController implements ReactiveController {
     this.host.requestUpdate();
   };
   async requestPlugins() {
-    if (!this.host.expanded || !this.initial) {
+    if (!this.host.expanded || (!this.initial && !this.userRequested)) {
       return;
     }
     this.initial = false;
-    await this.reloadPlugins(true);
+    const interactive = this.userRequested;
+    this.userRequested = false;
+    await this.reloadPlugins(true, interactive);
   }
-  async reloadPlugins(force = false) {
-    const loading = this.loadPlugins(force);
+  async reloadPlugins(force = false, interactive = false) {
+    const loading = this.loadPlugins(force, interactive);
     this.loading = loading;
     try {
       await loading;
@@ -119,7 +138,7 @@ export class PluginsController implements ReactiveController {
       }
     }
   }
-  private async loadPlugins(force: boolean) {
+  private async loadPlugins(force: boolean, interactive: boolean) {
     const generation = ++this.generation,
       site = window.location.href;
     const key = JSON.stringify([site, this.configController.config.api]);
@@ -135,6 +154,7 @@ export class PluginsController implements ReactiveController {
           site,
           previousSite: force ? undefined : this.lastSite,
           signal: request.signal,
+          interactive,
         }),
       );
       if (generation !== this.generation) {
@@ -174,10 +194,13 @@ export class PluginsController implements ReactiveController {
       if (!this.plugins) {
         this.setPlugins([this.configController.configControls]);
       }
-      if ((error as { code?: string }).code === 'CORE_SYNC_BLOCKED') {
+      if (
+        isCoreConnectionError(error) ||
+        (error as { code?: string }).code === 'CORE_SYNC_BLOCKED'
+      ) {
         return;
       }
-      if (!shouldNotifyAutomaticConnectionFailure()) {
+      if (!interactive && !shouldNotifyAutomaticConnectionFailure()) {
         return;
       }
       notify({

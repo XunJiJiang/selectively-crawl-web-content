@@ -5,6 +5,7 @@ import './root.ts';
 import { siteStore } from '../site-store.ts';
 import { sendCrawlRequest } from '../api/crawl.ts';
 import { requireValue } from '../../../shared/workbench-protocol.ts';
+import { recordCoreRequestFailure, isCoreSyncBlocked } from '../api/sync-circuit.ts';
 
 vi.hoisted(() => {
   const entries = new Map<string, string>();
@@ -101,6 +102,41 @@ describe('userscript workbench presentation', () => {
     );
     trigger.dispatchEvent(new CustomEvent('click'));
     await vi.waitFor(() => expect(sendCrawlRequest).toHaveBeenCalledWith([], expect.anything()));
+  });
+  it('does not repeat a connection failure popup already handled by the request layer', async () => {
+    vi.mocked(sendCrawlRequest).mockResolvedValueOnce({
+      success: false,
+      message: '连接失败',
+      data: [],
+      notificationHandled: true,
+    });
+    siteStore.update((data) => {
+      data.items = [];
+    });
+    const claw = document.createElement('scwc-layout-content-claw');
+    document.body.append(claw);
+    await settle(claw);
+    const trigger = requireValue(
+      claw.shadowRoot?.querySelector('scwc-button[aria-label="Trigger data crawling"]'),
+    );
+    trigger.dispatchEvent(new CustomEvent('click'));
+    await Promise.resolve();
+    await settle(claw);
+    expect(document.getElementById('scwc-notify-root')).toBeNull();
+  });
+  it('does not report connectivity from pointer or keyboard interactions that only affect local UI', async () => {
+    recordCoreRequestFailure();
+    document.getElementById('scwc-notify-root')?.remove();
+    siteStore.update((data) => {
+      data.plugin.expanded = false;
+    });
+    const root = document.createElement('scwc-layout-root');
+    document.body.append(root);
+    await settle(root);
+    expect(isCoreSyncBlocked()).toBe(true);
+    root.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+    root.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    expect(document.getElementById('scwc-notify-root')).toBeNull();
   });
   it('keeps saved selection items inside the shared scroll container', async () => {
     siteStore.update((data) => {

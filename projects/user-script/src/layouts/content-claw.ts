@@ -342,11 +342,13 @@ class SCWCContentClaw extends LitElement {
         }
       }
     } else {
-      notify({
-        title: data.message,
-        placement: this.configController.config.notify.placement,
-        type: 'error',
-      });
+      if (!data.notificationHandled) {
+        notify({
+          title: data.message,
+          placement: this.configController.config.notify.placement,
+          type: 'error',
+        });
+      }
       for (const item of data.data ?? []) {
         if (typeof item === 'string') {
           notify({

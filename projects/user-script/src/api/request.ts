@@ -5,7 +5,11 @@ import {
   type VersionNotice,
 } from '../../../shared/client-version.ts';
 import { showVersionNotice } from '../../../shared/components/version-notice.ts';
-import { assertCoreRequestAllowed } from './sync-circuit.ts';
+import {
+  assertCoreRequestAllowed,
+  recordCoreRequestFailure,
+  recordCoreSyncSuccess,
+} from './sync-circuit.ts';
 import { isScriptVisible, trackScriptNoticeElement } from '../visibility.ts';
 
 interface CoreRequestOptions {
@@ -27,23 +31,37 @@ export function requestCore(
     return Promise.reject(error);
   }
   return new Promise((resolve, reject) => {
-    const { signal } = options;
+    const { signal, interactive = true } = options;
     let handle: GmAbortHandle | undefined;
     let settled = false;
-    const finish = (error?: unknown, response?: Response) => {
+    const finish = (error?: unknown, response?: Response, cancelled = false) => {
       if (settled) {
         return;
       }
       settled = true;
       signal?.removeEventListener('abort', abort);
       if (response) {
+        if (interactive && response.ok) {
+          recordCoreSyncSuccess();
+        }
         resolve(response);
       } else {
+        if (interactive && !cancelled) {
+          recordCoreRequestFailure();
+          const failure =
+            error instanceof Error || error instanceof DOMException
+              ? Object.assign(new Error(error.message), { name: error.name })
+              : new Error(String(error));
+          error = Object.assign(failure, {
+            code: 'CORE_CONNECTION_FAILED',
+            cause: error,
+          });
+        }
         reject(error);
       }
     };
     const abort = () => {
-      finish(signal?.reason ?? new DOMException('请求已取消', 'AbortError'));
+      finish(signal?.reason ?? new DOMException('请求已取消', 'AbortError'), undefined, true);
       handle?.abort();
     };
     if (signal?.aborted) {
@@ -70,6 +88,9 @@ export function requestCore(
         nocache: true,
         redirect: 'error',
         onload: (result) => {
+          if (settled) {
+            return;
+          }
           try {
             const headers = new Headers();
             for (const line of result.responseHeaders.split(/\r?\n/)) {
@@ -106,7 +127,7 @@ export function requestCore(
         },
         onerror: () => finish(new TypeError('无法连接核心，请检查地址、端口和油猴连接权限')),
         ontimeout: () => finish(new DOMException('核心请求超时', 'TimeoutError')),
-        onabort: () => finish(new DOMException('请求已取消', 'AbortError')),
+        onabort: () => finish(new DOMException('请求已取消', 'AbortError'), undefined, true),
       });
       if (signal?.aborted) {
         abort();

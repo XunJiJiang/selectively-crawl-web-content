@@ -4,6 +4,7 @@ import type { PluginConfig, PluginItem, TRequiredOptions } from '../../../shared
 import { notify } from '../utils/notify.ts';
 import { requestCore } from './request.ts';
 import type { ScriptUIEvent, ScriptUIResult } from '../../../shared/script-ui.ts';
+import { isCoreConnectionError } from './sync-circuit.ts';
 
 /** 请求插件列表 */
 export interface PluginConfigBatch {
@@ -17,6 +18,7 @@ export async function fetchPlugins(
     site?: string;
     previousSite?: string;
     signal?: AbortSignal;
+    interactive?: boolean;
     pluginId?: string;
     instanceId?: string;
     dirtyFields?: string[];
@@ -30,7 +32,7 @@ export async function fetchPlugins(
     `${config.api.host}:${config.api.port.replace(/[^\d]/g, '')}/api/plugin/config?site=${encodeURIComponent(url)}${previous}${options.pluginId ? `&pluginId=${encodeURIComponent(options.pluginId)}` : ''}${options.instanceId ? `&instanceId=${encodeURIComponent(options.instanceId)}&dirtyFields=${encodeURIComponent(JSON.stringify(options.dirtyFields ?? []))}` : ''}`,
     {
       method: 'GET',
-      interactive: false,
+      interactive: options.interactive ?? false,
       signal: options.signal,
       headers: {
         'Content-Type': 'application/json',
@@ -128,7 +130,7 @@ export async function invokeScriptUI(
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.api.token}` },
-      interactive: !request.readOnly,
+      interactive: request.bindingId !== '$read',
       body: JSON.stringify({ ...request, version: 'v2', id: plugin.id, data: data.result }),
     },
   );
@@ -220,6 +222,9 @@ function handleFetchResponse(
       }
     })
     .catch((e) => {
+      if (isCoreConnectionError(e)) {
+        return;
+      }
       console.warn('插件请求失败');
       notify({
         title: '插件请求失败',

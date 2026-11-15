@@ -21,7 +21,7 @@ it('persists no retry count and records failure only after the entire retry budg
   expect(notify).toHaveBeenCalledOnce();
   circuit.resetCoreSyncCircuit();
   expect(localStorage.getItem(key)).toBe('false');
-  circuit.recordCoreSyncFailure();
+  expect(circuit.recordCoreSyncFailure()).toBe(true);
   expect(localStorage.getItem(key)).toBe('false');
   circuit.recordCoreSyncSuccess();
   expect(localStorage.getItem(key)).toBe('true');
@@ -40,7 +40,9 @@ it.each([false, { failures: 3, blocked: true }])(
     expect(notify).not.toHaveBeenCalled();
     expect(() => circuit.assertCoreRequestAllowed(false)).toThrow();
     expect(notify).not.toHaveBeenCalled();
-    expect(() => circuit.assertCoreRequestAllowed()).toThrow();
+    expect(() => circuit.assertCoreRequestAllowed()).not.toThrow();
+    expect(notify).not.toHaveBeenCalled();
+    circuit.recordCoreRequestFailure();
     expect(notify).toHaveBeenCalledOnce();
     expect(localStorage.getItem(key)).toBe('false');
   },
@@ -60,8 +62,28 @@ it('allows automatic failure notices again after an actual successful connection
   localStorage.setItem(key, 'false');
   const circuit = await import('./sync-circuit.ts');
   circuit.recordCoreSyncSuccess();
-  circuit.recordCoreSyncFailure();
-  circuit.recordCoreSyncFailure();
-  circuit.recordCoreSyncFailure();
+  expect(circuit.recordCoreSyncFailure()).toBe(true);
   expect(notify).toHaveBeenCalledOnce();
+});
+
+it('never restores the startup retry budget after success or a settings reset', async () => {
+  const circuit = await import('./sync-circuit.ts');
+  circuit.recordCoreSyncSuccess();
+  expect(circuit.recordCoreSyncFailure()).toBe(true);
+  circuit.resetCoreSyncCircuit();
+  expect(circuit.recordCoreSyncFailure()).toBe(true);
+});
+
+it('lets every user operation attempt a connection and only notifies after the attempt fails', async () => {
+  localStorage.setItem(key, 'false');
+  const circuit = await import('./sync-circuit.ts');
+  circuit.recordCoreSyncFailure();
+  circuit.recordCoreSyncFailure();
+  circuit.recordCoreSyncFailure();
+  for (let attempt = 0; attempt < 2; attempt++) {
+    expect(() => circuit.assertCoreRequestAllowed(true)).not.toThrow();
+    expect(notify).toHaveBeenCalledTimes(attempt);
+    circuit.recordCoreRequestFailure();
+    expect(notify).toHaveBeenCalledTimes(attempt + 1);
+  }
 });

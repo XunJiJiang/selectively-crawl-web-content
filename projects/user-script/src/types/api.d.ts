@@ -10,4 +10,4 @@ export type TCrawlResult =
     }[]
   | string[];
 
-export type TCrawlResponse = ResponseData<TCrawlResult>;
+export type TCrawlResponse = ResponseData<TCrawlResult> & { notificationHandled?: boolean };

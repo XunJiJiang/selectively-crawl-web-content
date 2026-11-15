@@ -5,13 +5,23 @@ import {
   type GmResponseEvent,
 } from 'vite-plugin-monkey/dist/client';
 import { requestCore } from './request.ts';
-import { recordCoreSyncFailure, recordCoreSyncSuccess } from './sync-circuit.ts';
+import {
+  isCoreSyncBlocked,
+  recordCoreSyncFailure,
+  recordCoreSyncSuccess,
+  CORE_CONNECTION_RECOVERED_EVENT,
+} from './sync-circuit.ts';
 import { CLIENT_VERSION } from '../../../shared/client-version.ts';
 import { setScriptVisible } from '../visibility.ts';
 import { showVersionNotice } from '../../../shared/components/version-notice.ts';
+import { notify } from '../utils/notify.ts';
+import { invokeScriptUI } from './plugins.ts';
+import { sendCrawlRequest } from './crawl.ts';
+import { defaultSiteData } from '../../../shared/userscript-config.ts';
 
 vi.mock('vite-plugin-monkey/dist/client', () => ({ GM_xmlhttpRequest: vi.fn() }));
 vi.mock('../../../shared/components/version-notice.ts', () => ({ showVersionNotice: vi.fn() }));
+vi.mock('../utils/notify.ts', () => ({ notify: vi.fn() }));
 const gm = vi.mocked(GM_xmlhttpRequest);
 let details: GmXmlhttpRequestOption<'text'>;
 const abort = vi.fn();
@@ -34,6 +44,7 @@ beforeEach(() => {
   recordCoreSyncSuccess();
   setScriptVisible(true);
   vi.mocked(showVersionNotice).mockClear();
+  vi.mocked(notify).mockClear();
   gm.mockReset();
   abort.mockReset();
   gm.mockImplementation((options) => {
@@ -50,6 +61,7 @@ beforeEach(() => {
 afterEach(() => {
   recordCoreSyncSuccess();
   vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 
 it('sends authenticated JSON through the manager with website identity and no cookies', async () => {
@@ -123,15 +135,105 @@ it('does not start a request when already cancelled', async () => {
   ).rejects.toMatchObject({ name: 'AbortError' });
   expect(gm).not.toHaveBeenCalled();
 });
-it('does not send any core request after the sync circuit opens', async () => {
+it('blocks automatic requests after failure while allowing each user request exactly once', async () => {
   recordCoreSyncFailure();
   recordCoreSyncFailure();
   expect(recordCoreSyncFailure()).toBe(true);
 
-  await expect(requestCore('http://localhost:3200/api/plugin/config')).rejects.toMatchObject({
+  vi.mocked(notify).mockClear();
+  await expect(
+    requestCore('http://localhost:3200/api/plugin/config', { interactive: false }),
+  ).rejects.toMatchObject({
     code: 'CORE_SYNC_BLOCKED',
   });
   expect(gm).not.toHaveBeenCalled();
+  expect(notify).not.toHaveBeenCalled();
+  vi.useFakeTimers();
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const pending = requestCore('http://localhost:3200/api/plugin/toggle', { method: 'POST' });
+    const rejected = expect(pending).rejects.toMatchObject({ code: 'CORE_CONNECTION_FAILED' });
+    expect(gm).toHaveBeenCalledTimes(attempt + 1);
+    expect(notify).toHaveBeenCalledTimes(attempt);
+    const failed = { ...response({ status: 0 }), error: 'offline' };
+    details.onerror?.call(failed, failed);
+    await rejected;
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(gm).toHaveBeenCalledTimes(attempt + 1);
+    expect(notify).toHaveBeenCalledTimes(attempt + 1);
+  }
+});
+it('records recovery after a successful user request without replaying it', async () => {
+  recordCoreSyncFailure();
+  vi.mocked(notify).mockClear();
+  const recovered = vi.fn();
+  window.addEventListener(CORE_CONNECTION_RECOVERED_EVENT, recovered, { once: true });
+  const pending = requestCore('http://localhost:3200/api/plugin/toggle', { method: 'POST' });
+  load();
+  await pending;
+  expect(gm).toHaveBeenCalledOnce();
+  expect(isCoreSyncBlocked()).toBe(false);
+  expect(recovered).toHaveBeenCalledOnce();
+  expect(notify).not.toHaveBeenCalled();
+});
+it('reports a manager request timeout once without retrying the operation', async () => {
+  vi.useFakeTimers();
+  const pending = requestCore('http://localhost:3200/api/test');
+  const rejected = expect(pending).rejects.toMatchObject({
+    name: 'TimeoutError',
+    code: 'CORE_CONNECTION_FAILED',
+  });
+  details.ontimeout?.();
+  await rejected;
+  await vi.advanceTimersByTimeAsync(60000);
+  expect(gm).toHaveBeenCalledOnce();
+  expect(notify).toHaveBeenCalledOnce();
+});
+it('does not record a cancellation or a late response as connectivity recovery', async () => {
+  recordCoreSyncFailure();
+  vi.mocked(notify).mockClear();
+  const controller = new AbortController();
+  const pending = requestCore('http://localhost:3200/api/test', { signal: controller.signal });
+  const rejected = expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+  controller.abort();
+  await rejected;
+  load();
+  expect(isCoreSyncBlocked()).toBe(true);
+  expect(notify).not.toHaveBeenCalled();
+});
+it('allows a user tree read once after failure while keeping periodic binding reads paused', async () => {
+  recordCoreSyncFailure();
+  vi.mocked(notify).mockClear();
+  const plugin = { id: 'tree', title: 'Tree', description: '', controls: [] };
+  const request = {
+    version: 'v2' as const,
+    instanceId: 'instance',
+    eventId: 'read',
+    bindingId: '$read',
+    readOnly: true,
+    fields: {},
+  };
+  await expect(
+    invokeScriptUI(plugin, request, { result: [], failed: [] }, defaultSiteData().config),
+  ).rejects.toMatchObject({ code: 'CORE_SYNC_BLOCKED' });
+  expect(gm).not.toHaveBeenCalled();
+  const pending = invokeScriptUI(
+    plugin,
+    { ...request, bindingId: '$tree:items' },
+    { result: [], failed: [] },
+    defaultSiteData().config,
+  );
+  expect(gm).toHaveBeenCalledOnce();
+  load(response({ responseText: JSON.stringify({ code: 200, data: { updates: [] } }) }));
+  await pending;
+  expect(notify).not.toHaveBeenCalled();
+});
+it('marks a crawl network failure as already notified so the UI does not show a second popup', async () => {
+  const pending = sendCrawlRequest([], defaultSiteData().config);
+  const failed = { ...response({ status: 0 }), error: 'offline' };
+  details.onerror?.call(failed, failed);
+  expect(await pending).toMatchObject({ success: false, notificationHandled: true });
+  expect(gm).toHaveBeenCalledOnce();
+  expect(notify).toHaveBeenCalledOnce();
 });
 it('cleans up after success and rejects invalid network responses without falling back to fetch', async () => {
   const controller = new AbortController();

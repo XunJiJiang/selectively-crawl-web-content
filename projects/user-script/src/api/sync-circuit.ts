@@ -5,7 +5,8 @@ import { notify } from '../utils/notify.ts';
 const storageKey = 'scwc.userscript.sync-circuit.v1';
 const maxFailures = 3;
 export const CORE_SYNC_BLOCKED_MESSAGE =
-  '核心连接失败，已暂停重试。请检查地址、端口和 API Token，修改连接设置后重新尝试。';
+  '核心连接失败，自动重试已暂停。请检查地址、端口和 API Token；再次操作时会尝试连接一次。';
+export const CORE_CONNECTION_RECOVERED_EVENT = 'scwc-core-connection-recovered';
 
 interface CircuitState {
   failures: number;
@@ -32,6 +33,8 @@ function readLastResult(): boolean | undefined {
 }
 
 let state: CircuitState = { failures: 0, blocked: false };
+// 生命周期属于当前文档；浮窗重新挂载、设置变化和连接恢复都不重新分配启动预算。
+let initialConnection = true;
 let suppressAutomaticNotice = readLastResult() === false;
 let lastNoticeAt = -Infinity;
 
@@ -45,6 +48,7 @@ function saveResult(success: boolean) {
 
 export function resetCoreSyncCircuit() {
   state = { failures: 0, blocked: false };
+  initialConnection = false;
   lastNoticeAt = -Infinity;
   ConfigController.setSyncAuthRequired(false);
 }
@@ -62,19 +66,38 @@ export function recordCoreSyncFailure() {
     return true;
   }
   state.failures++;
-  if (state.failures >= maxFailures) {
-    state.blocked = true;
-    saveResult(false);
-    ConfigController.setSyncAuthRequired(true);
+  if (!initialConnection || state.failures >= maxFailures) {
+    pauseCoreSync();
     notifyCoreSyncBlocked(true);
   }
   return state.blocked;
 }
 
+function pauseCoreSync() {
+  initialConnection = false;
+  state.blocked = true;
+  saveResult(false);
+  ConfigController.setSyncAuthRequired(true);
+}
+
+/** 用户操作的单次请求已失败，不能重新启动后台重试。 */
+export function recordCoreRequestFailure() {
+  pauseCoreSync();
+  notifyCoreSyncBlocked();
+}
+
+export function isCoreConnectionError(error: unknown): error is Error & { code: string } {
+  return error instanceof Error && 'code' in error && error.code === 'CORE_CONNECTION_FAILED';
+}
+
 export function recordCoreSyncSuccess() {
+  const recovered = state.blocked;
   resetCoreSyncCircuit();
   saveResult(true);
   suppressAutomaticNotice = false;
+  if (recovered) {
+    window.dispatchEvent(new Event(CORE_CONNECTION_RECOVERED_EVENT));
+  }
 }
 
 export function notifyCoreSyncBlocked(automatic = false) {
@@ -82,7 +105,7 @@ export function notifyCoreSyncBlocked(automatic = false) {
     return;
   }
   const now = Date.now();
-  if (now - lastNoticeAt < 750) {
+  if (automatic && now - lastNoticeAt < 750) {
     return;
   }
   lastNoticeAt = now;
@@ -95,11 +118,8 @@ export function notifyCoreSyncBlocked(automatic = false) {
 }
 
 export function assertCoreRequestAllowed(interactive = true) {
-  if (!isCoreSyncBlocked()) {
+  if (interactive || !isCoreSyncBlocked()) {
     return;
-  }
-  if (interactive) {
-    notifyCoreSyncBlocked();
   }
   throw Object.assign(new Error(CORE_SYNC_BLOCKED_MESSAGE), { code: 'CORE_SYNC_BLOCKED' });
 }

@@ -8,6 +8,7 @@ import {
   resetCoreSyncCircuit,
   recordCoreSyncFailure,
   recordCoreSyncSuccess,
+  CORE_CONNECTION_RECOVERED_EVENT,
 } from './api/sync-circuit.ts';
 
 const pollInterval = 2000;
@@ -37,6 +38,7 @@ export class SiteConfigConnection {
   private retry?: ReturnType<typeof setTimeout>;
   private running = false;
   private queued = false;
+  private queuedInteractive = false;
   private generation = 0;
   private retryDelay = 500;
   private connectionKey = '';
@@ -53,6 +55,7 @@ export class SiteConfigConnection {
     this.store.addEventListener('change', this.changed);
     window.addEventListener('online', this.reconnect);
     window.addEventListener('pageshow', this.reconnect);
+    window.addEventListener(CORE_CONNECTION_RECOVERED_EVENT, this.recovered);
     void this.sync();
   }
   stop() {
@@ -65,10 +68,13 @@ export class SiteConfigConnection {
     this.store.removeEventListener('change', this.changed);
     window.removeEventListener('online', this.reconnect);
     window.removeEventListener('pageshow', this.reconnect);
+    window.removeEventListener(CORE_CONNECTION_RECOVERED_EVENT, this.recovered);
   }
   private changed = (event: Event) => {
     const key = this.key();
-    if (key !== this.connectionKey && this.connectionKey) {
+    const connectionChanged = key !== this.connectionKey && Boolean(this.connectionKey);
+    const local = (event as CustomEvent<{ source: string }>).detail.source === 'local';
+    if (connectionChanged) {
       resetCoreSyncCircuit();
       this.retryDelay = 500;
       this.notificationCursor = undefined;
@@ -76,12 +82,21 @@ export class SiteConfigConnection {
       this.abort?.abort();
       this.connected = false;
     }
-    if (
-      (event as CustomEvent<{ source: string }>).detail.source === 'local' ||
-      key !== this.connectionKey
-    ) {
-      void this.sync();
+    if (local || key !== this.connectionKey) {
+      void this.sync(connectionChanged && local);
     }
+  };
+  private recovered = () => {
+    if (this.stopped) {
+      return;
+    }
+    this.generation++;
+    this.abort?.abort();
+    this.connected = false;
+    this.queued = false;
+    this.queuedInteractive = false;
+    // 只恢复配置轮询，不重放刚成功的用户操作。
+    this.schedule(pollInterval);
   };
   private reconnect = () => {
     if (!this.stopped) {
@@ -98,17 +113,20 @@ export class SiteConfigConnection {
       void this.sync();
     }, delay);
   }
-  async sync() {
+  async sync(interactive = false) {
     if (this.stopped) {
       return;
     }
-    if (isCoreSyncBlocked()) {
+    if (!interactive && isCoreSyncBlocked()) {
       return;
     }
     if (this.running) {
       this.queued = true;
+      this.queuedInteractive ||= interactive;
       return;
     }
+    interactive ||= this.queuedInteractive;
+    this.queuedInteractive = false;
     this.running = true;
     this.queued = false;
     clearTimeout(this.retry);
@@ -123,7 +141,7 @@ export class SiteConfigConnection {
       const url = coreUrl(config, '/api/userscript/config/sync');
       url.searchParams.set('site', snapshot.website);
       const response = await requestCore(url, {
-        interactive: false,
+        interactive,
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -181,7 +199,7 @@ export class SiteConfigConnection {
       clearTimeout(timeout);
       this.running = false;
       if (this.queued && !this.stopped && !isCoreSyncBlocked()) {
-        void this.sync();
+        void this.sync(this.queuedInteractive);
       }
     }
   }

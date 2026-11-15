@@ -178,3 +178,45 @@ it('retains debounced origin settings through a same-origin SPA path change', as
     ConfigController.applyConfig(before.data.config);
   }
 });
+
+it('marks a user reopening the plugin panel as an interactive request after an automatic load failed', async () => {
+  siteStore.update((data) => {
+    data.plugin.expanded = false;
+  });
+  vi.mocked(fetchPlugins).mockRejectedValueOnce(
+    Object.assign(new Error('paused'), { code: 'CORE_SYNC_BLOCKED' }),
+  );
+  const host = new SCWCContentPlugin();
+  host.expanded = true;
+  document.body.append(host);
+  await vi.waitFor(() => expect(fetchPlugins).toHaveBeenCalledOnce());
+  await host.updateComplete;
+  expect(vi.mocked(fetchPlugins).mock.calls[0][1]?.interactive).toBe(false);
+  host.expanded = false;
+  await host.updateComplete;
+  vi.mocked(fetchPlugins).mockResolvedValueOnce(batch([plugin('recovered')]));
+  siteStore.update((data) => {
+    data.plugin.expanded = true;
+  });
+  host.expanded = true;
+  await vi.waitFor(() => expect(fetchPlugins).toHaveBeenCalledTimes(2));
+  expect(vi.mocked(fetchPlugins).mock.calls[1][1]?.interactive).toBe(true);
+});
+
+it('tries the saved plugin panel once when a user restores the minimized window after failure', async () => {
+  siteStore.update((data) => {
+    data.plugin.expanded = true;
+    data.window.minimized = true;
+  });
+  vi.mocked(fetchPlugins).mockResolvedValueOnce(batch([plugin('restored')]));
+  const host = new SCWCContentPlugin();
+  document.body.append(host);
+  await host.updateComplete;
+  expect(fetchPlugins).not.toHaveBeenCalled();
+  siteStore.update((data) => {
+    data.window.minimized = false;
+  });
+  host.expanded = true;
+  await vi.waitFor(() => expect(fetchPlugins).toHaveBeenCalledOnce());
+  expect(vi.mocked(fetchPlugins).mock.calls[0][1]?.interactive).toBe(true);
+});

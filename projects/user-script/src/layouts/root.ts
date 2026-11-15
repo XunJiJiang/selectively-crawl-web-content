@@ -1,7 +1,6 @@
 import style from './root.css?raw';
 import { siteStore } from '../site-store.ts';
 import { SiteConfigConnection } from '../site-sync.ts';
-import { isCoreSyncBlocked, notifyCoreSyncBlocked } from '../api/sync-circuit.ts';
 import { theme } from '../theme.ts';
 import type { ContextMenuItem } from '../../../web/src/components/context-menu/menu-types.ts';
 import './minimized.ts';
@@ -39,11 +38,6 @@ class SCWCRootLayout extends LitElement {
     plugin: siteStore.snapshot.data.plugin,
   };
   private connection = new SiteConfigConnection(siteStore);
-  private interact = () => {
-    if (isCoreSyncBlocked()) {
-      notifyCoreSyncBlocked();
-    }
-  };
   private updatePersistentData() {
     siteStore.update((data) => {
       data.window = {
@@ -65,8 +59,6 @@ class SCWCRootLayout extends LitElement {
   };
   connectedCallback() {
     super.connectedCallback();
-    this.addEventListener('pointerdown', this.interact, true);
-    this.addEventListener('keydown', this.interact, true);
     this.siteChanged();
     siteStore.addEventListener('change', this.siteChanged);
     this.connection.start();
@@ -149,8 +141,6 @@ class SCWCRootLayout extends LitElement {
     }
   }
   disconnectedCallback() {
-    this.removeEventListener('pointerdown', this.interact, true);
-    this.removeEventListener('keydown', this.interact, true);
     siteStore.removeEventListener('change', this.siteChanged);
     this.connection.stop();
     this.boundsObserver?.disconnect();

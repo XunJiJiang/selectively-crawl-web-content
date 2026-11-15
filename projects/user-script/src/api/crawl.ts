@@ -1,6 +1,7 @@
 import type { TCrawlResponse } from '../types/api.d.ts';
 import type { TConfig } from '../../../shared/types/config.d.ts';
 import { requestCore } from './request.ts';
+import { isCoreConnectionError } from './sync-circuit.ts';
 
 export async function sendCrawlRequest(
   data: SCWC.TDataItem[],
@@ -39,6 +40,7 @@ export async function sendCrawlRequest(
       success: false,
       message: `抓取失败: ${e instanceof Error ? e.message : String(e)}`,
       data: [],
+      notificationHandled: isCoreConnectionError(e),
     };
   }
 }
