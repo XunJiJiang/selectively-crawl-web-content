@@ -4,94 +4,104 @@ import { notify } from '../utils/notify.ts';
 
 const storageKey = 'scwc.userscript.sync-circuit.v1';
 const maxFailures = 3;
-export const CORE_SYNC_BLOCKED_MESSAGE = '核心连接已暂停。请修改设置中的 API Token 后重新尝试。';
+export const CORE_SYNC_BLOCKED_MESSAGE =
+  '核心连接失败，已暂停重试。请检查地址、端口和 API Token，修改连接设置后重新尝试。';
 
 interface CircuitState {
   failures: number;
   blocked: boolean;
 }
 
-function readState(fallback: CircuitState): CircuitState {
+function readLastResult(): boolean | undefined {
   try {
-    const raw = localStorage.getItem(storageKey);
-    if (!raw) {
-      return fallback;
+    const saved: unknown = JSON.parse(localStorage.getItem(storageKey) ?? 'null');
+    if (typeof saved === 'boolean') {
+      return saved;
     }
-    const saved = JSON.parse(raw) as Partial<CircuitState>;
-    const failures =
-      typeof saved?.failures === 'number' && Number.isInteger(saved.failures) ? saved.failures : 0;
-    return {
-      failures: Math.max(0, Math.min(maxFailures, failures)),
-      blocked: saved?.blocked === true,
-    };
+    // 旧格式只有耗尽重试的 blocked 才能证明失败，部分失败不算最终结果。
+    if (saved && typeof saved === 'object') {
+      if ('blocked' in saved && saved.blocked === true) {
+        localStorage.setItem(storageKey, 'false');
+        return false;
+      }
+      localStorage.removeItem(storageKey);
+    }
   } catch {
-    return fallback;
+    // 存储不可用时仍可在本页重试。
   }
 }
 
-let state = readState({ failures: 0, blocked: false });
-let lastNoticeAt = 0;
-ConfigController.setSyncAuthRequired(state.blocked);
+let state: CircuitState = { failures: 0, blocked: false };
+let suppressAutomaticNotice = readLastResult() === false;
+let lastNoticeAt = -Infinity;
 
-function saveState(next: CircuitState) {
-  state = next;
+function saveResult(success: boolean) {
   try {
-    localStorage.setItem(storageKey, JSON.stringify(state));
+    localStorage.setItem(storageKey, JSON.stringify(success));
   } catch {
-    // The current page still enforces the circuit if storage is unavailable.
+    // 最终结果保存失败不影响当前页的熔断。
   }
-  ConfigController.setSyncAuthRequired(state.blocked);
+}
+
+export function resetCoreSyncCircuit() {
+  state = { failures: 0, blocked: false };
+  lastNoticeAt = -Infinity;
+  ConfigController.setSyncAuthRequired(false);
 }
 
 export function isCoreSyncBlocked() {
-  const saved = readState(state);
-  if (saved.blocked !== state.blocked || saved.failures !== state.failures) {
-    state = saved;
-    ConfigController.setSyncAuthRequired(state.blocked);
-  }
   return state.blocked;
 }
 
+export function shouldNotifyAutomaticConnectionFailure() {
+  return !suppressAutomaticNotice;
+}
+
 export function recordCoreSyncFailure() {
-  const saved = readState(state);
-  const failures = Math.min(maxFailures, saved.failures + 1);
-  saveState({ failures, blocked: failures >= maxFailures });
+  if (state.blocked) {
+    return true;
+  }
+  state.failures++;
+  if (state.failures >= maxFailures) {
+    state.blocked = true;
+    saveResult(false);
+    ConfigController.setSyncAuthRequired(true);
+    notifyCoreSyncBlocked(true);
+  }
   return state.blocked;
 }
 
 export function recordCoreSyncSuccess() {
-  saveState({ failures: 0, blocked: false });
+  resetCoreSyncCircuit();
+  saveResult(true);
+  suppressAutomaticNotice = false;
 }
 
-export function notifyCoreSyncBlocked() {
+export function notifyCoreSyncBlocked(automatic = false) {
+  if (automatic && suppressAutomaticNotice) {
+    return;
+  }
   const now = Date.now();
   if (now - lastNoticeAt < 750) {
     return;
   }
   lastNoticeAt = now;
   notify({
-    title: '核心连接已暂停',
+    title: '核心连接失败',
     description: CORE_SYNC_BLOCKED_MESSAGE,
     type: 'error',
     placement: ConfigController.config.notify.placement,
   });
 }
 
-export function assertCoreRequestAllowed() {
+export function assertCoreRequestAllowed(interactive = true) {
   if (!isCoreSyncBlocked()) {
     return;
   }
-  notifyCoreSyncBlocked();
+  if (interactive) {
+    notifyCoreSyncBlocked();
+  }
   throw Object.assign(new Error(CORE_SYNC_BLOCKED_MESSAGE), { code: 'CORE_SYNC_BLOCKED' });
 }
 
-window.addEventListener(API_TOKEN_CHANGED_EVENT, () => {
-  saveState({ failures: 0, blocked: false });
-});
-
-window.addEventListener('storage', (event) => {
-  if (event.key === storageKey || event.key === null) {
-    state = readState({ failures: 0, blocked: false });
-    ConfigController.setSyncAuthRequired(state.blocked);
-  }
-});
+window.addEventListener(API_TOKEN_CHANGED_EVENT, resetCoreSyncCircuit);

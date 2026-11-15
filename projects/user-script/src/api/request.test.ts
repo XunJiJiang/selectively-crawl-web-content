@@ -6,8 +6,12 @@ import {
 } from 'vite-plugin-monkey/dist/client';
 import { requestCore } from './request.ts';
 import { recordCoreSyncFailure, recordCoreSyncSuccess } from './sync-circuit.ts';
+import { CLIENT_VERSION } from '../../../shared/client-version.ts';
+import { setScriptVisible } from '../visibility.ts';
+import { showVersionNotice } from '../../../shared/components/version-notice.ts';
 
 vi.mock('vite-plugin-monkey/dist/client', () => ({ GM_xmlhttpRequest: vi.fn() }));
+vi.mock('../../../shared/components/version-notice.ts', () => ({ showVersionNotice: vi.fn() }));
 const gm = vi.mocked(GM_xmlhttpRequest);
 let details: GmXmlhttpRequestOption<'text'>;
 const abort = vi.fn();
@@ -28,6 +32,8 @@ function load(result = response()) {
 }
 beforeEach(() => {
   recordCoreSyncSuccess();
+  setScriptVisible(true);
+  vi.mocked(showVersionNotice).mockClear();
   gm.mockReset();
   abort.mockReset();
   gm.mockImplementation((options) => {
@@ -57,7 +63,7 @@ it('sends authenticated JSON through the manager with website identity and no co
     method: 'POST',
     data: '{}',
     headers: {
-      'X-SCWC-Version': '3.2.0',
+      'X-SCWC-Version': CLIENT_VERSION,
       Authorization: 'Bearer secret',
       Origin: location.origin,
       Referer: `${location.origin}/`,
@@ -84,6 +90,19 @@ it('preserves HTTP failures and JSON parse errors for callers', async () => {
   const invalid = requestCore('http://localhost:3200/api/test');
   load(response({ responseText: '<html>not JSON</html>' }));
   await expect((await invalid).json()).rejects.toThrow();
+});
+it('suppresses late version notices after the script is hidden', async () => {
+  const pending = requestCore('http://localhost:3200/api/test');
+  setScriptVisible(false);
+  load(
+    response({
+      responseHeaders:
+        'X-SCWC-Version-Notice: ' +
+        encodeURIComponent(JSON.stringify({ status: 'warning', message: '升级提示' })),
+    }),
+  );
+  expect((await pending).ok).toBe(true);
+  expect(showVersionNotice).not.toHaveBeenCalled();
 });
 it('cancels the manager request, cleans up its listener and ignores late callbacks', async () => {
   const controller = new AbortController();

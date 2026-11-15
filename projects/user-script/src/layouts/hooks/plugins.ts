@@ -16,6 +16,7 @@ import { getCrawlData } from '../../utils/claw.ts';
 import type { SCWCContentPlugin } from '../content-plugin.ts';
 import { notify } from '../../utils/notify.ts';
 import { watchUrl } from '../../utils/url-watch.ts';
+import { shouldNotifyAutomaticConnectionFailure } from '../../api/sync-circuit.ts';
 
 function getFullOptions(control: PluginItem): TRequiredOptions {
   return {
@@ -173,6 +174,12 @@ export class PluginsController implements ReactiveController {
       if (!this.plugins) {
         this.setPlugins([this.configController.configControls]);
       }
+      if ((error as { code?: string }).code === 'CORE_SYNC_BLOCKED') {
+        return;
+      }
+      if (!shouldNotifyAutomaticConnectionFailure()) {
+        return;
+      }
       notify({
         title: '插件加载失败',
         description: error instanceof Error ? error.message : String(error),
@@ -282,14 +289,20 @@ export class PluginsController implements ReactiveController {
   setActiveTab(activeTab: string) {
     if (activeTab !== this.activeTab) {
       for (const view of this.host.shadowRoot?.querySelectorAll<ScriptUIView>('scwc-script-ui') ??
-        [])
-        if (view.identity === this.activeTab) view.preserveInteraction();
+        []) {
+        if (view.identity === this.activeTab) {
+          view.preserveInteraction();
+        }
+      }
       this.activeTab = activeTab;
       this.host.requestUpdate();
       void this.host.updateComplete.then(() => {
         for (const view of this.host.shadowRoot?.querySelectorAll<ScriptUIView>('scwc-script-ui') ??
-          [])
-          if (view.identity === this.activeTab) view.restoreInteraction();
+          []) {
+          if (view.identity === this.activeTab) {
+            view.restoreInteraction();
+          }
+        }
       });
     }
   }
@@ -315,16 +328,21 @@ export class PluginsController implements ReactiveController {
     plugin: PluginConfig,
     previous?: { instanceId: string; dirtyFields: string[] },
   ) {
-    while (this.loading) await this.loading;
+    while (this.loading) {
+      await this.loading;
+    }
     const site = location.href,
       generation = this.generation;
     const batch = await this.templates.run(plugin.id, () =>
       fetchPlugins(this.configController.config, { site, pluginId: plugin.id, ...previous }),
     );
-    if (site !== location.href || generation !== this.generation || !this.host.isConnected)
+    if (site !== location.href || generation !== this.generation || !this.host.isConnected) {
       throw new Error('插件实例已经切换');
+    }
     const next = batch.plugins.find((p) => p.id === plugin.id);
-    if (!next?.ui) throw new Error(next?.configError ?? '插件模板未就绪');
+    if (!next?.ui) {
+      throw new Error(next?.configError ?? '插件模板未就绪');
+    }
     this.setPlugins((this.plugins ?? []).map((p) => (p.id === next.id ? next : p)));
     return next.ui;
   }

@@ -1193,7 +1193,7 @@ notification.css[ZU5T]: F:提供共享工作台通知卡片及进度按钮外观
 notification.ts[LU6T]: F:渲染共享通知卡片、正文图标及进度 | R:code:projects/shared/components/notification.css,code:projects/shared/workbench-feedback.ts | A:NotificationPresentation,renderNotification,renderNotificationContent,renderNotificationProgress,notificationIcon | S:文本经Lit转义；焦点离开整张卡才恢复；关闭按钮阻止冒泡；进度null表示不定、false或缺省隐藏
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/shared/store/===
-config.ts[CC7M]: F:协调浏览器配置控件、鉴权提示与同页配置传播 | R:code:projects/shared/utils/storage.ts,code:projects/shared/userscript-config.ts | A:ConfigController,configContext,defaultValue,parseRefreshRule,isConfig,isConfigItem | S:公共键接收同origin更新；API字段合并防抖500ms；Token变化独立发事件并清鉴权提示；提示刷新控件时保留待落盘输入；断连注销控制器
+config.ts[CC7M]: F:协调浏览器设置控件、鉴权提示与当前客户端附加设置 | R:code:projects/shared/utils/storage.ts,code:projects/shared/userscript-config.ts | A:ConfigController,configContext,defaultValue,setAdditionalControls,applyConfig,notify | S:公共配置按origin共享；API输入合并防抖500ms；Token变更发事件；附加控件只驻当前客户端；刷新保留待存输入，断连注销控制器
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/shared/types/===
 api.d.ts[FN4T]: F:声明共享响应封装 | R:- | A:ResponseData | S:data可缺省，成功与消息字段始终存在
@@ -1307,10 +1307,11 @@ vite.config.ts[FV5T]: F:构建全站用户脚本并注入根包请求版本 | R:
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/user-script/src/api/===
 crawl.ts[IN6T]: F:经脚本管理器向核心提交页面采集内容 | R:code:projects/user-script/src/api/request.ts | A:sendCrawlRequest | S:site随查询及JSON发送并带Bearer；按响应success归一结果，网络或JSON异常转换失败值
-plugins.ts[IE6M]: F:请求双代脚本配置并传递JSON事件与字段错误 | R:code:projects/user-script/src/api/request.ts,code:projects/shared/script-ui.ts | A:fetchPlugins,triggerPlugin,invokeScriptUI,PluginConfigBatch | S:v1显式版本；v2携实例快照及刷新脏基线；仅提交要求完整采集；错误保留code和field，成功兼容通知
-request.test.ts[TN6S]: F:验证脚本管理器请求身份、取消清理及熔断阻断 | R:code:projects/user-script/src/api/request.ts,code:projects/user-script/src/api/sync-circuit.ts | A:Vitest用例 | S:mock GM且页面fetch禁用；覆盖版本头、匿名请求、HTTP错误及取消后迟到回调；三次失败熔断后不再调用GM
-request.ts[IN7S]: F:经脚本管理器提交带版本请求并服从同步熔断 | R:code:projects/user-script/src/api/sync-circuit.ts,code:projects/shared/client-version.ts,code:projects/shared/components/version-notice.ts | A:requestCore,CoreRequestOptions | S:发请求前核验熔断；保留网站Origin和Referer；匿名禁缓存且拒重定向，缺GM不回退fetch；通知头异常不影响原响应；取消释放监听
-sync-circuit.ts[RN7S]: F:持久化脚本同步熔断并阻止暂停后的核心请求 | R:code:projects/user-script/src/api/request.ts,code:projects/user-script/src/site-sync.ts,code:projects/shared/store/config.ts,code:projects/shared/userscript-config.ts | A:isCoreSyncBlocked,recordCoreSyncFailure,recordCoreSyncSuccess,notifyCoreSyncBlocked,assertCoreRequestAllowed,CORE_SYNC_BLOCKED_MESSAGE | S:同origin共享持久状态；连续同步失败3次封锁所有核心请求，成功或Token变更重置；提示750ms节流；存储不可用时当前页仍生效
+plugins.ts[IE6M]: F:请求双代脚本配置并传递JSON事件与字段错误 | R:code:projects/user-script/src/api/request.ts,code:projects/shared/script-ui.ts | A:fetchPlugins,triggerPlugin,invokeScriptUI,PluginConfigBatch | S:模板与只读事件按后台请求处理；v2携刷新脏基线；仅提交要求完整采集；错误保留code和field，成功兼容通知
+request.test.ts[TN6S]: F:验证脚本管理器请求身份、熔断及隐藏页面版本通知抑制 | R:code:projects/user-script/src/api/request.ts,code:projects/user-script/src/api/sync-circuit.ts | A:Vitest用例 | S:mock GM且页面fetch禁用；版本头取统一常量；覆盖取消迟到、HTTP错误、熔断阻断和隐藏后升级通知
+request.ts[IN7S]: F:经脚本管理器提交带版本及交互标记的核心请求 | R:code:projects/user-script/src/api/sync-circuit.ts,code:projects/user-script/src/visibility.ts | A:requestCore,CoreRequestOptions | S:先验熔断，后台阻断静默；匿名禁缓存拒重定向，缺GM不回退fetch；网站Origin及Referer保留；隐藏时丢版本提示，取消释放监听
+sync-circuit.ts[RN7S]: F:管理本页连接重试熔断与上次最终结果提示策略 | R:code:projects/user-script/src/site-sync.ts,code:projects/shared/store/config.ts,code:projects/user-script/src/utils/notify.ts | A:isCoreSyncBlocked,recordCoreSyncFailure,recordCoreSyncSuccess,resetCoreSyncCircuit,notifyCoreSyncBlocked,assertCoreRequestAllowed | S:次数仅在内存，三次失败才记false，真实成功记true；重开再试但上次失败仅交互提示；旧blocked迁移；设置变更只复位不记成功
+sync-circuit.test.ts[TR6T]: F:验证连接最终结果持久化、重开重试和交互提示 | R:code:projects/user-script/src/api/sync-circuit.ts | A:Vitest用例 | S:重新加载模块模拟下次打开；覆盖旧blocked与未用完重试迁移、仅第三次失败落盘、真实成功恢复自动提示
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/user-script/src/layouts/===
 content-claw.css[ZU3T]: F:排版工作台风格抓取列表与选择表单 | R:code:projects/user-script/src/layouts/content-claw.ts | A:.claw-header,.claw-item-list,.claw-item | S:列表高度受视口限制，滚动由共享容器承接
@@ -1324,26 +1325,29 @@ header.ts[IU5S]: F:控制浮窗拖动、展开与最小化入口 | R:code:projec
 minimized.css[ZU3T]: F:排版贴边最小化浮窗标识 | R:code:projects/user-script/src/layouts/minimized.ts | A:.scwc-layout-minimized | S:横向固定负16px，只露出部分标识
 minimized.ts[IU4S]: F:控制贴边窗口拖动与键盘恢复 | R:code:projects/user-script/src/layouts/root.ts | A:scwc-layout-minimized,move,maximize | S:仅纵向拖动，拖后点击不恢复；Enter和空格可展开，断连释放拖拽监听
 root.css[ZU3T]: F:排版工作台风格浮窗及内容滚动视口 | R:code:projects/user-script/src/layouts/root.ts | A:.scwc-layout-root,.window-scroll | S:宿主重置页面继承样式；展开宽400px，窗口高度受视口约束
-root.ts[AU7M]: F:编排页面悬浮窗状态、配置连接与菜单 | R:code:projects/user-script/src/site-store.ts,code:projects/user-script/src/site-sync.ts,code:projects/user-script/src/layouts/content.ts | A:scwc-layout-root | S:位置、折叠、选择区、插件页签均进入页面快照；远端坐标钳制只改本页显示；连接随挂载启动并在断连停止，菜单复用工作台组件
+root.ts[AU7M]: F:编排悬浮窗状态、配置连接、交互失败提示与菜单 | R:code:projects/user-script/src/site-store.ts,code:projects/user-script/src/site-sync.ts,code:projects/user-script/src/api/sync-circuit.ts | A:scwc-layout-root | S:位置折叠与插件页签保存快照，坐标钳制只改本页显示；挂载连核心、断连停止；捕获指针和键盘交互才提示已暂停连接
 content.css[ZU3T]: F:约束浮窗抓取和插件区的纵向布局 | R:code:projects/user-script/src/layouts/content.ts | A::host,.content | S:子面板允许收缩，滚动交内部共享容器
 layouts.test.ts[TU5S]: F:验证浮窗共享组件、网站数据及空采集 | R:code:projects/user-script/src/layouts/root.ts,code:projects/user-script/src/layouts/content-claw.ts | A:Vitest用例 | S:几何夹具证明远端坐标只在本页钳制；覆盖菜单切换、公共存储键保存和空数组提交
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/user-script/src/layouts/hooks/===
-plugins.ts[AE7M]: F:协调脚本控件保存、插件选择和合并模板刷新 | R:code:projects/user-script/src/site-store.ts,code:projects/user-script/src/api/plugins.ts,code:projects/shared/script-ui.ts | A:PluginsController | S:同站模板串行合并，换URL可取消旧请求；代数拒迟到结果，保留未刷新插件；切换恢复交互状态；旧输入先落盘再防抖并等刷新，定向JSON刷新携草稿基线
+plugins.ts[AE7M]: F:协调脚本控件保存、插件选择和合并模板刷新 | R:code:projects/user-script/src/site-store.ts,code:projects/user-script/src/api/plugins.ts,code:projects/shared/script-ui.ts | A:PluginsController | S:模板串行合并且拒迟到响应；旧输入先保存再防抖并等刷新；切换保交互状态；上次连接失败或熔断时后台加载静默，设置始终保留
 plugins.test.ts[TE6S]: F:验证插件增量刷新、持久化及同源导航输入 | R:code:projects/user-script/src/layouts/hooks/plugins.ts,code:projects/shared/store/config.ts | A:Vitest用例 | S:覆盖保留未刷新控件、旧URL响应拒收和待触发动作等待刷新；同origin路径导航保留连接字段的防抖修改
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/user-script/src/===
-main.ts[EU6T]: F:初始化CSP配置与迁移并按页面归属挂载浮窗 | R:code:projects/user-script/src/csp.ts,code:projects/user-script/src/layouts/root.ts | A:用户脚本入口 | S:CSP设置先于迁移与布局；load后检查自身及可读祖先的scwc-app或标题加app-root；保留hinder消息且不注入字体
+main.ts[EU7S]: F:初始化脚本并按页面归属与直接父帧策略管理展示 | R:code:projects/user-script/src/csp.ts,code:projects/user-script/src/frame-settings.ts,code:projects/user-script/src/visibility.ts | A:用户脚本入口,stopUserScript | S:CSP先于迁移布局；初始禁通知，load后验工作台祖先；隐藏移除浮窗并停连接但保留设置桥；hinder只接受直接父页
 migrate.ts[PC6T]: F:在布局及配置控制器初始化前迁移网站存储 | R:code:projects/shared/utils/updateLocalStorage.ts | A:config,模块初始化副作用 | S:先使用构建Host和Port默认值迁移，再回写公共设置键，避免默认补齐污染历史数据
 site-store.test.ts[TC6S]: F:验证origin共享、路径副本迁移与日期单调 | R:code:projects/user-script/src/site-store.ts,code:projects/shared/utils/updateLocalStorage.ts | A:Vitest用例 | S:覆盖不同路径、iframe和直接访问共享，其他origin拒收；历史路径副本按日期恢复且保留原键，损坏旧数据不丢弃
 site-store.ts[PD8T]: F:维护网站origin配置快照及跨页面更新 | R:code:projects/shared/utils/updateLocalStorage.ts,code:projects/shared/store/config.ts,code:projects/shared/userscript-config.ts | A:SiteStore,siteStore | S:规范快照先持久化后更新内存，日期单调；canonical和兼容键均为同origin公共键，路径导航不切换配置，存储事件仅接受当前origin快照
-site-sync.test.ts[TC6M]: F:验证脚本轮询同步、主动通知游标及熔断恢复 | R:code:projects/user-script/src/site-sync.ts,code:projects/user-script/src/api/sync-circuit.ts | A:Vitest用例 | S:禁页面fetch与Socket；2秒轮询续传游标并忽略扩展scope；覆盖上传竞态、三次失败阻断及Token恢复
-site-sync.ts[IN8M]: F:通过脚本管理器轮询同步配置并接收主动通知 | R:code:projects/user-script/src/api/request.ts,code:projects/user-script/src/api/sync-circuit.ts,code:projects/shared/components/notify.ts | A:SiteConfigConnection,coreUrl | S:2秒轮询且单请求10秒，不用页面Socket；通知游标随连接身份重置并按配置回退位置；三次失败熔断，Token变化恢复；代数拒旧响应，上传后无编辑才接受同日期裁决
+site-sync.test.ts[TC6M]: F:验证脚本轮询、通知游标与本页连接熔断恢复 | R:code:projects/user-script/src/site-sync.ts,code:projects/user-script/src/api/sync-circuit.ts | A:Vitest用例 | S:禁页面fetch与Socket；覆盖上传竞态、三次失败停止、后台事件不弹通知及地址修改复位且不伪记成功
+site-sync.ts[IN8M]: F:通过脚本管理器后台轮询配置并接收可见页通知 | R:code:projects/user-script/src/api/request.ts,code:projects/user-script/src/api/sync-circuit.ts,code:projects/user-script/src/utils/notify.ts | A:SiteConfigConnection,coreUrl | S:2秒轮询、单请求10秒；三次失败停止且后台静默，地址或凭据变化只复位重试；通知游标随连接身份重置；代数拒旧响应，上传后无编辑才接受同日期裁决
 theme.ts[LU5T]: F:把工作台主题和控件外观限定到脚本浮窗宿主 | R:code:projects/web/var.css,code:projects/user-script/src/icons.ts | A:theme,controls | S:带主题属性的根选择器须转换为:host(...)以支持浅色；SVG图标先于共享菜单注册
-main.test.ts[TU5S]: F:验证工作台及同源子页跳过脚本浮窗 | R:code:projects/user-script/src/main.ts,code:projects/web/index.html | A:Vitest用例 | S:覆盖直接及嵌套祖先、DOM加载完成后识别；普通页面保留浮窗且不注入字体，跨源异常不阻断
+main.test.ts[TU5S]: F:验证工作台排除、iframe默认隐藏及直接父页控制 | R:code:projects/user-script/src/main.ts,code:projects/user-script/src/visibility.ts | A:Vitest用例 | S:覆盖同跨源iframe隐藏、越级消息拒绝、父页允许后挂载及隐藏时移除通知并丢迟到通知；DOM用例不证明浏览器沙箱
 csp.ts[FC6T]: F:关闭脚本校验器的动态代码探测 | R:code:projects/user-script/src/main.ts | A:模块初始化副作用,z.config | S:必须在迁移及布局创建schema前设jitless，兼容严格script-src
 icons.test.ts[TU5T]: F:验证脚本完整SVG映射和未知图标回退 | R:code:projects/user-script/src/icons.ts,code:projects/web/src/components/icon.ts | A:Vitest DOM用例 | S:脚本先注册仍支持工作台语义名；已知与未知名称均内联SVG，不含字体、图片及外链
 icons.ts[LU5T]: F:幂等注册共享完整名称映射的脚本SVG图标 | R:code:projects/web/src/components/icon-base.ts,code:projects/shared/utils/customElement.ts | A:UserScriptIcon,wb-icon | S:复用WbIconBase与iconGlyph；构建时内联完整codicon SVG，未知名回退question；同名先注册者保留，严格font-src不影响脚本图标
+frame-settings.test.ts[TC6M]: F:验证网站共用iframe开关及只由直接修改页询问的递归同步 | R:code:projects/user-script/src/frame-settings.ts | A:Vitest用例 | S:模拟消息与存储事件；覆盖跨路径及同源嵌套只来源页询问、跨站确认递归、旧路径迁移及非法来源拒收；不证明真实浏览器隔离
+frame-settings.ts[AC7M]: F:管理网站共用的iframe策略及确认后的子页设置同步 | R:code:projects/shared/store/config.ts,code:projects/shared/userscript-config-schema.ts,code:projects/user-script/src/utils/notify.ts | A:FrameSettingsController,ScriptSettingsPatch,setShowInChildFrames,requestDescendantSync,synchronizeSettings | S:开关按origin本地共享且默认关，同源各层联动；直接操作才询问，存储及父帧更新静默；仅验直接父子，确认递归补丁并补收迟到子页；兼容当前旧路径值
+visibility.ts[CU6T]: F:管理脚本展示开关及自有通知的隐藏清理 | R:code:projects/shared/types/notify.d.ts | A:isScriptVisible,setScriptVisible,trackScriptNotification,trackScriptNoticeElement | S:独立组件默认可见，入口先关闭；隐藏关闭自有句柄并移除登记元素，不清除其他应用通知；句柄登记最多千条
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/user-script/src/types/===
 api.d.ts[FN4T]: F:声明采集响应数据 | R:code:projects/shared/types/api.d.ts | A:TCrawlResult,TCrawlResponse | S:结果为通知对象数组或字符串数组
@@ -1351,7 +1355,7 @@ claw.d.ts[FB4T]: F:声明选择采集数据 | R:code:projects/user-script/src/ut
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/user-script/src/utils/===
 claw.ts[KB6T]: F:提取选区文本图片 | R:code:projects/user-script/src/utils/selector.ts,code:projects/user-script/src/types/claw.d.ts | A:getCrawlData | S:prefix应用每个非空文本节点；图片尝试画布PNG，跨域等异常回退src；缺失selector单独列入failed
-notify.ts[LM3T]: F:复用共享通知入口 | R:code:projects/shared/components/notify.ts | A:notify | S:-
+notify.ts[LM5T]: F:以脚本展示状态门控共享通知并登记创建归属 | R:code:projects/shared/components/notify.ts,code:projects/user-script/src/visibility.ts | A:notify | S:隐藏直接丢弃；登记句柄及新建宿主，避免隐藏脚本时误删其他应用的通知
 selector.ts[KU5T]: F:定位持久化网页选区 | R:code:projects/user-script/src/utils/claw.ts | A:getSelector,getElementBySelector | S:id直接用getElementById还原，不做CSS转义；其他路径含class及同类型序号，路径长度达200停止向上
 url-watch.test.ts[TC5T]: F:验证地址观察去重与油猴隔离环境回退 | R:code:projects/user-script/src/utils/url-watch.ts | A:Vitest用例 | S:覆盖History、事件重复、停止恢复原钩子及绕过包装时的轮询检测
 url-watch.ts[IC6T]: F:观察当前窗口的同文档URL变化 | R:code:projects/user-script/src/site-store.ts,code:projects/user-script/src/layouts/hooks/plugins.ts | A:watchUrl | S:History包装与导航事件配500ms轮询；只比较本窗口href并去重；停止时仅恢复仍属于自己的包装

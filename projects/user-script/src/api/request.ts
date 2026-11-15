@@ -6,12 +6,14 @@ import {
 } from '../../../shared/client-version.ts';
 import { showVersionNotice } from '../../../shared/components/version-notice.ts';
 import { assertCoreRequestAllowed } from './sync-circuit.ts';
+import { isScriptVisible, trackScriptNoticeElement } from '../visibility.ts';
 
 interface CoreRequestOptions {
   method?: 'GET' | 'POST';
   headers?: Record<string, string>;
   body?: string;
   signal?: AbortSignal;
+  interactive?: boolean;
 }
 
 /** 由脚本管理器发起核心请求，避免页面的 connect-src 限制。 */
@@ -20,7 +22,7 @@ export function requestCore(
   options: CoreRequestOptions = {},
 ): Promise<Response> {
   try {
-    assertCoreRequestAllowed();
+    assertCoreRequestAllowed(options.interactive);
   } catch (error) {
     return Promise.reject(error);
   }
@@ -77,9 +79,15 @@ export function requestCore(
               }
             }
             const encodedNotice = headers.get('X-SCWC-Version-Notice');
-            if (encodedNotice) {
+            if (encodedNotice && isScriptVisible()) {
               try {
+                const previous = new Set(document.querySelectorAll('scwc-version-notice'));
                 showVersionNotice(JSON.parse(decodeURIComponent(encodedNotice)) as VersionNotice);
+                for (const element of document.querySelectorAll('scwc-version-notice')) {
+                  if (!previous.has(element)) {
+                    trackScriptNoticeElement(element);
+                  }
+                }
               } catch {
                 /* malformed metadata must not hide the response */
               }

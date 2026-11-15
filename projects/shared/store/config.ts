@@ -10,6 +10,7 @@ import { debounce } from '../utils/debounce.ts';
 import { isEqual } from 'es-toolkit';
 import { notify } from '../components/notify.ts';
 import type { JSONValue, JSONValueWithFunction } from '../types/utils';
+import type { INotifyOptions } from '../types/notify.d.ts';
 import { API_TOKEN_CHANGED_EVENT, CONFIG_CHANGED_EVENT } from '../userscript-config.ts';
 
 /** 匹配规则解析 */
@@ -64,6 +65,18 @@ window.addEventListener('storage', (e: StorageEvent) => {
 });
 
 export class ConfigController implements ReactiveController {
+  static notify: (options: INotifyOptions) => unknown = notify;
+  private static additionalControls: ScriptConfigItem[] = [];
+  /** 使用方提供当前客户端的设置，不改变共享网站配置结构。 */
+  static setAdditionalControls(controls: Omit<ScriptConfigItem, 'script-config-symbol'>[]) {
+    ConfigController.additionalControls = controls.map((control) => ({
+      ...control,
+      'script-config-symbol': CONFIG_SYMBOL,
+    }));
+    for (const controller of ConfigController.allControllers) {
+      controller.refreshControls();
+    }
+  }
   static syncAuthRequired = false;
   static config: TConfig = loadFromStorage(
     CONFIG_KEY,
@@ -162,7 +175,7 @@ export class ConfigController implements ReactiveController {
         label: 'API Token',
         channel: `${configId}-api-token`,
         syncHint: ConfigController.syncAuthRequired
-          ? '同步已暂停：请填写 Token 或检查 Token 是否正确。修改 Token 后将重新尝试连接。'
+          ? '同步已暂停：请检查地址、端口和 API Token。修改连接设置后将重新尝试连接。'
           : undefined,
         options: {
           defaultValue: this.pendingApi.token ?? currentConfig.api.token,
@@ -203,7 +216,7 @@ export class ConfigController implements ReactiveController {
         channel: `${configId}-notify-test`,
         trigger: () => {
           console.log('trigger notify test', this.config.notify.placement);
-          notify({
+          ConfigController.notify({
             title: '测试通知测试通知测试通知测试通知测试通知测试通知测试通知测试通知',
             description:
               '这是一条测试通知这是一条测试通知这是一条测试通知这是一条测试通知这是一条测试通知这是一条测试通知这是一条测试通知',
@@ -212,6 +225,7 @@ export class ConfigController implements ReactiveController {
           });
         },
       },
+      ...ConfigController.additionalControls,
     ];
   }
 

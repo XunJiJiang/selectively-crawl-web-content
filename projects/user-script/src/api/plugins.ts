@@ -30,6 +30,7 @@ export async function fetchPlugins(
     `${config.api.host}:${config.api.port.replace(/[^\d]/g, '')}/api/plugin/config?site=${encodeURIComponent(url)}${previous}${options.pluginId ? `&pluginId=${encodeURIComponent(options.pluginId)}` : ''}${options.instanceId ? `&instanceId=${encodeURIComponent(options.instanceId)}&dirtyFields=${encodeURIComponent(JSON.stringify(options.dirtyFields ?? []))}` : ''}`,
     {
       method: 'GET',
+      interactive: false,
       signal: options.signal,
       headers: {
         'Content-Type': 'application/json',
@@ -127,6 +128,7 @@ export async function invokeScriptUI(
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.api.token}` },
+      interactive: !request.readOnly,
       body: JSON.stringify({ ...request, version: 'v2', id: plugin.id, data: data.result }),
     },
   );

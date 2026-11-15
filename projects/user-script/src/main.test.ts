@@ -3,8 +3,10 @@ import { afterEach, expect, it, vi } from 'vitest';
 vi.mock('./migrate.ts', () => ({}));
 vi.mock('./layouts/root.ts', () => ({}));
 vi.mock('../../shared/components/index.ts', () => ({}));
+let stop: (() => void) | undefined;
 
 afterEach(() => {
+  stop?.();
   document.body.replaceChildren();
   document.title = '';
   document
@@ -16,7 +18,7 @@ afterEach(() => {
 async function start(ready = 'complete') {
   vi.resetModules();
   vi.spyOn(document, 'readyState', 'get').mockReturnValue(ready as DocumentReadyState);
-  await import('./main.ts');
+  stop = (await import('./main.ts')).stopUserScript;
 }
 
 it.each(['marker', 'root'])(
@@ -39,7 +41,7 @@ it('checks the completed DOM before mounting when the script starts during page 
   expect(document.querySelector('scwc-layout-root')).toBeNull();
 });
 
-it('still mounts on ordinary pages and accepts the existing plugin hide message', async () => {
+it('still mounts on ordinary pages and accepts a hide message from its parent', async () => {
   document.body.innerHTML = '<app-root>普通网站</app-root>';
   await start();
   const root = document.querySelector<HTMLElement>('scwc-layout-root');
@@ -49,9 +51,10 @@ it('still mounts on ordinary pages and accepts the existing plugin hide message'
   window.dispatchEvent(
     new MessageEvent('message', {
       data: { type: 'scwc-plugin-hinder', isSameOrigin: true },
+      source: window,
     }),
   );
-  expect(root?.style.display).toBe('none');
+  expect(root?.isConnected).toBe(false);
 });
 
 function parentPage(markup: string) {
@@ -73,10 +76,10 @@ it.each([false, true])('skips a same-origin workbench iframe, nested=%s', async 
   expect(document.querySelector('#selective-crawl-floating-root')).toBeNull();
 });
 
-it('preserves the floating window inside ordinary same-origin frames', async () => {
+it('hides the floating window inside ordinary same-origin frames by default', async () => {
   vi.spyOn(window, 'parent', 'get').mockReturnValue(parentPage('<app-root>普通网站</app-root>'));
   await start();
-  expect(document.querySelector('scwc-layout-root')).not.toBeNull();
+  expect(document.querySelector('scwc-layout-root')).toBeNull();
 });
 
 it('does not hide or fail when an ancestor document is cross-origin', async () => {
@@ -88,5 +91,32 @@ it('does not hide or fail when an ancestor document is cross-origin', async () =
   });
   vi.spyOn(window, 'parent', 'get').mockReturnValue(parent);
   await start();
+  expect(document.querySelector('scwc-layout-root')).toBeNull();
+});
+
+it('only lets the direct parent enable the iframe and removes all script notices when hidden', async () => {
+  const parent = parentPage('<p>普通网站</p>');
+  vi.spyOn(window, 'parent', 'get').mockReturnValue(parent);
+  await start();
+  const { notify } = await import('./utils/notify.ts');
+  notify({ title: '隐藏时的通知' });
+  expect(document.querySelector('#scwc-notify-root')).toBeNull();
+  const visibility = (source: Window, visible: boolean) =>
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        source,
+        data: { protocol: 'scwc-userscript-settings/v1', type: 'visibility', visible },
+      }),
+    );
+  visibility(window, true);
+  expect(document.querySelector('scwc-layout-root')).toBeNull();
+  visibility(parent, true);
   expect(document.querySelector('scwc-layout-root')).not.toBeNull();
+  notify({ title: '可见时的通知' });
+  expect(document.querySelector('#scwc-notify-root')).not.toBeNull();
+  visibility(parent, false);
+  expect(document.querySelector('scwc-layout-root')).toBeNull();
+  expect(document.querySelector('#scwc-notify-root')).toBeNull();
+  notify({ title: '迟到的通知' });
+  expect(document.querySelector('#scwc-notify-root')).toBeNull();
 });

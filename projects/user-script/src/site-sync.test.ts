@@ -25,6 +25,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   localStorage.clear();
   recordCoreSyncSuccess();
+  vi.mocked(notify).mockClear();
   fetcher.mockReset();
   vi.stubGlobal(
     'fetch',
@@ -210,11 +211,35 @@ describe('website configuration connection and live updates', () => {
     });
     await flush();
     expect(isCoreSyncBlocked()).toBe(false);
-    expect((connection as unknown as { connectionToken: string }).connectionToken).toBe(
-      'correct-token',
-    );
     expect(fetcher).toHaveBeenCalledTimes(4);
     expect(ConfigController.syncAuthRequired).toBe(false);
+  });
+  it('does not notify from background changes after retries are exhausted', async () => {
+    fetcher.mockRejectedValue(new TypeError('offline'));
+    connection.start();
+    await vi.advanceTimersByTimeAsync(1500);
+    expect(fetcher).toHaveBeenCalledTimes(3);
+    expect(notify).toHaveBeenCalledOnce();
+    vi.mocked(notify).mockClear();
+    store.update((data) => {
+      data.window.pos.x = 42;
+    });
+    window.dispatchEvent(new Event('online'));
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(fetcher).toHaveBeenCalledTimes(3);
+    expect(notify).not.toHaveBeenCalled();
+    expect(localStorage.getItem('scwc.userscript.sync-circuit.v1')).toBe('false');
+  });
+  it('changing a connection address resets retries without recording a false success', async () => {
+    fetcher.mockRejectedValue(new TypeError('offline'));
+    connection.start();
+    await vi.advanceTimersByTimeAsync(1500);
+    store.update((data) => {
+      data.config.api.port = '3400';
+    });
+    await flush();
+    expect(fetcher).toHaveBeenCalledTimes(4);
+    expect(localStorage.getItem('scwc.userscript.sync-circuit.v1')).toBe('false');
   });
   it('aborts on stop and ignores a response from an obsolete core address', async () => {
     let resolve: (value: Response) => void = () => undefined;

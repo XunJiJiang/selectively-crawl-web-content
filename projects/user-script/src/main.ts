@@ -2,7 +2,19 @@ import './csp.ts';
 import './migrate.ts';
 import './layouts/root.ts';
 import '../../shared/components/index.ts';
-import type { TConfig } from '../../shared/store/config.ts';
+import { ConfigController } from '../../shared/store/config.ts';
+import { FrameSettingsController } from './frame-settings.ts';
+import { setScriptVisible } from './visibility.ts';
+import { notify } from './utils/notify.ts';
+
+setScriptVisible(false);
+ConfigController.notify = notify;
+let allowed = false;
+let hindered = false;
+const frames = new FrameSettingsController((visible) => {
+  allowed = visible;
+  updatePresentation();
+});
 
 function inWorkbench() {
   let page: Window = window;
@@ -27,9 +39,12 @@ function inWorkbench() {
   }
 }
 
-function mountFloatingWindow() {
+function updatePresentation() {
   // 等待 DOM 完整后识别工作台及其同源 iframe，兼容任意部署主机和端口。
-  if (inWorkbench()) {
+  const visible = allowed && !hindered && !inWorkbench();
+  setScriptVisible(visible);
+  if (!visible) {
+    document.getElementById('selective-crawl-floating-root')?.remove();
     return;
   }
   // 悬浮窗挂载点
@@ -49,26 +64,35 @@ function mountFloatingWindow() {
     document.body.appendChild(mount);
   }
 
-  const rootEl = document.createElement('scwc-layout-root');
-
-  window.addEventListener('message', (event) => {
-    const message = event.data as {
-      type: 'scwc-plugin-hinder';
-      config: TConfig;
-      isSameOrigin: boolean;
-    };
-    if (message?.type !== 'scwc-plugin-hinder') {
-      return;
-    } else if (message.isSameOrigin) {
-      rootEl.style.display = 'none';
-    }
-  });
-
-  mount.appendChild(rootEl);
+  if (!mount.querySelector('scwc-layout-root')) {
+    mount.appendChild(document.createElement('scwc-layout-root'));
+  }
 }
 
+function hinder(event: MessageEvent) {
+  if (event.source !== window.parent) {
+    return;
+  }
+  if (event.data?.type === 'scwc-plugin-hinder' && event.data.isSameOrigin === true) {
+    hindered = true;
+    updatePresentation();
+  }
+}
+window.addEventListener('message', hinder);
+
+function start() {
+  frames.start();
+}
 if (document.readyState === 'complete') {
-  mountFloatingWindow();
+  start();
 } else {
-  window.addEventListener('load', mountFloatingWindow, { once: true });
+  window.addEventListener('load', start, { once: true });
+}
+
+export function stopUserScript() {
+  frames.stop();
+  window.removeEventListener('load', start);
+  window.removeEventListener('message', hinder);
+  setScriptVisible(false);
+  document.getElementById('selective-crawl-floating-root')?.remove();
 }

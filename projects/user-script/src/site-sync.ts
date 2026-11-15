@@ -1,11 +1,11 @@
 import { type UserScriptSnapshot } from '../../shared/userscript-config.ts';
 import { type SiteStore } from './site-store.ts';
 import { requestCore } from './api/request.ts';
-import { notify } from '../../shared/components/notify.ts';
+import { notify } from './utils/notify.ts';
 import type { SiteNotificationBatch } from '../../shared/site-notifications.ts';
 import {
   isCoreSyncBlocked,
-  notifyCoreSyncBlocked,
+  resetCoreSyncCircuit,
   recordCoreSyncFailure,
   recordCoreSyncSuccess,
 } from './api/sync-circuit.ts';
@@ -41,8 +41,6 @@ export class SiteConfigConnection {
   private retryDelay = 500;
   private connectionKey = '';
   private notificationCursor?: string;
-  private connectionToken = '';
-  private hasConnectionToken = false;
   private store: SiteStore;
   constructor(store: SiteStore) {
     this.store = store;
@@ -70,12 +68,9 @@ export class SiteConfigConnection {
   }
   private changed = (event: Event) => {
     const key = this.key();
-    const token = this.store.snapshot.data.config.api.token;
-    if (this.hasConnectionToken && token !== this.connectionToken) {
-      recordCoreSyncSuccess();
-      this.retryDelay = 500;
-    }
     if (key !== this.connectionKey && this.connectionKey) {
+      resetCoreSyncCircuit();
+      this.retryDelay = 500;
       this.notificationCursor = undefined;
       this.generation++;
       this.abort?.abort();
@@ -108,7 +103,6 @@ export class SiteConfigConnection {
       return;
     }
     if (isCoreSyncBlocked()) {
-      notifyCoreSyncBlocked();
       return;
     }
     if (this.running) {
@@ -123,14 +117,13 @@ export class SiteConfigConnection {
     const snapshot = this.store.snapshot,
       config = snapshot.data.config;
     this.connectionKey = this.key();
-    this.connectionToken = config.api.token;
-    this.hasConnectionToken = true;
     const controller = (this.abort = new AbortController());
     const timeout = setTimeout(() => controller.abort(), 10000);
     try {
       const url = coreUrl(config, '/api/userscript/config/sync');
       url.searchParams.set('site', snapshot.website);
       const response = await requestCore(url, {
+        interactive: false,
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
