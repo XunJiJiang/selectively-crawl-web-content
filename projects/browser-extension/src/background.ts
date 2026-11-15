@@ -7,6 +7,7 @@ import {
   coreAddress,
   draftKey,
   type Draft,
+  type PopupNavigation,
   type Settings,
   type SiteData,
   type Snapshot,
@@ -28,6 +29,7 @@ installNotificationBadge();
 export interface Init {
   tab?: BrowserTab;
   snapshot?: Snapshot;
+  navigation?: PopupNavigation;
   settings: Settings;
   draft?: Draft;
   syncBlocked: boolean;
@@ -59,6 +61,7 @@ export type Request =
   | { type: 'init' }
   | { type: 'settings.save'; settings: Settings }
   | { type: 'site.patch'; site: string; patch: Partial<SiteData> }
+  | { type: 'navigation.save'; site: string; navigation: PopupNavigation }
   | { type: 'core.sync'; site: string }
   | {
       type: 'plugins';
@@ -419,11 +422,13 @@ async function handle(message: Request, sender: MessageSender): Promise<unknown>
       const draft = (await browser.storage.local.get(draftKey(tab.id)))[draftKey(tab.id)] as
         | Draft
         | undefined;
+      const snapshot = await store.load(tab.url);
       return {
         tab,
         settings,
         syncBlocked: (await getSyncCircuit()).blocked,
-        snapshot: await store.load(tab.url),
+        snapshot,
+        navigation: await store.navigation(tab.url),
         draft: draft?.site === tab.url ? draft : undefined,
       };
     }
@@ -461,6 +466,8 @@ async function handle(message: Request, sender: MessageSender): Promise<unknown>
       }
       return next;
     }
+    case 'navigation.save':
+      return store.saveNavigation(message.site, message.navigation);
     case 'core.sync':
       return sync(message.site);
     case 'plugins': {

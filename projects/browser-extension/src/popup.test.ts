@@ -1,14 +1,150 @@
-import { afterEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { ExtensionPopup } from './popup.ts';
-import { initialSettings, initialSnapshot } from './model.ts';
-import type { Init, PluginBatch } from './background.ts';
+import { initialSettings, initialSnapshot, type PopupNavigation } from './model.ts';
+import type { Init, PluginBatch, Request } from './background.ts';
+import { ExtensionStore } from './storage.ts';
 import type { PluginConfig } from '../../shared/types/plugin.d.ts';
 
 const mock = vi.hoisted(() => ({ call: vi.fn() }));
 vi.mock('./browser.ts', () => ({ browser: {}, call: mock.call }));
+const nativeScrollTo = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollTo');
+beforeEach(() => {
+  Object.defineProperty(HTMLElement.prototype, 'scrollTo', {
+    configurable: true,
+    value(this: HTMLElement, options: ScrollToOptions) {
+      this.scrollTop = options.top ?? this.scrollTop;
+      this.scrollLeft = options.left ?? this.scrollLeft;
+    },
+  });
+});
 afterEach(() => {
   document.body.replaceChildren();
   mock.call.mockReset();
+  if (nativeScrollTo) {
+    Object.defineProperty(HTMLElement.prototype, 'scrollTo', nativeScrollTo);
+  } else {
+    Reflect.deleteProperty(HTMLElement.prototype, 'scrollTo');
+  }
+});
+function navigationFixture() {
+  const settings = initialSettings();
+  const values: Record<string, unknown> = {};
+  const store = new ExtensionStore({
+    get: async (key) => ({ [key]: structuredClone(values[key]) }),
+    set: async (entries) => {
+      Object.assign(values, structuredClone(entries));
+    },
+    remove: async (key) => {
+      Reflect.deleteProperty(values, key);
+    },
+  });
+  let site = 'https://one.example/article';
+  const plugins: PluginConfig[] = ['first', 'second'].map((id) => ({
+    id,
+    title: id,
+    description: '',
+    controls: [],
+  }));
+  mock.call.mockImplementation(async (message: Request) => {
+    switch (message.type) {
+      case 'init':
+        return {
+          settings,
+          syncBlocked: false,
+          tab: { id: 1, url: site },
+          ...(/^https?:/.test(site)
+            ? { snapshot: await store.load(site), navigation: await store.navigation(site) }
+            : {}),
+        } satisfies Init;
+      case 'navigation.save':
+        return store.saveNavigation(message.site, message.navigation);
+      case 'site.patch':
+        return store.patch(message.site, message.patch);
+      case 'core.sync': {
+        const snapshot = await store.load(message.site);
+        return {
+          ...snapshot,
+          data: { ...snapshot.data, plugin: { expanded: true, activeTab: 'first' } },
+        };
+      }
+      case 'plugins':
+        return { data: plugins, activeIds: ['first', 'second'], updatedIds: ['first', 'second'] };
+    }
+  });
+  return {
+    store,
+    setSite(value: string) {
+      site = value;
+    },
+    async open() {
+      const popup = new ExtensionPopup();
+      const state = popup as unknown as {
+        panel: string;
+        activePlugin: string;
+        plugins: PluginConfig[];
+        refresh(): Promise<void>;
+      };
+      document.body.append(popup);
+      await vi.waitFor(() => expect(state.plugins).toHaveLength(2));
+      await popup.updateComplete;
+      return { popup, state };
+    },
+  };
+}
+it.each(['capture', 'plugins', 'notifications', 'settings'] as const)(
+  'restores the %s panel and selected plugin after closing, reopening and syncing',
+  async (panel) => {
+    const fixture = navigationFixture();
+    const { popup } = await fixture.open();
+    const tabs = [...(popup.shadowRoot?.querySelectorAll<HTMLButtonElement>('nav button') ?? [])];
+    expect(tabs).toHaveLength(4);
+    tabs[1].click();
+    await popup.updateComplete;
+    const pluginTabs = popup.shadowRoot?.querySelectorAll<HTMLButtonElement>(
+      '.plugin-tab [role="tab"]',
+    );
+    expect(pluginTabs).toHaveLength(2);
+    pluginTabs?.[1].click();
+    tabs[['capture', 'plugins', 'notifications', 'settings'].indexOf(panel)].click();
+    popup.remove();
+    expect(await fixture.store.navigation('https://one.example')).toEqual({
+      panel,
+      activePlugin: 'second',
+    });
+    const reopened = await fixture.open();
+    expect(reopened.state.panel).toBe(panel);
+    expect(reopened.state.activePlugin).toBe('second');
+    await reopened.state.refresh();
+    expect(reopened.state.panel).toBe(panel);
+    expect(reopened.state.activePlugin).toBe('second');
+    expect(
+      reopened.popup.shadowRoot?.querySelector('.plugin-tab [aria-selected="true"]')?.textContent,
+    ).toContain('second');
+  },
+);
+it('restores each website navigation on source changes and falls back for unavailable plugins', async () => {
+  const fixture = navigationFixture();
+  const first: PopupNavigation = { panel: 'plugins', activePlugin: 'second' };
+  const second: PopupNavigation = { panel: 'notifications', activePlugin: 'removed-plugin' };
+  await fixture.store.saveNavigation('https://one.example', first);
+  await fixture.store.saveNavigation('https://two.example', second);
+  const { state } = await fixture.open();
+  expect(state.activePlugin).toBe('second');
+  fixture.setSite('https://one.example/other');
+  await state.refresh();
+  expect(state.panel).toBe('plugins');
+  expect(state.activePlugin).toBe('second');
+  fixture.setSite('https://two.example/article');
+  await state.refresh();
+  expect(state.panel).toBe('notifications');
+  expect(state.activePlugin).toBe('first');
+  fixture.setSite('chrome://extensions');
+  await state.refresh();
+  expect(state.panel).toBe('settings');
+  fixture.setSite('https://one.example/article');
+  await state.refresh();
+  expect(state.panel).toBe('plugins');
+  expect(state.activePlugin).toBe('second');
 });
 it('refreshes only the clicked plugin tab, retains the focused tab and shows loading until completion', async () => {
   const settings = initialSettings(),

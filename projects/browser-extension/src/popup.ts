@@ -9,6 +9,7 @@ import {
   permissionOrigin,
   type Draft,
   type Item,
+  type PopupPanel,
   type Settings,
   type SiteData,
   type Snapshot,
@@ -61,7 +62,7 @@ export class ExtensionPopup extends LitElement {
     `,
   ];
   @state() private accessor context: Init = { settings: initialSettings(), syncBlocked: false };
-  @state() private accessor panel: 'capture' | 'plugins' | 'notifications' | 'settings' = 'capture';
+  @state() private accessor panel: PopupPanel = 'capture';
   @state() private accessor plugins: PluginConfig[] = [];
   @state() private accessor activePlugin = '';
   @state() private accessor connected = false;
@@ -125,6 +126,7 @@ export class ExtensionPopup extends LitElement {
       }
     }
     this.activePlugin = id;
+    this.rememberNavigation();
     void this.updateComplete.then(() => {
       for (const view of this.shadowRoot?.querySelectorAll<ScriptUIView>('scwc-script-ui') ?? []) {
         if (view.identity === id) {
@@ -132,6 +134,29 @@ export class ExtensionPopup extends LitElement {
         }
       }
     });
+  }
+  private selectPanel(panel: PopupPanel) {
+    this.panel = panel;
+    if (panel === 'settings') {
+      this.config = structuredClone(this.snapshot?.data.config ?? this.context.settings.config);
+    }
+    this.rememberNavigation();
+  }
+  private rememberNavigation() {
+    if (!this.snapshot) {
+      return;
+    }
+    // 两级标签属于扩展本地视图，立即交给后台保存，避免弹窗关闭或核心同步覆盖选择。
+    void call({
+      type: 'navigation.save',
+      site: this.site,
+      navigation: { panel: this.panel, activePlugin: this.activePlugin },
+    }).catch((error: unknown) => this.say(`标签保存失败：${String(error)}`, true));
+  }
+  private restoreNavigation() {
+    this.panel = this.snapshot ? (this.context.navigation?.panel ?? 'capture') : 'settings';
+    this.activePlugin =
+      this.context.navigation?.activePlugin ?? this.snapshot?.data.plugin.activeTab ?? '';
   }
   private get snapshot() {
     return this.context.snapshot;
@@ -210,10 +235,7 @@ export class ExtensionPopup extends LitElement {
       this.config = structuredClone(this.snapshot?.data.config ?? this.context.settings.config);
       this.theme = this.context.settings.theme;
       document.documentElement.dataset.theme = this.theme;
-      this.activePlugin = this.snapshot?.data.plugin.activeTab ?? '';
-      if (!this.snapshot) {
-        this.panel = 'settings';
-      }
+      this.restoreNavigation();
       this.loaded = true;
       if (this.snapshot) {
         if (await this.sync()) {
@@ -227,7 +249,7 @@ export class ExtensionPopup extends LitElement {
     }, 4000);
   }
   private async refresh() {
-    if (this.polling || this.busy || !this.snapshot) {
+    if (this.polling || this.busy) {
       return;
     }
     this.polling = true;
@@ -236,7 +258,7 @@ export class ExtensionPopup extends LitElement {
       const wasSyncBlocked = this.syncBlocked;
       this.syncBlocked = current.syncBlocked;
       if (current.tab?.url !== this.site) {
-        const sameOrigin = current.snapshot?.website === this.snapshot.website;
+        const sameOrigin = current.snapshot?.website === this.snapshot?.website;
         this.generation++;
         this.pluginGeneration++;
         this.edits++;
@@ -245,9 +267,12 @@ export class ExtensionPopup extends LitElement {
         }
         this.controlTimers.clear();
         this.context = current;
+        this.connected = false;
         if (!sameOrigin) {
           this.plugins = [];
           this.lastSite = '';
+          this.config = structuredClone(this.snapshot?.data.config ?? current.settings.config);
+          this.restoreNavigation();
         }
         if (current.snapshot) {
           if (await this.sync()) {
@@ -293,9 +318,6 @@ export class ExtensionPopup extends LitElement {
       this.syncBlocked = false;
       if (edits === this.edits) {
         this.context = { ...this.context, snapshot: next };
-        if (this.plugins.some((plugin) => plugin.id === next.data.plugin.activeTab)) {
-          this.activePlugin = next.data.plugin.activeTab;
-        }
       }
       return true;
     } catch (error) {
@@ -1001,34 +1023,23 @@ export class ExtensionPopup extends LitElement {
         <button
           class=${this.panel === 'capture' ? 'active' : ''}
           ?disabled=${!this.snapshot}
-          @click=${() => {
-            this.panel = 'capture';
-          }}
+          @click=${() => this.selectPanel('capture')}
         >
           采集 <span>${this.items.length}</span></button
         ><button
           class=${this.panel === 'plugins' ? 'active' : ''}
           ?disabled=${!this.snapshot}
-          @click=${() => {
-            this.panel = 'plugins';
-          }}
+          @click=${() => this.selectPanel('plugins')}
         >
           插件</button
         ><button
           class=${this.panel === 'notifications' ? 'active' : ''}
-          @click=${() => {
-            this.panel = 'notifications';
-          }}
+          @click=${() => this.selectPanel('notifications')}
         >
           通知</button
         ><button
           class=${this.panel === 'settings' ? 'active' : ''}
-          @click=${() => {
-            this.panel = 'settings';
-            this.config = structuredClone(
-              this.snapshot?.data.config ?? this.context.settings.config,
-            );
-          }}
+          @click=${() => this.selectPanel('settings')}
         >
           设置
         </button>

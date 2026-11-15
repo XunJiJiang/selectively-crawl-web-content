@@ -1,6 +1,7 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MessageSender } from './browser.ts';
-import { initialSettings, initialSnapshot, toWire } from './model.ts';
+import { initialSettings, initialSnapshot, navigationKey, toWire } from './model.ts';
+import type { Init } from './background.ts';
 
 const fixture = vi.hoisted(() => ({
   values: new Map<string, unknown>(),
@@ -61,13 +62,35 @@ beforeEach(() => {
   fixture.core.mockReset();
 });
 function message(input: unknown, sender: MessageSender) {
-  return new Promise<{ ok: boolean; error?: string; errorCode?: string }>((resolve) => {
-    fixture.listener?.(input, sender, (reply) =>
-      resolve(reply as { ok: boolean; error?: string; errorCode?: string }),
-    );
-  });
+  return new Promise<{ ok: boolean; error?: string; errorCode?: string; data?: unknown }>(
+    (resolve) => {
+      fixture.listener?.(input, sender, (reply) =>
+        resolve(reply as { ok: boolean; error?: string; errorCode?: string }),
+      );
+    },
+  );
 }
 describe('background message trust boundary', () => {
+  it('saves both navigation levels through the popup boundary and returns them on init', async () => {
+    const site = 'https://one.example/other';
+    const navigation = { panel: 'plugins', activePlugin: 'second' };
+    const request = { type: 'navigation.save', site, navigation };
+    expect(
+      (
+        await message(request, {
+          id: 'test-extension',
+          url: site,
+          tab: { id: 1 },
+        })
+      ).ok,
+    ).toBe(false);
+    expect(fixture.values.has(navigationKey(site))).toBe(false);
+    const popup = { id: 'test-extension', url: 'chrome-extension://test-extension/index.html' };
+    expect((await message(request, popup)).ok).toBe(true);
+    const reply = await message({ type: 'init' }, popup);
+    expect((reply.data as Init).navigation).toEqual(navigation);
+    expect(fixture.core).not.toHaveBeenCalled();
+  });
   it('receives unsolicited messages after popup requests finish and reconnects the background socket', async () => {
     const sockets: FakeSocket[] = [];
     class FakeSocket {

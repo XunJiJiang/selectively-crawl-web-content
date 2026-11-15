@@ -8,6 +8,9 @@ import {
   initialSnapshot,
   settingsKey,
   siteKey,
+  navigationKey,
+  popupPanels,
+  type PopupNavigation,
   type Settings,
   type SiteData,
   type Snapshot,
@@ -34,6 +37,22 @@ export class ExtensionStore {
   async load(site: string): Promise<Snapshot> {
     const saved = (await this.area.get(siteKey(site)))[siteKey(site)] as Snapshot | undefined;
     return saved ? validateSnapshot(saved) : initialSnapshot(site, (await this.settings()).config);
+  }
+  async navigation(site: string): Promise<PopupNavigation> {
+    await this.tail;
+    const saved = (await this.area.get(navigationKey(site)))[navigationKey(site)] as
+      | Partial<PopupNavigation>
+      | undefined;
+    return {
+      panel: popupPanels.find((panel) => panel === saved?.panel) ?? 'capture',
+      activePlugin:
+        typeof saved?.activePlugin === 'string'
+          ? saved.activePlugin
+          : (await this.load(site)).data.plugin.activeTab,
+    };
+  }
+  saveNavigation(site: string, navigation: PopupNavigation) {
+    return this.serial(() => this.area.set({ [navigationKey(site)]: navigation }));
   }
   saveSettings(settings: Settings) {
     return this.serial(() => this.area.set({ [settingsKey]: settings }));

@@ -25,8 +25,16 @@ export interface Draft {
   selector: string;
   depth: number;
 }
+export const popupPanels = ['capture', 'plugins', 'notifications', 'settings'] as const;
+export type PopupPanel = (typeof popupPanels)[number];
+export interface PopupNavigation {
+  panel: PopupPanel;
+  activePlugin: string;
+}
 export const settingsKey = 'scwc.extension.settings.v1';
 export const siteKey = (site: string) => `scwc.extension.site.v1:${websiteOrigin(site)}`;
+export const navigationKey = (site: string) =>
+  `scwc.extension.navigation.v1:${websiteOrigin(site)}`;
 export const draftKey = (tab: number) => `scwc.extension.selection.v1:${tab}`;
 export const initialSettings = (): Settings => ({
   config: defaultSiteData().config,
