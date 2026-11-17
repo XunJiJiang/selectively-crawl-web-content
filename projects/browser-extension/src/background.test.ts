@@ -189,7 +189,7 @@ describe('background message trust boundary', () => {
       (await message({ type: 'picker.selection', draft }, { ...sender, id: 'other-extension' })).ok,
     ).toBe(false);
   });
-  it('stops core requests after three sync failures and resets when the token changes', async () => {
+  it('stops automatic sync after three failures and lets a changed core address retry', async () => {
     const popup = { id: 'test-extension', url: 'chrome-extension://test-extension/index.html' };
     const site = 'https://one.example/article';
     fixture.core.mockRejectedValue(new Error('unauthorized'));
@@ -217,11 +217,11 @@ describe('background message trust boundary', () => {
       },
       popup,
     );
-    expect(otherRequest.errorCode).toBe('CORE_SYNC_BLOCKED');
-    expect(fixture.core).toHaveBeenCalledTimes(3);
+    expect(otherRequest.error).toBe('unauthorized');
+    expect(fixture.core).toHaveBeenCalledTimes(4);
 
     const settings = initialSettings();
-    settings.config.api.token = 'correct-token';
+    settings.config.api.host = 'http://other.example';
     await message({ type: 'settings.save', settings }, popup);
     expect((await message({ type: 'init' }, popup)).ok).toBe(true);
 
@@ -229,6 +229,55 @@ describe('background message trust boundary', () => {
       data: { snapshot: toWire(initialSnapshot(site, settings.config)) },
     });
     expect((await message({ type: 'core.sync', site }, popup)).ok).toBe(true);
+    expect(fixture.core).toHaveBeenCalledTimes(5);
+  });
+  it('retries a new popup startup three times after a prior circuit pause', async () => {
+    const popup = { id: 'test-extension', url: 'chrome-extension://test-extension/index.html' };
+    const site = 'https://one.example/article';
+    fixture.core.mockRejectedValue(new TypeError('Failed to fetch'));
+    await message({ type: 'core.sync', site }, popup);
+    await message({ type: 'core.sync', site }, popup);
+    await message({ type: 'core.sync', site }, popup);
+    expect(fixture.core).toHaveBeenCalledTimes(3);
+
+    vi.useFakeTimers();
+    try {
+      const startup = message({ type: 'core.sync', site, mode: 'startup' }, popup);
+      await vi.runAllTimersAsync();
+      const reply = await startup;
+      expect(reply.errorCode).toBe('CORE_SYNC_BLOCKED');
+      expect(fixture.core).toHaveBeenCalledTimes(6);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  it('allows one user request through the paused circuit and resets it on success', async () => {
+    const popup = { id: 'test-extension', url: 'chrome-extension://test-extension/index.html' };
+    const site = 'https://one.example/article';
+    fixture.core.mockRejectedValue(new TypeError('Failed to fetch'));
+    await message({ type: 'core.sync', site }, popup);
+    await message({ type: 'core.sync', site }, popup);
+    await message({ type: 'core.sync', site }, popup);
+
+    fixture.core
+      .mockResolvedValueOnce({ data: { result: [] } })
+      .mockResolvedValueOnce({
+        data: { snapshot: toWire(initialSnapshot(site, initialSettings().config)) },
+      });
+    const reply = await message(
+      {
+        type: 'plugin.event',
+        tab: 1,
+        site,
+        plugin: 'test',
+        requireFullContent: false,
+        request: { readOnly: true, fields: {} },
+      },
+      popup,
+    );
+    expect(reply.ok).toBe(true);
     expect(fixture.core).toHaveBeenCalledTimes(4);
+    expect((await message({ type: 'core.sync', site }, popup)).ok).toBe(true);
+    expect(fixture.core).toHaveBeenCalledTimes(5);
   });
 });

@@ -238,7 +238,7 @@ export class ExtensionPopup extends LitElement {
       this.restoreNavigation();
       this.loaded = true;
       if (this.snapshot) {
-        if (await this.sync()) {
+        if (await this.sync('startup')) {
           await this.loadPlugins();
         }
       }
@@ -275,7 +275,7 @@ export class ExtensionPopup extends LitElement {
           this.restoreNavigation();
         }
         if (current.snapshot) {
-          if (await this.sync()) {
+          if (await this.sync('startup')) {
             await this.loadPlugins();
           }
         } else {
@@ -284,7 +284,7 @@ export class ExtensionPopup extends LitElement {
       } else {
         const wasConnected = this.connected;
         if (!this.syncBlocked) {
-          await this.sync();
+          await this.sync('background');
         }
         if ((!wasConnected && this.connected) || (wasSyncBlocked && !this.syncBlocked)) {
           await this.loadPlugins(true);
@@ -296,21 +296,18 @@ export class ExtensionPopup extends LitElement {
       this.polling = false;
     }
   }
-  private async sync(notifyWhenBlocked = false) {
+  private async sync(mode: 'startup' | 'interactive' | 'background' = 'background') {
     if (!this.snapshot) {
       return false;
     }
-    if (this.syncBlocked) {
-      if (notifyWhenBlocked) {
-        this.say('核心连接已暂停。请修改设置中的 API Token 后重新尝试。', true);
-      }
+    if (this.syncBlocked && mode === 'background') {
       this.connected = false;
       return false;
     }
     const generation = this.generation,
       edits = this.edits;
     try {
-      const next = await call<Snapshot>({ type: 'core.sync', site: this.site });
+      const next = await call<Snapshot>({ type: 'core.sync', site: this.site, mode });
       if (generation !== this.generation) {
         return false;
       }
@@ -323,8 +320,15 @@ export class ExtensionPopup extends LitElement {
     } catch (error) {
       if (generation === this.generation) {
         this.connected = false;
-        if (error instanceof Error && 'code' in error && error.code === 'CORE_SYNC_BLOCKED') {
+        const circuitBlocked =
+          error instanceof Error && 'code' in error && error.code === 'CORE_SYNC_BLOCKED';
+        if (circuitBlocked) {
           this.syncBlocked = true;
+          this.say(error.message, true);
+        }
+        if (mode === 'interactive' && !circuitBlocked) {
+          this.syncBlocked = true;
+          this.say(error instanceof Error ? error.message : String(error), true);
         }
       }
       return false;
@@ -351,7 +355,7 @@ export class ExtensionPopup extends LitElement {
         }
         clearTimeout(this.syncTimer);
         this.syncTimer = setTimeout(() => {
-          void this.sync(true);
+          void this.sync('background');
         }, 500);
       })
       .catch((error: unknown) => this.say(`保存失败：${String(error)}`, true));
@@ -555,7 +559,7 @@ export class ExtensionPopup extends LitElement {
     };
   }
   private async submit() {
-    if (this.busy) {
+    if (this.busy || !this.snapshot || this.tab === undefined) {
       return;
     }
     this.busy = true;
@@ -571,12 +575,37 @@ export class ExtensionPopup extends LitElement {
     const data = result.data as
       | {
           type?: string;
-          data?: { message?: string; type?: NotificationType; scope?: NotificationScope };
+          message?: string;
+          data?: { message?: string; type?: NotificationType | 'warning'; scope?: NotificationScope };
         }
       | unknown[]
       | undefined;
+    const showTypedNotification = (entry: unknown) => {
+      if (!entry || typeof entry !== 'object') {
+        return false;
+      }
+      const value = entry as {
+        type?: string;
+        message?: string;
+        scope?: NotificationScope;
+        data?: { message?: string; type?: NotificationType | 'warning'; scope?: NotificationScope };
+      };
+      const notification = value.type === 'notification' ? value.data : value;
+      if (!notification?.message) {
+        return false;
+      }
+      const type = notification.type === 'warning' ? 'warn' : notification.type;
+      if (!type || !['info', 'success', 'warn', 'error'].includes(type)) {
+        return false;
+      }
+      this.showNotification(notification.message, type as NotificationType, notification.scope);
+      return true;
+    };
     if (Array.isArray(data)) {
       for (const entry of data) {
+        if (showTypedNotification(entry)) {
+          continue;
+        }
         if (typeof entry === 'string') {
           this.notifications.add(entry, 'success');
           continue;
@@ -590,8 +619,14 @@ export class ExtensionPopup extends LitElement {
       if (data.length) {
         return;
       }
+    } else if (showTypedNotification(data)) {
+      return;
     } else if (data?.data?.message) {
-      this.showNotification(data.data.message, data.data.type ?? 'info', data.data.scope);
+      this.showNotification(
+        data.data.message,
+        data.data.type === 'warning' ? 'warn' : (data.data.type ?? 'info'),
+        data.data.scope,
+      );
       return;
     }
     this.notifications.add(
@@ -727,9 +762,6 @@ export class ExtensionPopup extends LitElement {
         throw new Error('未授权访问核心主机，设置尚未保存');
       }
       const settings: Settings = { config: structuredClone(this.config), theme: this.theme };
-      const previousToken =
-        this.snapshot?.data.config.api.token ?? this.context.settings.config.api.token;
-      const tokenChanged = previousToken !== settings.config.api.token;
       this.generation++;
       this.pluginGeneration++;
       this.connected = false;
@@ -740,13 +772,11 @@ export class ExtensionPopup extends LitElement {
         await this.save({ config: settings.config });
         clearTimeout(this.syncTimer);
         this.syncTimer = undefined;
-        if (tokenChanged) {
-          this.syncBlocked = false;
-        }
-        if (await this.sync(!tokenChanged)) {
+        this.syncBlocked = false;
+        if (await this.sync('interactive')) {
           await this.loadPlugins(true);
         }
-      } else if (tokenChanged) {
+      } else {
         this.syncBlocked = false;
       }
       if (this.connected) {
@@ -985,8 +1015,7 @@ export class ExtensionPopup extends LitElement {
           />
           ${this.syncBlocked
             ? html`<span class="sync-auth-warning" role="alert"
-                >同步已暂停：请填写 Token 或检查 Token 是否正确。修改 Token
-                并点击“保存并连接”后将重新尝试。</span
+                >同步已暂停：无法连接核心，请检查核心地址、端口和网络连接。修改连接设置并点击“保存并连接”后将重新尝试。</span
               >`
             : nothing}</label
         ><label
@@ -1017,7 +1046,15 @@ export class ExtensionPopup extends LitElement {
       </header>
       <div class="site-bar">
         <span class="site-dot"></span
-        ><span title=${this.site}>${this.snapshot?.website ?? '当前页面不支持采集'}</span>
+        ><span class="site-name" title=${this.site}
+          >${this.snapshot?.website ?? '当前页面不支持采集'}</span
+        ><button
+          class="primary site-capture"
+          ?disabled=${this.busy || !this.snapshot}
+          @click=${() => this.submit()}
+        >
+          ${this.busy ? '正在采集…' : '采集并发送'} <wb-icon name="send" size="sm"></wb-icon>
+        </button>
       </div>
       <nav aria-label="功能">
         <button
@@ -1056,12 +1093,8 @@ export class ExtensionPopup extends LitElement {
         ${this.notifications}
       </div>
       <footer>
-        <span>${this.snapshot ? '按网站保存 · 扩展独立存储' : '请打开 HTTP 或 HTTPS 网页'}</span
-        >${this.panel === 'capture' && this.snapshot
-          ? html`<button class="primary" ?disabled=${this.busy} @click=${() => this.submit()}>
-              ${this.busy ? '正在采集…' : '采集并发送'} <wb-icon name="send" size="sm"></wb-icon>
-            </button>`
-          : html`<span class="muted">v${CLIENT_VERSION}</span>`}
+        <span>${this.snapshot ? '按网站保存 · 扩展独立存储' : '请打开 HTTP 或 HTTPS 网页'}</span>
+        <span class="muted">v${CLIENT_VERSION}</span>
       </footer>
       ${this.menu
         ? html`<wb-context-menu

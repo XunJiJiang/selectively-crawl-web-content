@@ -236,3 +236,47 @@ it('routes results to the shared floating center and places notification history
   await popup.updateComplete;
   expect(popup.shadowRoot?.textContent).not.toContain('通知位置');
 });
+it('keeps the collect action in the source row outside the capture panel', async () => {
+  const fixture = navigationFixture();
+  const { popup, state } = await fixture.open();
+  const settingsTab = popup.shadowRoot?.querySelectorAll<HTMLButtonElement>('nav button')[3];
+  settingsTab?.click();
+  await popup.updateComplete;
+  expect(popup.shadowRoot?.querySelector('.site-bar .site-capture')).not.toBeNull();
+  expect(popup.shadowRoot?.querySelector('footer .site-capture')).toBeNull();
+
+  popup.shadowRoot?.querySelector<HTMLButtonElement>('.site-capture')?.click();
+  await vi.waitFor(() =>
+    expect(mock.call).toHaveBeenCalledWith({
+      type: 'crawl',
+      tab: 1,
+      site: 'https://one.example/article',
+    }),
+  );
+
+  fixture.setSite('chrome://extensions');
+  await state.refresh();
+  await popup.updateComplete;
+  const unavailableAction = popup.shadowRoot?.querySelector<HTMLButtonElement>('.site-capture');
+  expect(unavailableAction).not.toBeNull();
+  expect(unavailableAction?.disabled).toBe(true);
+});
+it('preserves warning notification types in array results', async () => {
+  mock.call.mockResolvedValue({ settings: initialSettings(), syncBlocked: false });
+  const popup = new ExtensionPopup();
+  document.body.append(popup);
+  await popup.updateComplete;
+  await Promise.resolve();
+  const state = popup as unknown as { showResult(input: unknown): void };
+  state.showResult({
+    data: [{ type: 'notification', data: { type: 'warn', message: '警告内容' } }],
+  });
+  await popup.updateComplete;
+  const center = popup.shadowRoot?.querySelector('scwc-extension-notifications') as HTMLElement & {
+    updateComplete: Promise<boolean>;
+  };
+  await center.updateComplete;
+  const warning = center.shadowRoot?.querySelector('[data-type="warn"]');
+  expect(warning?.textContent).toContain('警告内容');
+  expect(warning?.querySelector('wb-icon')?.getAttribute('name')).toBe('warning');
+});

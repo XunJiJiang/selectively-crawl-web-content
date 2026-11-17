@@ -62,7 +62,7 @@ export type Request =
   | { type: 'settings.save'; settings: Settings }
   | { type: 'site.patch'; site: string; patch: Partial<SiteData> }
   | { type: 'navigation.save'; site: string; navigation: PopupNavigation }
-  | { type: 'core.sync'; site: string }
+  | { type: 'core.sync'; site: string; mode?: 'startup' | 'interactive' }
   | {
       type: 'plugins';
       tab: number;
@@ -96,7 +96,7 @@ export type Request =
 const store = new ExtensionStore(browser.storage.local);
 const syncCircuitStorageKey = 'scwc.extension.sync-circuit.v1';
 const maxSyncFailures = 3;
-const syncBlockedMessage = '核心连接已暂停。请修改设置中的 API Token 后重新尝试。';
+const syncBlockedMessage = '核心连接已暂停。请检查核心地址、端口和网络连接后重试。';
 interface SyncCircuitState {
   failures: number;
   blocked: boolean;
@@ -119,11 +119,30 @@ async function setSyncCircuit(state: SyncCircuitState) {
 function syncBlockedError() {
   return Object.assign(new Error(syncBlockedMessage), { code: 'CORE_SYNC_BLOCKED' });
 }
+function isConnectionFailure(error: unknown) {
+  return (
+    error instanceof TypeError ||
+    (error instanceof Error && ['AbortError', 'TimeoutError'].includes(error.name))
+  );
+}
+function connectionError(error: unknown) {
+  return Object.assign(new Error('无法连接核心，请检查核心地址、端口和网络连接。'), {
+    code: 'CORE_CONNECTION_FAILED',
+    cause: error,
+  });
+}
 async function withCoreCircuit<T>(request: () => Promise<T>): Promise<T> {
-  if ((await getSyncCircuit()).blocked) {
-    throw syncBlockedError();
+  try {
+    const result = await request();
+    await setSyncCircuit({ failures: 0, blocked: false });
+    return result;
+  } catch (error) {
+    if (isConnectionFailure(error)) {
+      await setSyncCircuit({ failures: maxSyncFailures, blocked: true });
+      throw connectionError(error);
+    }
+    throw error;
   }
-  return request();
 }
 
 // Chromium 可禁止内容脚本直接读取 token 等扩展存储；其他浏览器仍通过消息边界隔离页面。
@@ -237,57 +256,74 @@ function watchNotifications(tab: number, site: string, snapshot: Snapshot, ticke
   };
   socket.onclose = reconnect;
 }
-async function sync(site: string, targetTab?: number) {
+async function sync(
+  site: string,
+  targetTab?: number,
+  mode: 'startup' | 'interactive' | 'background' = 'background',
+) {
   const running = syncing.get(site);
   if (running) {
     await running;
-    return sync(site, targetTab);
+    return sync(site, targetTab, mode);
   }
   const work = (async () => {
-    if ((await getSyncCircuit()).blocked) {
+    if (mode === 'startup') {
+      // A newly opened popup gets the same bounded startup retry budget as a new script page.
+      await setSyncCircuit({ failures: 0, blocked: false });
+    } else if (mode !== 'interactive' && (await getSyncCircuit()).blocked) {
       throw syncBlockedError();
     }
-    try {
-      const snapshot = await store.load(site);
-      const key = JSON.stringify([websiteOrigin(site), snapshot.data.config.api]);
-      const response = await requestCore<{
-        data: SiteNotificationBatch & { snapshot: unknown; ticket?: string };
-      }>(snapshot.data.config, site, '/api/userscript/config/sync', {
-        snapshot: store.wire(snapshot),
-        watch: true,
-        notificationCursor: cursors.get(key),
-      });
-      const accepted = await store.accept(site, response.data.snapshot, snapshot.updatedAt);
-      const tab =
-        targetTab === undefined
-          ? (await browser.tabs.query({ active: true, currentWindow: true }))[0]
-          : await browser.tabs.get(targetTab);
-      if (tab?.id !== undefined && tab.url === site) {
-        for (const notification of response.data.notifications ?? []) {
-          await deliverNotification(tab.id, site, notification, notification).catch(
-            () => undefined,
-          );
+    const snapshot = await store.load(site);
+    const key = JSON.stringify([websiteOrigin(site), snapshot.data.config.api]);
+    const attempts = mode === 'startup' ? maxSyncFailures : 1;
+    for (let attempt = 1; attempt <= attempts; attempt++) {
+      try {
+        const response = await requestCore<{
+          data: SiteNotificationBatch & { snapshot: unknown; ticket?: string };
+        }>(snapshot.data.config, site, '/api/userscript/config/sync', {
+          snapshot: store.wire(snapshot),
+          watch: true,
+          notificationCursor: cursors.get(key),
+        });
+        const accepted = await store.accept(site, response.data.snapshot, snapshot.updatedAt);
+        const tab =
+          targetTab === undefined
+            ? (await browser.tabs.query({ active: true, currentWindow: true }))[0]
+            : await browser.tabs.get(targetTab);
+        if (tab?.id !== undefined && tab.url === site) {
+          for (const notification of response.data.notifications ?? []) {
+            await deliverNotification(tab.id, site, notification, notification).catch(
+              () => undefined,
+            );
+          }
+          watchNotifications(tab.id, site, accepted, response.data.ticket);
         }
-        watchNotifications(tab.id, site, accepted, response.data.ticket);
+        if (response.data.cursor) {
+          cursors.set(key, response.data.cursor);
+        }
+        await setSyncCircuit({ failures: 0, blocked: false });
+        return accepted;
+      } catch (error) {
+        if (error instanceof Error && 'code' in error && error.code === 'CORE_SYNC_BLOCKED') {
+          throw error;
+        }
+        const circuit = await getSyncCircuit();
+        const failures = Math.min(maxSyncFailures, circuit.failures + 1);
+        const blocked = mode === 'interactive' || failures >= maxSyncFailures;
+        await setSyncCircuit({ failures: blocked ? maxSyncFailures : failures, blocked });
+        if (blocked) {
+          if (mode === 'interactive' && isConnectionFailure(error)) {
+            throw connectionError(error);
+          }
+          throw syncBlockedError();
+        }
+        if (attempt === attempts) {
+          throw error;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 500 * 2 ** (attempt - 1)));
       }
-      if (response.data.cursor) {
-        cursors.set(key, response.data.cursor);
-      }
-      await setSyncCircuit({ failures: 0, blocked: false });
-      return accepted;
-    } catch (error) {
-      if (error instanceof Error && 'code' in error && error.code === 'CORE_SYNC_BLOCKED') {
-        throw error;
-      }
-      const circuit = await getSyncCircuit();
-      const failures = Math.min(maxSyncFailures, circuit.failures + 1);
-      const blocked = failures >= maxSyncFailures;
-      await setSyncCircuit({ failures, blocked });
-      if (blocked) {
-        throw syncBlockedError();
-      }
-      throw error;
     }
+    throw syncBlockedError();
   })();
   syncing.set(site, work);
   try {
@@ -440,7 +476,7 @@ async function handle(message: Request, sender: MessageSender): Promise<unknown>
           closeWatch(tab);
         }
       }
-      if (previous.config.api.token !== message.settings.config.api.token) {
+      if (JSON.stringify(previous.config.api) !== JSON.stringify(message.settings.config.api)) {
         await setSyncCircuit({ failures: 0, blocked: false });
       }
       return saved;
@@ -460,7 +496,7 @@ async function handle(message: Request, sender: MessageSender): Promise<unknown>
       }
       if (
         message.patch.config &&
-        previous.data.config.api.token !== message.patch.config.api.token
+        JSON.stringify(previous.data.config.api) !== JSON.stringify(message.patch.config.api)
       ) {
         await setSyncCircuit({ failures: 0, blocked: false });
       }
@@ -469,7 +505,7 @@ async function handle(message: Request, sender: MessageSender): Promise<unknown>
     case 'navigation.save':
       return store.saveNavigation(message.site, message.navigation);
     case 'core.sync':
-      return sync(message.site);
+      return sync(message.site, undefined, message.mode ?? 'background');
     case 'plugins': {
       await tabAt(message.tab, message.site);
       const snapshot = await store.load(message.site);

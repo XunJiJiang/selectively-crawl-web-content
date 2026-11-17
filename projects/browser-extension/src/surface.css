@@ -54,16 +54,28 @@ p {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 9px 20px;
+  padding: 5px 12px 5px 20px;
   background: var(--surface-0);
   border-bottom: 1px solid var(--border-subtle);
   font: 12px/1.5 var(--font-mono);
   color: var(--text-secondary);
 }
-.site-bar span:last-child {
+.site-name {
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.site-capture {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  margin-left: auto;
+  padding: 2px 8px;
+  font: 11px/1.2 var(--font-sans);
 }
 .site-dot {
   flex: 0 0 5px;
@@ -367,8 +379,8 @@ footer {
   justify-content: space-between;
   align-items: center;
   gap: 8px;
-  min-height: 44px;
-  padding: 6px 20px;
+  height: 28px;
+  padding: 2px 20px;
   border-top: 1px solid var(--border-default);
   background: var(--surface-0);
   font-size: 11px;
