@@ -320,21 +320,6 @@ export function createJSONComponents(
         });
       }
     },
-    measureHeight() {
-      if (!content) {
-        return 0;
-      }
-      const overflow = Math.max(
-        0,
-        ...scrolls()
-          .filter((scroll) => !scroll.hidden && !scroll.closest('[hidden]'))
-          .map((scroll) => {
-            const viewport = scroll.scrollElement;
-            return viewport ? viewport.scrollHeight - viewport.clientHeight : 0;
-          }),
-      );
-      return content.getBoundingClientRect().height + overflow;
-    },
     dispose() {
       disposeTrees();
       cleanups.splice(0).forEach((dispose) => dispose());

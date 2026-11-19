@@ -1,10 +1,13 @@
 import './declarative-view.ts';
 import { LitElement, html, css, nothing, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { SCWCTooltip } from '../../../shared/components/tooltip.ts';
+import { styleMap } from 'lit/directives/style-map.js';
+import { SCWCTooltip, type TooltipPlacement } from '../../../shared/components/tooltip.ts';
 import type { UIContribution } from '../../../shared/declarative-ui.ts';
 import type { WorkbenchStore } from '../workbench/store.ts';
 import type { FramePool } from '../workbench/frames.ts';
+
+const tooltipPlacements: readonly TooltipPlacement[] = ['top'];
 
 @customElement('wb-plugin-status')
 export class PluginStatus extends LitElement {
@@ -29,6 +32,9 @@ export class PluginStatus extends LitElement {
     :host > wb-declarative-view[surface='statusBar'] {
       width: auto;
       min-width: 0;
+    }
+    scwc-tooltip {
+      max-height: var(--tooltip-space-above, calc(100vh - 16px));
     }
   `;
   private get tooltip() {
@@ -142,8 +148,8 @@ export class PluginStatus extends LitElement {
         group="plugin-status"
         triggers="hover click"
         aria-label=${view.title}
-        .placements=${['top', 'bottom', 'right', 'left', 'current']}
-        style=${`height:min(${Math.max(40, this.popupHeight)}px, calc(100vh - 16px))`}
+        .placements=${tooltipPlacements}
+        style=${styleMap({ height: `${Math.max(40, this.popupHeight)}px` })}
         .content=${() => html`<wb-declarative-view
           .store=${this.store}
           .pool=${this.pool}

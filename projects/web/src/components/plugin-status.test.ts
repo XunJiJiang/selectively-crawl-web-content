@@ -9,6 +9,40 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+it('keeps the tooltip above a left-edge button with a centred arrow after resizing', async () => {
+  const status = new PluginStatus();
+  status.store = new EventTarget() as WorkbenchStore;
+  status.contribution = {
+    pluginId: 'p',
+    ownerEpoch: 'epoch',
+    surface: 'statusBar',
+    id: 'state',
+    title: 'Status',
+    hasTooltip: true,
+  };
+  const buttonTop = window.innerHeight - 28.5;
+  status.getBoundingClientRect = () => new DOMRect(8, buttonTop, 92, 24);
+  document.body.append(status);
+  await status.updateComplete;
+  const trigger = requireValue(status.shadowRoot?.querySelector('[surface=statusBar]'));
+  const tooltip = requireValue(status.shadowRoot?.querySelector<SCWCTooltip>('scwc-tooltip'));
+  tooltip.getBoundingClientRect = () => new DOMRect(0, 0, 320, 42);
+  trigger.dispatchEvent(new CustomEvent('ui-surface-action', { detail: { kind: 'click' } }));
+  await tooltip.updateComplete;
+  const content = requireValue(tooltip.shadowRoot?.querySelector('[surface=tooltip]'));
+  content.dispatchEvent(
+    new CustomEvent('ui-surface-action', { detail: { kind: 'resize', height: 39.2 } }),
+  );
+  await status.updateComplete;
+  expect(tooltip.style.height).toBe('42px');
+  expect(tooltip.style.left).toBe('8px');
+  expect(tooltip.style.top).toBe(`${buttonTop - 42 - 6}px`);
+  expect(tooltip.style.getPropertyValue('--tooltip-space-above')).toBe(`${buttonTop - 14}px`);
+  expect(tooltip.dataset.placement).toBe('top');
+  expect(tooltip.shadowRoot?.querySelector('.arrow')).not.toBeNull();
+  expect(tooltip.style.getPropertyValue('--tooltip-pointer-x')).toBe('46px');
+});
+
 it('closes a pinned tooltip before opening the workbench context menu at the pointer', async () => {
   const status = new PluginStatus();
   status.store = new EventTarget() as WorkbenchStore;

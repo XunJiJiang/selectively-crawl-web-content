@@ -14,7 +14,7 @@ export function createUIRenderer(root, emit, components) {
     lastHeight = -1;
   const measure = () => {
     if (surface !== 'tooltip') return;
-    const height = (components?.measureHeight() ?? content.scrollHeight) + error.getBoundingClientRect().height;
+    const height = content.getBoundingClientRect().height + error.getBoundingClientRect().height;
     if (height !== lastHeight) {
       lastHeight = height;
       send('surface', { kind: 'resize', height });

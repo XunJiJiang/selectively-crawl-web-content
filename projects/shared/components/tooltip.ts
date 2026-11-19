@@ -8,6 +8,8 @@ export type TooltipTrigger = 'hover' | 'click' | 'contextmenu';
 type TooltipText = string | (() => string);
 const HOVER_DELAY = 1000;
 const CLOSE_DELAY = 100;
+const VIEWPORT_MARGIN = 8;
+const ANCHOR_GAP = 6;
 const coordinators = new WeakMap<Document, TooltipCoordinator>();
 
 /** One visible popup and one pending hover per document, including ShadowRoots. */
@@ -641,27 +643,37 @@ export class SCWCTooltip extends LitElement {
       return;
     }
     this.setStyle('--tooltip-anchor-height', `${anchor.height}px`);
+    this.setStyle(
+      '--tooltip-space-above',
+      `${Math.max(0, anchor.top - ANCHOR_GAP - VIEWPORT_MARGIN)}px`,
+    );
     const { width, height } = this.getBoundingClientRect();
     const middleX = anchor.left + (anchor.width - width) / 2;
     const middleY = anchor.top + (anchor.height - height) / 2;
     const positions: Record<TooltipPlacement, { left: number; top: number }> = {
-      right: { left: anchor.right + 6, top: middleY },
-      left: { left: anchor.left - width - 6, top: middleY },
-      bottom: { left: middleX, top: anchor.bottom + 6 },
-      top: { left: middleX, top: anchor.top - height - 6 },
+      right: { left: anchor.right + ANCHOR_GAP, top: middleY },
+      left: { left: anchor.left - width - ANCHOR_GAP, top: middleY },
+      bottom: { left: middleX, top: anchor.bottom + ANCHOR_GAP },
+      top: { left: middleX, top: anchor.top - height - ANCHOR_GAP },
       current: { left: anchor.left, top: anchor.top },
     };
     const order = this.placements.length ? this.placements : (['current'] as const);
     const fits = ({ left, top }: { left: number; top: number }) =>
-      left >= 8 &&
-      top >= 8 &&
-      left + width <= view.innerWidth - 8 &&
-      top + height <= view.innerHeight - 8;
+      left >= VIEWPORT_MARGIN &&
+      top >= VIEWPORT_MARGIN &&
+      left + width <= view.innerWidth - VIEWPORT_MARGIN &&
+      top + height <= view.innerHeight - VIEWPORT_MARGIN;
     const placement = order.find((side) => fits(positions[side])) ?? order[order.length - 1];
     const position = positions[placement];
     this.dataset.placement = placement;
-    this.setStyle('left', `${Math.max(8, Math.min(position.left, view.innerWidth - width - 8))}px`);
-    this.setStyle('top', `${Math.max(8, Math.min(position.top, view.innerHeight - height - 8))}px`);
+    this.setStyle(
+      'left',
+      `${Math.max(VIEWPORT_MARGIN, Math.min(position.left, view.innerWidth - width - VIEWPORT_MARGIN))}px`,
+    );
+    this.setStyle(
+      'top',
+      `${Math.max(VIEWPORT_MARGIN, Math.min(position.top, view.innerHeight - height - VIEWPORT_MARGIN))}px`,
+    );
     const surfaceStyle = view.getComputedStyle(this);
     const borderLeft = Number.parseFloat(surfaceStyle.borderLeftWidth) || 0;
     this.setStyle(

@@ -98,6 +98,12 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.ui-root[data-surface='tooltip'] #content {
+  flex: none;
+}
+.ui-root[data-surface='tooltip']:not(.ui-direct) {
+  overflow-y: auto;
+}
 .ui-root[data-surface='tooltip'] .ui-content-scroll {
   flex: 0 1 auto;
   max-height: 100%;
