@@ -234,6 +234,7 @@ export class PageUIDemo {
         ${[
           'bump',
           'main.set',
+          'main.html',
           'main.content',
           'aux.json',
           'aux.html',

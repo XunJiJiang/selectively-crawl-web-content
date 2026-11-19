@@ -4,13 +4,15 @@
 
 ## 内容与贡献
 
-工作台内容为 `{ format: 'json', version: 1, root }` 或 `{ format: 'html', version: 1, html }`。HTML 是经过清洗和受限表达式编译的声明，不是可执行插件页面；自定义脚本、任意样式、DOM 处理器与框架组件应放独立页面。脚本/扩展 v2 只支持 JSON。
+工作台内容支持 `{ format: 'json', version: 1, root }` 和 `{ format: 'html', version: 2, html }`。已有 HTML `version: 1` 仍可用。HTML 经清洗后使用受限表达式编译，自定义脚本与框架组件放在独立插件页面。
 
 当前 JSON 节点有 `stack/text/icon/image/button/input/textarea/select/checkbox/toggle/form/progress/badge/divider/tabs/setting/group`；属性按类型白名单验证，不能因 UINode 类型有索引签名就添加任意属性。需要新结构前读 `ui-compiler.ts` 的 `jsonHTML`。不往 JSON 填 class/style/raw HTML。tabs 使用 `{ id, label, children }[]`；group.children 只允许 setting，通用嵌套布局用 stack/tabs。
 
 setting 有两种互斥用法：config 自动绑定（见下一参考），或 children 中恰好一个自定义控件。可声明 label/description；group 可声明 label/description/footer。具名字段应稳定且实例内唯一，name 只能是 1–64 位 ASCII 字母、数字、下划线、中划线，不能含点、空格或原型键。处理器名称允许点，例如 `demo.save`；配置键也可含点，它们与控件 name 不同。
 
 后端从 `context.workbench.ui` 注册 handlers、主/辅助侧栏、状态栏、inspector 和静态资源。注册返回异步 handle，set 替换定义，侧栏 `setContent(content, { instanceId })` 可定向更新；使用宿主提供的身份。辅助栏 hideCurrentPage 必须有可用模板；inspector 由后端 provide() 返回属性，按需 `invalidate({ tabId })`，不从 iframe 注入页面属性或配置定义。
+
+状态栏 JSON tooltip 最宽 `450px`，最高可用到视口边缘留白处，超高内容可滚动。自定义 HTML tooltip 默认隐藏测量后显示，建议把内容宽度控制在 `450px` 以下。需要固定尺寸时，在状态栏定义的 `tooltip` 中同时设 `width` 和 `height`，两者均为正数 CSS 像素，按含边框的尺寸显示。模板插件的提示格式菜单可切换到 HTML v2 自动尺寸或 `300 × 120` 固定尺寸示例。
 
 `transaction(async draft => ...)` 原子发布注册变更，不能嵌套；onLoad 中注册先暂存，加载成功后发布。失败保留旧定义。卸载先撤视图再释放被引用的 handlers/mounts/subscriptions；异步迟到注册也须释放。动态内容提供器和回调留在所属进程，只传内容/描述。
 

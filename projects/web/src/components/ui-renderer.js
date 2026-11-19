@@ -11,20 +11,26 @@ export function createUIRenderer(root, emit, components) {
   let model,
     renderRevision = 0;
   let surface,
-    lastHeight = -1;
+    fixedTooltip = false,
+    presented = false,
+    presentation,
+    lastHeight = -1,
+    lastWidth = -1;
   const measure = () => {
-    if (surface !== 'tooltip') return;
-    const height = content.getBoundingClientRect().height + error.getBoundingClientRect().height;
-    if (height !== lastHeight) {
+    if (!presented || surface !== 'tooltip' || model.format !== 'html' || fixedTooltip) return;
+    const contentRect = content.getBoundingClientRect();
+    const errorRect = error.getBoundingClientRect();
+    const height = Math.max(contentRect.height, content.scrollHeight) + errorRect.height;
+    const width = Math.max(contentRect.width, content.scrollWidth, errorRect.width);
+    if (height !== lastHeight || width !== lastWidth) {
       lastHeight = height;
-      send('surface', { kind: 'resize', height });
+      lastWidth = width;
+      send('surface', { kind: 'resize', height, width });
     }
   };
   const viewer = document.defaultView;
   const observer =
     typeof viewer.ResizeObserver === 'function' ? new viewer.ResizeObserver(measure) : undefined;
-  observer?.observe(content);
-  observer?.observe(error);
   const activeTabs = new Map();
   const nodes = new Map(),
     fields = new Map(),
@@ -33,6 +39,32 @@ export function createUIRenderer(root, emit, components) {
     dirty = new Set(),
     appliedEffects = new Set();
   const send = (method, payload) => emit({ method, payload, renderRevision });
+  const present = () => {
+    if (surface !== 'tooltip' || presented || presentation) return;
+    if (model.format === 'json' || fixedTooltip) {
+      presented = true;
+      send('surface', { kind: 'ready' });
+      return;
+    }
+    const assets = [...content.querySelectorAll('img')]
+      .filter((image) => !image.complete && typeof image.decode === 'function')
+      .map((image) => image.decode());
+    content.getBoundingClientRect();
+    if (document.fonts?.status === 'loading') assets.push(document.fonts.ready);
+    if (!assets.length) {
+      presented = true;
+      measure();
+      return;
+    }
+    const pending = Promise.allSettled(assets);
+    presentation = pending;
+    void pending.then(() => {
+      if (presentation !== pending) return;
+      presentation = undefined;
+      presented = true;
+      measure();
+    });
+  };
   const value = (field) => {
     const adapter = components?.fieldAdapter?.(field.nodeId);
     if (adapter) return adapter.readValue();
@@ -164,7 +196,20 @@ export function createUIRenderer(root, emit, components) {
     const componentScroll = components?.captureScroll();
     model = data.compiled;
     surface = data.surface;
+    fixedTooltip = surface === 'tooltip' && model.format === 'html' && Boolean(data.tooltipSize);
+    if (surface === 'tooltip') {
+      document.body?.toggleAttribute('data-fixed-tooltip', fixedTooltip);
+    }
+    observer?.disconnect();
+    if (surface === 'tooltip' && model.format === 'html' && !fixedTooltip) {
+      observer?.observe(content);
+      observer?.observe(error);
+    }
     renderRevision = data.renderRevision;
+    presented = false;
+    presentation = undefined;
+    lastHeight = -1;
+    lastWidth = -1;
     nodes.clear();
     fields.clear();
     fieldErrors.clear();
@@ -314,6 +359,7 @@ export function createUIRenderer(root, emit, components) {
     content.scrollTop = scroll.y;
     components?.restoreScroll(componentScroll);
     notifyFields();
+    if (!model.expressions.length) present();
   }
   function receive({ data }) {
     if (data.method === 'init') {
@@ -322,6 +368,11 @@ export function createUIRenderer(root, emit, components) {
     }
     if (data.renderRevision !== renderRevision) return;
     const payload = data.payload;
+    if (data.method === 'present') {
+      error.textContent = payload.error;
+      present();
+      measure();
+    }
     if (data.method === 'tree') {
       components?.treeResponse?.(payload);
       notifyFields();
@@ -343,6 +394,7 @@ export function createUIRenderer(root, emit, components) {
         if (field && ['value', 'checked'].includes(binding.attribute)) showFieldError(field.name, '');
       }
       notifyFields();
+      present();
     }
     if (data.method === 'result') {
       const errorSequences = payload.errorEditSequences ?? payload.editSequences;
@@ -429,6 +481,7 @@ export function createUIRenderer(root, emit, components) {
   return {
     receive,
     dispose: () => {
+      presentation = undefined;
       observer?.disconnect();
       components?.dispose();
       listeners.forEach((remove) => remove());

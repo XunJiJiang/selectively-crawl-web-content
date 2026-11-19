@@ -676,7 +676,8 @@ function jsonHTML(node: UINode, depth = 0, path = '0'): string {
 }
 export function compileUI(content: UIContent, options: CompileOptions): CompiledUI {
   uiAssert(
-    content.version === 1 && ['html', 'json'].includes(content.format),
+    (content.format === 'html' && (content.version === 1 || content.version === 2)) ||
+      (content.format === 'json' && content.version === 1),
     'UI_INVALID_CONTENT',
     '声明式内容版本无效',
   );

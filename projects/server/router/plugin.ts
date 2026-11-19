@@ -6,7 +6,7 @@ import { plugins } from '../plugin/load.ts';
 import { matchLink, getRootUrl } from './utils/index.ts';
 import { pluginLogger } from '../plugin/log.ts';
 import { pluginRefreshRule, shouldRefreshPlugin } from '../user-script/refresh.ts';
-import { SCRIPT_CONFIG_RANGES, type ScriptContext } from '../../shared/script-ui.ts';
+import { SCRIPT_CONFIG_RANGES, SCRIPT_HTML_RANGE, type ScriptContext } from '../../shared/script-ui.ts';
 import type { PluginConfig } from '../../shared/types/plugin.d.ts';
 
 /** /api/plugin */
@@ -139,9 +139,11 @@ const getConfig: RequestHandler = async (req, res) => {
         pluginConfigs.push({
           id: plugin.pluginId,
           version: 'v2',
-          compatibleVersions: ui.compiled.trees?.length
-            ? { ...SCRIPT_CONFIG_RANGES, v2: '3.4.0-*' }
-            : SCRIPT_CONFIG_RANGES,
+          compatibleVersions: ui.compiled.format === 'html'
+            ? { ...SCRIPT_CONFIG_RANGES, v2: SCRIPT_HTML_RANGE }
+            : ui.compiled.trees?.length
+              ? { ...SCRIPT_CONFIG_RANGES, v2: '3.4.0-*' }
+              : SCRIPT_CONFIG_RANGES,
           title: scripts.title,
           description: scripts.description ?? scripts.title,
           refreshRule,

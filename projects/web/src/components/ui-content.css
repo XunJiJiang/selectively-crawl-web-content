@@ -102,11 +102,18 @@
   flex: none;
 }
 .ui-root[data-surface='tooltip']:not(.ui-direct) {
-  overflow-y: auto;
+  overflow: hidden;
 }
-.ui-root[data-surface='tooltip'] .ui-content-scroll {
-  flex: 0 1 auto;
-  max-height: 100%;
+.ui-root[data-surface='tooltip']:not(.ui-direct, [data-fixed-tooltip]) > :is(#content, #error) {
+  flex: none;
+  width: max-content;
+  overflow: visible;
+}
+.ui-root[data-fixed-tooltip] {
+  overflow: auto;
+}
+.ui-root[data-fixed-tooltip] > #content {
+  overflow: visible;
 }
 [data-ui-key='inspector-instance'] {
   margin-bottom: 8px;

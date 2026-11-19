@@ -31,7 +31,7 @@
 - `pluginConfig.scripts.controls` 可为数组或动态工厂。支持 `button`、`toggle`、`select`、`input:text`、`input:number`、`checkbox`。每项需有稳定 channel 和触发器；动态工厂可按 site 返回控件。
 - 控制器回调收到当前值、相关通道值、采集数据、site、signal/tasks 和普通插件 logger；没有 `toWeb`，须返回 `{ type: 'notification', data: { type, message } }`。页面数据始终需要后端重新校验。
 
-以上 controls 为 v1（version 省略或 `'v1'`）。显式 `'v2'` 使用 JSON content、handlers/components，用户脚本与浏览器扩展共用协议，不能混入 controls；详见[脚本与配置](scripts-and-configuration.md)。
+以上 controls 为 v1（version 省略或 `'v1'`）。显式 `'v2'` 使用 JSON 或 HTML content 和 handlers，JSON 还可用 components 扩展。用户脚本与浏览器扩展共用协议，每项配置选择一种格式。详见[脚本与配置](scripts-and-configuration.md)。
 
 ### 命令
 

@@ -17,6 +17,41 @@ const context: ScriptContext = {
   values: {},
   logger: {} as SCWC.TLogger,
 };
+
+it('renders the template HTML v2 and runs its form handler', async () => {
+  const { scripts } = await import('../plugins/template/script-ui.ts');
+  const htmlContext = {
+    ...context,
+    site: { ...context.site, url: `${context.site.url}?template-ui=html` },
+    logger: { info: vi.fn() } as unknown as SCWC.TLogger,
+  };
+  const runtime = new ScriptUIRuntime();
+  const model = await runtime.render(scripts, htmlContext);
+  expect(model.compiled.format).toBe('html');
+  expect(model.updates).toEqual([{ id: expect.any(String), value: '当前网站：example.com' }]);
+  const result = await runtime.event({
+    version: 'v2',
+    instanceId: model.instanceId,
+    eventId: 'submit',
+    bindingId: requireValue(model.compiled.events.find((binding) => binding.event === 'submit')).id,
+    fields: { testInputText: { value: 'HTML submit', editSequence: 1 } },
+  }, htmlContext);
+  expect(result.result).toMatchObject({
+    type: 'notification',
+    data: { message: expect.stringContaining('HTML submit') },
+  });
+});
+
+it('rejects styles that could load external resources or escape script HTML layout limits', async () => {
+  const runtime = new ScriptUIRuntime();
+  for (const style of ['@import "https://example.com/main.css";', 'p{position:fixed}']) {
+    await expect(runtime.render({
+      version: 'v2',
+      title: 'HTML',
+      content: { format: 'html', version: 2, html: `<style>${style}</style><p>Content</p>` },
+    }, context)).rejects.toThrow();
+  }
+});
 it('expands backend components, compiles grouped JSON and executes a bound pipeline with captured data', async () => {
   const run = vi.fn(function (this: ScriptContext, value) {
     expect(this.data).toEqual(context.data);

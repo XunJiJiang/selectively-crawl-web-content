@@ -1,6 +1,6 @@
 {
   "name": "scwc-terminal-system",
-  "version": "3.4.13",
+  "version": "3.4.14",
   "private": true,
   "type": "module",
   "main": "index.ts",

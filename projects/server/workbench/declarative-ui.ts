@@ -19,6 +19,7 @@ import {
   type ClientEffect,
   type NormalizedUIEvent,
   type UINode,
+  type TooltipSize,
 } from '../../shared/declarative-ui.ts';
 import fs from 'node:fs/promises';
 import { validateUIValue } from '../../shared/ui-validation.ts';
@@ -62,6 +63,7 @@ interface Instance {
   viewId: string;
   revision: number;
   compiled: CompiledUI;
+  tooltipSize?: TooltipSize;
   cap: string;
   updated: number;
   controller: AbortController;
@@ -498,6 +500,16 @@ export class DeclarativeUIService {
       );
       if (view.surface === 'statusBar') {
         this.statusContent(view.definition);
+        const tooltip = view.definition.tooltip as Record<string, UIValue> | undefined;
+        if (tooltip?.height !== undefined) {
+          uiAssert(
+            [tooltip.width, tooltip.height].every(
+              (value) => typeof value === 'number' && Number.isFinite(value) && value > 0,
+            ),
+            'UI_INVALID_CONTENT',
+            'HTML 提示层的宽高须同时提供正数像素值',
+          );
+        }
       } else if (!this.provider(view.definition.content)) {
         if (view.surface === 'auxiliarySidebar' && view.definition.hideCurrentPage === true) {
           const content = view.definition.content;
@@ -942,6 +954,7 @@ export class DeclarativeUIService {
       ownerEpoch: instance.owner,
       renderRevision: instance.revision,
       compiled: instance.compiled,
+      tooltipSize: instance.tooltipSize,
       sourceTabId: instance.sourceTabId,
       sourceFrameEpoch: instance.sourceFrameEpoch,
       workspaceId: instance.workspaceId,
@@ -1037,6 +1050,8 @@ export class DeclarativeUIService {
     instance.watches.clear();
     const reg = this.registrations.get(instance.pluginId);
     let content;
+    let tooltipSize: TooltipSize | undefined;
+    let textTooltip = false;
     if (instance.override) {
       content = instance.override;
     } else if (instance.surface === 'currentPage') {
@@ -1065,6 +1080,10 @@ export class DeclarativeUIService {
           content.format === 'text'
         ) {
           content = { format: 'html', version: 1, html: escape(content.text) };
+          textTooltip = true;
+        }
+        if (typeof tooltip.width === 'number' && typeof tooltip.height === 'number') {
+          tooltipSize = { width: tooltip.width, height: tooltip.height };
         }
       }
       if (instance.surface === 'contextMenu') {
@@ -1126,6 +1145,7 @@ export class DeclarativeUIService {
       }
     }
     instance.compiled = this.compile(reg, content as never, instance);
+    instance.tooltipSize = instance.compiled.format === 'html' && !textTooltip ? tooltipSize : undefined;
     instance.registryRevision = reg?.revision ?? 0;
     instance.revision++;
     instance.fields = {};

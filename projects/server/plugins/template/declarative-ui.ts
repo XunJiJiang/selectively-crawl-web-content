@@ -8,7 +8,7 @@ import type {
   SidebarHandle,
   AuxiliaryHandle,
 } from '../../../shared/declarative-ui.ts';
-import { ids, mainContent, auxiliaryContent, statusDefinition } from './ui-content.ts';
+import { ids, mainContent, auxiliaryContent, sidebarHTML, statusDefinition } from './ui-content.ts';
 import { treeDemoHandlers } from './tree-ui.ts';
 import {
   inputValidationHandlers,
@@ -47,7 +47,7 @@ export class DeclarativeDemo {
       auxiliary: !!this.aux,
       status: !!this.status,
       property: this.property,
-      tooltipFormat: ['text', 'json', 'html'][this.mode % 3],
+      tooltipFormat: ['text', 'json', 'html', 'html-fixed'][this.mode % 4],
     };
   }
   private notify() {
@@ -251,6 +251,7 @@ export class DeclarativeDemo {
           return mainContent('异步 RenderContext 来源');
         },
       });
+    else if (action === 'main.html') await this.main?.setContent(sidebarHTML('main'));
     else if (action === 'main.content')
       await this.main?.setContent(mainContent('全实例 setContent'));
     else if (action === 'target') {

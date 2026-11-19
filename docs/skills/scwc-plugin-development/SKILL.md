@@ -36,8 +36,8 @@ Skill 版本：`3.3.2`，取自本次更新时仓库根 `package.json.version`�
 | --- | --- |
 | `package.json.version` | 插件自身发行版本；普通业务插件独立维护 |
 | `package.json.runtime.apiVersion` / handler `apiVersion` | 独立进程可序列化接口，省略使用 `2`；`runtime.mode` 省略使用 `process` |
-| `pluginConfig.scripts.version` | 省略或 `'v1'` 为旧 controls；显式 `'v2'` 为 JSON UI |
-| `scripts.content.version` / 工作台 `UIContent.version` | 内容格式版本，当前为数字 `1` |
+| `pluginConfig.scripts.version` | 省略或 `'v1'` 为旧 controls，显式 `'v2'` 为声明式 JSON 或 HTML UI |
+| `scripts.content.version` / 工作台 `UIContent.version` | JSON 为数字 `1`，新 HTML 为数字 `2` |
 
 所有启用插件都在独立 Node 进程运行；不要依赖核心进程内对象、Express req/res 或真实 WebSocket。API 接收 `context.request` 数据快照，资源返回文件/响应描述，Socket 使用连接上下文操作。RPC 超时只结束等待，不证明业务写入撤销；写请求不能据此自动重试。
 
@@ -45,7 +45,7 @@ Skill 版本：`3.3.2`，取自本次更新时仓库根 `package.json.version`�
 
 - 采集使用 `onRequest(context, logger)`，数据与工具来自 `context.data/site/utils`；抓取 logger 的 `toWeb` 可返回采集通知。
 - 命令使用 `pluginConfig.command`，同时在包中声明 `commandName`。第五参数 `InvocationContext` 提供任务、取消和类型化 `next()`；补全返回完整候选词，前缀过滤交终端。
-- 脚本浮窗与浏览器扩展共用 `pluginConfig.scripts`。新 JSON 配置显式声明 `version: 'v2'`，以 `content`、`handlers` 和可选 `components` 实现；维护旧 controls 时保留 v1 行为，不因使用本 skill 强制迁移。
+- 脚本浮窗与浏览器扩展共用 `pluginConfig.scripts`。新 JSON 或 HTML 配置显式声明 `version: 'v2'`，通过 `content` 和 `handlers` 定义，JSON 还可用 `components` 扩展；维护旧 controls 时保留 v1 行为。
 - 全局持久配置由后端 `configuration` 定义并通过 `context.config` 操作；声明式设置优先复用自动绑定。自定义 Web 页面 `scwcutils.config` 只有读取/订阅，写入走后端明确业务 API。
 - 工作台贡献由 `onLoad` 的 `context.workbench.ui` 注册，不要求先有独立插件页面。处理器留在插件进程；仅需要当前页面状态的回调才注册在页面 `scwcutils.ui.handlers` 中。
 - 独立 Web 页面使用 `ui.entry`；`ui.api/resources/websocket` 分别提供结构化 API、媒体资源和实时通道。通过核心路由接入，不为这些功能另起 HTTP 服务。

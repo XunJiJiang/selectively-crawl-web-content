@@ -19,6 +19,7 @@ import {
   type CallNode,
   type NormalizedUIEvent,
   type ClientEffect,
+  type TooltipSize,
 } from '../../../shared/declarative-ui.ts';
 import {
   evaluateArgument,
@@ -37,6 +38,7 @@ interface ViewState {
   id: string;
   renderRevision: number;
   compiled: CompiledUI;
+  tooltipSize?: TooltipSize;
   sourceTabId: string | null;
   sourceFrameEpoch: string | null;
   workspaceId: string;
@@ -108,6 +110,20 @@ export class DeclarativeView extends LitElement {
         inset: 0;
         z-index: 1100;
       }
+      :host([surface='tooltip']) {
+        width: auto;
+        height: auto;
+      }
+      :host([surface='tooltip'][data-format='html']) {
+        height: 100%;
+      }
+      :host([surface='tooltip'][inert]) {
+        position: absolute;
+        inset: 0 auto auto 0;
+        width: var(--ui-tooltip-render-width, 320px);
+        height: var(--ui-tooltip-render-height, 100px);
+        visibility: hidden;
+      }
     `,
     unsafeCSS(primitiveStyles),
     unsafeCSS(contentStyles),
@@ -137,6 +153,20 @@ export class DeclarativeView extends LitElement {
     super.disconnectedCallback();
   }
   protected updated(changed: PropertyValues) {
+    if (this.surface === 'tooltip') {
+      this.dataset.format = this.instance?.compiled.format ?? '';
+      const size = this.instance?.tooltipSize;
+      if (size) {
+        this.style.setProperty('--ui-tooltip-render-width', `${Math.max(0, size.width - 2)}px`);
+        this.style.setProperty('--ui-tooltip-render-height', `${Math.max(0, size.height - 2)}px`);
+      } else {
+        this.style.removeProperty('--ui-tooltip-render-width');
+        this.style.removeProperty('--ui-tooltip-render-height');
+      }
+      if (changed.has('error') && this.error) {
+        this.surfaceAction({ kind: 'error' });
+      }
+    }
     if (['pluginId', 'surface', 'viewId', 'tabId', 'sourceTabId'].some((key) => changed.has(key))) {
       void this.open();
     }
@@ -179,6 +209,9 @@ export class DeclarativeView extends LitElement {
     this.error = '';
     this.frameReady = false;
     this.uiNonce = crypto.randomUUID();
+    if (this.surface === 'tooltip') {
+      this.surfaceAction({ kind: 'prepare' });
+    }
     this.requestUpdate();
     const workspace = this.store.workspace;
     const lease = this.store.lease;
@@ -462,14 +495,15 @@ export class DeclarativeView extends LitElement {
         payload.x = (payload.x ?? 0) + (rect?.left ?? 0);
         payload.y = (payload.y ?? 0) + (rect?.top ?? 0);
       }
-      this.dispatchEvent(
-        new CustomEvent('ui-surface-action', {
-          detail: message.payload,
-          bubbles: true,
-          composed: true,
-        }),
+      this.surfaceAction(
+        payload.kind === 'ready' && this.instance.tooltipSize
+          ? { ...payload, ...this.instance.tooltipSize }
+          : payload,
       );
     }
+  }
+  private surfaceAction(detail: { kind: string; width?: number; height?: number }) {
+    this.dispatchEvent(new CustomEvent('ui-surface-action', { detail, bubbles: true, composed: true }));
   }
   private restarted = () => {
     void this.open();
@@ -529,13 +563,20 @@ export class DeclarativeView extends LitElement {
             return;
           }
         } while (task.queued);
-        if (instance.compiled.format !== value.compiled.format) {
+        const formatChanged = instance.compiled.format !== value.compiled.format;
+        const sizeChanged =
+          instance.tooltipSize?.width !== value.tooltipSize?.width ||
+          instance.tooltipSize?.height !== value.tooltipSize?.height;
+        if (formatChanged) {
           this.directRenderer?.dispose();
           this.directRenderer = undefined;
           this.port?.close();
           this.port = undefined;
           this.frameReady = false;
           this.uiNonce = crypto.randomUUID();
+        }
+        if (this.surface === 'tooltip' && (formatChanged || sizeChanged)) {
+          this.surfaceAction({ kind: 'prepare' });
         }
         this.error = '';
         this.instance = value;
@@ -792,6 +833,10 @@ export class DeclarativeView extends LitElement {
           await this.refresh();
           return;
         }
+        if (this.surface === 'tooltip') {
+          this.send('present', { error: this.store.message(error) });
+          return;
+        }
         this.error = this.store.message(error);
         if (this.surface === 'contextMenu') {
           this.store.toast(this.error, 'error');
@@ -1017,11 +1062,12 @@ export class DeclarativeView extends LitElement {
       ></wb-context-menu>`;
     }
     if (!this.instance || this.instance.compiled.format === 'json') {
+      const content = html`<div id="content"></div>`;
       return html`${this.error ? html`<p class="error" role="alert">${this.error}</p>` : nothing}
         <div class="ui-root ui-direct" data-surface=${this.surface}>
-          <wb-scroll-container class="ui-content-scroll"
-            ><div id="content"></div
-          ></wb-scroll-container>
+          ${this.surface === 'tooltip'
+            ? content
+            : html`<wb-scroll-container class="ui-content-scroll">${content}</wb-scroll-container>`}
           <div id="error" role="alert"></div>
         </div>`;
     }

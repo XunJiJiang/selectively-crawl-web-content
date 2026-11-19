@@ -8,6 +8,7 @@ import {
   validateJSONAttribute,
 } from '../../web/src/components/json-renderer-policy.ts';
 import { hasOwn, type FieldValue } from '../declarative-ui.ts';
+import { validateScriptHTMLModel, validateScriptHTMLAttribute } from '../script-html-policy.ts';
 import type { ScriptUIEvent, ScriptUIModel, ScriptUIResult } from '../script-ui.ts';
 import baseStyle from '../../server/public/resources/styles/json-ui.css?raw';
 import hostStyle from '../../web/src/components/ui-content.css?raw';
@@ -71,6 +72,7 @@ export class ScriptUIView extends LitElement {
     return root;
   }
   private renderer?: ReturnType<typeof createUIRenderer>;
+  private htmlStyles?: CSSStyleSheet;
   private renderedModel?: ScriptUIModel;
   private owner = '';
   private reading?: Promise<void>;
@@ -196,8 +198,18 @@ export class ScriptUIView extends LitElement {
     this.previousValues = nextValues;
     this.revision++;
     try {
-      validateJSONModel(this.model.compiled);
       const compiled = structuredClone(this.model.compiled);
+      if (compiled.format === 'html') {
+        const styles = validateScriptHTMLModel(compiled);
+        if (styles.length && !this.htmlStyles) {
+          this.htmlStyles = new CSSStyleSheet();
+          this.uiRoot.adoptedStyleSheets = [...this.uiRoot.adoptedStyleSheets, this.htmlStyles];
+        }
+        this.htmlStyles?.replaceSync(styles.join('\n'));
+      } else {
+        this.htmlStyles?.replaceSync('');
+        validateJSONModel(compiled);
+      }
       for (const tree of compiled.trees ?? []) {
         if (hasOwn(this.values, tree.name)) {
           tree.options.value = this.values[tree.name] as string | string[];
@@ -262,6 +274,10 @@ export class ScriptUIView extends LitElement {
       }
       this.scheduleRead();
     } catch (error) {
+      this.renderer?.dispose();
+      this.renderer = undefined;
+      this.htmlStyles?.replaceSync('');
+      this.uiRoot.querySelector('#content')?.replaceChildren();
       this.error(error);
     }
   }
@@ -372,7 +388,10 @@ export class ScriptUIView extends LitElement {
     for (const update of updates) {
       const binding = this.model.compiled.expressions.find((b) => b.id === update.id);
       if (binding?.attribute && !update.error) {
-        validateJSONAttribute(binding.attribute, update.value);
+        const validate = this.model.compiled.format === 'html'
+          ? validateScriptHTMLAttribute
+          : validateJSONAttribute;
+        validate(binding.attribute, update.value);
       }
     }
     this.renderer?.receive({
@@ -380,6 +399,9 @@ export class ScriptUIView extends LitElement {
     });
   }
   private receive(message: UIRendererMessage) {
+    if (message.renderRevision !== this.revision) {
+      return;
+    }
     if (message.method === 'tree') {
       const request = message.payload as import('../tree.ts').TreeRequest;
       const revision = this.revision;

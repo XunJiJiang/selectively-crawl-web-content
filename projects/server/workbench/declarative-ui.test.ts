@@ -39,6 +39,35 @@ async function setup(program: string, invoke: (data: Record<string, unknown>) =>
   return { service, instance };
 }
 describe('handler execution and page authorization', () => {
+  it.each([
+    [{ format: 'html', version: 2, html: '<p>Fixed</p>' }, { width: 300, height: 120 }],
+    [{ format: 'json', version: 1, root: { type: 'text', text: 'JSON' } }, undefined],
+    [{ format: 'text', text: 'Text' }, undefined],
+  ] as const)('applies fixed tooltip dimensions only to HTML content %o', async (content, size) => {
+    const service = new DeclarativeUIService();
+    const snapshot = registry('save');
+    snapshot.views.push({
+      surface: 'statusBar',
+      definition: {
+        id: 'status',
+        ariaLabel: 'Status',
+        text: 'Status',
+        tooltip: { width: 300, height: 120, content: { ...content } },
+      },
+    });
+    await service.install('p', 'epoch', process.cwd(), snapshot, async () => ({}));
+    const instance = await service.create({
+      pluginId: 'p',
+      surface: 'tooltip',
+      viewId: 'status',
+      windowId: 'window',
+      workspaceId: 'workspace',
+      tabId: null,
+      sourceTabId: null,
+      sourceFrameEpoch: null,
+    });
+    expect(instance.tooltipSize).toEqual(size);
+  });
   it('blocks invalid template reads and field writes before values reach the frontend', async () => {
     const service = new DeclarativeUIService();
     const invoke = vi.fn(async (data: Record<string, unknown>) => ({

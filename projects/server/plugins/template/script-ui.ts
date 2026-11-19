@@ -1,9 +1,9 @@
 import { globalSettings, siteSettings } from './settings-ui.ts';
 import { inputValidationContent, inputValidationHandlers } from './input-validation-ui.ts';
 import { treeDemoContent, treeDemoHandlers } from './tree-ui.ts';
+import type { ScriptContentV2 } from '../../../shared/script-ui.ts';
 
-// 外层 v2 是脚本/扩展协议，内层 version: 1 是 JSON 内容格式。
-export const scripts: SCWC.TScriptConfigV2 = {
+const jsonDemo = {
   version: 'v2',
   title: '配置样例',
   description: '设置行、连续分组、全局与本站自动绑定，以及自定义控制器。',
@@ -213,6 +213,41 @@ export const scripts: SCWC.TScriptConfigV2 = {
           type: 'notification',
           data: { type: 'success', message: `Checkbox 控件触发了, 当前值: ${value}` },
         };
+      },
+    },
+  },
+} satisfies SCWC.TScriptConfigV2;
+
+const htmlDemo: ScriptContentV2 = {
+  format: 'html',
+  version: 2,
+  html: `
+    <style>section { padding: 8px; } form { display: flex; flex-wrap: wrap; gap: 8px; }</style>
+    <section>
+      <h3>模板插件 HTML v2</h3>
+      <p>当前网站：\${currentSite()}</p>
+      <form onsubmit="testInputText($for:testInputText)">
+        <label for="template-html-note">备注</label>
+        <input id="template-html-note" name="testInputText" value="HTML v2">
+        <button type="submit">提交</button>
+      </form>
+    </section>`,
+};
+
+export const scripts: SCWC.TScriptConfigV2 = {
+  ...jsonDemo,
+  refreshRule: '//?',
+  content(context) {
+    return new URL(context.site.url).searchParams.get('template-ui') === 'html'
+      ? htmlDemo
+      : jsonDemo.content;
+  },
+  handlers: {
+    ...jsonDemo.handlers,
+    currentSite: {
+      readOnly: true,
+      run() {
+        return new URL(this.site.url).host;
       },
     },
   },

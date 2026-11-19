@@ -66,15 +66,17 @@ it('renders values as text, preserves dirty input/focus and rejects stale render
     input.setSelectionRange(1, 3);
     input.dispatchEvent(new dom.window.Event('input'));
     await next('fields');
-    send('init', { compiled, renderRevision: 2, surface: 'mainSidebar' }, 2);
+    send('init', { compiled, renderRevision: 2, surface: 'tooltip' }, 2);
     await next('fields');
     const restored = requireValue(dom.window.document.querySelector('input'));
     expect(restored.value).toBe('local');
     expect(dom.window.document.activeElement).toBe(restored);
     expect(restored.selectionStart).toBe(1);
     const binding = compiled.expressions[0];
+    expect(messages.find((message) => message.method === 'surface')).toBeUndefined();
     send('updates', [{ id: binding.id, value: '<img src=x onerror=alert(1)>' }], 2);
     await next('fields');
+    expect(await next('surface')).toMatchObject({ payload: { kind: 'resize', height: 0, width: 0 } });
     expect(requireValue(dom.window.document.querySelector('p')).textContent).toBe(
       '<img src=x onerror=alert(1)>',
     );
@@ -82,6 +84,17 @@ it('renders values as text, preserves dirty input/focus and rejects stale render
     send('updates', [{ id: binding.id, value: 'stale' }], 1);
     await new Promise((resolve) => setTimeout(resolve, 10));
     expect(requireValue(dom.window.document.querySelector('p')).textContent).not.toBe('stale');
+    send('init', {
+      compiled,
+      renderRevision: 3,
+      surface: 'tooltip',
+      tooltipSize: { width: 300, height: 120 },
+    }, 3);
+    await next('fields');
+    send('updates', [{ id: binding.id, value: 'Fixed' }], 3);
+    await next('fields');
+    expect(await next('surface')).toMatchObject({ payload: { kind: 'ready' } });
+    expect(dom.window.document.body.hasAttribute('data-fixed-tooltip')).toBe(true);
   } finally {
     channel.port1.close();
     channel.port2.close();

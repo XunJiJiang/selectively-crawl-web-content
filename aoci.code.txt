@@ -1612,13 +1612,8 @@ tree.css[ZU5T]: F:排版固定行高树、居中折叠图标及行操作拖放�
 tree.test.ts[TU6M]: F:验证树选择焦点、分组延迟提示及虚拟窗口生命周期 | R:code:projects/shared/components/tree/tree.ts,code:projects/shared/tree-session.ts | A:Vitest DOM用例 | S:首个提示满秒、同树行立即切换；工具栏与行组、不同树隔离；万节点少于35行并保留屏外焦点；焦点不换鼠标目标，迟到响应拒收
 tree.ts[LU8L]: F:实现三宿主共用的虚拟JSON树交互和字段适配器 | R:code:projects/shared/tree-model.ts,code:projects/shared/components/scroll-container/scroll-container.ts,code:projects/shared/components/tooltip.ts,code:projects/shared/tree.ts | A:JSONTree,TreeBridge,command,readValue,writeValue,dispose | S:状态独立于回收行并保留屏外焦点，焦点进出不重建行；每树工具栏与行分别独立成组；只用显式tooltip，等高提示试右左下上原位；分支查询拒旧，搜索不递归加载且过滤禁拖；写成功刷新失败保留回执，释放取消请求与观察器
 
-===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/public/lib/===
-scwcutils.iife.mwhp2y21.js[LE7T]: F:分发插件会话SDK、核心配置订阅及共享通知类 | R:code:projects/webutils/lib/index.ts,code:projects/webutils/lib/core-config.ts,code:projects/shared/components/notify.ts | A:scwcutils,ready,coreConfig,Notify,notify,fetch | S:核心配置按通道显式订阅；通知默认路由文档宿主；fetch等待ready，Socket工厂须先就绪；pagehide释放反馈
-
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/public/web/assets/===
 index-D-iqYjNX.css[ZU4T]: F:分发工作台主题变量、树配色与全局排版 | R:code:projects/web/var.css,code:projects/web/style.css | A:全局CSS资源 | S:外层隐藏滚动，由内部容器承接；默认深色并有浅色树变量
-index-VaQWfXZ2.js[EU6L]: F:初始化工作台配置及共享通知并延迟加载主布局 | R:code:projects/web/src/main.ts,code:projects/shared/components/notify.ts,code:projects/server/public/web/assets/local-config-taNKm1cA.js | A:浏览器ESM入口 | S:先await本机配置写入localStorage，再动态导入layouts；共享通知操作最多四按钮
-layouts-DkGi2voc.js[AU7L]: F:分发工作台布局、页面实例、核心配置和通知通道 | R:code:projects/web/src/layouts/root.ts,code:projects/web/src/workbench/frames.ts,code:projects/web/src/workbench/store.ts | A:app-root及工作台组件 | S:核心配置按显式通道订阅，前端UI调用绑定来源tab及epoch；终端按需导入
 local-config-taNKm1cA.js[LU4T]: F:分发Lit运行时与本机启动配置加载 | R:code:projects/web/src/api/local-config.ts | A:浏览器共享ESM导出 | S:仅回环HTTP(S)页取同源配置，禁Cookie及重定向；三秒失败保留现有配置
 terminal-BEBwup-b.js[IU6M]: F:分发Web终端编辑、输出与滚动组件 | R:code:projects/web/src/components/terminal.ts,code:projects/web/src/components/command-editor.ts | A:WorkbenchTerminal,wb-terminal | S:捕获pointerdown和wheel保存滚动意图；选区存在不抢编辑焦点，手动滚动退出跟随
 workbench-CeiTHksj.js[LU7L]: F:分发工作台共享组件、页面协议及HTTP事件连接 | R:code:projects/web/src/api/workbench.ts,code:projects/shared/workbench-protocol.ts,code:projects/shared/request-lifecycle.ts | A:浏览器共享ESM导出 | S:消息绑定tab、epoch及sequence并限256KiB；Socket拒旧代与回退序号，重连退避上限15秒

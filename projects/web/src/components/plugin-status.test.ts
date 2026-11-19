@@ -9,7 +9,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-it('keeps the tooltip above a left-edge button with a centred arrow after resizing', async () => {
+it.each(['resize', 'ready'])('positions an HTML tooltip after %s', async (kind) => {
   const status = new PluginStatus();
   status.store = new EventTarget() as WorkbenchStore;
   status.contribution = {
@@ -30,11 +30,20 @@ it('keeps the tooltip above a left-edge button with a centred arrow after resizi
   trigger.dispatchEvent(new CustomEvent('ui-surface-action', { detail: { kind: 'click' } }));
   await tooltip.updateComplete;
   const content = requireValue(tooltip.shadowRoot?.querySelector('[surface=tooltip]'));
+  expect(tooltip.hasAttribute('concealed')).toBe(true);
+  expect(content.hasAttribute('inert')).toBe(true);
+  expect(tooltip.style.height).toBe('');
   content.dispatchEvent(
-    new CustomEvent('ui-surface-action', { detail: { kind: 'resize', height: 39.2 } }),
+    new CustomEvent('ui-surface-action', {
+      detail: { kind, height: 39.2, width: 190.4 },
+    }),
   );
   await status.updateComplete;
-  expect(tooltip.style.height).toBe('42px');
+  await tooltip.updateComplete;
+  expect(tooltip.hasAttribute('concealed')).toBe(false);
+  expect(content.hasAttribute('inert')).toBe(false);
+  expect(tooltip.style.width).toBe(kind === 'resize' ? '193px' : '190.4px');
+  expect(tooltip.style.height).toBe(kind === 'resize' ? '42px' : '39.2px');
   expect(tooltip.style.left).toBe('8px');
   expect(tooltip.style.top).toBe(`${buttonTop - 42 - 6}px`);
   expect(tooltip.style.getPropertyValue('--tooltip-space-above')).toBe(`${buttonTop - 14}px`);
@@ -82,7 +91,7 @@ it('closes a pinned tooltip before opening the workbench context menu at the poi
   expect(status.shadowRoot?.querySelector('[surface=contextMenu]')).toBeNull();
 });
 
-it('uses shared hover timing and closes the custom view when the owner changes', async () => {
+it('uses shared hover timing, delays the spinner and clears loading when the owner changes', async () => {
   vi.useFakeTimers();
   const status = new PluginStatus();
   status.store = new EventTarget() as WorkbenchStore;
@@ -109,10 +118,30 @@ it('uses shared hover timing and closes the custom view when the owner changes',
   action('hover');
   await vi.advanceTimersByTimeAsync(1000);
   expect(tooltip.hidden).toBe(false);
+  expect(tooltip.hasAttribute('concealed')).toBe(true);
+  await vi.advanceTimersByTimeAsync(499);
+  expect(tooltip.querySelector('[slot=loading]')).toBeNull();
+  await vi.advanceTimersByTimeAsync(1);
+  await status.updateComplete;
+  await tooltip.updateComplete;
+  expect(tooltip.dataset.mode).toBe('loading');
+  expect(tooltip.hasAttribute('concealed')).toBe(false);
+  expect(tooltip.querySelector('wb-icon')?.getAttribute('name')).toBe('loading');
+  const content = requireValue(tooltip.shadowRoot?.querySelector('[surface=tooltip]'));
+  expect(content.hasAttribute('inert')).toBe(true);
+  content.dispatchEvent(new CustomEvent('ui-surface-action', { detail: { kind: 'ready' } }));
+  await status.updateComplete;
+  await tooltip.updateComplete;
+  expect(tooltip.dataset.mode).toBe('json');
+  expect(tooltip.querySelector('[slot=loading]')).toBeNull();
+  expect(tooltip.style.height).toBe('');
+  expect(content.hasAttribute('inert')).toBe(false);
   action('click');
   await tooltip.updateComplete;
   expect(tooltip.pinned).toBe(true);
   status.contribution = { ...status.contribution, ownerEpoch: 'two' };
   await status.updateComplete;
+  await vi.advanceTimersByTimeAsync(500);
   expect(tooltip.hidden).toBe(true);
+  expect(tooltip.querySelector('[slot=loading]')).toBeNull();
 });

@@ -141,6 +141,7 @@ export class SCWCTooltip extends LitElement {
   })
   accessor triggers: readonly TooltipTrigger[] = ['hover'];
   @property({ type: Boolean, reflect: true }) accessor interactive = false;
+  @property({ type: Boolean, reflect: true }) accessor concealed = false;
   @property({ type: Boolean, reflect: true }) accessor arrow = true;
   @property({ type: Boolean, reflect: true, attribute: 'match-anchor-height' })
   accessor matchAnchorHeight = false;
@@ -208,6 +209,10 @@ export class SCWCTooltip extends LitElement {
       width: 320px;
       padding: 0;
       border-radius: var(--radius-md, 6px);
+    }
+    :host([concealed]) {
+      visibility: hidden;
+      pointer-events: none;
     }
     :host([match-anchor-height]) {
       height: var(--tooltip-anchor-height);
@@ -429,7 +434,7 @@ export class SCWCTooltip extends LitElement {
       this.showPopover();
     }
     this.reposition();
-    if (fixed) {
+    if (fixed && !this.concealed) {
       this.focus({ preventScroll: true });
     }
   }
@@ -459,7 +464,7 @@ export class SCWCTooltip extends LitElement {
     this.keepOpen();
     this.pinned = true;
     // Focusing a control inside custom content must keep that control's focus.
-    if (!focusWithin(this)) {
+    if (!this.concealed && !focusWithin(this)) {
       this.focus({ preventScroll: true });
     }
   };
@@ -705,11 +710,19 @@ export class SCWCTooltip extends LitElement {
       this.close();
     }
     if (this.opened && !this.hidden) {
-      this.queueReposition();
+      if (changed.has('content') || changed.has('concealed')) {
+        this.reposition();
+      } else {
+        this.queueReposition();
+      }
+      if (changed.has('concealed') && !this.concealed && this.pinned && !focusWithin(this)) {
+        this.focus({ preventScroll: true });
+      }
     }
   }
 
   close() {
+    const wasOpened = this.opened;
     this.cancelPending();
     this.keepOpen();
     this.frame?.();
@@ -725,6 +738,9 @@ export class SCWCTooltip extends LitElement {
     this.anchor = undefined;
     if (this.coordinator?.active === this) {
       this.coordinator.active = undefined;
+    }
+    if (wasOpened) {
+      this.dispatchEvent(new Event('tooltip-close'));
     }
   }
 

@@ -148,7 +148,7 @@ export interface RenderContext {
   signal: AbortSignal;
 }
 export type UIContent =
-  | { format: 'html'; version: 1; html: string }
+  | { format: 'html'; version: 1 | 2; html: string }
   | { format: 'json'; version: 1; root: UINode };
 export type ContentSource<T> = T | ((context: RenderContext) => T | Promise<T>);
 export type IconRef = { kind: 'asset'; path: string } | { kind: 'builtin'; name: string };
@@ -263,8 +263,13 @@ export interface StatusBarDefinition {
   tooltip?: {
     content: ContentSource<UIContent | { format: 'text'; text: string }>;
     width?: number;
+    height?: number;
   };
   contextMenu?: MenuItem[];
+}
+export interface TooltipSize {
+  width: number;
+  height: number;
 }
 export interface Disposable {
   dispose(): Promise<void>;

@@ -263,6 +263,7 @@ export function mainContent(note = '静态 JSON 来源'): UIContent {
             { type: 'image', src: '/demo-assets/nested/mark.svg', alt: '目录嵌套资源' },
             ...[
               'main.set',
+              'main.html',
               'main.content',
               'target',
               'aux.json',
@@ -288,6 +289,30 @@ export function mainContent(note = '静态 JSON 来源'): UIContent {
   };
 }
 
+export function sidebarHTML(surface: 'main' | 'aux'): UIContent {
+  const title = surface === 'main' ? '主侧栏' : '辅助侧栏';
+  const back = surface === 'main' ? 'main.content' : 'aux.json';
+  return {
+    format: 'html',
+    version: 2,
+    html: `
+    <style>
+      section { padding: 12px; background-color: var(--surface-2); border-radius: 4px; }
+      h3 { margin: 0; } img { width: 32px; height: 32px; } pre { white-space: pre-wrap; }
+    </style>
+    <section name="htmlSection" onmouseenter="demo.record" onmouseleave="demo.record">
+      <h3>${title} HTML v2</h3><img src="/demo.svg" alt="单文件挂载">
+      <p>配置：\${watch:core:config.read('validation.note')}</p>
+      <p>前端标题：\${watch:ui:template.title()}</p><p>前端状态：\${watch:ui:template.selection()}</p>
+      <pre>\${demo.literal()}</pre>
+      <input name="htmlQuery" value="HTML 字段" oninput="demo.record" onchange="demo.record" onfocus="demo.record" onblur="demo.record">
+      <button for="htmlQuery" onclick="demo.echo($event,123,'abc',$for:htmlQuery)|demo.record($prev)" oncontextmenu="demo.record">HTML 参数 / 右键</button>
+      <button onclick="demo.manage('target')">此实例定向更新</button>
+      <button onclick="demo.manage('${back}')">切换 JSON</button>
+      ${surface === 'aux' ? '<button onclick="demo.manage(\'show\')">恢复页面信息</button>' : ''}
+    </section>`,
+  };
+}
 export function auxiliaryContent(format: 'html' | 'json'): UIContent {
   if (format === 'json')
     return {
@@ -314,31 +339,11 @@ export function auxiliaryContent(format: 'html' | 'json'): UIContent {
           },
           button('此实例定向更新', "demo.manage('target')"),
           button('恢复页面信息', "demo.manage('show')"),
-          button('切换 HTML', "demo.manage('aux.html')"),
+          button('切换 HTML v2', "demo.manage('aux.html')"),
         ],
       },
     };
-  return {
-    format: 'html',
-    version: 1,
-    html: `
-    <style>
-      section { font: 14px/1.5 system-ui; font-family: var(--font-sans); color: #ddd; color: var(--text-primary); background: #181a20; background: var(--surface-2); padding: 12px; border: 1px solid #555; border-color: var(--border-default); border-radius: 4px; }
-      h3 { margin: 0 0 8px; } p { margin: 8px 0; } button,input { font: inherit; color: inherit; background: #25272b; background: var(--surface-4); border: 1px solid #555; border-color: var(--border-default); border-radius: 4px; padding: 6px; margin: 4px; max-width: 100%; }
-      button:focus,input:focus { border-color: #38bdf8; border-color: var(--border-focus); } button:disabled { opacity: .5; } img { width: 32px; height: 32px; } pre { white-space: pre-wrap; }
-    </style>
-    <section name="htmlSection" onmouseenter="demo.record" onmouseleave="demo.record">
-      <h3>辅助页 HTML</h3><img src="/demo.svg" alt="单文件挂载">
-      <p>配置：\${watch:core:config.read('validation.note')}</p>
-      <p>前端标题：\${watch:ui:template.title()}</p><p>前端状态：\${watch:ui:template.selection()}</p>
-      <pre>\${demo.literal()}</pre>
-      <input name="htmlQuery" value="HTML 字段" oninput="demo.record" onchange="demo.record" onfocus="demo.record" onblur="demo.record">
-      <button for="htmlQuery" onclick="demo.echo($event,123,'abc',$for:htmlQuery)|demo.record($prev)" oncontextmenu="demo.record">HTML 参数 / 右键</button>
-      <button onclick="demo.manage('target')">此实例定向更新</button>
-      <button onclick="demo.manage('aux.json')">切换 JSON</button>
-      <button onclick="demo.manage('show')">恢复页面信息</button>
-    </section>`,
-  };
+  return sidebarHTML('aux');
 }
 export function statusDefinition(
   mode = 0,
@@ -363,8 +368,8 @@ export function statusDefinition(
     },
     {
       format: 'html' as const,
-      version: 1 as const,
-      html: '<p>HTML 提示 · ${watch:demo.counter()}</p><button onclick="core:tooltip.pin()">固定</button><button onclick="core:tooltip.close()">关闭提示层</button>',
+      version: 2 as const,
+      html: '<p>HTML v2 提示 · ${watch:demo.counter()}</p><button onclick="core:tooltip.pin()">固定</button><button onclick="core:tooltip.close()">关闭提示层</button>',
     },
   ];
   return {
@@ -378,15 +383,13 @@ export function statusDefinition(
     disabled,
     events: { click: 'core:tooltip.open()', contextmenu: 'core:menu.open()', hover: 'demo.record' },
     tooltip: {
-      width: 300,
-      // Core currently normalizes text before resolving a provider. Keep text static;
-      // JSON/HTML still demonstrate async providers without changing core code.
+      ...(mode % 4 === 3 ? { width: 300, height: 120 } : {}),
       content:
-        mode % 3 === 0
+        mode % 4 === 0
           ? contents[0]
           : async (context) => {
               context.signal.throwIfAborted();
-              return contents[mode % 3];
+              return contents[Math.min(mode % 4, 2)];
             },
     },
     contextMenu: [

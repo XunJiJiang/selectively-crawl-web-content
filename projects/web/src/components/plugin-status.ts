@@ -2,12 +2,15 @@ import './declarative-view.ts';
 import { LitElement, html, css, nothing, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { styleMap } from 'lit/directives/style-map.js';
+import { keyed } from 'lit/directives/keyed.js';
+import './icon.ts';
 import { SCWCTooltip, type TooltipPlacement } from '../../../shared/components/tooltip.ts';
 import type { UIContribution } from '../../../shared/declarative-ui.ts';
 import type { WorkbenchStore } from '../workbench/store.ts';
 import type { FramePool } from '../workbench/frames.ts';
 
 const tooltipPlacements: readonly TooltipPlacement[] = ['top'];
+const loadingDelay = 500;
 
 @customElement('wb-plugin-status')
 export class PluginStatus extends LitElement {
@@ -16,7 +19,11 @@ export class PluginStatus extends LitElement {
   @property({ attribute: false }) accessor contribution!: UIContribution;
   @property({ attribute: false }) accessor sourceTabId: string | null = null;
   @state() private accessor menuOpened = false;
-  @state() private accessor popupHeight = 100;
+  @state() private accessor popupMode: 'pending' | 'loading' | 'html' | 'json' = 'pending';
+  @state() private accessor popupHeight = 0;
+  @state() private accessor popupWidth = 0;
+  private popupGeneration = 0;
+  private loadingTimer?: ReturnType<typeof setTimeout>;
   private menuPosition = { x: 0, y: 0 };
   static styles = css`
     :host {
@@ -33,8 +40,38 @@ export class PluginStatus extends LitElement {
       width: auto;
       min-width: 0;
     }
-    scwc-tooltip {
+    scwc-tooltip[data-mode='json'] {
+      width: max-content;
+      max-width: min(450px, calc(100vw - 16px));
       max-height: var(--tooltip-space-above, calc(100vh - 16px));
+    }
+    scwc-tooltip[data-mode='json']::part(content) {
+      height: auto;
+      max-height: max(0px, calc(var(--tooltip-space-above, 100vh - 16px) - 2px));
+    }
+    scwc-tooltip[data-mode='html'],
+    scwc-tooltip[data-mode='html']::part(content) {
+      max-width: none;
+      max-height: none;
+    }
+    scwc-tooltip[data-mode='pending'],
+    scwc-tooltip[data-mode='loading'] {
+      width: max-content;
+    }
+    .loading {
+      display: grid;
+      place-items: center;
+      width: 36px;
+      height: 36px;
+    }
+    .loading wb-icon {
+      animation: tooltip-spin 1s linear infinite;
+    }
+    @keyframes tooltip-spin {
+      to { transform: rotate(360deg); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .loading wb-icon { animation: none; }
     }
   `;
   private get tooltip() {
@@ -112,14 +149,47 @@ export class PluginStatus extends LitElement {
       this.openMenu(event.detail.x, event.detail.y);
     }
   };
-  private tooltipAction = (event: CustomEvent<{ kind: string; height?: number }>) => {
+  private resetPopup = () => {
+    clearTimeout(this.loadingTimer);
+    this.popupMode = 'pending';
+    this.popupHeight = 0;
+    this.popupWidth = 0;
+  };
+  private popupClosed = () => {
+    this.popupGeneration++;
+    this.resetPopup();
+    this.requestUpdate();
+  };
+  private tooltipAction = (event: CustomEvent<{ kind: string; height?: number; width?: number }>) => {
     event.stopPropagation();
+    if (!this.tooltip?.opened) {
+      return;
+    }
+    if (event.detail.kind === 'prepare') {
+      this.resetPopup();
+      this.loadingTimer = setTimeout(() => {
+        this.popupMode = 'loading';
+      }, loadingDelay);
+    }
     if (
-      event.detail.kind === 'resize' &&
-      typeof event.detail.height === 'number' &&
-      Number.isFinite(event.detail.height)
+      event.detail.kind === 'error' ||
+      (event.detail.kind === 'ready' && event.detail.width === undefined)
     ) {
-      this.popupHeight = Math.ceil(event.detail.height) + 2;
+      clearTimeout(this.loadingTimer);
+      this.popupMode = 'json';
+    }
+    if (
+      (event.detail.kind === 'resize' || event.detail.kind === 'ready') &&
+      typeof event.detail.height === 'number' &&
+      Number.isFinite(event.detail.height) &&
+      typeof event.detail.width === 'number' &&
+      Number.isFinite(event.detail.width)
+    ) {
+      clearTimeout(this.loadingTimer);
+      const fixed = event.detail.kind === 'ready';
+      this.popupHeight = fixed ? event.detail.height : Math.ceil(event.detail.height) + 2;
+      this.popupWidth = fixed ? event.detail.width : Math.ceil(event.detail.width) + 2;
+      this.popupMode = 'html';
     }
     if (event.detail.kind === 'click') {
       this.tooltip?.pin();
@@ -133,6 +203,21 @@ export class PluginStatus extends LitElement {
     if (!view) {
       return nothing;
     }
+    const measuring = this.popupMode === 'pending' || this.popupMode === 'loading';
+    const loading = this.popupMode === 'loading';
+    const content = () => html`
+      ${keyed(this.popupGeneration, html`<wb-declarative-view
+        .store=${this.store}
+        .pool=${this.pool}
+        .pluginId=${view.pluginId}
+        .viewId=${view.id}
+        surface="tooltip"
+        ?inert=${measuring}
+        .sourceTabId=${this.sourceTabId}
+        @ui-surface-action=${this.tooltipAction}
+      ></wb-declarative-view>`)}
+      ${loading ? html`<slot name="loading"></slot>` : nothing}
+    `;
     return html`<wb-declarative-view
         .store=${this.store}
         .pool=${this.pool}
@@ -148,18 +233,21 @@ export class PluginStatus extends LitElement {
         group="plugin-status"
         triggers="hover click"
         aria-label=${view.title}
+        data-mode=${this.popupMode}
+        .concealed=${this.popupMode === 'pending'}
         .placements=${tooltipPlacements}
-        style=${styleMap({ height: `${Math.max(40, this.popupHeight)}px` })}
-        .content=${() => html`<wb-declarative-view
-          .store=${this.store}
-          .pool=${this.pool}
-          .pluginId=${view.pluginId}
-          .viewId=${view.id}
-          surface="tooltip"
-          .sourceTabId=${this.sourceTabId}
-          @ui-surface-action=${this.tooltipAction}
-        ></wb-declarative-view>`}
-      ></scwc-tooltip>
+        style=${styleMap({
+          height: this.popupMode === 'html' ? `${this.popupHeight}px` : undefined,
+          width: this.popupMode === 'html' ? `${this.popupWidth}px` : undefined,
+        })}
+        @tooltip-close=${this.popupClosed}
+        .content=${content}
+      >
+        ${loading
+          ? html`<span slot="loading" class="loading" role="status" aria-label="正在加载"
+              ><wb-icon name="loading" aria-hidden="true"></wb-icon></span>`
+          : nothing}
+      </scwc-tooltip>
       ${this.menuOpened
         ? html`<wb-declarative-view
             .store=${this.store}

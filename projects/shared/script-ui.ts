@@ -2,7 +2,13 @@ import type { CompiledUI, FieldValue, UIContent, UINode, UIValue } from './decla
 import { CLIENT_VERSION, inVersionRange } from './client-version.ts';
 
 export const SCRIPT_CONFIG_RANGES = { v1: '0.0.1-3.1.29', v2: '3.2.0-*' };
+export const SCRIPT_HTML_RANGE = '3.4.14-*';
 export type ScriptVersion = 'v1' | 'v2';
+export type ScriptContentV2 = Extract<UIContent, { format: 'json' }> | {
+  format: 'html';
+  version: 2;
+  html: string;
+};
 export interface ScriptContext {
   version: 'v2';
   site: Parameters<SCWC.TCreatePluginItem>[1]['site'];
@@ -28,12 +34,8 @@ export interface ScriptConfigV2 {
   refreshRules?: { sites: string[]; rule: string }[];
   requireFullContent?: boolean;
   content:
-    | Extract<UIContent, { format: 'json' }>
-    | ((
-        context: ScriptContext,
-      ) =>
-        | Extract<UIContent, { format: 'json' }>
-        | Promise<Extract<UIContent, { format: 'json' }>>);
+    | ScriptContentV2
+    | ((context: ScriptContext) => ScriptContentV2 | Promise<ScriptContentV2>);
   handlers?: Record<string, ScriptHandler>;
   /** Backend components expand to the same JSON nodes as sidebars and tooltips. */
   components?: Record<string, (props: UIValue, context: ScriptContext) => UINode | Promise<UINode>>;

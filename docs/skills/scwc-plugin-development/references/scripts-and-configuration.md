@@ -8,7 +8,7 @@ pluginConfig.scripts 接受两代协议。省略 version 或 `'v1'` 使用原 co
 
 v1 支持 button/toggle/select/input:text/input:number/checkbox，controls 为数组或按 site 返回数组的工厂。channel 稳定且插件内唯一；options 包含 defaultValue、relatedChannel、autoTrigger、requireFullContent 等。trigger 取得 value、relatedValues、data/site、可选 signal/tasks 和普通 logger，返回 notification 对象；没有采集 logger 的 toWeb。旧数字输入实际可能为字符串，按收到的数据校验，不照搬历史注释的数字假设。
 
-v2 使用 SCWC.TScriptConfigV2，内容是 `{ format: 'json', version: 1, root }` 或接收 ScriptContext 的异步工厂。外层 version 为字符串 'v2'，内层为数字 1。`{ type: 'custom', component: '名称', props: {...} }` 经后端 components 展开为同一套 JSON 节点，不是浏览器自定义元素；脚本 JSON 不支持远程图片资源，优先内置图标。当前兼容元数据 SCRIPT_CONFIG_RANGES 为 v1 `0.0.1-3.1.29`、v2 `3.2.0-*`；新客户端仍渲染 v1，不应因 v1 范围上限把现有插件拒绝掉。实际协商与路由版本门槛交给核心，不在插件里伪造客户端版本或兼容范围。
+`SCWC.TScriptConfigV2` 的外层版本是字符串 `'v2'`。`content` 可提供 `{ format: 'json', version: 1, root }`、`{ format: 'html', version: 2, html }` 或接收 `ScriptContext` 的工厂。JSON 自定义节点由后端 `components` 展开。HTML v2 支持受限标签、局部 CSS 和声明式事件，客户端最低版本为 `3.4.14`。脚本和扩展的声明式界面不加载外部资源。实际协商由核心处理。访问带 `?template-ui=html` 的匹配网站可查看模板插件的 HTML v2 示例。
 
 ## 最小 v2 交互
 

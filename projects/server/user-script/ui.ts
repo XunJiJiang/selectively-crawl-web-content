@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { validateUIValue } from '../../shared/ui-validation.ts';
 import type { ScriptConfigStorage, ScriptConfigBaseline } from './ui-config.ts';
 import { compileUI } from '../workbench/ui-compiler.ts';
+import { validateScriptHTMLModel } from '../../shared/script-html-policy.ts';
 import {
   evaluateArgument,
   evaluateTemplate,
@@ -353,9 +354,10 @@ export class ScriptUIRuntime {
     const source =
       typeof config.content === 'function' ? await config.content(context) : config.content;
     uiAssert(
-      source?.format === 'json' && source.version === 1,
+      (source?.format === 'json' && source.version === 1) ||
+        (source?.format === 'html' && source.version === 2),
       'UI_INVALID_CONTENT',
-      'v2 必须显式提供 JSON content',
+      '脚本 v2 内容须使用 JSON version 1 或 HTML version 2',
     );
     let count = 0;
     const expand = async (node: UINode, depth = 0): Promise<UINode> => {
@@ -390,14 +392,15 @@ export class ScriptUIRuntime {
       };
     };
     const compiled = compileUI(
-      { ...source, root: await expand(source.root) },
+      source.format === 'json' ? { ...source, root: await expand(source.root) } : source,
       {
         resource: () => {
-          throw new Error('脚本 JSON 不允许远程资源，请使用内置图标');
+          throw new Error('脚本 UI 不允许远程资源');
         },
         validateCall: (name, readOnly, watch) => this.validate(config, name, readOnly, watch),
       },
     );
+    if (compiled.format === 'html') validateScriptHTMLModel(compiled);
     const model: ScriptUIModel = { instanceId: randomUUID(), compiled, updates: [] };
     const defaults: Record<string, FieldValue> = {};
     const collect = (nodes: typeof compiled.nodes) => {
