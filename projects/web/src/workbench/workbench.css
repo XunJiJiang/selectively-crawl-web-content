@@ -176,9 +176,6 @@ wb-icon {
   color: var(--text-secondary);
   border-radius: 4px;
   padding: 0;
-  transition:
-    background var(--transition-fast),
-    color var(--transition-fast);
 }
 .icon-button:hover:not(:disabled) {
   background: var(--surface-3);
@@ -200,9 +197,6 @@ wb-icon {
   font-size: var(--text-sm);
   font-weight: 500;
   white-space: nowrap;
-  transition:
-    background var(--transition-fast),
-    box-shadow var(--transition-fast);
 }
 .btn.primary {
   color: var(--text-inverse);
@@ -406,7 +400,6 @@ wb-icon {
   flex-shrink: 0;
   border-radius: 4px;
   color: var(--text-secondary);
-  transition: background var(--transition-fast);
 }
 .activity-bar-item span {
   font-size: 0.857143rem;
@@ -1688,9 +1681,6 @@ wb-icon {
   flex-direction: column;
   gap: 12px;
   min-width: 0;
-  transition:
-    box-shadow var(--transition-fast),
-    background var(--transition-fast);
 }
 .plugin-card:hover {
   background: var(--surface-2);
