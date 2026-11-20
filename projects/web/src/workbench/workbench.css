@@ -976,6 +976,10 @@ wb-icon {
   border-bottom: 1px solid var(--border-subtle);
   flex-shrink: 0;
 }
+.center-group .tab-bar > .tab-item:last-child {
+  border-right: 0;
+  border-bottom: 0;
+}
 .center-group[data-position='left'] .tab-bar-actions,
 .center-group[data-position='right'] .tab-bar-actions {
   height: 32px;
@@ -3015,8 +3019,8 @@ wb-icon {
 .bookmark-folder.compact > summary {
   padding-left: 20px;
 }
-.bookmark-folder:not([open]) .folder-open,
-.bookmark-folder[open] .folder-closed {
+.bookmark-folder:not([open]) > summary > .folder-open,
+.bookmark-folder[open] > summary > .folder-closed {
   display: none;
 }
 .quick-input-wrap input {

@@ -306,6 +306,10 @@
   background-size: 200% 100%;
   animation: ui-progress 1.5s linear infinite;
 }
+.ui-root:has(.ui-tabs),
+.ui-root .ui-tab-panel {
+  background: var(--surface-0, light-dark(#fefefe, #05070c));
+}
 .ui-root .ui-tabs {
   display: flex;
   flex: 1;
@@ -323,24 +327,28 @@
   min-width: 0;
   gap: 0;
   overflow-x: auto;
-  border-bottom: 1px solid var(--border-subtle, light-dark(#0001, #fff1));
-  background: var(--surface-1, light-dark(#f5f6f7, #0a0d12));
 }
-.ui-root .ui-tab-list [role='tab'] {
+.ui-root :is(.ui-tab-list, .ui-scroll-tab-list) {
+  background: var(--surface-2, light-dark(#eceef0, #0f131c));
+  box-shadow: inset 0 -1px var(--border-subtle, light-dark(#0001, #fff1));
+}
+.ui-root .ui-tab-list button[role='tab'] {
   flex: 0 0 auto;
   height: var(--wb-tab-bar-height, 32px);
   padding: 0 12px;
   border: 0;
-  border-bottom: 2px solid transparent;
   border-radius: 0;
   background: transparent;
-  color: var(--text-secondary, #aaa);
+  color: var(--text-secondary, light-dark(#0009, #fffa));
   font-size: var(--text-xs, 0.928571rem);
   white-space: nowrap;
 }
-.ui-root .ui-tab-list [role='tab'][aria-selected='true'] {
-  color: var(--accent-primary, #38bdf8);
-  border-bottom-color: var(--accent-primary, #38bdf8);
+.ui-root .ui-tab-list > button[role='tab']:not(:last-child) {
+  border-inline-end: 1px solid var(--border-subtle, light-dark(#0001, #fff1));
+}
+.ui-root .ui-tab-list button[aria-selected='true'][role='tab'] {
+  background: var(--surface-0, light-dark(#fefefe, #05070c));
+  color: var(--text-primary, light-dark(#212121, #ebedf0));
 }
 .ui-root .ui-tab-panel {
   display: flex;

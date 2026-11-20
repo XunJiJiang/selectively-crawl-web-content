@@ -2,11 +2,14 @@
   flex-direction: column;
   min-height: 0;
   border-top: 1px solid var(--border-default);
+  background: var(--surface-0);
 }
 .plugin-tabs-scroll {
   display: block;
   flex: none;
+  width: 100%;
   background: var(--surface-2);
+  box-shadow: inset 0 -1px var(--border-subtle);
 }
 .plugin-window-tabs {
   display: flex;
@@ -18,19 +21,16 @@
   height: var(--wb-tab-bar-height);
   padding: 0 12px;
   border: 0;
-  border-bottom: 2px solid transparent;
   background: transparent;
   color: var(--text-secondary);
   font: inherit;
   cursor: pointer;
 }
-.plugin-window-tab:hover {
-  background: var(--surface-3);
-  color: var(--text-primary);
+.plugin-window-tabs > .plugin-window-tab:not(:last-child) {
+  border-inline-end: 1px solid var(--border-subtle);
 }
 .plugin-window-tab[data-active='true'] {
-  border-bottom-color: var(--accent-primary);
-  background: var(--surface-1);
+  background: var(--surface-0);
   color: var(--text-primary);
 }
 .plugin-window-tab:focus-visible {

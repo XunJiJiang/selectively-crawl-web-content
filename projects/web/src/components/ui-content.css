@@ -67,10 +67,9 @@
   height: 100%;
   min-height: 0;
 }
-.ui-scroll-tab-list { flex: 0 0 auto; }
+.ui-scroll-tab-list { flex: 0 0 auto; width: 100%; }
 .ui-scroll-row { flex: 0 0 auto; }
 .ui-scroll-tab-list::part(viewport) { overflow-y: hidden; }
-.ui-scroll-tab-list::part(content) { width: max-content; }
 .ui-scroll > .ui-tab-list { overflow: visible; }
 .ui-select {
   font: inherit;
