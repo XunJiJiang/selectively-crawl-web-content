@@ -5,10 +5,14 @@ import type { Init, PluginBatch, Request } from './background.ts';
 import { ExtensionStore } from './storage.ts';
 import type { PluginConfig } from '../../shared/types/plugin.d.ts';
 
-const mock = vi.hoisted(() => ({ call: vi.fn() }));
-vi.mock('./browser.ts', () => ({ browser: {}, call: mock.call }));
+const mock = vi.hoisted(() => ({
+  call: vi.fn(),
+  permissions: { contains: vi.fn(), request: vi.fn() },
+}));
+vi.mock('./browser.ts', () => ({ browser: { permissions: mock.permissions }, call: mock.call }));
 const nativeScrollTo = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollTo');
 beforeEach(() => {
+  mock.permissions.contains.mockResolvedValue(true);
   Object.defineProperty(HTMLElement.prototype, 'scrollTo', {
     configurable: true,
     value(this: HTMLElement, options: ScrollToOptions) {
@@ -20,14 +24,15 @@ beforeEach(() => {
 afterEach(() => {
   document.body.replaceChildren();
   mock.call.mockReset();
+  mock.permissions.contains.mockReset();
+  mock.permissions.request.mockReset();
   if (nativeScrollTo) {
     Object.defineProperty(HTMLElement.prototype, 'scrollTo', nativeScrollTo);
   } else {
     Reflect.deleteProperty(HTMLElement.prototype, 'scrollTo');
   }
 });
-function navigationFixture() {
-  const settings = initialSettings();
+function navigationFixture(controls: PluginConfig['controls'] = []) {
   const values: Record<string, unknown> = {};
   const store = new ExtensionStore({
     get: async (key) => ({ [key]: structuredClone(values[key]) }),
@@ -43,13 +48,13 @@ function navigationFixture() {
     id,
     title: id,
     description: '',
-    controls: [],
+    controls,
   }));
   mock.call.mockImplementation(async (message: Request) => {
     switch (message.type) {
       case 'init':
         return {
-          settings,
+          settings: await store.settings(),
           syncBlocked: false,
           tab: { id: 1, url: site },
           ...(/^https?:/.test(site)
@@ -58,6 +63,8 @@ function navigationFixture() {
         } satisfies Init;
       case 'navigation.save':
         return store.saveNavigation(message.site, message.navigation);
+      case 'settings.patch':
+        return store.saveSettings(message.settings, message.site);
       case 'site.patch':
         return store.patch(message.site, message.patch);
       case 'core.sync': {
@@ -69,6 +76,8 @@ function navigationFixture() {
       }
       case 'plugins':
         return { data: plugins, activeIds: ['first', 'second'], updatedIds: ['first', 'second'] };
+      case 'trigger':
+        return { message: 'success' };
     }
   });
   return {
@@ -91,6 +100,130 @@ function navigationFixture() {
     },
   };
 }
+it('saves a connection on blur and requests host access only from the authorization button', async () => {
+  const fixture = navigationFixture();
+  const { popup } = await fixture.open();
+  popup.shadowRoot!.querySelectorAll<HTMLButtonElement>('nav button')[3].click();
+  await popup.updateComplete;
+  const root = popup.shadowRoot!;
+  const host = root.querySelector<HTMLInputElement>('.settings input')!;
+  const site = 'https://one.example/article';
+  mock.call.mockClear();
+  mock.permissions.contains.mockResolvedValue(false);
+  mock.permissions.request.mockResolvedValue(true);
+
+  host.focus();
+  host.value = 'https://core.example';
+  host.dispatchEvent(new Event('input'));
+  expect((await fixture.store.settings()).config.api.host).toBe('http://localhost');
+  host.blur();
+  await vi.waitFor(() =>
+    expect(root.querySelector('.settings button')?.textContent).toContain('授权'),
+  );
+  expect((await fixture.store.settings()).config.api.host).toBe('https://core.example');
+  expect((await fixture.store.load(site)).data.config.api.host).toBe('https://core.example');
+  expect(mock.permissions.request).not.toHaveBeenCalled();
+  expect(mock.call).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'core.sync' }));
+
+  root.querySelector<HTMLButtonElement>('.settings button')!.click();
+  expect(mock.permissions.request).toHaveBeenCalledWith({ origins: ['https://core.example/*'] });
+  await vi.waitFor(() =>
+    expect(mock.call).toHaveBeenCalledWith({ type: 'core.sync', site, mode: 'interactive' }),
+  );
+  await popup.updateComplete;
+  expect(root.querySelector('.settings button')).toBeNull();
+
+  mock.permissions.contains.mockResolvedValue(true);
+  mock.call.mockClear();
+  const port = root.querySelector<HTMLInputElement>('.settings input[inputmode=numeric]')!;
+  port.focus();
+  port.value = '4000';
+  port.blur();
+  await vi.waitFor(() =>
+    expect(mock.call).toHaveBeenCalledWith({ type: 'core.sync', site, mode: 'interactive' }),
+  );
+  expect((await fixture.store.load(site)).data.config.api.port).toBe('4000');
+  expect(mock.permissions.request).toHaveBeenCalledTimes(1);
+});
+
+it('applies and persists the appearance selection without changing or reconnecting the core', async () => {
+  const fixture = navigationFixture();
+  const { popup } = await fixture.open();
+  popup.shadowRoot!.querySelectorAll<HTMLButtonElement>('nav button')[3].click();
+  await popup.updateComplete;
+  mock.call.mockClear();
+  popup
+    .shadowRoot!.querySelector('.settings wb-menu-select')!
+    .dispatchEvent(new CustomEvent('wb-menu-change', { detail: { value: 'light-2026' } }));
+  expect(document.documentElement.dataset.theme).toBe('light-2026');
+  expect((await fixture.store.settings()).theme).toBe('light-2026');
+  expect(mock.call.mock.calls).toEqual([
+    [{ type: 'settings.patch', settings: { theme: 'light-2026' } }],
+  ]);
+});
+it('shows a reload error and restores the theme if the older background does not acknowledge the patch', async () => {
+  const { popup } = await navigationFixture().open();
+  popup.shadowRoot!.querySelectorAll<HTMLButtonElement>('nav button')[3].click();
+  await popup.updateComplete;
+  mock.call.mockReset().mockResolvedValue(undefined);
+
+  popup
+    .shadowRoot!.querySelector('.settings wb-menu-select')!
+    .dispatchEvent(new CustomEvent('wb-menu-change', { detail: { value: 'light-2026' } }));
+  const notifications = popup.shadowRoot!.querySelector('scwc-extension-notifications')!;
+  await vi.waitFor(() => {
+    expect(document.documentElement.dataset.theme).toBe('dark-2026');
+    expect(notifications.shadowRoot?.textContent).toContain('扩展后台版本不一致，请重新加载扩展');
+  });
+  expect(mock.call.mock.calls).toContainEqual([
+    { type: 'settings.patch', settings: { theme: 'light-2026' } },
+  ]);
+});
+
+it('commits legacy inputs on blur and debounces rapid toggle changes from the last click', async () => {
+  const fixture = navigationFixture([
+    { type: 'input:text', label: 'Text', channel: 'text' },
+    { type: 'checkbox', label: 'Check', channel: 'check', options: { autoTrigger: true } },
+  ]);
+  const { popup } = await fixture.open();
+  popup.shadowRoot!.querySelectorAll<HTMLButtonElement>('nav button')[1].click();
+  await popup.updateComplete;
+  const input = popup.shadowRoot!.querySelector<HTMLInputElement>('.plugin-form input[type=text]')!;
+  const checkbox = popup.shadowRoot!.querySelector<HTMLInputElement>(
+    '.plugin-form input[type=checkbox]',
+  )!;
+  const site = 'https://one.example/article';
+  vi.useFakeTimers();
+  try {
+    mock.call.mockClear();
+    input.focus();
+    input.value = 'updated';
+    input.dispatchEvent(new Event('input'));
+    expect((await fixture.store.load(site)).data.controls).toEqual([]);
+    input.blur();
+    expect((await fixture.store.load(site)).data.controls).toEqual([
+      { channel: 'text', pluginId: 'first', value: 'updated' },
+    ]);
+    mock.call.mockClear();
+    checkbox.click();
+    await vi.advanceTimersByTimeAsync(200);
+    checkbox.click();
+    await vi.advanceTimersByTimeAsync(200);
+    checkbox.click();
+    await vi.advanceTimersByTimeAsync(499);
+    expect(mock.call).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'site.patch' }));
+    expect(mock.call).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'trigger' }));
+    await vi.advanceTimersByTimeAsync(1);
+    expect(mock.call.mock.calls.filter(([message]) => message.type === 'site.patch')).toHaveLength(
+      1,
+    );
+    expect(mock.call.mock.calls.filter(([message]) => message.type === 'trigger')).toEqual([
+      [expect.objectContaining({ channel: 'check', value: true })],
+    ]);
+  } finally {
+    vi.useRealTimers();
+  }
+});
 it.each(['capture', 'plugins', 'notifications', 'settings'] as const)(
   'restores the %s panel and selected plugin after closing, reopening and syncing',
   async (panel) => {

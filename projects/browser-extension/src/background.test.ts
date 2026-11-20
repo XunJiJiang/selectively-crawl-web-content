@@ -1,6 +1,13 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MessageSender } from './browser.ts';
-import { initialSettings, initialSnapshot, navigationKey, toWire } from './model.ts';
+import {
+  initialSettings,
+  initialSnapshot,
+  navigationKey,
+  settingsKey,
+  siteKey,
+  toWire,
+} from './model.ts';
 import type { Init } from './background.ts';
 
 const fixture = vi.hoisted(() => ({
@@ -71,6 +78,27 @@ function message(input: unknown, sender: MessageSender) {
   );
 }
 describe('background message trust boundary', () => {
+  it.each(['settings.save', 'settings.patch'])(
+    '%s repairs a stored theme-only record',
+    async (type) => {
+      const popup = { id: 'test-extension', url: 'chrome-extension://test-extension/index.html' };
+      const site = 'https://one.example/article';
+      const { config } = initialSettings();
+      config.api = { host: 'https://core.example', port: '443', token: 'site-token' };
+      const snapshot = initialSnapshot(site, config);
+      fixture.values.set(siteKey(site), snapshot);
+      fixture.values.set(settingsKey, { theme: 'light-2026' });
+
+      expect((await message({ type: 'init' }, popup)).data).toMatchObject({
+        settings: { ...initialSettings(), theme: 'light-2026' },
+        snapshot,
+      });
+      const saved = await message({ type, settings: { theme: 'dark-2026' } }, popup);
+      expect(saved).toMatchObject({ ok: true, data: { settings: initialSettings() } });
+      expect(fixture.values.get(settingsKey)).toEqual(initialSettings());
+      expect(fixture.values.get(siteKey(site))).toEqual(snapshot);
+    },
+  );
   it('saves both navigation levels through the popup boundary and returns them on init', async () => {
     const site = 'https://one.example/other';
     const navigation = { panel: 'plugins', activePlugin: 'second' };

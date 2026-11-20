@@ -90,6 +90,25 @@ describe('extension storage and userscript interoperability', () => {
       ),
     ).rejects.toThrow('归属');
   });
+  it('keeps concurrent appearance and connection edits when the old core responds late', async () => {
+    const { store } = fixture();
+    const site = 'https://one.example';
+    const uploaded = await store.load(site);
+    const config = {
+      ...uploaded.data.config,
+      api: { ...uploaded.data.config.api, host: 'https://new-core.example' },
+    };
+    const appearance = store.saveSettings({ theme: 'light-2026' });
+    const connection = store.saveSettings({ config }, site);
+    expect(await store.settings()).toEqual({ theme: 'light-2026', config });
+    const { snapshot } = await connection;
+    await appearance;
+
+    const late = toWire({ ...uploaded, updatedAt: new Date(Date.now() + 60_000).toISOString() });
+    expect(await store.accept(site, late, uploaded.updatedAt, uploaded.data.config)).toEqual(
+      snapshot,
+    );
+  });
   it('drops floating position and minimization while keeping every shared business field', () => {
     const initial = initialSnapshot('https://one.example/a', initialSettings().config);
     const wire = toWire(initial);

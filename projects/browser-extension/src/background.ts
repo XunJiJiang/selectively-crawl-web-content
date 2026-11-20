@@ -4,6 +4,7 @@ import { requestCore, pendingVersionNotice, dismissVersionNotice } from './core.
 import type { VersionNotice } from '../../shared/client-version.ts';
 import type { ScriptUIEvent } from '../../shared/script-ui.ts';
 import {
+  changedConnection,
   coreAddress,
   draftKey,
   type Draft,
@@ -59,10 +60,10 @@ export type Request =
       request: ScriptUIEvent;
     }
   | { type: 'init' }
-  | { type: 'settings.save'; settings: Settings }
+  | { type: 'settings.save' | 'settings.patch'; settings: Partial<Settings>; site?: string }
   | { type: 'site.patch'; site: string; patch: Partial<SiteData> }
   | { type: 'navigation.save'; site: string; navigation: PopupNavigation }
-  | { type: 'core.sync'; site: string; mode?: 'startup' | 'interactive' }
+  | { type: 'core.sync'; site: string; mode?: 'startup' | 'interactive' | 'background' }
   | {
       type: 'plugins';
       tab: number;
@@ -263,7 +264,7 @@ async function sync(
 ) {
   const running = syncing.get(site);
   if (running) {
-    await running;
+    await running.catch(() => undefined);
     return sync(site, targetTab, mode);
   }
   const work = (async () => {
@@ -285,7 +286,15 @@ async function sync(
           watch: true,
           notificationCursor: cursors.get(key),
         });
-        const accepted = await store.accept(site, response.data.snapshot, snapshot.updatedAt);
+        const accepted = await store.accept(
+          site,
+          response.data.snapshot,
+          snapshot.updatedAt,
+          snapshot.data.config,
+        );
+        if (changedConnection(snapshot.data.config, accepted.data.config)) {
+          return accepted;
+        }
         const tab =
           targetTab === undefined
             ? (await browser.tabs.query({ active: true, currentWindow: true }))[0]
@@ -468,18 +477,19 @@ async function handle(message: Request, sender: MessageSender): Promise<unknown>
         draft: draft?.site === tab.url ? draft : undefined,
       };
     }
-    case 'settings.save': {
-      const previous = await store.settings();
-      const saved = await store.saveSettings(message.settings);
-      if (JSON.stringify(previous.config.api) !== JSON.stringify(message.settings.config.api)) {
-        for (const tab of watches.keys()) {
-          closeWatch(tab);
+    case 'settings.save':
+    case 'settings.patch': {
+      const { settings, snapshot, connectionChanged, siteConnectionChanged } =
+        await store.saveSettings(message.settings, message.site);
+      if (connectionChanged || siteConnectionChanged) {
+        for (const [tab, watch] of watches) {
+          if (connectionChanged || websiteOrigin(watch.site) === snapshot?.website) {
+            closeWatch(tab);
+          }
         }
-      }
-      if (JSON.stringify(previous.config.api) !== JSON.stringify(message.settings.config.api)) {
         await setSyncCircuit({ failures: 0, blocked: false });
       }
-      return saved;
+      return { settings, snapshot };
     }
     case 'site.patch': {
       const previous = await store.load(message.site);

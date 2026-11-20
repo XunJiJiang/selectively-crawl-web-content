@@ -86,3 +86,8 @@ export const permissionOrigin = (config: TConfig) => {
   const url = coreAddress(config);
   return `${url.protocol}//${url.hostname}/*`;
 };
+
+export function changedConnection(previous: TConfig, next: TConfig) {
+  const { host, port, token } = previous.api;
+  return host !== next.api.host || port !== next.api.port || token !== next.api.token;
+}

@@ -1,10 +1,11 @@
 import { LitElement, html, css, unsafeCSS, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
+import { debounce, type DebouncedFunction } from 'es-toolkit';
 import { browser, call } from './browser.ts';
 import type { Init, PluginBatch } from './background.ts';
 import {
-  coreAddress,
+  changedConnection,
   initialSettings,
   permissionOrigin,
   type Draft,
@@ -71,6 +72,8 @@ export class ExtensionPopup extends LitElement {
   @state() private accessor loaded = false;
   @state() private accessor config = initialSettings().config;
   @state() private accessor theme: Settings['theme'] = 'dark-2026';
+  @state() private accessor permissionRequired = false;
+  @state() private accessor connectionError = '';
   @state() private accessor draftLabel = '';
   @state() private accessor draftPrefix = '';
   @state() private accessor manual = false;
@@ -79,10 +82,21 @@ export class ExtensionPopup extends LitElement {
   private generation = 0;
   private edits = 0;
   private saveTail: Promise<unknown> = Promise.resolve();
-  private syncTimer?: ReturnType<typeof setTimeout>;
+  private syncAfterSave = debounce(() => void this.sync('background'), 500);
+  private connectionWrite?: Promise<Pick<Init, 'settings' | 'snapshot'>>;
   private poll?: ReturnType<typeof setInterval>;
   private polling = false;
-  private controlTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private themeRevision = 0;
+  private controlChanges = new Map<
+    string,
+    { value: boolean; commit: DebouncedFunction<(checked: boolean) => void> }
+  >();
+  private flushControlChanges = () => {
+    for (const { commit } of this.controlChanges.values()) {
+      commit.flush();
+      commit.cancel();
+    }
+  };
   private lastSite = '';
   private pluginGeneration = 0;
   private templates = new ScriptUIRefreshQueue<PluginBatch>();
@@ -136,10 +150,11 @@ export class ExtensionPopup extends LitElement {
     });
   }
   private selectPanel(panel: PopupPanel) {
-    this.panel = panel;
-    if (panel === 'settings') {
-      this.config = structuredClone(this.snapshot?.data.config ?? this.context.settings.config);
+    if (panel === 'settings' && this.panel !== 'settings' && !this.connectionWrite) {
+      this.config = this.connectionConfig;
+      this.connectionError = '';
     }
+    this.panel = panel;
     this.rememberNavigation();
   }
   private rememberNavigation() {
@@ -161,6 +176,9 @@ export class ExtensionPopup extends LitElement {
   private get snapshot() {
     return this.context.snapshot;
   }
+  private get connectionConfig() {
+    return this.snapshot?.data.config ?? this.context.settings.config;
+  }
   private get site() {
     return this.context.tab?.url ?? '';
   }
@@ -175,20 +193,20 @@ export class ExtensionPopup extends LitElement {
     super.connectedCallback();
     this.notifications.suppressVersion = (notice) => call({ type: 'version.dismiss', notice });
     window.addEventListener('scwc-version-notice', this.versionNotice);
+    window.addEventListener('pagehide', this.flushControlChanges);
     browser.runtime?.onMessage?.addListener(this.receiveNotification);
     void this.initialize();
   }
   disconnectedCallback() {
+    this.flushControlChanges();
     super.disconnectedCallback();
     window.removeEventListener('scwc-version-notice', this.versionNotice);
+    window.removeEventListener('pagehide', this.flushControlChanges);
     browser.runtime?.onMessage?.removeListener?.(this.receiveNotification);
     this.generation++;
     this.pluginGeneration++;
     clearInterval(this.poll);
-    clearTimeout(this.syncTimer);
-    for (const timer of this.controlTimers.values()) {
-      clearTimeout(timer);
-    }
+    this.syncAfterSave.cancel();
   }
   private say(message: string, error = false, scope: NotificationScope = 'internal') {
     this.showNotification(message, error ? 'error' : 'info', scope);
@@ -232,12 +250,11 @@ export class ExtensionPopup extends LitElement {
     await this.run(async () => {
       this.context = await call<Init>({ type: 'init' });
       this.syncBlocked = this.context.syncBlocked;
-      this.config = structuredClone(this.snapshot?.data.config ?? this.context.settings.config);
-      this.theme = this.context.settings.theme;
-      document.documentElement.dataset.theme = this.theme;
+      this.config = this.connectionConfig;
+      this.applyTheme(this.context.settings.theme);
       this.restoreNavigation();
       this.loaded = true;
-      if (this.snapshot) {
+      if ((await this.checkCorePermission()) && this.snapshot) {
         if (await this.sync('startup')) {
           await this.loadPlugins();
         }
@@ -249,41 +266,43 @@ export class ExtensionPopup extends LitElement {
     }, 4000);
   }
   private async refresh() {
-    if (this.polling || this.busy) {
+    if (this.polling || this.busy || this.connectionWrite) {
       return;
     }
     this.polling = true;
+    const generation = this.generation;
     try {
       const current = await call<Init>({ type: 'init' });
+      if (generation !== this.generation) {
+        return;
+      }
       const wasSyncBlocked = this.syncBlocked;
       this.syncBlocked = current.syncBlocked;
       if (current.tab?.url !== this.site) {
         const sameOrigin = current.snapshot?.website === this.snapshot?.website;
+        this.flushControlChanges();
+        this.syncAfterSave.cancel();
         this.generation++;
         this.pluginGeneration++;
         this.edits++;
-        for (const timer of this.controlTimers.values()) {
-          clearTimeout(timer);
-        }
-        this.controlTimers.clear();
         this.context = current;
         this.connected = false;
         if (!sameOrigin) {
           this.plugins = [];
           this.lastSite = '';
-          this.config = structuredClone(this.snapshot?.data.config ?? current.settings.config);
+          this.config = this.connectionConfig;
+          this.connectionError = '';
           this.restoreNavigation();
         }
-        if (current.snapshot) {
-          if (await this.sync('startup')) {
-            await this.loadPlugins();
-          }
-        } else {
+        const granted = await this.checkCorePermission();
+        if (!current.snapshot) {
           this.panel = 'settings';
+        } else if (granted && (await this.sync('startup'))) {
+          await this.loadPlugins();
         }
       } else {
         const wasConnected = this.connected;
-        if (!this.syncBlocked) {
+        if ((await this.checkCorePermission()) && !this.syncBlocked) {
           await this.sync('background');
         }
         if ((!wasConnected && this.connected) || (wasSyncBlocked && !this.syncBlocked)) {
@@ -300,7 +319,7 @@ export class ExtensionPopup extends LitElement {
     if (!this.snapshot) {
       return false;
     }
-    if (this.syncBlocked && mode === 'background') {
+    if (mode === 'background' && (this.syncBlocked || this.permissionRequired)) {
       this.connected = false;
       return false;
     }
@@ -353,10 +372,7 @@ export class ExtensionPopup extends LitElement {
         if (generation !== this.generation) {
           return;
         }
-        clearTimeout(this.syncTimer);
-        this.syncTimer = setTimeout(() => {
-          void this.sync('background');
-        }, 500);
+        this.syncAfterSave();
       })
       .catch((error: unknown) => this.say(`保存失败：${String(error)}`, true));
     return pending;
@@ -652,27 +668,36 @@ export class ExtensionPopup extends LitElement {
       this.snapshot?.data.controls.filter(
         (entry) => entry.pluginId !== plugin.id || entry.channel !== control.channel,
       ) ?? [];
+    const generation = this.generation;
     const saved = this.save({
       controls: [...controls, { pluginId: plugin.id, channel: control.channel, value }],
     });
-    if (!control.options?.autoTrigger) {
-      return;
+    if (control.options?.autoTrigger) {
+      void this.run(async () => {
+        await saved;
+        if (generation === this.generation) {
+          await this.trigger(plugin, control, value);
+        }
+      });
     }
-    const key = `${plugin.id}:${control.channel}`;
-    clearTimeout(this.controlTimers.get(key));
-    const invoke = async () => {
-      await saved;
-      await this.trigger(plugin, control, value);
+  }
+  private queueToggle(plugin: PluginConfig, control: PluginItem, key: string, value: boolean) {
+    const pending = this.controlChanges.get(key) ?? {
+      value,
+      commit: debounce((checked: boolean) => {
+        this.controlChanges.delete(key);
+        if (checked !== !!this.value(plugin, control)) {
+          this.changeControl(plugin, control, checked);
+        }
+      }, 500),
     };
-    if (control.type.startsWith('input:')) {
-      this.controlTimers.set(
-        key,
-        setTimeout(() => {
-          void this.run(invoke);
-        }, 500),
-      );
-    } else {
-      void this.run(invoke);
+    pending.value = value;
+    this.controlChanges.set(key, pending);
+    pending.commit(value);
+  }
+  private changeInput(plugin: PluginConfig, control: PluginItem, value: string) {
+    if (value !== String(this.value(plugin, control) ?? '')) {
+      this.changeControl(plugin, control, value);
     }
   }
   private async trigger(
@@ -719,15 +744,17 @@ export class ExtensionPopup extends LitElement {
           ${control.label}
         </button>`;
       case 'checkbox':
-      case 'toggle':
+      case 'toggle': {
+        const key = JSON.stringify([plugin.id, control.channel]);
         return html`<label class="check"
           ><input
             type="checkbox"
-            .checked=${!!value}
+            .checked=${this.controlChanges.get(key)?.value ?? !!value}
             @change=${(event: Event) =>
-              this.changeControl(plugin, control, (event.target as HTMLInputElement).checked)}
+              this.queueToggle(plugin, control, key, (event.target as HTMLInputElement).checked)}
           />${control.label}</label
         >`;
+      }
       case 'select':
         return html`<label
           >${control.label}<wb-menu-select
@@ -746,48 +773,145 @@ export class ExtensionPopup extends LitElement {
           >${control.label}<input
             type=${control.type === 'input:number' ? 'number' : 'text'}
             .value=${String(value ?? '')}
-            @input=${(event: Event) =>
-              this.changeControl(plugin, control, (event.target as HTMLInputElement).value)}
+            @blur=${(event: Event) =>
+              this.changeInput(plugin, control, (event.target as HTMLInputElement).value)}
         /></label>`;
     }
   }
-  private saveConnection = () =>
-    this.run(async () => {
-      coreAddress(this.config);
-      // 必须直接由本次按钮点击申请，避免丢失 Firefox/Safari 的用户手势。
-      const granted = await browser.permissions.request({
-        origins: [permissionOrigin(this.config)],
-      });
-      if (!granted) {
-        throw new Error('未授权访问核心主机，设置尚未保存');
-      }
-      const settings: Settings = { config: structuredClone(this.config), theme: this.theme };
-      this.generation++;
-      this.pluginGeneration++;
+  private async checkCorePermission() {
+    let origin: string;
+    try {
+      origin = permissionOrigin(this.connectionConfig);
+    } catch {
+      this.permissionRequired = false;
+      return false;
+    }
+    const generation = this.generation;
+    const granted = await browser.permissions.contains({ origins: [origin] });
+    if (generation !== this.generation) {
+      return false;
+    }
+    this.permissionRequired = !granted;
+    if (!granted) {
       this.connected = false;
-      await call({ type: 'settings.save', settings });
-      this.context = { ...this.context, settings };
-      document.documentElement.dataset.theme = this.theme;
-      if (this.snapshot) {
-        await this.save({ config: settings.config });
-        clearTimeout(this.syncTimer);
-        this.syncTimer = undefined;
-        this.syncBlocked = false;
-        if (await this.sync('interactive')) {
-          await this.loadPlugins(true);
-        }
-      } else {
-        this.syncBlocked = false;
+    }
+    return granted;
+  }
+  private reconnect = async () => {
+    if (this.snapshot && (await this.sync('interactive'))) {
+      await this.loadPlugins(true);
+    }
+  };
+  private authorizeCore = () =>
+    this.run(async () => {
+      if (this.connectionWrite) {
+        return;
       }
-      if (this.connected) {
-        this.say('连接成功，设置已保存');
-      } else if (!this.snapshot) {
-        this.say('设置已保存；打开网站后将连接核心');
+      const generation = this.generation;
+      // 主机授权必须从点击处理器直接发起。
+      const granted = await browser.permissions.request({
+        origins: [permissionOrigin(this.connectionConfig)],
+      });
+      if (generation !== this.generation) {
+        return;
+      }
+      if (!granted) {
+        throw new Error('未授权访问核心主机');
+      }
+      this.permissionRequired = false;
+      await this.reconnect();
+    });
+  private async patchSettings(settings: Partial<Settings>, site?: string) {
+    // 旧版后台会把 settings.save 当作整份设置写入。
+    const result = await call<Pick<Init, 'settings' | 'snapshot'> | undefined>({
+      type: 'settings.patch',
+      settings,
+      ...(site === undefined ? {} : { site }),
+    });
+    if (!result?.settings) {
+      throw new Error('扩展后台版本不一致，请重新加载扩展');
+    }
+    return result;
+  }
+  private async saveConnection(field: keyof TConfig['api'], event: Event) {
+    const value = (event.target as HTMLInputElement).value;
+    const config = { ...this.config, api: { ...this.config.api, [field]: value } };
+    this.config = config;
+    if (!this.connectionWrite && !changedConnection(this.connectionConfig, config)) {
+      this.connectionError = '';
+      return;
+    }
+    try {
+      permissionOrigin(config);
+    } catch {
+      this.connectionError = '请输入有效的 HTTP(S) 核心地址和端口（1–65535）';
+      return;
+    }
+    this.connectionError = '';
+    const generation = ++this.generation;
+    this.pluginGeneration++;
+    this.syncAfterSave.cancel();
+    this.connected = false;
+    const pending = this.patchSettings({ config }, this.snapshot ? this.site : undefined);
+    this.connectionWrite = pending;
+    try {
+      const { settings, snapshot } = await pending;
+      if (generation !== this.generation) {
+        return;
+      }
+      this.context = {
+        ...this.context,
+        settings: { ...this.context.settings, config: settings.config },
+      };
+      if (this.snapshot && snapshot) {
+        this.context = {
+          ...this.context,
+          snapshot: {
+            ...this.snapshot,
+            data: { ...this.snapshot.data, config: snapshot.data.config },
+          },
+        };
+      }
+      this.syncBlocked = false;
+    } catch (error) {
+      if (generation === this.generation) {
+        this.connectionError = error instanceof Error ? error.message : String(error);
+      }
+      return;
+    } finally {
+      if (this.connectionWrite === pending) {
+        this.connectionWrite = undefined;
+      }
+    }
+    await this.run(async () => {
+      if (await this.checkCorePermission()) {
+        await this.reconnect();
       }
     });
-  private apiInput(field: keyof TConfig['api'], value: string) {
-    this.config = { ...this.config, api: { ...this.config.api, [field]: value } };
   }
+  private applyTheme(theme: Settings['theme']) {
+    this.theme = theme;
+    document.documentElement.dataset.theme = theme;
+  }
+  private changeTheme = (event: CustomEvent<{ value: Settings['theme'] }>) => {
+    const theme = event.detail.value;
+    if (theme === this.theme) {
+      return;
+    }
+    const revision = ++this.themeRevision;
+    this.applyTheme(theme);
+    void this.run(async () => {
+      try {
+        await this.patchSettings({ theme });
+        this.context = { ...this.context, settings: { ...this.context.settings, theme } };
+      } catch (error) {
+        if (revision === this.themeRevision) {
+          this.applyTheme(this.context.settings.theme);
+        }
+        throw error;
+      }
+    });
+  };
   private capture() {
     return html`<div class="toolbar">
         <button class="primary" @click=${this.choose}>＋ 选择网页元素</button
@@ -997,27 +1121,19 @@ export class ExtensionPopup extends LitElement {
           >核心地址<input
             placeholder="http://localhost"
             .value=${this.config.api.host}
-            @input=${(e: Event) =>
-              this.apiInput('host', (e.target as HTMLInputElement).value)} /></label
+            @blur=${(e: Event) => this.saveConnection('host', e)} /></label
         ><label
           >端口<input
             inputmode="numeric"
             .value=${this.config.api.port}
-            @input=${(e: Event) =>
-              this.apiInput('port', (e.target as HTMLInputElement).value)} /></label
+            @blur=${(e: Event) => this.saveConnection('port', e)} /></label
         ><label
           >访问令牌<input
             type="password"
             autocomplete="off"
             .value=${this.config.api.token}
-            @input=${(e: Event) => this.apiInput('token', (e.target as HTMLInputElement).value)}
-            placeholder="核心的 TOKEN，关闭鉴权时留空"
-          />
-          ${this.syncBlocked
-            ? html`<span class="sync-auth-warning" role="alert"
-                >同步已暂停：无法连接核心，请检查核心地址、端口和网络连接。修改连接设置并点击“保存并连接”后将重新尝试。</span
-              >`
-            : nothing}</label
+            @blur=${(e: Event) => this.saveConnection('token', e)}
+            placeholder="核心的 TOKEN，关闭鉴权时留空" /></label
         ><label
           >外观<wb-menu-select
             label="外观"
@@ -1026,11 +1142,19 @@ export class ExtensionPopup extends LitElement {
               { label: '深色', value: 'dark-2026' },
               { label: '浅色', value: 'light-2026' },
             ]}
-            @wb-menu-change=${(e: CustomEvent<{ value: Settings['theme'] }>) => {
-              this.theme = e.detail.value;
-            }}
-          ></wb-menu-select></label
-        ><button class="primary" @click=${this.saveConnection}>保存并连接</button>
+            @wb-menu-change=${this.changeTheme}
+          ></wb-menu-select
+        ></label>
+        ${this.connectionError
+          ? html`<span class="sync-auth-warning" role="alert">${this.connectionError}</span>`
+          : nothing}
+        ${this.permissionRequired
+          ? html`<button class="primary" @click=${this.authorizeCore}>授权访问核心</button>`
+          : this.syncBlocked && this.snapshot
+            ? html`<span class="sync-auth-warning" role="alert"
+                  >同步已暂停，请检查核心地址、端口和网络连接。</span
+                ><button class="primary" @click=${this.reconnect}>重新连接</button>`
+            : nothing}
         <p class="storage-note">
           数据保存在扩展的独立存储中，按网站共享。连接核心后，与油猴脚本同步抓取项、插件值和设置；窗口位置与最小化状态不参与扩展配置。
         </p>
@@ -1087,7 +1211,9 @@ export class ExtensionPopup extends LitElement {
             ${!this.loaded ? html`<p class="muted">正在加载…</p>` : nothing}
             <div ?hidden=${this.panel !== 'capture'}>${this.loaded ? this.capture() : nothing}</div>
             <div ?hidden=${this.panel !== 'plugins'}>${this.pluginPanel()}</div>
-            <div ?hidden=${this.panel !== 'settings'}>${this.settingsPanel()}</div>
+            <div ?hidden=${this.panel !== 'settings'}>
+              ${this.loaded ? this.settingsPanel() : nothing}
+            </div>
           </main></wb-scroll-container
         >
         ${this.notifications}

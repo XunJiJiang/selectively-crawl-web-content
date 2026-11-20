@@ -39,7 +39,7 @@ xcrun safari-web-extension-converter dist/browser-extension/safari --project-loc
 
 然后在生成的 Xcode 项目中选择团队、运行容器应用并启用扩展。Safari 源包不能直接当作 Safari 安装包使用；本次 Windows 环境没有验证 Safari/Firefox 真机行为。
 
-需要运行本次代码对应的 SCWC 核心。旧核心没有扩展来源支持，会拒绝请求。在“设置”中填写核心地址、端口和 TOKEN，点击“保存并连接”，只授权对应核心主机。端口另填，地址示例为 `http://localhost`；远程核心建议使用 HTTPS。
+需要运行本次代码对应的 SCWC 核心。旧核心没有扩展来源支持，会拒绝请求。在“设置”中填写核心地址、端口和 TOKEN，输入框失焦后自动保存并尝试连接。首次访问未授权的主机时，点击“授权访问核心”，只授予该主机的访问权限。外观在选中后立即生效。端口另填，地址示例为 `http://localhost`，远程核心建议使用 HTTPS。
 
 ## 使用方式
 
