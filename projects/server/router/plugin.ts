@@ -52,8 +52,6 @@ const getConfig: RequestHandler = async (req, res) => {
   pluginLogger.info(`收到插件配置请求`);
   const { error, data: site } = siteSchema.safeParse(req.query?.site);
 
-  pluginLogger.info(`来源: ${decodeURIComponent(String(req.query?.site ?? ''))}`);
-
   if (error) {
     pluginLogger.error(`无效的 site 参数: ${req.query?.site}`);
     res.status(400).json({ code: 400, message: 'site 参数必须是有效的 URL' });
@@ -69,13 +67,13 @@ const getConfig: RequestHandler = async (req, res) => {
     previousSite = previous.data;
   }
 
-  // 对 site 进行解码，防止出现编码后的中文等字符
-  let decodedSite = '';
+  let decodedSite: string;
   try {
     decodedSite = decodeURIComponent(site);
   } catch {
     decodedSite = site;
   }
+  pluginLogger.info(`来源: ${decodedSite}`);
 
   // 匹配插件
   let root = getRootUrl(decodedSite);
@@ -88,11 +86,9 @@ const getConfig: RequestHandler = async (req, res) => {
   const activeIds: string[] = [],
     updatedIds: string[] = [];
   for (const plugin of plugins) {
-    if (!plugin.linkWith || !matchLink(decodedSite, plugin.linkWith)) {
-      continue;
-    }
     const scripts = plugin.handler?.pluginConfig?.scripts;
-    if (!scripts) {
+    const configSite = scripts?.version === 'v2' ? site : decodedSite;
+    if (!scripts || !plugin.linkWith || !matchLink(configSite, plugin.linkWith)) {
       continue;
     }
     activeIds.push(plugin.pluginId);
@@ -104,12 +100,11 @@ const getConfig: RequestHandler = async (req, res) => {
     try {
       if (
         !req.query.pluginId &&
-        !shouldRefreshPlugin(scripts, plugin.linkWith, previousSite, decodedSite)
+        !shouldRefreshPlugin(scripts, plugin.linkWith, previousSite, configSite)
       ) {
         continue;
       }
-      const refreshRule = pluginRefreshRule(scripts, decodedSite);
-      const urlObj = new URL(decodedSite);
+      const refreshRule = pluginRefreshRule(scripts, configSite);
 
       if (scripts.version && !['v1', 'v2'].includes(scripts.version)) {
         throw new Error(`插件配置版本 ${scripts.version} 不兼容，请升级插件及脚本或扩展`);
@@ -122,7 +117,7 @@ const getConfig: RequestHandler = async (req, res) => {
         }
         const ui = await uiHandler.render({
           version: 'v2',
-          site: siteInfo(decodedSite),
+          site: siteInfo(configSite),
           data: [],
           values: {},
           previousInstanceId: z.string().uuid().optional().parse(req.query.instanceId),
@@ -154,6 +149,7 @@ const getConfig: RequestHandler = async (req, res) => {
         continue;
       }
 
+      const urlObj = new URL(decodedSite);
       const controls =
         typeof scripts.controls === 'function'
           ? await scripts.controls(plugin.logger, {

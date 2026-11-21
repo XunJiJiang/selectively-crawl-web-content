@@ -4,6 +4,12 @@ import os from 'node:os';
 import path from 'node:path';
 import WebSocket from 'ws';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import type {
+  ScriptConfigV2,
+  ScriptContext,
+  ScriptUIEvent,
+  ScriptUIModel,
+} from '../../shared/script-ui.ts';
 
 vi.mock('../common/environment.ts', () => ({}));
 vi.mock('../utils/cache.ts', () => ({
@@ -14,43 +20,76 @@ const controls = vi.hoisted(() => ({
   a: vi.fn(() => [{ type: 'button', channel: 'go', label: 'A', trigger: () => undefined }]),
   b: vi.fn(() => [{ type: 'button', channel: 'go', label: 'B', trigger: () => undefined }]),
 }));
-vi.mock('../plugin/load.ts', () => ({
-  pluginLifecycleEvents: { on: vi.fn(), off: vi.fn() },
-  plugins: [
-    {
-      pluginId: 'query',
-      name: 'query',
-      linkWith: ['https://one.example/*', 'https://two.example/*'],
-      logger: { warn: vi.fn() },
-      handler: {
-        pluginConfig: {
-          scripts: {
-            title: 'Query',
-            refreshRules: [
-              { sites: ['https://one.example/*'], rule: '?q' },
-              { sites: ['https://two.example/*'], rule: '#' },
-            ],
-            controls: controls.a,
-          },
+vi.mock('../plugin/load.ts', async () => {
+  const { ScriptUIRuntime } = await import('../user-script/ui.ts');
+  const runtime = new ScriptUIRuntime();
+  const script = {
+    version: 'v2',
+    title: 'Work files',
+    content: {
+      format: 'json',
+      version: 1,
+      root: { type: 'button', text: 'Check', events: { click: 'check()' } },
+    },
+    handlers: {
+      check: {
+        run() {
+          return this.site.url;
         },
       },
     },
-    {
-      pluginId: 'path',
-      name: 'path',
-      linkWith: ['https://one.example/*'],
-      logger: { warn: vi.fn() },
-      handler: { pluginConfig: { scripts: { title: 'Path', controls: controls.b } } },
-    },
-  ],
-  inactivePlugins: [],
-  enablePlugin: vi.fn(),
-  disablePlugin: vi.fn(),
-  reloadPlugin: vi.fn(),
-  unloadPlugins: vi.fn(),
-  configuredPluginDirectory: async () => '/unused',
-  enqueuePlugin: (_id: string, work: () => unknown) => work(),
-}));
+  } satisfies ScriptConfigV2;
+  return {
+    pluginLifecycleEvents: { on: vi.fn(), off: vi.fn() },
+    plugins: [
+      {
+        pluginId: 'query',
+        name: 'query',
+        linkWith: ['https://one.example/*', 'https://two.example/*'],
+        logger: { warn: vi.fn() },
+        handler: {
+          pluginConfig: {
+            scripts: {
+              title: 'Query',
+              refreshRules: [
+                { sites: ['https://one.example/*'], rule: '?q' },
+                { sites: ['https://two.example/*'], rule: '#' },
+              ],
+              controls: controls.a,
+            },
+          },
+        },
+      },
+      {
+        pluginId: 'path',
+        name: 'path',
+        linkWith: ['https://one.example/*'],
+        logger: { warn: vi.fn() },
+        handler: { pluginConfig: { scripts: { title: 'Path', controls: controls.b } } },
+      },
+      {
+        pluginId: 'work-files',
+        name: 'work-files',
+        linkWith: ['https://works.example/*'],
+        logger: { warn: vi.fn() },
+        handler: {
+          pluginConfig: { scripts: script },
+          scriptUI: {
+            render: (context: ScriptContext) => runtime.render(script, context),
+            event: (event: ScriptUIEvent, context: ScriptContext) => runtime.event(event, context),
+          },
+        },
+      },
+    ],
+    inactivePlugins: [],
+    enablePlugin: vi.fn(),
+    disablePlugin: vi.fn(),
+    reloadPlugin: vi.fn(),
+    unloadPlugins: vi.fn(),
+    configuredPluginDirectory: async () => '/unused',
+    enqueuePlugin: (_id: string, work: () => unknown) => work(),
+  };
+});
 import { app } from './index.ts';
 import { attachUpgradeDispatcher } from './web/workbench/websocket.ts';
 import { TOKEN } from '../common/env.ts';
@@ -315,5 +354,51 @@ describe('per-plugin refresh HTTP contract', () => {
     expect(
       (await config('https://two.example/a#two', 'https://two.example/a#one')).updatedIds,
     ).toEqual(['query']);
+  });
+
+  it.each(['GET', 'POST'])('binds %s v2 config and events to the same encoded page URL', async (method) => {
+    const site =
+      'https://works.example/work/RJ123456?keyword=%E9%9F%B3%E5%A3%B0%26%23%25#track%2F1';
+    const headers = {
+      origin: method === 'GET' ? new URL(site).origin : 'chrome-extension://test-extension',
+      authorization: `Bearer ${TOKEN}`,
+      'content-type': 'application/json',
+      'X-SCWC-Version': '3.2.0',
+    };
+    const render = async (previousInstanceId?: string): Promise<ScriptUIModel> => {
+      const params = new URLSearchParams({ site, pluginId: 'work-files' });
+      if (previousInstanceId) params.set('instanceId', previousInstanceId);
+      const response = await fetch(`${base}/api/plugin/config?${params}`, { method, headers });
+      expect(response.status).toBe(200);
+      return (await response.json()).data[0].ui;
+    };
+    const invoke = async (target: string, model: ScriptUIModel) => {
+      const params = new URLSearchParams({ site: target });
+      return fetch(`${base}/api/plugin/event?${params}`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          version: 'v2',
+          id: 'work-files',
+          instanceId: model.instanceId,
+          eventId: crypto.randomUUID(),
+          bindingId: model.compiled.events[0].id,
+          fields: {},
+          data: [],
+        }),
+      });
+    };
+
+    const initial = await render();
+    const refreshed = await render(initial.instanceId);
+    const accepted = await invoke(site, refreshed);
+    const body = await accepted.json();
+    expect(accepted.status, JSON.stringify(body)).toBe(200);
+    expect(body.data.result).toBe(site);
+
+    const wrongPage = await invoke(site.replace('%2F', '/'), refreshed);
+    expect(await wrongPage.json()).toMatchObject({ errorCode: 'UI_STALE_INSTANCE' });
+    const retired = await invoke(site, initial);
+    expect(await retired.json()).toMatchObject({ errorCode: 'UI_STALE_INSTANCE' });
   });
 });
