@@ -289,7 +289,10 @@ describe('isolated plugin host', () => {
           } else {
             await new Promise(resolve => setTimeout(resolve, 150));
           }
-          return {command: raw, commands: [String(cache.get('requests').value), sub, key ?? 'plain']};
+          const value = context.optionValue;
+          const commands = [String(cache.get('requests').value), sub, key ?? 'plain'];
+          if (value) commands.push(value.raw, ...value.values, value.prefix, String(value.isNextValue));
+          return {command: raw, commands};
         }
       } } };
     `,
@@ -331,6 +334,12 @@ describe('isolated plugin host', () => {
     expect(await request('fixture build --mode=d')).toMatchObject({
       commands: ['2', 'build', 'mode'],
     });
+    const raw = 'fixture build --mode="dev,dev,p';
+    expect(await complete(raw, ['fixture', 'build'], cache, 'build', true, true, 'mode', {
+      signal: new AbortController().signal,
+      logger: c.logger,
+      optionValue: { raw: '"dev,dev,p', values: ['dev', 'dev'], prefix: 'p', isNextValue: true },
+    })).toMatchObject({ commands: ['3', 'build', 'mode', '"dev,dev,p', 'dev', 'dev', 'p', 'true'] });
     expect(events).toContainEqual(
       expect.objectContaining({
         windowId: outputWindowId,

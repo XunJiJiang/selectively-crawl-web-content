@@ -128,6 +128,45 @@ describe('command invocation contract', () => {
       unregisterPluginCommand('pending-hints');
     }
   });
+  it('completes only the final comma-delimited value and keeps existing scalar options intact', async () => {
+    const execute = vi.fn();
+    const complete = vi.fn<TCommandComplete>((command) => ({ command, commands: ['md'] }));
+    registerCommand(
+      logger, 'list-hints', execute, 'list-hints', '', [],
+      [{ name: 'ext', alias: 'e', multiValue: true }, { name: 'label' }],
+      '', undefined, complete,
+    );
+    try {
+      expect(getCommands().find((command) => command.name === 'list-hints')?.multiValueOptions)
+        .toEqual(['ext', 'e']);
+      const command = 'list-hints check "work path" -e="txt,txt, m"';
+      const result = await completeCommand({ command, cursor: command.length - 1 });
+      expect(command.slice(0, result.from) + result.items[0].insertText + command.slice(result.to))
+        .toBe('list-hints check "work path" -e="txt,txt, md"');
+      const call = complete.mock.calls[0];
+      expect(call[1]).toEqual(['list-hints', 'check', 'work path']);
+      expect(call[7].optionValue).toEqual({
+        raw: '"txt,txt, m"',
+        values: ['txt', 'txt'],
+        prefix: 'm',
+        isNextValue: true,
+      });
+      await completeCommand({ command, cursor: command.indexOf(',') + 1 });
+      expect(complete).toHaveBeenCalledTimes(1);
+
+      const scalar = 'list-hints check --label=txt,';
+      const legacy = await completeCommand({ command: scalar, cursor: scalar.length });
+      expect(legacy.from).toBe(scalar.indexOf('=') + 1);
+      expect(complete.mock.calls[1][7].optionValue).toBeUndefined();
+
+      await parseAndRunCommands(command);
+      expect(execute.mock.calls[0][1]).toContainEqual(
+        expect.objectContaining({ name: 'ext', value: 'txt,txt, m' }),
+      );
+    } finally {
+      unregisterPluginCommand('list-hints');
+    }
+  });
   it('routes callback logger output to the output tab, without creating execution tasks', async () => {
     const output: unknown[] = [];
     setLogSink((event) => output.push(event));

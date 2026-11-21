@@ -301,7 +301,7 @@ export class TerminalController {
       signal?.removeEventListener('abort', cancel);
     }
   }
-  private scheduleCompletion() {
+  private scheduleCompletion(nextValue = false) {
     const key = this.model.completionKey;
     if (key === this.completionKey) {
       return;
@@ -309,7 +309,11 @@ export class TerminalController {
     this.lastCompletionTab = undefined;
     this.invalidateCompletion(true);
     this.completionKey = key;
-    if (this.model.completionInput.deep) {
+    const input = this.model.completionInput;
+    if (input.deep) {
+      if (nextValue && input.eligible && input.optionValue?.isNextValue) {
+        void this.refreshCompletion(true);
+      }
       return;
     }
     // First words use the live command manifest; subsequent words query the owning service.
@@ -1141,6 +1145,8 @@ export class TerminalController {
             if (input.eligible) {
               if (this.model.inlineCompletionOpen) {
                 this.model.completeGlobal(key.shift ? -1 : 1);
+              } else if (input.optionValue?.isNextValue) {
+                void this.refreshCompletion(true);
               } else {
                 const completionKey = this.model.completionKey;
                 if (!completionKey) {
@@ -1260,6 +1266,11 @@ export class TerminalController {
           !/[\x00-\x1f\x7f]/.test(key.sequence) &&
           this.model.text.length < 65536
         ) {
+          const input = this.model.completionInput;
+          const comma = key.sequence === ',' && input.eligible && Boolean(input.optionValue);
+          const closeQuote = Boolean(
+            input.optionValue && input.eligible && key.sequence === input.quote,
+          );
           if (
             key.sequence === ' ' ||
             (key.sequence === '=' &&
@@ -1268,8 +1279,12 @@ export class TerminalController {
           ) {
             this.model.commitGlobalCompletion(true);
             this.invalidateCompletion();
+          } else if ((comma || closeQuote) && this.model.completionPreview) {
+            this.model.commitGlobalCompletion();
+            this.invalidateCompletion();
           }
           this.model.edit(key.sequence);
+          if (comma) this.scheduleCompletion(true);
         }
         if (
           this.model.mode === 'normal' &&

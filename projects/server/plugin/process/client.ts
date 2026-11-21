@@ -688,6 +688,7 @@ export class PluginProcessClient {
                         {
                           values: [raw, parents, sub, isKey, isValue, key],
                           identity,
+                          optionValue: context.optionValue,
                         },
                         0,
                         id,

@@ -451,6 +451,43 @@ describe('deep terminal completion', () => {
       await controller.dispose();
     }
   });
+  it.each(['', '"'])('requests the next list value after a comma with quote %j', async (quote) => {
+    const { model, core, controller, call } = setup(['md', 'txt']);
+    core.emit('ready', { port: 3200, commands: [{ name: 'cmd', multiValueOptions: ['ext'] }] });
+    try {
+      const input = 'cmd sub --ext=' + quote + 'txt';
+      model.setInput(input, input.length);
+      await controller.key({ name: 'text', sequence: ',' });
+      await expect.poll(() => model.inlineCompletionOpen).toBe(true);
+      expect(call).toHaveBeenCalledTimes(1);
+      await controller.key(tab);
+      expect(model.displayText).toBe(input + ',md');
+      await controller.key({ name: 'text', sequence: ',' });
+      await expect.poll(() => model.inlineCompletionOpen).toBe(true);
+      expect(call).toHaveBeenCalledTimes(2);
+      expect(model.text).toBe(input + ',md,');
+
+      if (quote) {
+        await controller.key(tab);
+        await controller.key({ name: 'text', sequence: quote });
+        expect(model.text).toBe(input + ',md,md"');
+      }
+      call.mockClear();
+      const command = 'cmd sub --ext=' + quote + 'txt,md,' + quote;
+      model.setInput(command, command.indexOf(',') + 1);
+      await controller.key(tab);
+      await controller.key(tab);
+      expect(call).not.toHaveBeenCalled();
+      model.setInput(command, command.length);
+      await controller.key(tab);
+      await expect.poll(() => model.inlineCompletionOpen).toBe(true);
+      await controller.key(tab);
+      expect(model.displayText).toBe('cmd sub --ext=' + quote + 'txt,md,md' + quote);
+      expect(call).toHaveBeenCalledTimes(1);
+    } finally {
+      await controller.dispose();
+    }
+  });
   it('cancels pending work on edit and rejects late results even if input returns to the same string', async () => {
     const { model, controller, call } = setup();
     const late = Promise.withResolvers<unknown>();

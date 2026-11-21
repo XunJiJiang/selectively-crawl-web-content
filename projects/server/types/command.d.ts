@@ -4,6 +4,8 @@ export interface TCommandOption {
   description?: string;
   required?: boolean; // 默认 false
   defaultValue?: string | boolean | number;
+  /** Enable comma-delimited value completion. Execution still receives the original scalar value. */
+  multiValue?: boolean;
 }
 
 export type TCommandExecute = (
@@ -38,6 +40,7 @@ export interface CommandCompletionCache {
 export interface CommandCompletionContext {
   signal: AbortSignal;
   logger: TLogger;
+  optionValue?: CommandCompletionValue;
 }
 /** Return every valid word/value at this position; the terminal performs prefix filtering. */
 export type TCommandComplete = (
@@ -52,3 +55,4 @@ export type TCommandComplete = (
 ) => { command: string; commands: string[] } | Promise<{ command: string; commands: string[] }>;
 import type { InvocationContext, PluginLogger } from './task.d.ts';
 import type { TLogger } from './log.d.ts';
+import type { CommandCompletionValue } from '../../shared/command-completion.ts';

@@ -22,7 +22,7 @@ import type {
 } from '../types/command.d.ts';
 import type { CompletionRequest, CompletionResult } from '../../terminal/protocol.ts';
 import { abortable } from '../../terminal/completion.ts';
-import { completionInput } from '../../shared/command-completion.ts';
+import { completionInput, scanCommandWords } from '../../shared/command-completion.ts';
 import { createCommandCompletionCache } from './commandCompletion.ts';
 
 /**
@@ -232,13 +232,21 @@ export function unregisterPluginCommand (pluginId: string) {
   commandEvents.emit('change', getCommands());
 }
 
+function multiValueOptions(options: TCommandOption[]) {
+  return options
+    .filter((option) => option.multiValue)
+    .flatMap(({ name, alias }) => (alias ? [name, alias] : [name]));
+}
+
 /** First two levels use metadata; deeper candidates are supplied by the owning command. */
 export async function completeCommand (
   { command, cursor }: CompletionRequest,
   signal = new AbortController().signal,
 ): Promise<CompletionResult> {
   cursor = Math.max(0, Math.min(command.length, cursor));
-  const input = completionInput(command, cursor);
+  const name = command.trimStart().split(/\s/u, 1)[0];
+  const options = commandRegistry.get(name)?.options;
+  const input = completionInput(command, cursor, options && multiValueOptions(options));
   if (input.deep) {
     const empty = { command, from: input.from, to: input.to, items: [], inline: true };
     const definition = commandRegistry.get(input.parents[0]);
@@ -265,7 +273,11 @@ export async function completeCommand (
           input.isKey,
           input.isValue,
           input.key,
-          { signal, logger: bindLogger(definition.log, identity, definition.pluginId) },
+          {
+            signal,
+            logger: bindLogger(definition.log, identity, definition.pluginId),
+            ...(input.optionValue && { optionValue: input.optionValue }),
+          },
         ),
         signal,
       ),
@@ -311,41 +323,11 @@ export async function completeCommand (
  * @returns 拆分后的命令数组
  */
 export function splitCommand (rawCommand: string): string[] {
-  const parts: string[] = [];
-  let token = '';
-  let quote = '';
-  let started = false;
-  for (let i = 0; i < rawCommand.length; i++) {
-    const character = rawCommand[i];
-    if (quote) {
-      if (character === quote) {
-        quote = '';
-      } else if (character === '\\' && rawCommand[i + 1] === quote) {
-        token += rawCommand[++i];
-      } else {
-        token += character;
-      }
-    } else if (character === '"' || character === "'") {
-      quote = character;
-      started = true;
-    } else if (/\s/.test(character)) {
-      if (started) {
-        parts.push(token);
-        token = '';
-        started = false;
-      }
-    } else {
-      token += character;
-      started = true;
-    }
-  }
+  const { words, quote } = scanCommandWords(rawCommand);
   if (quote) {
     throw new CommandError('命令引号未闭合', false);
   }
-  if (started) {
-    parts.push(token);
-  }
-  return parts;
+  return words.map(({ text }) => text);
 }
 
 /**
@@ -354,13 +336,17 @@ export function splitCommand (rawCommand: string): string[] {
  * @param originCommand 原始命令字符串
  */
 export function getCommands () {
-  return [...commandRegistry].map(([name, value]) => ({
-    name,
-    description: value.description,
-    system: value.system,
-    lifecycle: value.system && ['exit', 'restart'].includes(value.originalName),
-    subCommands: value.subCommands.map((item) => item.name),
-  }));
+  return [...commandRegistry].map(([name, value]) => {
+    const options = multiValueOptions(value.options);
+    return {
+      name,
+      description: value.description,
+      system: value.system,
+      lifecycle: value.system && ['exit', 'restart'].includes(value.originalName),
+      subCommands: value.subCommands.map((item) => item.name),
+      ...(options.length > 0 && { multiValueOptions: options }),
+    };
+  });
 }
 
 function prepareCommand (raw: string) {

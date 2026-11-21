@@ -668,7 +668,12 @@ export class TerminalModel {
   }
   get completionInput() {
     const source = this.completionSource;
-    const input = completionInput(source.command, source.cursor);
+    const name = source.command.trimStart().split(/\s/u, 1)[0];
+    const options =
+      this.mode === 'normal'
+        ? this.commands.find((command) => command.name === name)?.multiValueOptions
+        : undefined;
+    const input = completionInput(source.command, source.cursor, options);
     const { from, to } = source.range(input.from, input.to);
     return {
       ...input,

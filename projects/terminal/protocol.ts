@@ -4,6 +4,7 @@ export interface CommandInfo {
   name: string;
   description?: string;
   subCommands?: string[];
+  multiValueOptions?: string[];
   system?: boolean;
   scope?: 'command' | 'global';
   usage?: string;

@@ -649,6 +649,7 @@ peer.onCall = async (method, envelope, id) => {
     const data = envelope as {
       values: [string, string[], string, boolean, boolean, string | undefined];
       identity: InvocationIdentity;
+      optionValue?: import('../../types/command.d.ts').CommandCompletionContext['optionValue'];
     };
     const controller = new AbortController();
     const scope = new TaskScope('completion', id, data.identity, () => {
@@ -673,7 +674,11 @@ peer.onCall = async (method, envelope, id) => {
                 isKey,
                 isValue,
                 key,
-                { signal: controller.signal, logger: scopedLogger(data.identity) },
+                {
+                  signal: controller.signal,
+                  logger: scopedLogger(data.identity),
+                  ...(data.optionValue && { optionValue: data.optionValue }),
+                },
               ) ?? { command: raw, commands: [] },
               controller.signal,
             ),
