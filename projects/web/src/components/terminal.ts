@@ -590,6 +590,7 @@ export class WorkbenchTerminal extends LitElement {
       ${terminals.length > 1
         ? html`<wb-scroll-container
             class="terminal-list"
+            prevent-scroll-chaining
             role="tablist"
             aria-label="命令终端列表"
             @keydown=${tabNavigation}

@@ -49,6 +49,9 @@ export class SCWCScrollContainer extends LitElement {
   @property({ type: Number, attribute: 'wheel-axis-lock-ratio' }) accessor wheelAxisLockRatio = 0;
   @property({ attribute: 'shift-wheel-direction' })
   accessor shiftWheelDirection: WheelDirection = 'horizontal';
+  /** 到达滚动边界后，阻止剩余输入带动外层滚动。 */
+  @property({ type: Boolean, attribute: 'prevent-scroll-chaining', reflect: true })
+  accessor preventScrollChaining = false;
 
   /** 一旦提供此对象，内部更新函数停止提供且旧函数失效。位置在对象更新时应用。 */
   @property({ attribute: false }) accessor metrics: ScrollMetrics | undefined;
@@ -475,7 +478,7 @@ export class SCWCScrollContainer extends LitElement {
     const factor = maximum > 0 && largest > 0 ? Math.min(ratio, maximum / largest) : ratio;
     x *= factor;
     y *= factor;
-    // 允许反向输入抵消本帧尚未应用的距离；真实边界上的向外输入交给祖先。
+    // 允许反向输入抵消本帧尚未应用的距离。
     const canMove = (position: number, max: number, pending: number, delta: number) =>
       delta > 0 ? position < max || pending < 0 : delta < 0 && (position > 0 || pending > 0);
     if (
@@ -503,6 +506,10 @@ export class SCWCScrollContainer extends LitElement {
       y = 0;
     }
     if (x === 0 && y === 0) {
+      if (this.preventScrollChaining && largest > 0) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
       return;
     }
     // 即使尚未累计到一次跳跃，也必须拦截原生滚轮，防止逐事件滚动。

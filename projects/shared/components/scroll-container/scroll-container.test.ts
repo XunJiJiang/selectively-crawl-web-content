@@ -676,6 +676,28 @@ describe('SCWCScrollContainer', () => {
     expect(outer.el.scrollState.scrollTop).toBe(40);
   });
 
+  it('contains exhausted wheel input when enabled, including a tab strip without overflow', async () => {
+    const outer = await fixture();
+    const inner = await fixture({ scrollHeight: 100 });
+    outer.el.append(inner.el);
+    inner.el.setAttribute('prevent-scroll-chaining', '');
+    await settle(inner.el);
+    const onOuterWheel = vi.fn();
+    outer.el.addEventListener('wheel', onOuterWheel);
+
+    expect(wheel(inner.el, { deltaY: 40 }).defaultPrevented).toBe(true);
+    expect(wheel(inner.el, { deltaX: -40, deltaY: 0 }).defaultPrevented).toBe(true);
+    browserFrame();
+    expect(onOuterWheel).not.toHaveBeenCalled();
+    expect(outer.el.scrollState.scrollTop).toBe(0);
+    expect(outer.el.scrollState.scrollLeft).toBe(0);
+
+    wheel(inner.el, { deltaX: 40, deltaY: 0 });
+    browserFrame();
+    expect(inner.el.scrollState.scrollLeft).toBe(40);
+    expect(wheel(inner.el, { ctrlKey: true }).defaultPrevented).toBe(false);
+  });
+
   it('honors reduced motion for smooth requests', async () => {
     const { el, scrollTo } = await fixture();
     vi.stubGlobal('matchMedia', () => ({ matches: true }));

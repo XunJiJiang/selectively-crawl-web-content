@@ -30,6 +30,10 @@
   height: 0;
 }
 
+:host([prevent-scroll-chaining]) .viewport {
+  overscroll-behavior: contain;
+}
+
 .content {
   display: flow-root;
   min-width: 100%;

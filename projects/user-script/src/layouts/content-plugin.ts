@@ -51,7 +51,7 @@ export class SCWCContentPlugin extends LitElement {
         })}
       >
         <!-- Tabs -->
-        <wb-scroll-container class="plugin-tabs-scroll" thin
+        <wb-scroll-container class="plugin-tabs-scroll" thin prevent-scroll-chaining
           ><div class="plugin-window-tabs" role="tablist">
             ${plugins?.map(
               (plugin) => html`

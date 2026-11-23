@@ -1031,45 +1031,55 @@ export class ExtensionPopup extends LitElement {
             )}
           </div>`}`;
   }
+  private pluginTabs() {
+    if (!this.plugins.length) {
+      return nothing;
+    }
+    return html`<wb-scroll-container
+      class="plugin-tabs"
+      prevent-scroll-chaining
+      ?hidden=${this.panel !== 'plugins'}
+    >
+      <div class="plugin-tab-row">
+        ${this.plugins.map(
+          (entry) =>
+            html`<div
+              class="plugin-tab"
+              data-active=${entry.id === this.activePlugin}
+              role="presentation"
+            >
+              <button
+                class=${entry.id === this.activePlugin ? 'active' : ''}
+                role="tab"
+                aria-selected=${entry.id === this.activePlugin}
+                @click=${() => {
+                  this.selectPlugin(entry.id);
+                  void this.save({ plugin: { expanded: true, activeTab: entry.id } });
+                }}
+              >
+                ${entry.title}</button
+              ><button
+                class="plugin-refresh"
+                title=${`刷新 ${entry.title}`}
+                aria-label=${`刷新 ${entry.title}`}
+                ?disabled=${this.refreshingPlugins.has(entry.id)}
+                @click=${() => this.refreshPlugin(entry.id)}
+              >
+                <wb-icon
+                  name=${this.refreshingPlugins.has(entry.id) ? 'loading' : 'refresh'}
+                  class=${this.refreshingPlugins.has(entry.id) ? 'spinning' : ''}
+                  size="sm"
+                ></wb-icon>
+              </button>
+            </div>`,
+        )}
+      </div>
+    </wb-scroll-container>`;
+  }
   private pluginPanel() {
     const plugin = this.plugins.find((entry) => entry.id === this.activePlugin);
     return html`${this.plugins.length
-      ? html`<wb-scroll-container class="plugin-tabs"
-          ><div class="plugin-tab-row">
-            ${this.plugins.map(
-              (entry) =>
-                html`<div
-                  class="plugin-tab"
-                  data-active=${entry.id === this.activePlugin}
-                  role="presentation"
-                >
-                  <button
-                    class=${entry.id === this.activePlugin ? 'active' : ''}
-                    role="tab"
-                    aria-selected=${entry.id === this.activePlugin}
-                    @click=${() => {
-                      this.selectPlugin(entry.id);
-                      void this.save({ plugin: { expanded: true, activeTab: entry.id } });
-                    }}
-                  >
-                    ${entry.title}</button
-                  ><button
-                    class="plugin-refresh"
-                    title=${`刷新 ${entry.title}`}
-                    aria-label=${`刷新 ${entry.title}`}
-                    ?disabled=${this.refreshingPlugins.has(entry.id)}
-                    @click=${() => this.refreshPlugin(entry.id)}
-                  >
-                    <wb-icon
-                      name=${this.refreshingPlugins.has(entry.id) ? 'loading' : 'refresh'}
-                      class=${this.refreshingPlugins.has(entry.id) ? 'spinning' : ''}
-                      size="sm"
-                    ></wb-icon>
-                  </button>
-                </div>`,
-            )}
-          </div></wb-scroll-container
-        >`
+      ? nothing
       : html`<div class="empty">
           <h3>暂无适用插件</h3>
           <p>确认核心已运行，并已启用适用于当前网址的插件。</p>
@@ -1205,6 +1215,7 @@ export class ExtensionPopup extends LitElement {
           设置
         </button>
       </nav>
+      ${this.pluginTabs()}
       <div class="content-area">
         <wb-scroll-container class="main-scroll" ?hidden=${this.panel === 'notifications'}
           ><main>

@@ -184,6 +184,7 @@ export function createJSONComponents(
         if (kind === 'tab-list') {
           scroll.wheelDirection = 'horizontal';
           scroll.thin = true;
+          scroll.preventScrollChaining = true;
         }
         node.replaceWith(scroll);
         scroll.append(node);

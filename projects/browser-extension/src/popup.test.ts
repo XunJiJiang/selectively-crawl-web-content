@@ -224,6 +224,25 @@ it('commits legacy inputs on blur and debounces rapid toggle changes from the la
     vi.useRealTimers();
   }
 });
+it('keeps plugin tabs below primary navigation and outside the content scroller', async () => {
+  const { popup } = await navigationFixture().open();
+  const root = popup.shadowRoot!;
+  const nav = root.querySelector('nav')!;
+  const pluginTabs = root.querySelector<HTMLElement>('.plugin-tabs')!;
+  expect(pluginTabs.hidden).toBe(true);
+  nav.querySelectorAll('button')[1].click();
+  await popup.updateComplete;
+
+  expect(nav.nextElementSibling).toBe(pluginTabs);
+  expect(pluginTabs.hidden).toBe(false);
+  expect(pluginTabs.hasAttribute('prevent-scroll-chaining')).toBe(true);
+  expect(root.querySelector('.main-scroll')?.contains(pluginTabs)).toBe(false);
+
+  nav.querySelectorAll('button')[0].click();
+  await popup.updateComplete;
+  expect(pluginTabs.hidden).toBe(true);
+});
+
 it.each(['capture', 'plugins', 'notifications', 'settings'] as const)(
   'restores the %s panel and selected plugin after closing, reopening and syncing',
   async (panel) => {

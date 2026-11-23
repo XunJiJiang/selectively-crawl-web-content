@@ -40,6 +40,8 @@ html`<scwc-scroll-container
 
 `wheelDirection` / `wheel-direction` 默认为 `auto`，`shiftWheelDirection` / `shift-wheel-direction` 默认为 `horizontal`；均支持 `auto`（保留双轴）、`horizontal`、`vertical`、`none`。`none` 阻止这类滚轮滚动；Ctrl/Meta+滚轮继续交给浏览器缩放。嵌套滚动时，已消费的滚轮不会重复消费，到边界后允许祖先处理。
 
+`preventScrollChaining` / `prevent-scroll-chaining` 默认为 `false`。开启后，容器无法继续滚动时会拦截滚轮输入，原生触摸滚动也会停在容器边界。
+
 `scrollBehavior` / `scroll-behavior` 为 `smooth`（默认）或 `instant`。滚轮增量先按像素/行/页归一化并逐轴累加，再在浏览器动画帧中统一更新位置。平滑模式每帧直接应用累计位移，不为每次滚轮事件启动过渡动画。
 
 跳跃模式以 `stepDistance` / `step-distance`（默认 40px）为最小移动单位：累计距离达到几倍步长，本帧就一次移动几步；余数保留到后续输入继续累加。连续 150ms 没有新输入视为停止，未达到一步的余数丢弃，不影响下一次手势。双轴分别累计，反向输入按带符号的距离抵消；到边界时钳制位置并丢弃向外的余数。步长设为 0 时不量化，直接按帧应用原始距离。

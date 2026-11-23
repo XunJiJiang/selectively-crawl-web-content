@@ -208,7 +208,7 @@ class SCWCRootLayout extends LitElement {
             .pluginExpanded=${!this.persistentData.window.minimized && this.pluginExpanded}
             .position=${this.position}
           ></scwc-layout-header>
-          <wb-scroll-container class="window-scroll"
+          <wb-scroll-container class="window-scroll" prevent-scroll-chaining
             ><scwc-layout-content
               .selectionExpanded=${!this.persistentData.window.minimized && this.selectionExpanded}
               @trigger-selection-expanded=${(e: CustomEvent<boolean>) =>

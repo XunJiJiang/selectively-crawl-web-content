@@ -3165,6 +3165,7 @@ export class AppRoot extends LitElement {
         <wb-scroll-container
           class="tab-bar"
           thin
+          prevent-scroll-chaining
           wheel-direction=${['left', 'right'].includes(node.tabBarPosition)
             ? 'vertical'
             : 'horizontal'}
