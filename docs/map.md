@@ -350,7 +350,7 @@ busy 由自动调用、主动 `setBusy(true)` 或未结束的 `begin` 句柄共�
 
 [common/interaction.ts](../projects/server/common/interaction.ts) 负责 `next` 输入格式、错误元组和宿主通信。`TaskScope.context` 注入 `next(message, String/Number/Boolean/BigInt/Date)`，返回 `[InvocationInputError, undefined] | [undefined, T]`，输入错误通过返回值交给命令处理。
 
-`command/ipc.ts` 与直接 stdin 均支持执行中等待；终端将提示和输入草稿绑定到发起调用的窗口。终端插件及 `invokeCore` 子执行共用该链路。格式无效时提示重输；Ctrl+C 只取消当前 `next`，返回 `cancelled` 错误元组；取消任务、EOF、重启或断连也会结束等待。插件等待输入期间暂停命令 RPC 超时，回复后恢复剩余时限。
+`command/ipc.ts` 与直接 stdin 均支持执行中等待；终端将提示和输入草稿绑定到发起调用的窗口。终端插件及 `invokeCore` 子执行共用该链路。格式无效时提示重输；无选区时 Ctrl+C 取消当前 `next`，返回 `cancelled` 错误元组；取消任务、EOF、重启或断连也会结束等待。插件命令 RPC 等待实际执行结果，无固定时限。
 
 ### 8.7 终端状态保存与恢复
 

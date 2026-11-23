@@ -61,13 +61,13 @@ load.ts[AE8L]: F:治理插件加载 | R:code:projects/server/plugin/process/clie
 log.ts[CO4T]: F:提供插件日志实例 | R:code:projects/server/utils/log.ts | A:pluginLogger | S:-
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/plugin/process/===
-client.ts[IE9L]: F:代理插件宿主的命令、脚本、工作台和主动通知能力 | R:code:projects/server/plugin/process/host.ts,code:projects/server/user-script/ui-config.ts,code:projects/server/workbench/declarative-ui.ts,code:projects/server/user-script/notifications.ts | A:PluginProcessClient,ClientOptions,pluginClients | S:主动通知由真实插件身份注入；多值补全上下文随IPC传递；脚本回调留宿主、绑定配置由当前插件处理；v1加载限1500ms；UI按owner释放，输入及页面准备暂停超时；文件不经IPC，失联清进程树
+client.ts[IE9L]: F:代理插件宿主的命令、脚本、工作台和主动通知能力 | R:code:projects/server/plugin/process/host.ts,code:projects/server/plugin/process/rpc.ts,code:projects/server/user-script/ui-config.ts,code:projects/server/workbench/declarative-ui.ts,code:projects/server/user-script/notifications.ts | A:PluginProcessClient,ClientOptions,pluginClients | S:命令RPC无固定时限，仅活动执行可请求输入，其他请求按配置计时。页面准备暂停启动计时。通知由真实插件身份注入，多值补全上下文随IPC传递，脚本回调留宿主且绑定配置由当前插件处理。v1加载限1500ms，UI按owner释放，文件不经IPC，失联清进程树
 host.ts[EE9L]: F:托管隔离插件并分派命令、脚本、UI与长期通知工厂 | R:code:projects/server/plugin/process/ui-host.ts,code:projects/server/plugin/process/rpc.ts,code:projects/server/user-script/ui.ts | A:插件IPC入口,script.render,script.event,command.complete | S:先注册SDK再导入，onLoad先于清单发布；补全可携多值上下文且不计入业务任务；通知工厂可跨onLoad长期持有；仅v2延迟加载运行器并注入配置RPC；页面准备失败仍可使用后端
 installed-plugins.test.ts[TE5S]: F:验证本机插件原生隔离 | R:code:projects/server/plugin/process/client.ts,code:projects/server/plugin/process/options.ts | A:Vitest用例 | S:动态枚举真实插件并隔离数据；可选模块在用例内部导入；卸载保留插件独立Redis缓存以免清理挂起
 loader.test.ts[TE6M]: F:验证默认进程加载 | R:code:projects/server/plugin/load.ts,code:projects/server/plugin/web/build.ts | A:Vitest用例 | S:使用真实子进程验证页面先于onLoad准备，缺省runtime也须隔离
 options.test.ts[TE4T]: F:验证运行选项 | R:code:projects/server/plugin/process/options.ts | A:Vitest用例 | S:-
 options.ts[FE6T]: F:校验进程选项 | R:code:projects/server/types/plugin-process.d.ts | A:resolveProcessOptions | S:缺省或部分配置都使用process及契约2；超时只接受100至600000整数，不回退进程内模式
-process.test.ts[TE7L]: F:验证隔离插件的命令与脚本IPC及长期主动通知 | R:code:projects/server/plugin/process/client.ts,code:projects/server/router/plugin.ts,code:projects/server/user-script/notifications.ts | A:Vitest集成用例 | S:真实Node进程覆盖多值补全原样传递重复值、onLoad返回后通知、JSON控件管道、版本拒绝、v1隔离、Range及失联
+process.test.ts[TE7L]: F:验证隔离插件的命令与脚本IPC及长期主动通知 | R:code:projects/server/plugin/process/client.ts,code:projects/server/router/plugin.ts,code:projects/server/user-script/notifications.ts | A:Vitest集成用例 | S:真实Node验证命令等待请求时限之外仍可发起输入并完成，HTTP超时仍回504。覆盖多值补全保留重复值、onLoad返回后通知、JSON控件管道、版本拒绝、v1隔离、Range及失联
 protocol.ts[FN8T]: F:定义隔离插件消息、清单及带字段身份的远程错误 | R:code:projects/server/plugin/process/rpc.ts,code:projects/shared/script-ui.ts | A:Manifest,Message,PluginProcessError,remoteError,PROTOCOL_VERSION | S:IPC仍为2，单消息16MiB、待答64；函数不跨进程；错误截8000字符，field只保留合法控件名
 resource.ts[IN6T]: F:发送插件资源响应 | R:code:projects/server/types/plugin-process.d.ts | A:requestData,sendResource | S:文件必须绝对路径并由Express发送，保留Range与背压；连接销毁后忽略传输错误
 rpc.test.ts[TN6S]: F:验证有界插件RPC | R:code:projects/server/plugin/process/rpc.ts | A:Vitest用例 | S:伪时钟验证输入暂停剩余超时；慢发送验证输出有序和溢出标记
@@ -1026,7 +1026,7 @@ zoom-in.svg[ZU2T]: F:绘制圆框放大加号 | R:- | A:SVG图形 | S:-
 zoom-out.svg[ZU2T]: F:绘制圆框缩小减号 | R:- | A:SVG图形 | S:-
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/public/web/===
-index.html[EU5T]: F:装载生产工作台并声明页面身份 | R:code:projects/server/public/web/assets/index-C_Yn2-58.js,code:projects/server/public/web/assets/index-D-iqYjNX.css,code:projects/server/public/web/assets/local-config-taNKm1cA.js | A:/web/HTML入口,app-root,scwc-app元标记 | S:通过绝对/web/assets路径装载并预载本地配置分包；workbench标记供用户脚本识别核心页
+index.html[EU5T]: F:装载生产工作台并声明页面身份 | R:code:projects/server/public/web/assets/index-itMbBdAk.js,code:projects/server/public/web/assets/index-D-iqYjNX.css,code:projects/server/public/web/assets/local-config-taNKm1cA.js | A:/web/HTML入口,app-root,scwc-app元标记 | S:绝对/web/assets路径装载入口和主题并预载本地配置分包，workbench标记供用户脚本识别核心页
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/router/===
 index.ts[MN8M]: F:接入采集、工作台和带客户端版本的HTTP请求 | R:code:projects/server/router/extension-origin.ts,code:projects/server/router/user-script.ts,code:projects/server/router/version.ts | A:app,listen,/api/metadata/scrape | S:仅明确扩展路径豁免同主机检查，仍验HTTP(S) site与Bearer；CORS允许版本头并暴露通知头；采集路由显式版本门槛；响应关闭结束任务
@@ -1253,20 +1253,20 @@ command-text.ts[KU6T]: F:映射续行命令坐标 | R:code:projects/terminal/com
 completion.test.ts[TU6L]: F:验证终端分层补全与多值选项的逐段交互 | R:code:projects/terminal/completion.ts,code:projects/terminal/controller.ts,code:projects/terminal/render.ts | A:Vitest用例 | S:普通深层双Tab才请求且本地过滤；声明多值的末段输入逗号即请求，预览确认后保留逗号和闭引号；光标位于旧段不得查询
 completion.ts[CU6T]: F:协调可取消候选 | R:code:projects/shared/command-completion.ts,code:projects/terminal/plugin/host.ts | A:completionInput,abortable,withCompletionOutput | S:共享纯函数提供拆词；候选回调原始输出经异步作用域路由，取消无需提供方合作
 controller.test.ts[TU6L]: F:验证终端事件路由 | R:code:projects/terminal/controller.ts,code:projects/terminal/input.ts | A:Vitest用例 | S:验证滚轮小数累积按窗口隔离、过期补全拒收以及清除恢复边界
-controller.ts[AU9L]: F:编排终端交互任务、键盘输入和补全会话 | R:code:projects/terminal/model.ts,code:projects/terminal/core.ts,code:projects/terminal/plugin/load.ts,code:projects/terminal/render.ts | A:TerminalController | S:每窗一个顶层任务，返回与后台结束分离；全局输出使用临时面板，丢弃迟到输出；强停须确认且结束整个插件进程；核心异常退出最多重试三次；多值补全逗号或闭引号先确认预览，逗号后请求末段
+controller.ts[AU9L]: F:编排终端交互任务、键盘输入和补全会话 | R:code:projects/terminal/model.ts,code:projects/terminal/core.ts,code:projects/terminal/plugin/load.ts,code:projects/terminal/render.ts | A:TerminalController | S:每窗一个顶层任务，函数返回与后台结束分离，忙时只接受主动请求的回复。Ctrl/Cmd+C优先复制选区，Ctrl+C无选区才清草稿或取消。全局输出使用临时面板，丢弃迟到输出，强停须确认且结束插件进程，核心异常退出最多重试三次。多值逗号或闭引号先确认预览，逗号后请求末段
 core.ts[IN7S]: F:连接终端核心进程 | R:code:projects/terminal/peer.ts,code:projects/server/command/ipc.ts | A:CoreConnection,CoreOptions | S:子进程固定no-terminal和ipc交互；启动45秒门限在配置确认期间暂停；打包与源码入口分离
-editing.test.ts[TU6M]: F:验证终端编辑选区 | R:code:projects/terminal/model.ts,code:projects/terminal/controller.ts,code:projects/terminal/render.ts | A:Vitest用例 | S:覆盖宽字素复制、Cmd+C空选区、单窗草稿及半屏临时输出预算
+editing.test.ts[TU6M]: F:验证终端编辑、复制及执行期输入切换 | R:code:projects/terminal/model.ts,code:projects/terminal/controller.ts,code:projects/terminal/render.ts | A:Vitest用例 | S:覆盖Ctrl+C复制宽字素且保留命令、Cmd+C空选区、后台执行无编辑与候选、请求回复后重新锁定及完成恢复，保留草稿和临时输出预算断言
 global.ts[FC5T]: F:声明终端内建命令 | R:code:projects/terminal/controller.ts,code:projects/terminal/plugin/load.ts | A:globalCommands,reservedCommands,GlobalCommandInfo | S:保留名包括exit和全部全局别名，供插件冲突治理共用
 index.ts[EU8M]: F:启动交互终端 | R:code:projects/terminal/controller.ts,code:projects/terminal/storage.ts,code:projects/terminal/input.ts | A:startTerminal | S:状态锁先于核心启动；TTY启用替代屏和原始输入，非TTY按行排队；启动失败仍保留重启退出入口；清理还原终端并释放锁
 input.ts[IU6S]: F:解码终端输入流 | R:code:projects/terminal/controller.ts | A:InputDecoder,Key | S:保留分片UTF8和括号粘贴；CSI-u释放事件不算输入，孤立Esc延迟35毫秒裁决
 model.test.ts[TU6M]: F:验证终端状态模型与历史副本隔离 | R:code:projects/terminal/model.ts,code:projects/terminal/render.ts,code:projects/terminal/storage.ts | A:Vitest用例 | S:覆盖恢复标识不可复制、窗口身份不复用、字素编辑及60fps；新窗历史复制后不联动，总历史截断且不收丢弃草稿
-model.ts[DU8L]: F:管理终端窗口、草稿、补全和独立及总命令历史 | R:code:projects/terminal/command-text.ts,code:projects/shared/command-completion.ts,code:projects/server/common/interaction.ts,code:projects/shared/command-history.ts | A:TerminalModel,WindowState,CommandPanel,sanitizeOutput | S:输出保留SGR，每窗1万行或10MiB；新窗复制总历史后独立追加，丢弃草稿仅进本窗；召回多行草稿修改后锁定历史；多值选项取普通模式的核心命令清单，替换映回原始草稿范围
-multiline.test.ts[TU6L]: F:验证多行命令输入 | R:code:projects/terminal/model.ts,code:projects/terminal/controller.ts,code:projects/terminal/command-text.ts | A:Vitest用例 | S:覆盖续行反斜杠保护、原始历史回显、空续行补全、视口光标边距及跨行完整字素选区
+model.ts[DU8L]: F:管理终端窗口、草稿、补全和独立及总命令历史 | R:code:projects/terminal/command-text.ts,code:projects/shared/command-completion.ts,code:projects/server/common/interaction.ts,code:projects/shared/command-history.ts | A:TerminalModel,WindowState,CommandPanel,sanitizeOutput | S:命令编辑只在空闲，回复按独立草稿记录，清除命令不改回复。输出保留SGR，每窗1万行或10MiB。新窗复制总历史后独立追加，丢弃草稿仅进本窗，修改召回多行后锁历史。多值按核心命令发现清单识别，替换映回原始草稿
+multiline.test.ts[TU6L]: F:验证多行命令输入 | R:code:projects/terminal/model.ts,code:projects/terminal/controller.ts,code:projects/terminal/command-text.ts | A:Vitest用例 | S:覆盖续行反斜杠保护、原始历史回显、空续行补全、视口光标边距及跨行完整字素选区。Esc含选区和无选区Ctrl+C均保存并清空
 package.json[FV3T]: F:声明终端工作区的启动和验证命令 | R:code:projects/terminal/index.ts,code:projects/scripts/sync-versions.ts | A:version,scripts.start,scripts.test | S:-
 peer.test.ts[TN6S]: F:验证终端IPC时序 | R:code:projects/terminal/peer.ts | A:Vitest用例 | S:无期限补全取消须释放槽位；输出不能被完成事件超越，超大输出须保留原窗口归属
 peer.ts[IN8M]: F:传递终端会话消息 | R:code:projects/terminal/protocol.ts | A:Peer | S:首个hello结果建立sessionId，旧会话结果拒收；单消息1MiB、待答64；事件有序排队，超载输出显式标记，其他关键事件超载关闭连接
 protocol.ts[FN7T]: F:定义终端IPC和命令发现契约 | R:code:projects/terminal/peer.ts,code:projects/server/command/ipc.ts | A:Packet,CommandInfo,CompletionRequest,CompletionResult,OutputEvent,ExecutionEvent | S:协议版本1；命令清单可携multiValueOptions；补全输入不含全局冒号且偏移为UTF16；输出可无窗口，执行事件须有窗口身份
-render.ts[IU7L]: F:绘制终端视口 | R:code:projects/terminal/model.ts | A:Renderer | S:ANSI按显示列裁剪，宽字素不可切半；恢复分隔行只显示不复制；滚动锚点绑定绝对行号；绘制合并至60fps并仅发送变化帧
+render.ts[IU7L]: F:绘制终端视口 | R:code:projects/terminal/model.ts | A:Renderer | S:忙时不占普通输入行，请求回复才显示问号提示与光标。ANSI按显示列裁剪，宽字素不可切半，恢复分隔行只显示不复制，滚动锚点绑定绝对行号，绘制合并至60fps且仅发送变化帧
 scroll-command.test.ts[TU5S]: F:验证滚动命令上下文 | R:code:projects/terminal/render.ts,code:projects/terminal/model.ts | A:Vitest用例 | S:仅执行回显可置顶，普通大于号日志不可冒充；点击置顶命令回到原回显且不创建选区
 smoke.ts[TU7M]: F:验证发行终端全链 | R:code:projects/terminal/core.ts,code:projects/terminal/controller.ts,code:projects/terminal/storage.ts | A:smokeTerminal | S:消费真实发行可执行文件，临时插件验证并发和后台调用；Unix另用Python伪终端验证全屏、输入、缩放及退出还原
 storage.test.ts[TD5T]: F:验证终端状态与总历史持久化 | R:code:projects/terminal/storage.ts | A:Vitest用例 | S:真实文件覆盖总历史重载后新窗复制、并发锁、备份恢复和损坏副本保留；恢复显示边界不落盘
@@ -1278,7 +1278,7 @@ conflicts.test.ts[TE6M]: F:验证插件冲突裁决 | R:code:projects/terminal/p
 global.test.ts[TE6M]: F:验证全局插件面板 | R:code:projects/terminal/plugin/load.ts,code:projects/terminal/plugins/scwc/index.ts,code:projects/terminal/controller.ts | A:Vitest集成用例 | S:覆盖前缀补全坐标还原、后台结束、输入错误重问及面板关闭后迟到输出隔离
 host.ts[EE8M]: F:运行终端插件宿主 | R:code:projects/terminal/peer.ts,code:projects/server/common/tasks.ts,code:projects/server/plugin/sdk/register.ts | A:插件IPC进程入口 | S:SDK注册先于动态导入；插件契约版本1，补全不登记业务任务；命令上下文冻结日志身份，断连清理进程树
 interactions.test.ts[TE5S]: F:验证插件裁决输入 | R:code:projects/terminal/controller.ts,code:projects/terminal/model.ts,code:projects/terminal/render.ts | A:Vitest集成用例 | S:冒号选择前缀必须在删除、粘贴与选区替换中保留，普通next输入不受该限制
-load.ts[AE8L]: F:加载隔离终端插件 | R:code:projects/terminal/plugin/host.ts,code:projects/terminal/plugin/types.d.ts,code:projects/server/common/tasks.ts | A:TerminalPlugins | S:内建scwc也用隔离宿主；冲突按整个插件裁决，偏好绑定签名；补全还原前缀坐标并传取消；强停杀所属进程树，退休owner状态不可续命
+load.ts[AE8L]: F:加载隔离终端插件 | R:code:projects/terminal/plugin/host.ts,code:projects/terminal/plugin/types.d.ts,code:projects/terminal/peer.ts,code:projects/server/common/tasks.ts | A:TerminalPlugins | S:内建scwc也用隔离宿主，冲突按整个插件裁决，偏好绑定签名。命令执行RPC无固定时限，补全还原前缀坐标并传取消，强停杀所属进程树，退休owner状态不可续命
 types.d.ts[FE6T]: F:定义插件加载状态 | R:code:projects/terminal/plugin/load.ts | A:Loaded,CommandConflict,ConflictChoice,PluginPreferences | S:标识冲突、命令冲突及冲突解除是三类裁决，偏好策略与自定义标识分开保存
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/terminal/plugins/===
@@ -1488,8 +1488,8 @@ styles.css[ZU3L]: F:排版滚动组件演示页 | R:code:projects/shared/compone
 .gitignore[FC3S]: F:排除模板本地产物与验证临时数据 | R:- | A:Git忽略规则 | S:-
 bun.lock[FV3T]: F:保存模板历史开发依赖锁定 | R:code:projects/server/plugins/template/package.json | A:lockfileVersion,workspaces,packages | S:仍锁定asmr-one和TS5.8，与当前manifest不一致
 feedback-demo.ts[AE5S]: F:共用前后端任务与通知验证动作 | R:code:projects/shared/workbench-feedback.ts | A:FeedbackDemo,feedbackActions,FeedbackSnapshot | S:仅接收公开工厂，回调留创建侧；系统提醒延迟三秒且禁自动已读，定时器随dispose取消
-index.ts[EE5S]: F:注册模板生命周期、后端配置、v2脚本及验证通道 | R:code:projects/server/plugins/template/configuration.ts,code:projects/server/plugins/template/declarative-ui.ts,code:projects/server/plugins/template/script-ui.ts,code:projects/server/plugins/template/validation.ts | A:default SCWC.IPluginHandler | S:onLoad保存配置订阅并注册UI，onUnload释放UI配置与探针；已有web/dist须主动重建并重载HTML
-package.json[FE5T]: F:声明模板插件入口、Web构建和验证模式 | R:code:projects/server/plugins/template/index.ts,code:projects/scripts/sync-versions.ts | A:version,main,scripts,runtime,scwc.ui,enabled | S:内置模板随根版本；核心可解析build:web的同步前缀；运行请求时限240秒以容纳探针
+index.ts[EE5S]: F:注册模板生命周期、后端配置、v2脚本、验证通道和交互命令 | R:code:projects/server/plugins/template/configuration.ts,code:projects/server/plugins/template/declarative-ui.ts,code:projects/server/plugins/template/script-ui.ts,code:projects/server/plugins/template/validation.ts | A:default SCWC.IPluginHandler,template wait-ask | S:wait-ask延时可取消，回复后继续。卸载释放UI、配置与探针，已有web/dist需主动重建并重载HTML
+package.json[FE5T]: F:声明模板插件入口、Web构建和验证模式 | R:code:projects/server/plugins/template/index.ts,code:projects/scripts/sync-versions.ts | A:version,main,scripts,runtime,scwc.ui,enabled | S:内置模板随根版本，核心可解析build:web的同步前缀。非命令运行请求时限240秒以容纳探针
 tsconfig.json[FQ4T]: F:检查模板后端和构建配置类型 | R:code:projects/server/plugins/plugin-env.d.ts,code:projects/server/plugin/sdk/modules.d.ts | A:files,include,exclude,compilerOptions | S:只纳入根TS，排除web和tests；严格无输出并引用核心便携声明
 validation.ts[TE5S]: F:提供延时请求、资源、Socket和后端反馈探针 | R:code:projects/server/plugins/template/feedback-demo.ts,code:projects/server/types/plugin-process.d.ts | A:loadValidation,unloadValidation,validationApis,validationResources,validationSockets | S:浏览器中止不取消后端延时；SVG不嵌用户输入，Socket连接清理定时器
 vite.config.ts[FV5T]: F:构建模板Lit页面 | R:code:projects/server/plugins/template/web/index.html,code:projects/vite-plugin/index.js | A:defineConfig,root,base,plugins,build | S:base取实际目录名，输出web/dist；构建缓存限定在插件内
@@ -1616,14 +1616,14 @@ tree.ts[LU8L]: F:实现三宿主共用的虚拟JSON树交互和字段适配器 |
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/public/web/assets/===
 index-D-iqYjNX.css[ZU4T]: F:分发工作台主题变量、树配色与全局排版 | R:code:projects/web/var.css,code:projects/web/style.css | A:全局CSS资源 | S:外层隐藏滚动，由内部容器承接；默认深色并有浅色树变量
 local-config-taNKm1cA.js[LU4T]: F:分发Lit运行时与本机启动配置加载 | R:code:projects/web/src/api/local-config.ts | A:浏览器共享ESM导出 | S:仅回环HTTP(S)页取同源配置，禁Cookie及重定向；三秒失败保留现有配置
-index-C_Yn2-58.js[EU6L]: F:引导生产工作台并加载布局及其依赖分包 | R:code:projects/web/src/main.ts,code:projects/server/public/web/assets/layouts-BF6G9En6.js,code:projects/server/public/web/assets/local-config-taNKm1cA.js | A:生产Web ESM入口,布局预加载 | S:先更新并持久化本地配置再加载布局；依赖预加载错误通过vite:preloadError通知页面
-layouts-BF6G9En6.js[AU7L]: F:分发工作台根布局、声明式会话视图和插件状态提示 | R:code:projects/web/src/layouts/root.ts,code:projects/web/src/components/declarative-view.ts,code:projects/server/public/web/assets/workbench-wTdpE1Ak.js,code:projects/server/public/web/assets/terminal-UXkKUvcs.js | A:app-root,wb-declarative-view,wb-plugin-status | S:由配置初始化后的生产入口装载；终端按需导入，共享工作台客户端与本地配置分包
-terminal-UXkKUvcs.js[IU6M]: F:分发Web终端输入编辑、调用输出及滚动交互 | R:code:projects/web/src/components/terminal.ts,code:projects/web/src/components/command-editor.ts,code:projects/server/public/web/assets/workbench-wTdpE1Ak.js | A:WorkbenchTerminal,wb-terminal,reveal-command-caret | S:以捕获监听记录滚轮及指针滚动意图，使终端在容器消费前退出自动跟随
-workbench-wTdpE1Ak.js[LU7L]: F:分发工作台共享样式、组件和会话通信客户端 | R:code:projects/web/src/api/workbench.ts,code:projects/web/src/workbench/workbench.css,code:projects/server/public/web/assets/local-config-taNKm1cA.js | A:工作台共享ESM分包 | S:Socket握手只带票据，连接按代数拒收迟到事件；请求生命周期保留暂停和恢复能力
+index-itMbBdAk.js[EU6L]: F:引导生产工作台并加载布局及其依赖分包 | R:code:projects/web/src/main.ts,code:projects/server/public/web/assets/layouts-BFdl93VL.js,code:projects/server/public/web/assets/local-config-taNKm1cA.js | A:生产Web ESM入口,布局预加载 | S:先更新并持久化本地配置再加载布局，依赖预加载错误通过vite:preloadError通知页面
+layouts-BFdl93VL.js[AU7L]: F:分发工作台根布局、声明式会话视图和插件状态提示 | R:code:projects/web/src/layouts/root.ts,code:projects/web/src/components/declarative-view.ts,code:projects/server/public/web/assets/workbench-DrHqItHk.js,code:projects/server/public/web/assets/terminal-DLnT-5wf.js | A:app-root,wb-declarative-view,wb-plugin-status | S:生产入口完成配置初始化后装载本模块，终端按需导入并共用客户端与本地配置分包
+terminal-DLnT-5wf.js[IU6M]: F:分发Web终端输入编辑、调用输出及滚动交互 | R:code:projects/web/src/components/terminal.ts,code:projects/web/src/components/command-editor.ts,code:projects/server/public/web/assets/workbench-DrHqItHk.js | A:WorkbenchTerminal,wb-terminal,reveal-command-caret | S:滚轮及指针滚动意图经捕获监听，容器消费事件前退出终端自动跟随
+workbench-DrHqItHk.js[LU7L]: F:分发工作台共享样式、组件和会话通信客户端 | R:code:projects/web/src/api/workbench.ts,code:projects/web/src/workbench/workbench.css,code:projects/server/public/web/assets/local-config-taNKm1cA.js | A:工作台共享ESM分包 | S:Socket握手只带票据，连接按代数拒收迟到事件并按最多15秒退避重连
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/plugins/template/data/===
 tree-demo.json[PD5T]: F:保存模板动态树的演示节点、顺序与已接收的拖放结果 | R:code:projects/server/plugins/template/tree-ui.ts | A:version,roots,children,receipts | S:子列表以父ID键控，移动版本与幂等回执随排序原子持久化；当前演示源600项，共用于工作台及脚本
 
 ===/Users/xunji/Documents/Develop/selectively-crawl-web-content/projects/server/public/lib/===
-scwcutils.iife.mwsjtvqw.js[LU7S]: F:分发独立插件页与工作台嵌入页共用的浏览器SDK | R:code:projects/webutils/lib/index.ts,code:projects/webutils/lib/workbench.ts,code:projects/webutils/vite.config.ts | A:scwcutils,ready,fetch,resource,websocket,notify | S:嵌入页经端口握手获取会话，直开页请求本机配置；Socket需等待ready；保留共享通知入口，pagehide释放反馈会话
+scwcutils.iife.mwszskmk.js[LU7S]: F:分发独立插件页与工作台嵌入页共用的浏览器SDK | R:code:projects/webutils/lib/index.ts,code:projects/webutils/lib/workbench.ts,code:projects/webutils/vite.config.ts | A:scwcutils,ready,fetch,resource,websocket,notify | S:嵌入页通过消息端口获取会话，独立页读取本机配置。创建Socket前须等待ready，pagehide释放会话，通知和可中断请求能力由同一SDK公开
 

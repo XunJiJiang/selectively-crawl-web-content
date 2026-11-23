@@ -412,11 +412,12 @@ describe('isolated plugin host', () => {
       scope.finish();
     }
   });
-  it('waits for typed input across the process boundary without consuming the command timeout', async () => {
+  it('lets plugin commands exceed the request timeout before and during typed input', async () => {
     const c = setup({
       timeout: 200,
       source: `
       export default { onRequest() {}, pluginConfig: { command: { async execute(logger, options, unused, original, context) {
+        await new Promise(resolve => setTimeout(resolve, 250));
         const [nameError, name] = await context.next('name?', String);
         const [countError, count] = await context.next('count?', Number);
         const [confirmationError, confirmed] = await context.next('confirmed?', Boolean);

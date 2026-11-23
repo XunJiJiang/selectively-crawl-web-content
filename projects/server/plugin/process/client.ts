@@ -56,7 +56,7 @@ function childArguments(): string[] {
 export class PluginProcessClient {
   readonly owner = `plugin:${randomUUID()}`;
   private readonly identities = new Map<string, InvocationIdentity>();
-  private readonly commandCalls = new Map<string, string>();
+  private readonly commandCalls = new Set<string>();
   private readonly inputs = new Map<string, AbortController>();
   readonly info: ProcessInfo = { mode: 'process', apiVersion: 2, status: 'starting' };
   private readonly options: ClientOptions;
@@ -143,7 +143,7 @@ export class PluginProcessClient {
     ] as const) {
       stream?.setEncoding('utf8');
       stream?.on('data', (chunk: string) => {
-        const active = [...this.commandCalls.keys()].flatMap((id) => {
+        const active = [...this.commandCalls].flatMap((id) => {
           const identity = this.identities.get(id);
           return identity ? [identity] : [];
         });
@@ -323,10 +323,9 @@ export class PluginProcessClient {
     if (method === 'input.next') {
       const request = args as InputRequest;
       const identity = this.identities.get(request.identity?.executionId);
-      const callId = identity && this.commandCalls.get(identity.executionId);
       if (
         !identity ||
-        !callId ||
+        !this.commandCalls.has(identity.executionId) ||
         typeof request.id !== 'string' ||
         typeof request.message !== 'string' ||
         !['string', 'number', 'boolean', 'bigint', 'date'].includes(request.type)
@@ -335,7 +334,6 @@ export class PluginProcessClient {
       }
       const controller = new AbortController();
       this.inputs.set(request.id, controller);
-      const resume = this.peer.pauseTimeout(callId);
       try {
         return await inputReply(
           () => readInput({ ...request, identity }, controller.signal),
@@ -343,7 +341,6 @@ export class PluginProcessClient {
         );
       } finally {
         this.inputs.delete(request.id);
-        resume();
       }
     }
     const data = args as { key?: unknown; data?: unknown; targetKey?: unknown; keys?: unknown };
@@ -492,10 +489,10 @@ export class PluginProcessClient {
       return this.peer.call<T>(method, args, timeoutMs, id);
     }
     const current = currentIdentity();
-    const identity =
-      method === 'command'
-        ? current
-        : { ...current, executionId: randomUUID(), parentExecutionId: current.executionId };
+    const isCommand = method === 'command';
+    const identity = isCommand
+      ? current
+      : { ...current, executionId: randomUUID(), parentExecutionId: current.executionId };
     this.identities.set(identity.executionId, identity);
     if (this.identities.size > 4096) {
       for (const key of this.identities.keys()) {
@@ -516,14 +513,12 @@ export class PluginProcessClient {
       revision: 0,
       busy: true,
     });
-    const callId = id ?? randomUUID();
-    if (method === 'command') {
-      this.commandCalls.set(identity.executionId, callId);
+    if (!isCommand) {
+      return this.peer.call<T>(method, { payload: args, identity }, timeoutMs, id);
     }
-    return this.peer.call<T>(method, { payload: args, identity }, timeoutMs, callId).finally(() => {
-      if (method === 'command') {
-        this.commandCalls.delete(identity.executionId);
-      }
+    this.commandCalls.add(identity.executionId);
+    return this.peer.call<T>(method, { payload: args, identity }, 0, id).finally(() => {
+      this.commandCalls.delete(identity.executionId);
     });
   }
   cancel(executionId?: string) {

@@ -6,6 +6,12 @@
 
 普通页使用 `sdk.coreConfig.subscribe('theme', callback)` 主动选择跟随核心样式：首个回调提供当前样式，后续切换自动通知；组件断开时注销。`theme.preference` 是核心设置选择，`theme.mode` 为实际生效样式，`theme.tokens` 为公开变量；未来样式标识原样保留。仅 `host.capabilities.coreConfig` 为 true 时注册，独立浏览器页保留默认样式。这是通用配置暴露机制中的 `theme` 通道，其他插件无需跟随；旧 `sdk.theme` 已替换。完整接口见 [Web Utils](../../../webutils/README.md)。
 
+## 终端命令示例
+
+在命令标签页运行 `template wait-ask`。命令默认执行 3 秒后显示 `?`，这之前普通输入框和补全提示会隐藏。输入文字并按 Enter 后，回复框收起，命令继续执行 2 秒，输出回复并恢复 `>`。等待回复时按 `Ctrl+C` 可取消当前输入。
+
+可指定 1–300 秒的等待时间。运行 `template wait-ask 245` 可验证核心插件命令等待超过模板的普通请求时限后，仍能接收回复并完成。
+
 ## 脚本与扩展配置
 
 `index.ts` 的 `pluginConfig.scripts` 引用 `script-ui.ts`，按[配置迁移文档](../../../../docs/client-plugin-ui.md)显式声明 `version: 'v2'`。内容为 `{ format: 'json', version: 1, root }`，由脚本与扩展的共用渲染器加载；v2 要求客户端 3.2.0 或更高版本。

@@ -504,6 +504,8 @@ export class TerminalController {
         await answer(value, error);
       },
     };
+    window.anchor = undefined;
+    window.scroll = 0;
     this.output({
       windowId: window.id,
       executionId: request.identity.executionId,
@@ -892,7 +894,7 @@ export class TerminalController {
                 `:${item.usage}${item.aliases?.length ? ` (${item.aliases.map((alias) => ':' + alias).join('/')})` : ''}  ${item.description}`,
             )
             .join('\n') +
-          '\n命令标签：直接输入 · Enter 执行 · 行尾 \\ 后 Enter 续行\n↑/↓：单行切换历史（含草稿），多行移动输入行；未编辑的多行历史可在首/末行继续切换\nCtrl+C / Esc：保存当前命令输入到历史并清空\n空输入：: 全局命令 · Tab/Shift+Tab 切换标签 · ←/→ 滚动标签栏\n输入：Tab/Shift+Tab 补全 · Shift+方向键选中 · Ctrl/Cmd+←/→ 按空格分词跳转 · Alt/Option+←/→ 行首行尾跳转（可加 Shift 选中）\n拖动选中输出 · Ctrl/Cmd+C 复制输出选区 · Cmd+C 复制输入选区\n底栏输出：↑/↓ 或鼠标滚轮滚动 · : 继续输入 · Esc 丢弃\n可执行命令：\n' +
+          '\n命令标签：空闲时输入命令 · Enter 执行 · 行尾 \\ 后 Enter 续行\n执行中仅在命令请求输入时显示回复框\n↑/↓：单行切换历史（含草稿），多行移动输入行；未编辑的多行历史可在首/末行继续切换\nEsc 或无选区的 Ctrl+C：保存当前命令输入到历史并清空\n空输入：: 全局命令 · Tab/Shift+Tab 切换标签 · ←/→ 滚动标签栏\n输入：Tab/Shift+Tab 补全 · Shift+方向键选中 · Ctrl/Cmd+←/→ 按空格分词跳转 · Alt/Option+←/→ 行首行尾跳转（可加 Shift 选中）\n拖动选中输入或输出 · Ctrl/Cmd+C 复制选区\n底栏输出：↑/↓ 或鼠标滚轮滚动 · : 继续输入 · Esc 丢弃\n可执行命令：\n' +
           [...this.commands, ...this.plugins.list()]
             .map((item) => `${item.name} ${item.description ?? ''}`)
             .join('\n'),
@@ -1022,6 +1024,7 @@ export class TerminalController {
     if (
       this.pending &&
       !this.model.panel?.input &&
+      !this.model.active.input &&
       !copying &&
       !['mouse', 'up', 'down', 'escape'].includes(key.name)
     ) {
@@ -1039,7 +1042,7 @@ export class TerminalController {
       if (!key.mouse && !copying && this.model.editing) {
         this.renderer.clearOutputSelection();
       }
-      if (copying && selected && !(key.ctrl && this.model.commandInput && this.model.text)) {
+      if (copying && selected) {
         if (!this.onCopy) {
           throw new Error('剪贴板不可用');
         }
@@ -1199,6 +1202,11 @@ export class TerminalController {
         /^[：﹕꞉∶︰]$/u.test(key.sequence)
       ) {
         throw new Error('请输入英文半角冒号 ":" 进入全局命令');
+      } else if (key.name === 'pageup' || key.name === 'pagedown') {
+        this.renderer.scroll(
+          this.model,
+          (key.name === 'pageup' ? 1 : -1) * Math.max(1, this.renderer.height - 2),
+        );
       } else if (this.model.editing) {
         if (key.name === 'enter') {
           const text = this.model.displayText;
@@ -1218,7 +1226,7 @@ export class TerminalController {
             } else if (this.model.active.draft.trim()) {
               const window = this.model.active;
               await this.execute(window.id, window.draft);
-              this.model.clearCommand();
+              this.model.clearCommand(false, window);
             }
           }
         } else if (key.name === 'up' || key.name === 'down') {
@@ -1254,11 +1262,6 @@ export class TerminalController {
           this.model.edit('', key.name);
         } else if (key.name === 'home' || key.name === 'end') {
           this.model.move(key.name === 'home' ? -1 : 1, key.shift, 'edge');
-        } else if (key.name === 'pageup' || key.name === 'pagedown') {
-          this.renderer.scroll(
-            this.model,
-            (key.name === 'pageup' ? 1 : -1) * Math.max(1, this.renderer.height - 2),
-          );
         } else if (
           key.name === 'text' &&
           !key.ctrl &&
@@ -1327,6 +1330,7 @@ export class TerminalController {
   private canEnterGlobal() {
     return (
       this.model.mode === 'normal' &&
+      !this.model.active.task &&
       !this.model.active.input &&
       (this.model.active.kind !== 'command' || !this.model.active.draft)
     );

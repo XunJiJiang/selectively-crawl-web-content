@@ -39,20 +39,50 @@ async function drag(controller: TerminalController, from: [number, number], to: 
 }
 
 describe('inline command editing', () => {
-  it('renders a prompt immediately after output, echoes submitted commands and retains history', async () => {
+  it('shows the command prompt only when idle and accepts input requested by a running command', async () => {
     const { model, core, controller } = setup();
-    vi.spyOn(core, 'call').mockResolvedValue(undefined);
+    const call = vi.spyOn(core, 'call').mockResolvedValue(undefined);
+    core.emit('commands', [{ name: 'plugin' }]);
     model.append({ windowId: model.activeId, text: 'first\nsecond' });
-    let rows = plain(controller.renderer.frame(model)).split('\r\n');
+    const frame = () => controller.renderer.frame(model);
+    const rows = plain(frame()).split('\r\n');
     expect(rows[3].trim()).toBe('>');
     expect(rows.at(-1)).not.toContain('COMMAND');
     await type(controller, 'plugin ls');
     await controller.key({ name: 'enter', sequence: '\r' });
     expect(model.active.lines.at(-1)).toBe('> plugin ls');
     expect(model.active.history).toEqual(['plugin ls']);
+    const task = model.active.task!;
+    expect(task.status).toBe('running');
+    const busyFrame = frame();
+    expect(plain(busyFrame).split('\r\n')[4].trim()).toBe('');
+    expect(busyFrame).toContain('\x1b[?25l');
+
+    core.emit('command.returned', { ...task, status: 'background' });
+    await type(controller, 'p:');
+    await controller.key({ name: 'paste', sequence: ':new' });
     expect(model.active.draft).toBe('');
-    rows = plain(controller.renderer.frame(model)).split('\r\n');
-    expect(rows[4].trim()).toBe('>');
+    expect(model.mode).toBe('normal');
+    expect(frame()).not.toContain('命令候选');
+
+    core.emit('input.request', {
+      id: 'answer',
+      identity: { windowId: task.windowId, executionId: task.executionId },
+      message: 'Continue?',
+      type: 'string',
+    });
+    await type(controller, 'yes');
+    expect(plain(frame()).split('\r\n')[5].trim()).toBe('? yes');
+    await controller.key({ name: 'enter', sequence: '\r' });
+    expect(call).toHaveBeenCalledWith('input.answer', {
+      id: 'answer',
+      value: 'yes',
+      error: undefined,
+    });
+    expect(frame()).toContain('\x1b[?25l');
+
+    core.emit('command.finished', { ...task, status: 'succeeded' });
+    expect(plain(frame()).split('\r\n')[5].trim()).toBe('>');
   });
   it('uses empty-input navigation and treats all text and editing keys as command input once typing starts', async () => {
     const { model, controller } = setup();
@@ -204,7 +234,8 @@ describe('transient footer and text selection', () => {
     controller.renderer.frame(model);
     await drag(controller, [3, 1], [4, 1]);
     expect(controller.renderer.selectedText(model)).toBe('中a');
-    await controller.key({ name: 'c', sequence: '', meta: true });
+    await controller.key({ name: 'c', sequence: '\x03', ctrl: true });
+    expect(controller.onCopy).toHaveBeenLastCalledWith('中a');
     expect(model.selection).toBeUndefined();
     expect(model.text).toBe('中abc');
   });

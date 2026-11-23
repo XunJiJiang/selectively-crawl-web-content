@@ -651,7 +651,7 @@ export class Renderer {
       });
     }
     this.regions.set(region, rows);
-    const inline = window.kind === 'command' || Boolean(window.input);
+    const inline = model.hasInlineInput(window);
     const inlineActive = inline && model.mode === 'normal';
     const text = inlineActive ? model.displayText : (window.input?.draft ?? window.draft);
     const cursor = inlineActive ? model.displayCursor : (window.input?.cursor ?? window.cursor);
@@ -838,7 +838,7 @@ export class Renderer {
       ? ` ${model.message}`
       : model.mode === 'global-output'
         ? ` ${model.panel?.running ? '执行中' : '↑/↓ 滚动 · : 继续 · Esc 关闭'}`
-        : ` : 全局命令 · Tab 切换 · Esc ${model.commandInput && model.text ? '保存并清空' : '底部'}`;
+        : ` ${window.task ? '' : ': 全局命令 · '}Tab 切换 · Esc ${model.commandInput && model.text ? '保存并清空' : '底部'}`;
     if (model.mode === 'global' || model.mode === 'confirmation') {
       const raw = model.displayText;
       const input = this.input(

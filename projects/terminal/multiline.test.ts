@@ -324,12 +324,12 @@ describe('multiline command input and history', () => {
   });
 
   it.each(['escape', 'ctrl+c'])(
-    'archives and clears single or multiline input on %s, including selections',
+    'archives and clears single or multiline input on %s',
     async (key) => {
       const { model, controller, call } = setup();
       controller.onCopy = vi.fn().mockResolvedValue(undefined);
       for (const text of ['unfinished "quote', 'cmd \\\npart \\\nlast']) {
-        model.setInput(text, text.length, 0);
+        model.setInput(text, text.length, key === 'escape' ? 0 : undefined);
         if (key === 'ctrl+c') {
           await controller.key({ name: 'c', sequence: '\x03', ctrl: true });
         } else {

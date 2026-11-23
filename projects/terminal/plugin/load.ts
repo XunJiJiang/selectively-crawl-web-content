@@ -601,18 +601,7 @@ export class TerminalPlugins extends EventEmitter {
       returned: false,
       revision: 0,
     });
-    try {
-      await plugin.peer.call(
-        'execute',
-        { name: command.name, args, identity },
-        24 * 60 * 60 * 1000,
-      );
-    } catch (error) {
-      if (!this.registry.busy(identity.executionId)) {
-        throw error;
-      }
-      throw error;
-    }
+    await plugin.peer.call('execute', { name: command.name, args, identity }, 0);
   }
   async cancel(executionId?: string, force = false) {
     for (const plugin of this.loaded) {

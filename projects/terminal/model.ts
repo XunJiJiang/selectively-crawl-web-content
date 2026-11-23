@@ -293,10 +293,9 @@ export class TerminalModel {
     if (truncated) {
       window.commandLines = window.commandLines.filter((line) => line > window.lineOffset);
     }
-    const inputRows =
-      window.kind === 'command' || window.input
-        ? (window.input?.draft ?? window.draft).split('\n').length
-        : 0;
+    const inputRows = this.hasInlineInput(window)
+      ? (window.input?.draft ?? window.draft).split('\n').length
+      : 0;
     window.scroll = Math.max(
       0,
       Math.min(window.scroll, Math.max(0, window.lines.length + inputRows - 1)),
@@ -394,19 +393,26 @@ export class TerminalModel {
     window.selection = undefined;
     this.verticalGoal = undefined;
   }
-  get commandInput() {
-    return this.mode === 'normal' && this.active.kind === 'command' && !this.active.input;
+  hasInlineInput(window: WindowState) {
+    return Boolean(window.input) || (window.kind === 'command' && !window.task);
   }
-  clearCommand(remember = false) {
-    if (remember && this.text) {
-      this.record(this.active, this.text, false);
+  get commandInput() {
+    return this.mode === 'normal' && this.hasInlineInput(this.active) && !this.active.input;
+  }
+  clearCommand(remember = false, window = this.active) {
+    if (remember && window.draft) {
+      this.record(window, window.draft, false);
     }
-    this.setInput('', 0);
-    const window = this.active;
+    window.draft = '';
+    window.cursor = 0;
+    window.selection = undefined;
     window.historyCursor = window.history.length;
     window.historyDraft = '';
     window.historyLocked = false;
-    this.clearServiceCompletion();
+    if (window === this.active) {
+      this.verticalGoal = undefined;
+      this.clearServiceCompletion();
+    }
   }
   vertical(direction: number, selecting = false) {
     const text = this.text;
@@ -456,7 +462,7 @@ export class TerminalModel {
     return (
       this.mode === 'global' ||
       Boolean(this.panel?.input) ||
-      (this.mode === 'normal' && (this.active.kind === 'command' || Boolean(this.active.input)))
+      (this.mode === 'normal' && this.hasInlineInput(this.active))
     );
   }
   enterGlobal() {
@@ -642,11 +648,7 @@ export class TerminalModel {
     }
     return this.mode === 'global'
       ? this.globalCandidates
-      : this.mode === 'normal' &&
-          this.active.kind === 'command' &&
-          !this.active.input &&
-          this.commandText &&
-          !/\s/.test(this.commandText)
+      : this.commandInput && this.commandText && !/\s/.test(this.commandText)
         ? this.commands.filter((command) => command.name.startsWith(this.commandText))
         : [];
   }
@@ -657,11 +659,7 @@ export class TerminalModel {
     return completionSource(this.text, this.cursor, this.commandInput);
   }
   get completionKey() {
-    if (
-      this.panel?.input ||
-      this.active.input ||
-      !(this.mode === 'global' || (this.mode === 'normal' && this.active.kind === 'command'))
-    ) {
+    if (this.panel?.input || this.active.input || !(this.mode === 'global' || this.commandInput)) {
       return undefined;
     }
     return JSON.stringify([this.mode, this.activeId, this.text, this.cursor]);

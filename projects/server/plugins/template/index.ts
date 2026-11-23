@@ -1,3 +1,4 @@
+import { setTimeout as delay } from 'node:timers/promises';
 import { scripts } from './script-ui.ts';
 import {
   registerDeclarativeDemo,
@@ -61,6 +62,35 @@ export default {
           description: '这是子命令1',
           execute: async (logger, option) => {
             logger.info('执行了子命令1');
+          },
+        },
+        {
+          name: 'wait-ask',
+          description: '演示长时间执行、主动请求输入和提交后继续执行',
+          exampleUsage: 'template wait-ask [秒数]',
+          execute: async (logger, _options, args, _original, context) => {
+            const seconds = Number(args[0] ?? 3);
+            if (args.length > 1 || !Number.isInteger(seconds) || seconds < 1 || seconds > 300) {
+              logger.warn('用法：template wait-ask [1–300 秒]');
+              return;
+            }
+            const { signal } = context;
+            try {
+              logger.info(`${seconds} 秒后请求输入`);
+              await delay(seconds * 1000, undefined, { signal });
+              const [error, reply] = await context.next('请输入任意文字（Ctrl+C 取消）');
+              if (error) {
+                logger.warn(error.code, error.message);
+                return;
+              }
+              logger.info('已收到回复，继续执行 2 秒');
+              await delay(2000, undefined, { signal });
+              logger.info('示例完成，输入内容：', reply);
+            } catch (error) {
+              if (!signal.aborted) {
+                throw error;
+              }
+            }
           },
         },
       ],
