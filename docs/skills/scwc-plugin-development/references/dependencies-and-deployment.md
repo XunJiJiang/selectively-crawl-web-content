@@ -1,64 +1,42 @@
 # 插件共享模块、前端构建与部署
 
-源码基准与版本见 [SKILL.md](../SKILL.md)。本参考用于共享 API、类型、Worker、Vite 页面构建或独立部署。根目录依赖不是插件 API 清单；以 SDK 运行时、类型声明及发行资产清单为准，不按旧 README 推断。
-
-主要源码入口：
-
-- Node SDK：`projects/server/plugin/sdk/dependencies.ts`、`runtime.ts`、`register.ts`、`modules.d.ts`
-- 后端插件类型：`projects/server/plugins/plugin-env.d.ts`、`projects/server/types/plugin-process.d.ts`
-- shared 包：`projects/shared/backend.ts`、`frontend.ts`、`package.json`
-- 浏览器 SDK：`projects/webutils/lib/index.ts`、`lib/workbench.ts`、`projects/webutils/lib.d.ts`
-- Vite 集成：`projects/vite-plugin/index.js`、`dependencies.js`、`index.d.ts`
-- 页面构建和发行依赖：`projects/server/plugin/web/`、`projects/server/scripts/shared-package-assets.ts`
+以 SDK 运行时、类型声明和发行资产清单确认共享依赖。Node 入口在 `projects/server/plugin/sdk/`，Vite 入口在 `projects/vite-plugin/`，核心构建入口在 `projects/server/plugin/web/`，发行资源见 `projects/server/scripts/shared-package-assets.ts`。
 
 ## Node 虚拟模块
 
-插件进程在动态导入插件之前注册同步 Node 模块钩子。SDK 虚拟模块不需要同名 npm 包；声明文件只帮助类型检查，不会注册运行时模块，也不会改变普通 Node 包名的解析。
+插件进程在动态导入插件前注册并冻结虚拟模块。类型来自 `modules.d.ts`，运行时解析依赖 Node hooks。
 
-| 模块 | 当前公开内容 | 用途与边界 |
-| --- | --- | --- |
-| `scwc:deps` | `axios`、`AxiosError`、`AxiosHeaders`、`chalk`、`z`、`Database`、`trash`、`fileType` 及 `fileTypeFromFile/Buffer/Stream`、`fflate`；同时导出对应依赖类型 | 受控后端共享依赖。它不是根依赖的通用转发器；私有依赖由插件自己声明。 |
-| `scwc:runtime` | `RpcPeer`、`PluginProcessError`、`createPluginWorker`，及 `PluginWorkerOptions`、`PluginRequest` 类型 | 创建 SDK 已初始化的插件 Worker 和使用 RPC 类型。Worker 入口必须是 file URL。 |
-| `scwc:shared/backend` | `@scwc/shared/backend` 的通用缓存/防抖/错误处理/命令补全、声明式 UI 与表达式、反馈 API 及共享类型 | 无 DOM 的 Node/Worker 共享逻辑。不能导入需要浏览器 DOM 的 frontend 入口。 |
+- `scwc:deps` 提供 `axios`、`AxiosError`、`AxiosHeaders`、`chalk`、`z`、`Database`、`trash`、`fileType`、`fileTypeFromFile/Buffer/Stream`、`fflate` 与声明中的对应类型。白名单外的依赖由插件声明。
+- `scwc:runtime` 提供 `RpcPeer`、`PluginProcessError`、`createPluginWorker` 和 `PluginWorkerOptions/PluginRequest` 类型。Worker 传 file URL，由引导文件先装 SDK 再加载入口，并保留 `SCWC_APP_DIR`、`SCWC_RUNTIME_ROOT`、`SCWC_DISTRIBUTION_MODE`。自建进程或 Worker 需自行安装所用 hooks。
+- `scwc:shared/backend` 提供无 DOM 的缓存、防抖、错误处理、命令补全、声明式 UI、反馈 API、树接口与模型及共享类型。后端和 Node Worker 使用该入口。
 
-SDK 会冻结并注册各模块导出。每个 Worker 有独立模块环境，`createPluginWorker()` 使用引导文件先注册 SDK 再加载入口，并保留 `SCWC_APP_DIR`、`SCWC_RUNTIME_ROOT`、`SCWC_DISTRIBUTION_MODE` 运行字段。自建 Worker 或子进程不能假设会继承 Node hooks。
-
-`scwc:deps` 的运行时导出见 `dependencies.ts`，类型映射见 `modules.d.ts`；增加或删除导出需要两处同步，并检查 `sharedExternalPackages` 和原生资源收集。SQLite、Trash 或文件资源不能只验证 JS bundle。
+更新 `scwc:deps` 导出时同步 `dependencies.ts` 和 `modules.d.ts`，再检查 `sharedExternalPackages` 与原生资产。SQLite、Trash 和文件资源须在实际发行环境验证。
 
 ## Shared 前端入口
 
-`@scwc/shared` 的 `./backend` 与 `./frontend` 是明确工作区子路径。
-
-- `scwc:shared/frontend` 由 `@scwc/vite-plugin` 解析为 `@scwc/shared/frontend`，并由 Vite HTML transform 注入页面 head。它复用 backend 导出，还注册 shared 表单组件、通知、滚动组件并提供浏览器工具、存储/配置和请求生命周期类型。
-- 该入口需要 DOM，不要从 Node 插件后端或 Worker 导入。Worker 插件列表不会自动注入 `scwc:shared/frontend`。
-- 插件代码需要 shared 页面工具/组件类时，可显式从入口命名导入；副作用入口自动注册组件，不会创建 `window` 全局变量。
-- `scwc:shared/backend` 是 Node SDK 模块，`@scwc/vite-plugin` 不把它映射成浏览器入口。需要两端共用的纯数据/类型契约时，先查看 `@scwc/shared` 实际导出与各运行时加载方式，避免让前端导入 Node-only 内容。
+`@scwc/vite-plugin` 将 `scwc:shared/frontend` 解析为 `@scwc/shared/frontend` 并注入页面 HTML。它复用 backend 导出，注册共享组件，提供 `Notify/notify`、`JSONTree`、浏览器工具和核心 Web 配置类型。业务代码可从同一入口命名导入。该入口依赖 DOM，Worker 构建不会注入它。跨运行时契约需核对 `projects/shared/{backend,frontend}.ts` 的实际入口。
 
 ## 页面 SDK `window.scwcutils`
 
-`projects/webutils` 将 SDK 构建为全局 IIFE，类型由 `projects/webutils/lib.d.ts` 提供。插件页面只在该全局下使用 SDK，不要通过相对路径导入核心运行时源码。
+`projects/webutils` 将页面 SDK 构建为核心注入的 `window.scwcutils` IIFE，类型入口为 `projects/webutils/lib.d.ts`。使用注入的全局 SDK。
 
-- `ready` 完成页面 grant 握手；fetch 会等待 ready。创建 WebSocket 前应先等待 ready；ready 前调用 `resource` 会返回空字符串。
-- `fetch(path, init?)` 经当前 grant 调用当前插件的 `ui.api`；`fetch.resource(path, options?)` 返回给 `img`、`video`、`audio`、`link` 等元素使用的 URL；`fetch.websocket` 与 `websocketAsync` 使用核心单次票据/可恢复 Socket 代理。
-- `config.get/subscribe` 读取并订阅本插件有效配置，不提供页面写入接口。写配置应由后端业务 API 调用 `context.config`，验证已读快照并提交 `baseRevision`；冲突时保留用户草稿，不静默改用最新版本。
-- `ui.handlers.register` 注册当前文档内处理器；callback 不离开文档，只将描述和 revision 发给宿主。注册返回 disposer，注销会停止该文档全部 handler watches。
-- `lifecycle.register` 管理页面可离开确认、暂停/恢复、状态序列化/恢复和预览；`navigation`/`search` 在 `host.capabilities` 声明可用时与工作台集成。
-- SDK 还公开 `host.executeCommand`、页面 focus/visibility、外部工作台状态、theme、活动租约、请求中断管理，以及归属当前页面的通知与任务 API。不要在普通浏览器上下文假定工作台能力存在。
-- 默认请求会保护页面的工作台活动；仅明确标记 `interruptible` 的请求/资源/Socket 可被暂停中断并恢复。调用方取消、普通错误不应被当作可重放中断。
-
-页面 API 包装结果为 `{ success, message, data }`；结构化 API 不用于大型媒体流。资源 URL 带 `site` 上下文但没有 API Bearer header，也不能凭 `site` 认证。敏感资源在插件端验证授权票据。
+- `ready` 完成页面 grant 握手。fetch 自行等待，调用 `fetch.websocket` 或读取 `fetch.resource` 前显式等待。ready 前 `resource` 返回空字符串。请求授权、暂停与恢复见[运行契约](runtime-contract.md)。
+- `config.get/subscribe` 读取和订阅插件的有效配置。写入由后端业务 API 验证已读的 `baseRevision` 并调用 `context.config`。冲突时保留用户草稿。
+- `ui.handlers.register` 注册当前文档的处理器，宿主仅接收描述和 revision。释放时调用异步 `dispose()`，会停止该文档的处理器订阅。
+- `lifecycle.register` 管理离开确认、暂停与恢复、状态序列化和预览。`navigation/search` 按 `host.capabilities` 接入工作台。
+- `coreConfig.subscribe('theme', listener)` 取代旧 `theme.mode/tokens/onChange`，目前只提供 `theme` 通道。先判断 `host.capabilities.coreConfig`，独立页用自身样式。可在 ready 前订阅，连接后收到初值和后续变化，重连自动登记。用返回函数注销。快照只读，`preference` 保留 `system` 等用户选择，`mode` 是生效样式，可包含未来标识，`tokens` 是公开语义变量。插件自行应用 DOM 或 CSS。[页面 SDK 示例](../../../../projects/webutils/README.md#可暴露的核心-web-配置)
+- `host.executeCommand`、焦点与可见性、活动租约和归属页面的反馈能力按 `host.capabilities` 使用。
 
 ## 私有依赖与共享依赖
 
 - Node 私有包按普通包名解析，由插件自己的依赖布局提供。SDK 未公开的根项目依赖不会自动回退到根目录。
-- 前端正常使用 `lit`、`@lit/*` 等包名。`@scwc/vite-plugin` 的显式 `sharedBrowserPackages` 是浏览器共享白名单；它先尝试从插件导入位置解析，再为缺失共享包回退到其核心锚点，保留 Vite 的浏览器导出条件和子路径。白名单外的包不会自动从核心回退。
-- 前端适配的 `scwc:deps` 目前只导出 Zod 的 `z`；它不暴露 `Database`、`axios` 等 Node SDK 能力。一般 Lit/浏览器共享依赖走正常包名，不改写为该虚拟模块。
-- 增加浏览器共享包应修改 `projects/vite-plugin/dependencies.js`；核心构建工具依赖由 `projects/server/plugin/web/dependencies.ts` 维护。修改核心共享 API 属于核心改动，应先确认授权，并同步运行时、类型、构建收集、文档和受影响插件。
-- 核心锁文件/白名单中的版本不等于用户插件私有版本承诺。需要不同版本或额外 Vite 插件时由插件管理自己的依赖；核心不会为了插件自动联网安装白名单外包。
+- 前端用 `lit`、`@lit/*` 等正常包名。Vite 先从插件位置解析，再按 `sharedBrowserPackages` 白名单回退核心锚点，保留浏览器导出条件与子路径。浏览器 `scwc:deps` 当前只提供 Zod 的 `z`。
+- 浏览器白名单由 `projects/vite-plugin/dependencies.js` 管理，构建工具清单由 `projects/server/plugin/web/dependencies.ts` 管理。授权的共享 API 变更须同步运行时、类型、发行收集和使用方。
+- 需要额外依赖或不同版本时，由插件声明并安装自己的依赖。
 
 ## `@scwc/vite-plugin`
 
-在插件自己的 Vite 配置中注册：
+将 `scwcVite` 注册在插件自己的 Vite 配置中。
 
 ```ts
 import { defineConfig } from 'vite';
@@ -70,36 +48,29 @@ export default defineConfig({
 });
 ```
 
-页面与 Worker 是不同构建环境；有 Worker 时 `worker.plugins` 应为每次构建返回新实例。该插件：
-
-- 解析前端共享包名及子路径，优先插件自己的依赖，再回退浏览器白名单；
-- 将 `scwc:deps` 映射到仅含 `z` 的浏览器模块；
-- 将 `scwc:shared/frontend` 映射到 shared 包，并在 HTML head 注入一次副作用导入；
-- 使用现有 esbuild/Vite 转换流程处理页面和 Worker 装饰器，并保留 sourcemap。
-
-插件不自动注入任意变量，也不让 Worker 自动载入需要 DOM 的 shared frontend。核心也会自动注入同一 Vite 插件；同一 Vite 配置中重复实例只有首个生效。`ScwcViteOptions` 当前支持可选 `dependencyRoot`，用于明确指定缺失浏览器共享依赖的核心工作区锚点。Vite 配置自身由 Node 原生加载，使用 JS 或 Node 可直接擦除的 TS 语法。
+有 Worker 时在 `worker.plugins` 为每次构建返回新实例。页面及 Worker 的装饰器由 esbuild/Vite 转换。核心构建也会注入同一插件，重复实例只启用首个。可用 `ScwcViteOptions.dependencyRoot` 指定浏览器共享依赖的回退锚点。Vite 配置由 Node 原生加载，使用 JS 或可擦除的 TS。
 
 ## 前端配置与构建
 
-每个插件页面自带 `web/tsconfig.json`；不要依赖仓库根或当前工作目录偶然找到的配置。模板将插件全局声明、SDK 虚拟模块声明和 `webutils/lib.d.ts` 纳入页面检查。后端与 Vite 配置遵循 Node 原生可擦除 TS 限制；浏览器页面源码由 Vite 转换。
+页面使用插件自己的 `web/tsconfig.json`。模板纳入插件全局声明、虚拟模块声明和 `webutils/lib.d.ts`。浏览器页面源码由 Vite 转换，Lit 装饰器与字段写法需匹配页面 tsconfig 和转换器。
 
-推荐的 Vite 配置保留插件自己的 `root`、`outDir` 等设置，并将 `base` 指向实际插件目录名：`/web/page/plugin/${encodeURIComponent(path.basename(directory))}/`。这决定打包后的 JS/CSS/静态资源 URL，不能用 `package.json.name` 代替目录名。Lit 的装饰器与字段写法应匹配当前页面 tsconfig 和转换器，不能假定必须使用某一种模式；只把 `build.target` 设高不能替代转换验证。
+Vite 保留插件自己的 `root/outDir`，并按实际插件目录名设置 `base` 为 `/web/page/plugin/${encodeURIComponent(path.basename(directory))}/`，供构建后的 JS、CSS 和静态资源寻址。
 
-两种交付方式：
+按部署方式选择交付物。
 
 1. `ui.entry` 指向完整 HTML，并随插件交付全部引用的 JS、CSS、WASM、字体和图片。
-2. 交付页面源码和 Vite 配置，并声明 `"build:web": "vite build --config vite.config.ts"`。核心只在 HTML 缺失时自动构建；已有产物需要 `plugin build-web <插件目录名>` 或对应构建 CLI 主动重建。
+2. 交付源码和 Vite 配置，声明 `"build:web": "vite build --config vite.config.ts"`。核心只在 HTML 缺失时自动构建。已有页面用 `plugin build-web <插件目录名>` 或相应 CLI 重建。
 
-仓库内构建命令先执行版本同步；当前 template 的声明为 `node ../../../scripts/sync-versions.ts && vite build --config vite.config.ts`。核心解析器只识别并剥离这个精确前缀，不执行它，因此复制到外部目录、没有仓库脚本的插件仍可由核心构建。外部独立插件可直接声明 `vite build ...`；不要在外部目录直接执行遗留的仓库同步前缀。
+仓库内构建命令先同步版本。template 声明 `node ../../../scripts/sync-versions.ts && vite build --config vite.config.ts`。核心解析器剥离该精确前缀后只运行 Vite，外部插件可直接声明 `vite build ...`。
 
-核心把 build:web 作为受限 Vite 声明解析，不执行 shell。支持配置、root、mode、outDir、target、sourcemap 和 emptyOutDir 等白名单选项，其余写入 Vite 配置，不添加任意安装/复制命令链。精确语法看 `projects/server/plugin/web/options.ts`。构建在临时目录进行，普通失败保留旧页面；构建不重载后端，成功后刷新页面。
+核心按受限 Vite 声明解析 `build:web`。白名单外的选项写入 Vite 配置，精确语法见 `projects/server/plugin/web/options.ts`。核心在临时目录构建，失败保留旧页面。构建成功后刷新页面，后端有改动时另行重载。
 
-根 `projects/scripts/sync-versions.ts` 同步工作区版本；普通核心/终端业务插件独立维护版本，仅 `server/plugins/template`、`terminal/plugins/template` 和 `terminal/plugins/scwc` 是跟随根版本的例外。不要因升级核心批量改业务插件版本，也不要将 skill 版本当作这些插件的发行版本。
+根 `projects/scripts/sync-versions.ts` 同步工作区版本。插件中只有 `server/plugins/template`、`terminal/plugins/template` 和 `terminal/plugins/scwc` 跟随根版本，普通插件独立维护。直接运行同步脚本可传 `1/2/3` 递增主、次、修订位并归零后续位。构建前缀使用无参数同步。
 
 ## 独立部署与验证
 
 插件路径应通过 `import.meta.url`、`fileURLToPath()` 和 `pathToFileURL()` 等稳定方式解析。不要假定 cwd、仓库根或 `projects/server/plugins` 是运行根。业务持久数据不要写入 SEA 临时 SDK 目录。
 
-页面构建可通过核心命令、仓库根 `bun run build:plugin-web --directory <插件目录>` 或发行程序的 `--build-plugin-web <插件目录>` 执行。SEA 与外置 Node 发行的工具链收集情况查看 `projects/server/scripts/shared-package-assets.ts` 和 `build-runtime.ts`；不要依据本机 `node_modules` 推断压缩包一定包含某项依赖。运行时兼容看实际启动探针 `external-node-runtime.ts`，不要只根据根 engines 或旧 README 判断。
+也可在仓库根运行 `bun run build:plugin-web --directory <插件目录>`，或使用发行程序的 `--build-plugin-web <插件目录>`。SEA 和外置 Node 的配包见 `projects/server/scripts/{shared-package-assets,build-runtime}.ts`，外置 Node 兼容边界以 `external-node-runtime.ts` 的实际启动探针为准。
 
-验证应覆盖本次影响的真实边界：插件 Node 原生动态加载和 hooks、实际 Worker、外部插件目录、页面 Vite 构建与资源路径、API/Range/WebSocket、配置 revision 或页面授权。Vitest alias 和 TypeScript 检查不能代替原生 Node 加载或真实浏览器运行。测试数据放在插件专属临时目录，避免依赖 Redis 或真实用户数据。
+按改动选择验证原生 Node hooks、外部插件目录、真实 Worker、Vite 产物和资源路径、API/Range/Socket 或页面授权。涉及发行依赖时直接验证对应发行。测试数据放在隔离目录。

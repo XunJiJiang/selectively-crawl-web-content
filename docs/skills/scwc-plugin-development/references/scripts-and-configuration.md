@@ -1,18 +1,16 @@
 # 用户脚本、浏览器扩展与持久配置
 
-源码入口：`projects/shared/script-ui.ts`、`projects/server/user-script/{ui,ui-config,refresh}.ts`、`projects/server/types/plugin-config.d.ts`、`projects/server/workbench/plugin-config.ts`。两客户端共用 `projects/shared/components/script-ui.ts`；同时检查脚本 layouts/hooks/plugins.ts 与扩展 popup.ts/background.ts 的刷新和事件路径。
+协议读 `projects/shared/script-ui.ts` 与 `projects/server/router/plugin.ts`，执行和存储读 `projects/server/user-script/{ui,ui-config,refresh}.ts` 与 `projects/server/workbench/plugin-config.ts`。两端共用 `projects/shared/components/script-ui.ts`，刷新与事件由各自客户端编排。
 
 ## 协议选择
 
-pluginConfig.scripts 接受两代协议。省略 version 或 `'v1'` 使用原 controls；显式 `'v2'` 使用 JSON 内容、handlers 和可选 components。两者互斥，不能在 v2 中混入 controls，也不能将核心进程 apiVersion: 2 当成脚本 'v2'。
-
-v1 支持 button/toggle/select/input:text/input:number/checkbox，controls 为数组或按 site 返回数组的工厂。channel 稳定且插件内唯一；options 包含 defaultValue、relatedChannel、autoTrigger、requireFullContent 等。trigger 取得 value、relatedValues、data/site、可选 signal/tasks 和普通 logger，返回 notification 对象；没有采集 logger 的 toWeb。旧数字输入实际可能为字符串，按收到的数据校验，不照搬历史注释的数字假设。
-
-`SCWC.TScriptConfigV2` 的外层版本是字符串 `'v2'`。`content` 可提供 `{ format: 'json', version: 1, root }`、`{ format: 'html', version: 2, html }` 或接收 `ScriptContext` 的工厂。JSON 自定义节点由后端 `components` 展开。HTML v2 支持受限标签、局部 CSS 和声明式事件，客户端最低版本为 `3.4.14`。脚本和扩展的声明式界面不加载外部资源。实际协商由核心处理。访问带 `?template-ui=html` 的匹配网站可查看模板插件的 HTML v2 示例。
+- **维护旧控件。** `pluginConfig.scripts.version` 省略或为 `'v1'` 时，`controls` 为数组或按 site 生成的控件工厂。支持 `button/toggle/select/input:text/input:number/checkbox`，channel 在插件内稳定且唯一。默认值、关联通道和触发条件见 `options` 的 `defaultValue/relatedChannel/autoTrigger/requireFullContent`。按实际值校验旧数字输入，其中可能含字符串。trigger 可读取 `value/relatedValues/data/site` 和可选 `signal/tasks`，反馈通过返回 notification。
+- **声明式配置。** 显式设置 `version: 'v2'`，提供 `content`、`handlers`。内容可为具体对象或接收 `ScriptContext` 的工厂。JSON 使用 `{ format: 'json', version: 1, root }`，可用 `components` 在后端展开自定义节点并使用 JSON 树。HTML 使用 `{ format: 'html', version: 2, html }`，支持受限标签、局部 CSS 和声明式事件。HTML 节点和样式须符合 `projects/shared/script-html-policy.ts`，禁外链资源和树。template 在匹配网站上以 `?template-ui=html` 切换示例。
+- **兼容版本。** 核心协商 v2 的客户端最低版本。普通 JSON 为 `3.2.0`，带树的 JSON 为 `3.4.0`，HTML 为 `3.4.14`。仍维护 v1 时保留既有控件行为，由宿主处理兼容元数据。
 
 ## 最小 v2 交互
 
-以下内容可赋给 handler 的 pluginConfig.scripts；不需要独立 ui.entry 页面：
+将下例赋给 handler 的 `pluginConfig.scripts` 即可由脚本或扩展渲染。
 
 ```ts
 export const scripts: SCWC.TScriptConfigV2 = {
@@ -54,35 +52,37 @@ export const scripts: SCWC.TScriptConfigV2 = {
 };
 ```
 
-run 用普通方法取得 `this: ScriptContext`，其中有当前 version/site/data/values/logger、可选 signal/tasks；values 是字段值集合，与工作台 HandlerContext 不同。用 for 声明关联/提交字段，引用 $for:name 或在 this.values 中读取。validator 和模板处理器标记只读；提交处理器自行验证业务权限与外部数据。校验、命名、显式括号规则见[声明式 UI](declarative-ui.md)。
+用普通 `run` 方法取得 `this: ScriptContext`，含 `version/site/data/values/logger` 和可选 `signal/tasks`。用 `for` 声明关联字段，再以 `$for:name` 或 `this.values` 读取。validator 与模板处理器标记只读，提交处理器验证业务权限和外部数据。[字段与表达式规则](declarative-ui.md)
 
-v2 函数和事件程序留在插件进程，浏览器只提交 bindingId/字段快照，不发送任意程序。只支持后端 handlers、纯 core 内置子集及配置 bound read/write；不支持 ui: 前端 handler、自定义 watch、工作台页面操作或 core:notification.show。需要反馈时返回 notification。纯 core 子集见 user-script/ui.ts 的 builtins，不将工作台示例整体复制过来。
+v2 函数和事件程序留在插件进程，客户端发送已签发的 `bindingId` 和字段快照。使用后端 handlers、`user-script/ui.ts` 的 core 白名单及配置 bound read/write。`watch:` 仅用于受支持的配置绑定读取。事件反馈返回 notification，后台主动通知走站点通知 API。[运行契约](runtime-contract.md#通知与任务)
 
-requireFullContent 缺省 true，非只读事件会走采集路径并按该选项检查抓取项；无采集需求的配置设 false。模板和定期只读请求不应触发页面采集，验证器自身保持只读。普通交互字段作为网站草稿保存，数字仍是 string、多选 string[]；密码输入也属于草稿，别把真实凭据放在示例默认值或回显日志里。
+`requireFullContent` 默认为 true，非只读事件按此选项检查抓取项。无需采集时设 false。模板和只读请求无需采集。普通交互字段作为网站草稿保存，包括密码输入。数字用字符串，多选用字符串数组。示例默认值和日志避免真实凭据。
 
-实例按完整 URL 隔离（当前最多 128 个、15 分钟闲置过期），而网站配置按 origin 共享，两者不同。客户端合并同插件刷新、保留未刷新的其他插件和脏字段，拒绝旧 URL/旧代结果；过期只读可恢复一次，提交不重放。修改插件时保留这些已有机制，不自己循环请求或在冲突后自动重交。
+实例按完整 URL 隔离，当前最多 128 个，闲置 15 分钟过期。客户端合并同插件刷新，保留其他插件和脏字段，拒绝旧 URL 或旧代响应。过期只读恢复一次，提交不重放。
 
 ## URL 刷新与网站范围
 
-refreshRule/refreshRules 两代 scripts 都可用。首个 sites 命中的 refreshRules 覆盖默认；未声明默认为 `'//'`（检测 pathname），`''` 忽略同站 URL 变化。新增适用插件首次加载；策略变化也刷新。用户本地旧 refreshRule 字段不再决定插件模板刷新。
+`refreshRule/refreshRules` 两代可用。首个 `sites` 命中的覆盖默认，缺省为 `'//'`（检测 pathname），`''` 忽略同站 URL 变化。新增适用插件首载，策略变化触发刷新。刷新策略以插件声明为准。
 
-规则由 `projects/shared/utils/refreshRuleParser.ts` 和 refreshRuleMatcher.ts 解析，不是正则：pathname 用 //、query 用 ?、hash 用 #，区域未声明则忽略。需要复杂增删/逐段策略时读解析器及测试，别凭 README 猜语法。refreshRules.sites 沿用 link-with 匹配，注意首匹配与否定顺序。
+规则以 `//`、`?`、`#` 分别标记 pathname、query、hash，未声明区域忽略。逐段和增删策略见 `projects/shared/utils/refreshRule{Parser,Matcher}.ts` 及测试。`refreshRules.sites` 沿用 `link-with` 的首匹配和否定顺序。
 
-网站配置使用 HTTP(S) 的规范 origin；同站不同 pathname/query/hash 与 iframe 共用快照，其他 origin 分开。URL 变化导致 UI 实例切换不意味着要另建一套路径配置存储。
+v2 用原编码 URL 做适用匹配、刷新判断、模板实例和事件绑定。`previousSite` 必须同源。v1 沿用解码后的 URL。验证含编码分隔符或中文的 URL 时，用同一未解码地址取模板并执行事件，检查刷新后旧实例失效。
+
+持久网站配置按规范 HTTP(S) origin 隔离，同源路径、query、hash 和 iframe 共享快照。
 
 ## 后端全局配置与分组
 
-context.config 已隔离插件目录，提供 get/list/set/update/delete/reset/subscribe。持久值、defaultValue 一律 string，包括布尔 'true'/'false' 和数字；点号 key 是字面键，不做对象路径展开。页面只读快照中的 values 是显式值，effectiveValues 含默认值；revision 表示值版本，schemaRevision 表示定义版本。
+`context.config` 按插件目录隔离，提供 `get/list/set/update/delete/reset/subscribe`。持久值与默认值均为字符串，点号按键名原样保存。只读快照的 `values` 是显式值，`effectiveValues` 含默认值，`revision/schemaRevision` 分别对应值与定义版本。
 
-configuration.definitions 每个定义含 id/schemaVersion/items；item 含独立 id、实际 key、label/control/defaultValue、validationPolicy 和 rules。业务校验由异步 normalize(values)、`validate(values): true | string` 承担；normalize 保持键集和值为字符串，不能顺便添加/删除字段。onChange/subscribe 处理成功后的变更，卸载释放订阅。
+`configuration.definitions` 声明 `id/schemaVersion/items`。每项有独立 `id`、持久 `key` 及 `label/control/defaultValue/validationPolicy/rules`。可异步 `normalize(values)` 和 `validate(values)`，后者以 true 表示成功、字符串表示错误。标准化保留键集及字符串类型。`onChange/subscribe` 处理成功变更，卸载释放订阅。
 
-定义的 `groups: [{ id, label?, description?, footer?, itemIds }]` 只控制布局，引用本定义权威 items 的 **id**，不是 key，也不复制 items 或值。组 id 不重复、同项不重复归组、引用不可悬空；未分组项与旧平铺定义继续工作。改组标题不等于数据迁移，别为布局改写持久键。
+布局用 `groups: [{ id, label?, description?, footer?, itemIds }]` 引用当前定义的 `items.id`。组 ID 唯一，每项至多归一组且引用必须存在。未分组项与旧平铺定义继续显示，组标题变更无需迁移持久键。
 
-后端 API 处理来自页面的写入时，验证键白名单、业务规则与显式读取过的 baseRevision，再调用 config 写接口；核心会在异步校验后重验 CAS。并发冲突保留草稿，不能静默取新 revision 覆盖。旧 legacy-unverified、page-required 定义不能直接当作已通过后端验证的可编辑配置。
+页面写入走后端 API，校验键白名单、业务规则及已读的 `baseRevision` 后调用配置接口。核心在异步校验后重验基线。冲突保留草稿，由用户处理新版本。旧 `legacy-unverified/page-required` 定义维持只读。
 
 ## JSON 自动绑定与显式控制器
 
-下例是 v2 content 或工作台内容的全局设置；先在后端配置定义中声明相同持久 key：
+下例可用于 v2 配置与工作台。先在后端配置定义中声明示例使用的持久键。
 
 ```json
 {
@@ -101,10 +101,10 @@ configuration.definitions 每个定义含 id/schemaVersion/items；item 含独�
 }
 ```
 
-configScope 缺省 'plugin'，与工作台核心配置、context.config 共用全局持久值。脚本/扩展还可设 'site'，按 origin 保存本站键，不加入全局 configuration.items；工作台当前不支持 site 配置绑定。site 布尔存布尔、数字存字符串；defaultValue 仍写字符串。两者都不能与 children/events 混用。控件 name 可省略由核心生成；手写时与 config 的点号键分开命名。
+`configScope` 默认为 `'plugin'`，与工作台和 `context.config` 共用全局值。脚本和扩展还可用 `'site'` 按 origin 保存本站键，本站布尔存布尔、数字存字符串。`defaultValue` 一律写字符串。绑定与 `children/events` 互斥，`name` 可由核心生成，手写时遵循控件命名规则。
 
-valueType 为 string/boolean/number/integer；control 可选 text/password/textarea/number/switch/checkbox/select/color/readonly。有 options 默认 select，boolean 默认 switch，数值默认 number，其他默认 text；显式 control 必须与类型兼容。校验和保存时机由编译器/运行器完成，不附加另一路 change 写入。自动绑定字段不复制进普通草稿；刷新须保留其原始配置基线，避免把外部更新覆盖成旧值。
+`valueType` 为 `string/boolean/number/integer`，`control` 可选 `text/password/textarea/number/switch/checkbox/select/color/readonly`。默认有 options 用 select，布尔用 switch，数值用 number，其余用 text。显式选择须匹配类型。由运行器处理校验和保存，刷新保留原配置基线。绑定字段独立于普通草稿。
 
-自定义设置行使用 setting.children 放单一控件并显式声明 events。工作台可用 `watch:core:config.bound.read(key, field, fallback)` 配对 `core:config.bound.write(key, field, value)`；模板 settings-ui.ts 的 controllerSettings 示范字符串标准化、整数检查和双基线保护。单纯全局/本站配置优先用自动绑定，减少手动处理基线与编码。自定义 Web 页面的写配置仍走后端业务 API，不向 scwcutils.config 补写接口。
+需要自定义控制器时，在 `setting.children` 放一个控件并声明 `events`。工作台可用 `watch:core:config.bound.read(key, field, fallback)` 配对 `core:config.bound.write(key, field, value)`。template 的 `settings-ui.ts` 演示标准化、整数校验和双基线保护。Web 页面写配置走后端业务 API。
 
-验证配置时覆盖全局两视图同步、同 origin 共享/异 origin 隔离、组引用错误、草稿与外部变更冲突、normalize 后字段校验、输入不触发隐式控制器、blur/提交首错阻断。脚本与扩展均应验证；已有 template/tests/integration.test.mjs、user-script/ui-config.test.ts、shared script-ui 和客户端测试可作模式参考。
+按改动验证全局视图同步、本站隔离、非法组引用、草稿冲突、标准化回值和 blur/提交失败阻断。脚本与扩展均覆盖。复用 template 集成测试、`user-script/ui-config.test.ts` 与客户端测试。
